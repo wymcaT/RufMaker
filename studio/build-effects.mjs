@@ -1,0 +1,17 @@
+// Compile all effect branches in an isolated project copy. Does not start a game or editor window.
+import fs from 'node:fs';
+import path from 'node:path';
+import {fileURLToPath} from 'node:url';
+const workspace=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
+const root=path.join(workspace,'build','effects-build');
+fs.mkdirSync(path.join(root,'projects'),{recursive:true});
+fs.cpSync(path.join(workspace,'projects','rufmaker-demo.gm82'),path.join(root,'projects','rufmaker-demo.gm82'),{recursive:true,force:true});
+process.env.RUFMAKER_ROOT=root;process.env.RUFMAKER_GAMEMAKER=path.join(workspace,'GameMaker8.2','GameMaker.exe');
+const {readState,syncToGame}=await import('./project.mjs');
+const {effectTypes}=await import('./effects.mjs');
+const {ensureBuild}=await import('./native.mjs');
+const state=readState();state.duration=Math.max(1000,state.duration);
+state.tracks.push(...effectTypes.map((effect,index)=>({id:'compile-effect-'+index,name:effect,kind:'effect',effect,enabled:true,start:0,end:1000,color:'#102030',strength:8,fxOpacity:.8,fxAngle:25,fxRetention:.5,fxFrequency:1,fxSamples:6,easing:'sin-inout',keyframes:[{property:'strength',frame:0,value:3},{property:'strength',frame:1000,value:12}]})));
+for(const [index,mode] of ['fade','shrink','shrink-fade','appear','custom'].entries())for(const kind of ['emitter','rod','object'])state.tracks.push({id:`compile-trail-${kind}-${index}`,name:mode,kind,enabled:true,sprite:'sprBullet',start:0,end:1000,interval:10,count:5,life:160,speed:2,color:'#ffffff',rodMode:['center','anchor','endpoints'][index%3],rolling:index%2===0,rotateSprite:index%2===0,trailMode:mode,trailRandom:index%2===1,trailSpeed:1,easing:'linear',keyframes:[]});
+syncToGame(state);
+const result=await ensureBuild(true);fs.writeFileSync(path.join(root,'effects-build.json'),JSON.stringify({result:'compiled',effects:effectTypes,gameBytes:fs.statSync(result.expectedExe).size,log:result.log},null,2));console.log(JSON.stringify({result:'compiled',effects:effectTypes.length,bytes:fs.statSync(result.expectedExe).size,log:result.log}));

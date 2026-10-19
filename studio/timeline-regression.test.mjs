@@ -1,0 +1,36 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import assert from 'node:assert/strict';
+import {fileURLToPath} from 'node:url';
+import {normalizeState,ease,valueAt,basic} from './motion.mjs';
+
+const original=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
+const root=path.join(original,'build','timeline-upgrade-test');
+fs.mkdirSync(path.join(root,'projects'),{recursive:true});
+fs.cpSync(path.join(original,'projects','rufmaker-demo.gm82'),path.join(root,'projects','rufmaker-demo.gm82'),{recursive:true,force:true});
+fs.mkdirSync(path.join(root,'Ultimate Avoidance Sprite Pack'),{recursive:true});
+fs.mkdirSync(path.join(root,'runtime'),{recursive:true});
+for(const name of ['node.exe','fmodex.dll'])fs.copyFileSync(path.join(original,'runtime',name),path.join(root,'runtime',name));
+fs.cpSync(path.join(original,'studio'),path.join(root,'studio'),{recursive:true,force:true});
+process.env.RUFMAKER_ROOT=root;process.env.RUFMAKER_GAMEMAKER=path.join(original,'GameMaker8.2','GameMaker.exe');
+const p=await import('./project.mjs');const native=await import('./native.mjs');
+const old=JSON.parse(fs.readFileSync(path.join(p.project,'rufmaker.json'),'utf8'));const migrated=normalizeState(structuredClone(old));
+assert.equal(migrated.version,2);assert(migrated.tracks.every(t=>t.keyframes.every(k=>k.property&&Number.isFinite(k.value))));
+const t={x:0,y:0,keyframes:[{frame:0,property:'x',value:0},{frame:100,property:'x',value:100},{frame:0,property:'y',value:10},{frame:50,property:'y',value:60}],easing:'linear'};
+assert.equal(valueAt(t,'x',50),50);assert.equal(valueAt(t,'y',50),60);
+const modes=['linear','in','out','smooth','sin-in','sin-out','sin-inout','circle-in','circle-out','circle-inout','power-in','power-out','power-inout','expo-in','expo-out','expo-inout','bounce','bounce-in','bounce-inout','expsin','back','step'];
+for(const mode of modes)for(let i=0;i<=100;i++)assert(Number.isFinite(ease(mode,i/100)));
+const common={enabled:true,sprite:'sprBullet',start:0,end:15000,interval:25,count:5,life:200,speed:2,spread:72,angle:0,easing:'linear',color:'#ffffff',trail:false,motion:'keyframes',keyframes:[]};
+const rods=['center','anchor','endpoints'].map((mode,i)=>({...structuredClone(common),id:'rod'+i,name:'转转棒测试'+i,kind:'rod',rodMode:mode,rolling:i===2,x:200+i*150,y:280,x1:100,y1:400,x2:700,y2:400,length:240,rollSpeed:2,angularSpeed:i===0?1:0,keyframes:[{property:'x2',frame:0,value:700,easing:'bounce'},{property:'x2',frame:500,value:500},{property:'y2',frame:0,value:400,easing:'expsin'},{property:'y2',frame:700,value:350}]}));
+const tests=modes.map((e,i)=>({...structuredClone(common),id:'ease'+i,name:'缓动 '+e,kind:'object',start:0,end:1000,x:50+i*28,y:150,keyframes:basic.flatMap(property=>[{frame:0,property,value:property==='x'?50+i*28:property==='y'?100:property==='scale'||property==='alpha'?1:0,easing:e},{frame:1000,property,value:property==='x'?50+i*28:property==='y'?300:property==='scale'||property==='alpha'?1:180}])}));
+const state=normalizeState({version:2,timelineInitialized:true,fps:50,bpm:120,duration:16000,room:'rAvoidance',music:'Data/Music/BGM.ogg',tracks:[...rods,...tests,{...common,id:'emitter',name:'独立弹幕属性',kind:'emitter',start:500,end:1000,keyframes:[{property:'speed',frame:500,value:2,easing:'power-in'},{property:'speed',frame:1000,value:5}]}]});
+p.syncToGame(state);
+// Capture the initial reconstructed world before the controller advances any rod endpoints.
+fs.writeFileSync(path.join(p.project,'scripts','rf_custom_step.gml'),`if rf_preview && !rf_ready {ini_open(working_directory+'\\Data\\rod-test.ini');with(objRufBullet) if rf_fixed {ini_write_real(string(id),'x',x);ini_write_real(string(id),'y',y);}ini_close();}return 0;\n`);
+const before=p.roomInfo(state.room);const added='TEST1234';fs.appendFileSync(path.join(p.project,'rooms',state.room,'instances.txt'),`block,16,16,${added},0,1,1,4294967295,0,0\n`);
+assert(p.roomInfo(state.room).instances.some(x=>x.id===added));fs.writeFileSync(path.join(p.project,'rooms',state.room,'instances.txt'),before.instances.map(x=>x.raw).join('\n')+'\n');
+const result=await native.runNative(350);assert(result.ready);assert.equal(result.status.players,'1');assert.equal(result.status.bullets,'15');
+const measured=fs.readFileSync(path.join(root,'build','preview','Data','rod-test.ini'),'utf8');assert.equal((measured.match(/^x=/gm)||[]).length,15);
+const release=native.packageGame(false);assert(fs.existsSync(path.join(release.dir,'Data','Music','BGM.ogg')));
+const report={result:'passed',root,easingModes:modes.length,rodModes:3,preview:result.status,release,measured};
+fs.writeFileSync(path.join(root,'regression-report.json'),JSON.stringify(report,null,2));console.log(JSON.stringify(report,null,2));

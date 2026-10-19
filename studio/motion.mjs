@@ -1,0 +1,68 @@
+export const basic=['x','y','angle','scale','alpha'];
+export const fields=['x','y','angle','scale','alpha','speed','spread','count','life','x1','y1','x2','y2','length','rollSpeed','spriteAngle','strength','fxOpacity','fxAngle','fxRetention'];
+export const defaults={x:400,y:304,angle:0,scale:1,alpha:1,speed:3,spread:30,count:12,life:160,x1:280,y1:304,x2:520,y2:304,length:240,rollSpeed:2,spriteAngle:0,strength:6,fxOpacity:1,fxAngle:0,fxRetention:.5};
+export function normalizeState(s) {
+  if(s.version===1) {
+    for(const t of s.tracks)t.keyframes=t.keyframes.flatMap(k=>k.property?[k]:basic.map(property=>({frame:k.frame,property,value:(k[property]??defaults[property])+(property==='angle'&&t.kind==='emitter'?(t.angle||0):0),easing:''})));
+    s.version=2;
+  }
+  for(const t of s.tracks)Object.assign(t,Object.fromEntries(Object.entries({motion:'keyframes',rodMode:'center',easePower:3,easePeriod:.3,velocityX:0,velocityY:0,accelerationX:0,accelerationY:0,angularSpeed:0,orbitRadius:100,orbitSpeed:1,orbitPhase:0,rolling:false,fxSamples:6,fxFrequency:1,...defaults}).filter(([key])=>t[key]===undefined)));
+  for(const t of s.tracks) {
+    if(t.trailMode===undefined||t.trailMode==='legacy')t.trailMode=t.trail?'fade':'off';
+    t.trail=t.trailMode!=='off';
+    Object.assign(t,Object.fromEntries(Object.entries({rotateSprite:false,trailRandom:false,trailInterval:3,trailLife:18,trailScaleDecay:.035,trailAlphaDecay:.035,trailStartAlpha:.55,trailSpeed:0,trailDirection:0}).filter(([key])=>t[key]===undefined)));
+  }
+  return s;
+}
+function bounce(u) {if(u<1/2.75)return 7.5625*u*u;if(u<2/2.75)return 7.5625*(u-1.5/2.75)**2+.75;if(u<2.5/2.75)return 7.5625*(u-2.25/2.75)**2+.9375;return 7.5625*(u-2.625/2.75)**2+.984375;}
+export function ease(e,u,p=3,period=.3) {
+  u=Math.max(0,Math.min(1,u));if(u===0||u===1)return u;p=Math.max(.1,p);period=Math.max(.01,period);
+  switch(e) {
+    case 'in':return u*u;case 'out':return 1-(1-u)**2;case 'smooth':return u*u*(3-2*u);
+    case 'sin-in':return 1-Math.cos(u*Math.PI/2);case 'sin-out':return Math.sin(u*Math.PI/2);case 'sin-inout':return (1-Math.cos(u*Math.PI))/2;
+    case 'circle-in':return 1-Math.sqrt(1-u*u);case 'circle-out':return Math.sqrt(1-(u-1)**2);case 'circle-inout':return u<.5?(1-Math.sqrt(1-4*u*u))/2:(Math.sqrt(1-4*(u-1)**2)+1)/2;
+    case 'power-in':return u**p;case 'power-out':return 1-(1-u)**p;case 'power-inout':return u<.5?(2*u)**p/2:1-(2*(1-u))**p/2;
+    case 'expo-in':return 2**(10*(u-1));case 'expo-out':return 1-2**(-10*u);case 'expo-inout':return u<.5?2**(20*u-10)/2:1-2**(-20*u+10)/2;
+    case 'bounce':return bounce(u);case 'bounce-in':return 1-bounce(1-u);case 'bounce-inout':return u<.5?(1-bounce(1-2*u))/2:(1+bounce(2*u-1))/2;
+    case 'expsin':return 2**(-10*u)*Math.sin((u-period/4)*2*Math.PI/period)+1;
+    case 'back':return 1+2.70158*(u-1)**3+1.70158*(u-1)**2;case 'step':return 0;default:return u;
+  }
+}
+export function valueAt(t,property,frame) {
+  const keys=t.keyframes.filter(k=>k.property===property).sort((a,b)=>a.frame-b.frame);
+  if(!keys.length)return t[property]??defaults[property]??0;
+  if(frame<=keys[0].frame)return keys[0].value;
+  for(let i=1;i<keys.length;i++)if(frame<keys[i].frame){const a=keys[i-1],b=keys[i];return a.value+(b.value-a.value)*ease(a.easing||t.easing,(frame-a.frame)/(b.frame-a.frame),t.easePower,t.easePeriod);}
+  return keys.at(-1).value;
+}
+const num=(n,d=0)=>Number.isFinite(Number(n))?String(Number(n)):String(d);
+export function stateCode(t,time) {
+  const out=[];
+  for(const field of fields) {
+    const keys=t.keyframes.filter(k=>k.property===field).sort((a,b)=>a.frame-b.frame),base=t[field]??defaults[field];
+    if(!keys.length){out.push(`rf_${field}=${num(base)};`);continue;}
+    out.push(`if (${time}<=${num(keys[0].frame)}) {rf_${field}=${num(keys[0].value)};}`);
+    for(let i=1;i<keys.length;i++){const a=keys[i-1],b=keys[i];out.push(`else if (${time}<${num(b.frame)}) {rf_u=rf_ease('${a.easing||t.easing||'linear'}',(${time}-${num(a.frame)})/${num(Math.max(1,b.frame-a.frame))},${num(t.easePower,3)},${num(t.easePeriod,.3)});rf_${field}=${num(a.value)}+(${num(b.value)}-${num(a.value)})*rf_u;}`);}
+    out.push(`else {rf_${field}=${num(keys.at(-1).value)};}`);
+  }
+  const dt=`max(0,${time}-${num(t.start)})`;
+  if(t.motion==='velocity')out.push(`rf_x+=${num(t.velocityX)}*${dt}+${num(t.accelerationX)}*sqr(${dt})/2;rf_y+=${num(t.velocityY)}*${dt}+${num(t.accelerationY)}*sqr(${dt})/2;`);
+  if(t.motion==='orbit')out.push(`rf_x+=lengthdir_x(${num(t.orbitRadius,100)},${num(t.orbitPhase)}+${num(t.orbitSpeed,1)}*${dt});rf_y+=lengthdir_y(${num(t.orbitRadius,100)},${num(t.orbitPhase)}+${num(t.orbitSpeed,1)}*${dt});`);
+  out.push(`rf_angle+=${num(t.angularSpeed)}*${dt};`);return out.join('\n');
+}
+export const easeGml=`// Shared with the native editor: normalized outgoing segment easing.
+var e,u,p,period,v;
+e=argument0;u=max(0,min(1,argument1));p=max(.1,argument2);period=max(.01,argument3);
+if u=0 || u=1 return u;
+switch(e) {
+case 'in':return sqr(u);case 'out':return 1-sqr(1-u);case 'smooth':return u*u*(3-2*u);
+case 'sin-in':return 1-cos(u*pi/2);case 'sin-out':return sin(u*pi/2);case 'sin-inout':return (1-cos(u*pi))/2;
+case 'circle-in':return 1-sqrt(1-u*u);case 'circle-out':return sqrt(1-sqr(u-1));case 'circle-inout':if u<.5 return (1-sqrt(1-4*u*u))/2;return (sqrt(1-4*sqr(u-1))+1)/2;
+case 'power-in':return power(u,p);case 'power-out':return 1-power(1-u,p);case 'power-inout':if u<.5 return power(2*u,p)/2;return 1-power(2*(1-u),p)/2;
+case 'expo-in':return power(2,10*(u-1));case 'expo-out':return 1-power(2,-10*u);case 'expo-inout':if u<.5 return power(2,20*u-10)/2;return 1-power(2,-20*u+10)/2;
+case 'bounce':return rf_bounce(u);case 'bounce-in':return 1-rf_bounce(1-u);case 'bounce-inout':if u<.5 return (1-rf_bounce(1-2*u))/2;return (1+rf_bounce(2*u-1))/2;
+case 'expsin':return power(2,-10*u)*sin((u-period/4)*2*pi/period)+1;
+case 'back':return 1+2.70158*power(u-1,3)+1.70158*sqr(u-1);case 'step':return 0;
+}return u;
+`;
+export const bounceGml=`var u;u=argument0;if u<1/2.75 return 7.5625*u*u;if u<2/2.75 return 7.5625*sqr(u-1.5/2.75)+.75;if u<2.5/2.75 return 7.5625*sqr(u-2.25/2.75)+.9375;return 7.5625*sqr(u-2.625/2.75)+.984375;\n`;

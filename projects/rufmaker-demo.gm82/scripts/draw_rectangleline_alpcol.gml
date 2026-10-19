@@ -1,0 +1,5 @@
+///draw_rectangleline_alpcol(x1,y1,x2,y2,alpha,color)
+draw_set_alpha(argument4)
+draw_set_color(argument5)
+draw_rectangle(argument0,argument1,argument2,argument3,1)
+draw_set_alpha(1)

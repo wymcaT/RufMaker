@@ -1,0 +1,96 @@
++player
+	|killPlayer
+	|playerMove
+	|playerWallJump
+	|playerJump
+	|playerShoot
+	|playerReverse
+	|playerSlope
+	|playerMisc
+	|outsideRoom
+	|outsideView
++system
+	|setGlobals
+	|saveGame
+	|saveExe
+	|saveDeathTime
+	|dataEncrypt
+	|dataDecrypt
+	|vigenere_ascii
+	|gameReset
+	|getBossRoom
+	|loadGame
++functions
+	|drawSelf
+	|drawLife
+	|fadeIn
+	|fadeOut
+	|flashObject
+	|splitObject
+	|screenShake
+	|screenFlash
+	|createShadow
+	|setScale
++audio
+	|music_init
+	|music_load
++controls
+	|controls_init
+	|controls_update
++cleanmem
+	|cleanmem_init
+	|cleanmem_get_mem
+	|cleanmem
++Instances
+	|inst_form
+	|inst_sca_form
+	|inst_spdir_form
+	|inst_xyscaang_form
+	|inst_creator
+	|inst_xycreator
+|draw_self
+|Return_realtime
+|Directionapproach
++ease
+	|Ease_expsin
+	|Ease_backease_in
+	|Ease_backeaseN_in
+	|Ease_backease_outin
+	|Ease_bounce
+	|Ease_circle_in
+	|Ease_sinwave_in
+	|Ease_sinwave_out
+	|Ease_sinwave_outin
+	|Ease_power2_in
+	|Ease_power2_out
+	|Ease_powerN_in
+	|Ease_expoN_in
+	|Ease_expoN_out
+	|Ease_expoN_outin
+	|Ease_bezier3Point
+	|Ease_bezier4Point
+	|Ease_bounceApproach
+	|Ease_expsin_changed
+	|Ease_line_bounce
+	|Move_throw
+	|Shake_Jumper
+	|Shake_Power2
+	|Merge_Number
++draw
+	|Draw_Fan
+	|Draw_Ring
+	|Draw_Ring_Broken
+	|Draw_Clc
+	|draw_rectangle_alpcol
+	|draw_rectangleline_alpcol
+	|HSV
+	|RGB
+	|rf_custom_create
+	|rf_custom_step
+	|rf_custom_draw
+	|rf_custom_bullet
+	|rf_preview_boot
+	|rf_ease
+	|rf_bounce
+	|rf_fx_reset_target
+	|rf_trail_draw

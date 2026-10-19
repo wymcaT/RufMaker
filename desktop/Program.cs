@@ -1,0 +1,45 @@
+using System;
+using System.IO;
+using System.Runtime.InteropServices;
+using System.Security.Cryptography;
+using System.Text;
+using System.Threading;
+using System.Windows.Forms;
+
+internal static class Program
+{
+    [DllImport("user32.dll")] private static extern bool SetProcessDPIAware();
+    [DllImport("user32.dll",CharSet=CharSet.Unicode)] private static extern IntPtr FindWindow(string className,string title);
+    [DllImport("user32.dll")] private static extern bool SetForegroundWindow(IntPtr window);
+    [DllImport("user32.dll")] private static extern bool ShowWindow(IntPtr window,int command);
+
+    [STAThread]
+    private static void Main()
+    {
+        SetProcessDPIAware();Application.EnableVisualStyles();Application.SetCompatibleTextRenderingDefault(false);
+        string root=AppDomain.CurrentDomain.BaseDirectory.TrimEnd(Path.DirectorySeparatorChar);
+        Directory.SetCurrentDirectory(root);
+        string identity;
+        using(var hash=SHA256.Create())identity=BitConverter.ToString(hash.ComputeHash(Encoding.UTF8.GetBytes(root.ToUpperInvariant()))).Replace("-","");
+        using(var instance=new Mutex(false,"Local\\RufMakerNative-"+identity))
+        {
+            bool owner;
+            try{owner=instance.WaitOne(0);}catch(AbandonedMutexException){owner=true;}
+            if(!owner)
+            {
+                IntPtr window=FindWindow(null,"RufMaker · 原生耐久制作器");
+                if(window!=IntPtr.Zero){ShowWindow(window,9);SetForegroundWindow(window);}return;
+            }
+            try
+            {
+                Application.ThreadException+=(s,e)=>{
+                    string log=Path.Combine(root,"build","logs","native-ui.log");Directory.CreateDirectory(Path.GetDirectoryName(log));File.AppendAllText(log,e.Exception+Environment.NewLine);
+                    MessageBox.Show(e.Exception.Message,"RufMaker",MessageBoxButtons.OK,MessageBoxIcon.Error);
+                };
+                Application.Run(new MainForm(root));
+            }
+            catch(Exception error){MessageBox.Show(error.Message,"RufMaker",MessageBoxButtons.OK,MessageBoxIcon.Error);}
+            finally{instance.ReleaseMutex();}
+        }
+    }
+}

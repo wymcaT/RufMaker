@@ -1,0 +1,7 @@
++init
+	|rInit
+	|rTitle
++rooms
+	|rEntrance
+	|rAvoidance
+	|rEnd

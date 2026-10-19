@@ -1,0 +1,20 @@
+/build/
+/.rufmaker-browser/
+/.rufmaker-view.json*
+/GameMaker8.2/
+/game maker 8.2/
+/engine/
+/Data/
+/rufmaker-demo.exe
+**/cache/
+**/Data/Save/*
+!**/Data/Save/.gitkeep
+**/rufmaker_preview*.ini
+**/game_errors.log
+**/options.ini
+*.tmp
+*.log
+*.pdb
+*.user
+Thumbs.db
+Desktop.ini
