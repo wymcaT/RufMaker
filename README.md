@@ -54,6 +54,8 @@
 
 编辑、时间轴预览和音乐播放可直接使用仓库中的 `RufMaker.exe`。编译/导出游戏需要安装 GameMaker 8.2 及本工程所用扩展。程序先查找根目录 `GameMaker8.2/GameMaker.exe`，再查找 `%APPDATA%/GameMaker8.2/GameMaker.exe`；其他安装位置可通过环境变量 `RUFMAKER_GAMEMAKER` 指定完整 EXE 路径。保持引擎使用的 FMOD、CleanMem 等扩展可用。
 
+手动打开 `.gm82` 工程时，使用含 `Game Maker 8.2 Core` 和 `Game Maker 8.2 Sound` 扩展的安装。如果双击提示找不到这两个扩展，而制作器可以编译，请检查 Windows 是否关联到了另一套 GameMaker。可运行 `powershell -NoProfile -ExecutionPolicy Bypass -File desktop/Repair-GameMakerAssociation.ps1`，将当前用户的 `.gm82` 关联修复到项目内的完整安装；其他安装位置可传入 `-GameMakerPath "完整路径\GameMaker.exe"`。脚本会先检查扩展并备份原关联到 `build/gamemaker-association-时间戳/`，不会自动打开工程。
+
 ## 原生编译和导出
 
 点击“导出游戏”会同步工程、调用 `GameMaker8.2/GameMaker.exe` 编译并打包，然后打开 `build/release/`。分享游戏时，请同时带上 `rufmaker-game.exe` 与 `Data/` 文件夹。工程未修改时，试玩和导出会复用上次编译。
