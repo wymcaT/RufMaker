@@ -16,12 +16,12 @@ internal sealed class SelectionTimeControl : UserControl
     {
         AutoScaleMode=AutoScaleMode.None;BackColor=Theme.Panel;Font=Theme.Font;
         var table=new TableLayoutPanel{Dock=DockStyle.Fill,ColumnCount=1,RowCount=4,Padding=new Padding(7,0,7,0),Margin=Padding.Empty};
-        table.RowStyles.Add(new RowStyle(SizeType.AutoSize));table.RowStyles.Add(new RowStyle(SizeType.Absolute,32));table.RowStyles.Add(new RowStyle(SizeType.Absolute,Font.Height+18));table.RowStyles.Add(new RowStyle(SizeType.Absolute,(Font.Height+18)*2));
+        table.RowStyles.Add(new RowStyle(SizeType.AutoSize));table.RowStyles.Add(new RowStyle(SizeType.Absolute,32));table.RowStyles.Add(new RowStyle(SizeType.Absolute,(Font.Height+18)*2));table.RowStyles.Add(new RowStyle(SizeType.Absolute,(Font.Height+18)*2));
         range.AutoSize=true;range.Dock=DockStyle.None;range.Margin=new Padding(0,4,4,4);header.Controls.Add(range);header.Controls.Add(selectedRange);table.Controls.Add(header,0,0);table.Controls.Add(progress,0,1);
-        var inputs=new TableLayoutPanel{Dock=DockStyle.Fill,ColumnCount=4,Margin=Padding.Empty};inputs.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute,22));inputs.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,50));inputs.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute,22));inputs.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,50));
+        var inputs=new TableLayoutPanel{Dock=DockStyle.Fill,ColumnCount=2,RowCount=2,Margin=Padding.Empty};inputs.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute,Font.Height+10));inputs.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,100));inputs.RowStyles.Add(new RowStyle(SizeType.Percent,50));inputs.RowStyles.Add(new RowStyle(SizeType.Percent,50));
         foreach(var input in new[]{frames,seconds}){input.Dock=DockStyle.Fill;input.BackColor=Theme.Raised;input.ForeColor=Theme.Text;input.Margin=new Padding(0,3,2,2);input.Maximum=1000000;}
         seconds.DecimalPlaces=3;seconds.Increment=.02m;frames.ValueChanged+=(s,e)=>{if(!updating)Jump((int)frames.Value);};seconds.ValueChanged+=(s,e)=>{if(!updating)Jump((int)Math.Round((double)seconds.Value*fps));};
-        inputs.Controls.Add(new Label{Text="帧",Dock=DockStyle.Fill,TextAlign=ContentAlignment.MiddleLeft},0,0);inputs.Controls.Add(frames,1,0);inputs.Controls.Add(new Label{Text="秒",Dock=DockStyle.Fill,TextAlign=ContentAlignment.MiddleLeft},2,0);inputs.Controls.Add(seconds,3,0);table.Controls.Add(inputs,0,2);
+        inputs.Controls.Add(new Label{Text="帧",Dock=DockStyle.Fill,TextAlign=ContentAlignment.MiddleLeft},0,0);inputs.Controls.Add(frames,1,0);inputs.Controls.Add(new Label{Text="秒",Dock=DockStyle.Fill,TextAlign=ContentAlignment.MiddleLeft},0,1);inputs.Controls.Add(seconds,1,1);table.Controls.Add(inputs,0,2);
         var actions=new TableLayoutPanel{Dock=DockStyle.Fill,ColumnCount=2,RowCount=2,Margin=Padding.Empty};for(int i=0;i<2;i++){actions.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,50));actions.RowStyles.Add(new RowStyle(SizeType.Percent,50));}
         Button before=new Button(),after=new Button();var buttons=new[]{begin,before,after,end};string[] names={"到开始","前一帧","后一帧","到结束"};
         for(int i=0;i<4;i++){buttons[i].Text=names[i];buttons[i].Dock=DockStyle.Fill;buttons[i].FlatStyle=FlatStyle.Flat;buttons[i].BackColor=Theme.Raised;buttons[i].ForeColor=Theme.Text;buttons[i].FlatAppearance.BorderSize=0;buttons[i].Margin=new Padding(1,2,1,3);actions.Controls.Add(buttons[i],i%2,i/2);}
@@ -30,7 +30,7 @@ internal sealed class SelectionTimeControl : UserControl
         Controls.Add(table);
     }
     public override Size GetPreferredSize(Size proposedSize)
-    {int width=proposedSize.Width>0?proposedSize.Width:280;return new Size(width,header.GetPreferredSize(new Size(Math.Max(160,width-14),0)).Height+32+(Font.Height+18)*3+4);}
+    {int width=proposedSize.Width>0?proposedSize.Width:280;return new Size(width,header.GetPreferredSize(new Size(Math.Max(160,width-14),0)).Height+32+(Font.Height+18)*4+4);}
     private void Jump(int frame){if(Seek!=null)Seek(Math.Max(0,Math.Min(duration,frame)));}
     public void SetView(int fps,int duration,int frame,Track selection)
     {this.fps=fps;this.duration=duration;track=selection;current=frame;UpdateRange();SetFrame(frame);}
