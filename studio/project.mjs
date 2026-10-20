@@ -1,4 +1,6 @@
 import fs from 'node:fs';
+import {shapeSetup,shapePoint} from './shapes.mjs';
+import {cameraApplyGml,cameraCompositeGml,cameraUpdate} from './camera.mjs';
 import path from 'node:path';
 import {normalizeState,stateCode,easeGml,bounceGml,fields} from "./motion.mjs";
 import {effectTypes,fxResetGml,fxInitialization,fxCleanup,makeFxObjects} from './effects.mjs';
@@ -48,7 +50,7 @@ export function validateState(s) {
   if (!s || ![1,2].includes(s.version) || !Array.isArray(s.tracks) || s.tracks.length > 200 || !Number.isInteger(s.duration) || s.duration < 1 || s.duration > 1000000 || !Number.isInteger(s.fps) || s.fps < 15 || s.fps > 240) throw new Error('Invalid project state');
   if (!safeName(s.room) || !fs.existsSync(path.join(project,'rooms',s.room,'room.txt'))) throw new Error('Invalid room');
   for (const t of s.tracks) {
-    if (!['emitter', 'object', 'rod', 'effect', 'script'].includes(t.kind) || !Array.isArray(t.keyframes) || t.keyframes.length > 10000 || !Number.isFinite(t.start) || !Number.isFinite(t.end) || t.start < 0 || t.end > s.duration || t.start > t.end) throw new Error('Invalid track');
+    if (!['emitter', 'object', 'rod', 'effect', 'script', 'camera'].includes(t.kind) || !Array.isArray(t.keyframes) || t.keyframes.length > 10000 || !Number.isFinite(t.start) || !Number.isFinite(t.end) || t.start < 0 || t.end > s.duration || t.start > t.end) throw new Error('Invalid track');
     if (t.kind === 'emitter' && (!safeName(t.sprite) || !Number.isInteger(t.count) || t.count < 1 || t.count > 300 || !Number.isInteger(t.interval) || t.interval < 1 || !Number.isFinite(t.speed) || !Number.isFinite(t.life) || t.life < 1)) throw new Error('Invalid emitter');
     if (t.kind === 'object' && !safeName(t.sprite)) throw new Error('Invalid sprite');
     if(t.kind==='effect'&&!effectTypes.includes(t.effect))throw new Error('Invalid screen effect');
@@ -83,15 +85,12 @@ function bulletSpawn(track, fromHistory, sequence='0') {
 
 function rodUpdate(t,index) {
   const prefix=`rf_rod${index}`,parts=[`if (rf_frame>=${gnum(t.start)} && rf_frame<=${gnum(t.end)}) {`,stateAt(t,'rf_frame')];
-  if(t.rodMode==='center')parts.push('rf_x1=rf_x-lengthdir_x(rf_length/2,rf_angle);rf_y1=rf_y-lengthdir_y(rf_length/2,rf_angle);rf_x2=rf_x+lengthdir_x(rf_length/2,rf_angle);rf_y2=rf_y+lengthdir_y(rf_length/2,rf_angle);');
-  else if(t.rodMode==='anchor')parts.push('rf_x1=rf_x;rf_y1=rf_y;');
-  parts.push(`rf_len=point_distance(rf_x1,rf_y1,rf_x2,rf_y2);rf_phase=0;rf_count=max(1,min(300,round(rf_count)));`);
-  if(t.rolling)parts.push(`if rf_len>.001 rf_phase=(rf_frame-${gnum(t.start)})*rf_rollSpeed/rf_len;`);
+  parts.push(shapeSetup(t));
   parts.push(`for(rf_j=0;rf_j<max(rf_count,${prefix}_count);rf_j+=1) {`);
   parts.push(`if rf_j>=rf_count {if instance_exists(${prefix}[rf_j]) with (${prefix}[rf_j]) instance_destroy();${prefix}[rf_j]=noone;} else {`);
   parts.push(`if !instance_exists(${prefix}[rf_j]) {${prefix}[rf_j]=instance_create(0,0,objRufBullet);${prefix}[rf_j].rf_fixed=1;}rf_inst=${prefix}[rf_j];`);
-  parts.push(t.rolling?'rf_fraction=rf_j/rf_count+rf_phase;rf_fraction-=floor(rf_fraction);':'if rf_count=1 rf_fraction=.5;else rf_fraction=rf_j/(rf_count-1);');
-  parts.push(`rf_inst.x=rf_x1+(rf_x2-rf_x1)*rf_fraction;rf_inst.y=rf_y1+(rf_y2-rf_y1)*rf_fraction;rf_inst.image_angle=rf_spriteAngle+${t.rotateSprite?'rf_angle':'0'};rf_inst.sprite_index=${t.sprite};rf_inst.image_blend=${gcolor(t.color)};rf_inst.image_xscale=rf_scale;rf_inst.image_yscale=rf_scale;rf_inst.image_alpha=rf_alpha;rf_inst.rf_trail=${t.trail?1:0};`);
+  parts.push(shapePoint(t));
+  parts.push(`rf_inst.x=rf_px;rf_inst.y=rf_py;rf_inst.image_angle=rf_spriteAngle+${t.rotateSprite?'rf_angle':'0'};rf_inst.sprite_index=${t.sprite};rf_inst.image_blend=${gcolor(t.color)};rf_inst.image_xscale=rf_scale;rf_inst.image_yscale=rf_scale;rf_inst.image_alpha=rf_alpha;rf_inst.rf_trail=${t.trail?1:0};`);
   if(t.rainbow)parts.push(`rf_inst.image_speed=0;rf_inst.image_blend=c_white;rf_inst.image_index=${rainbowCode(t,rodSequence(t),'rf_frame')};`);
   parts.push(`}} ${prefix}_count=rf_count; } else if ${prefix}_count>0 {for(rf_j=0;rf_j<${prefix}_count;rf_j+=1) {if instance_exists(${prefix}[rf_j]) with (${prefix}[rf_j]) instance_destroy();${prefix}[rf_j]=noone;}${prefix}_count=0;}`);
   return parts.join('\n');
@@ -104,13 +103,8 @@ function spatialTrails(t) {
   const parts=[`if rf_frame>=${gnum(t.start)} && rf_frame<=${gnum(t.end)} {for(rf_sample=floor(rf_frame/${interval})*${interval};rf_sample>=max(${gnum(t.start)},rf_frame-${life}+1);rf_sample-=${interval}) {`,stateAt(t,'rf_sample')];
   if(t.kind==='object')parts.push(trailCall(t,{color:gcolor(t.color),age:'rf_frame-rf_sample',seed:'rf_sample',subimage:rainbowCode(t,'0','rf_sample')}));
   else {
-    if(t.rodMode==='center')parts.push('rf_x1=rf_x-lengthdir_x(rf_length/2,rf_angle);rf_y1=rf_y-lengthdir_y(rf_length/2,rf_angle);rf_x2=rf_x+lengthdir_x(rf_length/2,rf_angle);rf_y2=rf_y+lengthdir_y(rf_length/2,rf_angle);');
-    else if(t.rodMode==='anchor')parts.push('rf_x1=rf_x;rf_y1=rf_y;');
-    parts.push('rf_len=point_distance(rf_x1,rf_y1,rf_x2,rf_y2);rf_count=max(1,min(300,round(rf_count)));rf_phase=0;');
-    if(t.rolling)parts.push(`if rf_len>.001 rf_phase=(rf_sample-${gnum(t.start)})*rf_rollSpeed/rf_len;`);
-    parts.push('for(rf_j=0;rf_j<rf_count;rf_j+=1){');
-    parts.push(t.rolling?'rf_fraction=rf_j/rf_count+rf_phase;rf_fraction-=floor(rf_fraction);':'if rf_count=1 rf_fraction=.5;else rf_fraction=rf_j/(rf_count-1);');
-    parts.push(trailCall(t,{x:'rf_x1+(rf_x2-rf_x1)*rf_fraction',y:'rf_y1+(rf_y2-rf_y1)*rf_fraction',angle:`rf_spriteAngle+${t.rotateSprite?'rf_angle':'0'}`,color:gcolor(t.color),age:'rf_frame-rf_sample',seed:'rf_sample*301+rf_j',subimage:rainbowCode(t,rodSequence(t),'rf_sample')}),'}');
+    parts.push(shapeSetup(t,'rf_sample'),'for(rf_j=0;rf_j<rf_count;rf_j+=1){',shapePoint(t));
+    parts.push(trailCall(t,{x:'rf_px',y:'rf_py',angle:`rf_spriteAngle+${t.rotateSprite?'rf_angle':'0'}`,color:gcolor(t.color),age:'rf_frame-rf_sample',seed:'rf_sample*301+rf_j',subimage:rainbowCode(t,rodSequence(t),'rf_sample')}),'}');
   }
   parts.push('}}');return parts.join('\n');
 }
@@ -120,13 +114,13 @@ function makeController(s) {
     `if file_exists(working_directory+'\\Data\\rufmaker_preview.ini') { ini_open(working_directory+'\\Data\\rufmaker_preview.ini'); rf_target=ini_read_real('preview','frame',0); ini_close(); rf_preview=1; }`,
     `rf_frame=max(0,min(${gnum(s.duration)},round(rf_target))); rf_target=rf_frame;`,
     `FMODInstanceSetPosition(rf_music,(rf_frame/${gnum(s.fps)}*1000)/FMODSoundGetLength(BGM_Ad)); FMODInstanceSetPaused(rf_music,0);`,
-    `var rf_k,rf_i,rf_j,rf_u,rf_dir,rf_inst,rf_len,rf_phase,rf_fraction,${fields.map(f=>'rf_'+f).join(',')};`, `rf_custom_create();`,fxInitialization(s)];
+    `var rf_k,rf_i,rf_j,rf_u,rf_dir,rf_inst,rf_len,rf_phase,rf_fraction,rf_px,rf_py,rf_seg,rf_mix,${fields.map(f=>'rf_'+f).join(',')};`, `rf_custom_create();`,fxInitialization(s),cameraUpdate(s),`rf_inst=instance_create(0,0,objRufTrails);rf_inst.rf_owner=id;`];
   const step = [`#define Step_0`,action,`rf_frame+=1;`, `if rf_frame>${gnum(s.duration)} { room_goto(rEnd); exit; }`,
-    `var rf_k,rf_i,rf_j,rf_u,rf_dir,rf_inst,rf_len,rf_phase,rf_fraction,${fields.map(f=>'rf_'+f).join(',')};`, `rf_custom_step();`];
-  const draw = [`#define Draw_0`,action,`var rf_sample,rf_len,rf_phase,rf_fraction,rf_i,rf_j,rf_u,rf_dir,rf_inst,${fields.map(f=>'rf_'+f).join(',')};`, `rf_custom_draw();`];
+    `var rf_k,rf_i,rf_j,rf_u,rf_dir,rf_inst,rf_len,rf_phase,rf_fraction,rf_px,rf_py,rf_seg,rf_mix,${fields.map(f=>'rf_'+f).join(',')};`, `rf_custom_step();`,cameraUpdate(s)];
+  const draw = [`#define Draw_0`,action,`var rf_sample,rf_len,rf_phase,rf_fraction,rf_px,rf_py,rf_seg,rf_mix,rf_i,rf_j,rf_u,rf_dir,rf_inst,${fields.map(f=>'rf_'+f).join(',')};`, `rf_custom_draw();`];
   let rodIndex=0,emitterIndex=0;
   for (const t of s.tracks.filter(x=>x.enabled!==false)) {
-    if(t.kind==='rod'||t.kind==='object')draw.push(spatialTrails(t));
+
     if (t.kind==='emitter') {
       const maxLife=Math.max(t.life||120,...t.keyframes.filter(k=>k.property==='life').map(k=>k.value));
       const sequence=`rf_emitter${emitterIndex++}_sequence`,first=`${gnum(t.start)}+max(0,ceil((rf_frame-${maxLife}+1-${gnum(t.start)})/${gnum(t.interval,1)}))*${gnum(t.interval,1)}`;
@@ -165,12 +159,19 @@ rf_t_mode='off';rf_t_interval=3;rf_t_life=18;rf_t_alpha=.55;rf_t_scale_decay=.03
 ${action}
 rf_custom_bullet();if rf_fixed exit;
 rf_age+=1;x+=lengthdir_x(rf_speed,rf_dir);y+=lengthdir_y(rf_speed,rf_dir);if rf_rotate image_angle=rf_sprite_angle+rf_dir;
-if rf_age>=rf_life || x<-80 || x>room_width+80 || y<-80 || y>room_height+80 instance_destroy();
+if rf_age>=rf_life instance_destroy();
 #define Draw_0
 ${action}
 var rf_sample,rf_tail,rf_drift,rf_seed,rf_world,rf_subimage;
 rf_world=rf_birth+rf_age;if instance_exists(objRufController) rf_world=objRufController.rf_frame;
 if rf_rainbow {image_speed=0;image_blend=c_white;image_index=rf_rainbow_index(rf_r_sequence,rf_world,rf_r_density,rf_r_offset,rf_r_speed,rf_r_start,rf_r_dynamic,rf_r_reverse,32);}
+draw_sprite_ext(sprite_index,image_index,x,y,image_xscale,image_yscale,image_angle,image_blend,image_alpha);
+`;
+
+
+const bulletTrailGml=`// The separate trail renderer stays behind every source, including custom GML depth changes.
+var rf_sample,rf_tail,rf_drift,rf_seed,rf_world,rf_subimage;
+rf_world=rf_birth+rf_age;if instance_exists(objRufController) rf_world=objRufController.rf_frame;
 if !rf_fixed && rf_t_mode!='off' {
 for(rf_sample=floor(rf_age/max(1,rf_t_interval))*max(1,rf_t_interval);rf_sample>=max(0,rf_age-rf_t_life+1);rf_sample-=max(1,rf_t_interval)) {
 rf_tail=rf_age-rf_sample;rf_seed=(rf_birth+rf_sample)*301+rf_index;
@@ -178,17 +179,35 @@ rf_drift=rf_t_direction;if rf_t_random rf_drift=(sin((rf_seed+1)*12.9898)*43758.
 rf_subimage=image_index;if rf_rainbow rf_subimage=rf_rainbow_index(rf_r_sequence,rf_world-rf_tail,rf_r_density,rf_r_offset,rf_r_speed,rf_r_start,rf_r_dynamic,rf_r_reverse,32);
 rf_trail_draw(sprite_index,x-lengthdir_x(rf_speed*rf_tail,rf_dir),y-lengthdir_y(rf_speed*rf_tail,rf_dir),image_xscale,image_angle,image_alpha,image_blend,rf_tail,rf_t_mode,rf_t_life,rf_t_alpha,rf_t_scale_decay,rf_t_alpha_decay,rf_t_speed,rf_drift,rf_subimage);
 }}
-draw_sprite_ext(sprite_index,image_index,x,y,image_xscale,image_yscale,image_angle,image_blend,image_alpha);
+
+return 0;
 `;
+function makeTrails(s) {
+  const spatial=s.tracks.filter(t=>t.enabled!==false&&(t.kind==='rod'||t.kind==='object')).map(spatialTrails).join('\n');
+  return `#define Create_0\n${action}\nrf_owner=noone;
+#define Step_2
+${action}
+if !instance_exists(rf_owner) {instance_destroy();exit;}
+depth=rf_owner.depth+1;with(objRufBullet) other.depth=max(other.depth,depth+1);
+#define Draw_0
+${action}
+if !instance_exists(rf_owner) {instance_destroy();exit;}
+with(objRufBullet) rf_bullet_trails();
+with(rf_owner) {
+var rf_sample,rf_len,rf_phase,rf_fraction,rf_px,rf_py,rf_seg,rf_mix,rf_i,rf_j,rf_u,rf_dir,rf_inst,${fields.map(f=>'rf_'+f).join(',')};
+${spatial}
+}
+`;
+}
 
 export function syncToGame(s) {
   if (!fs.existsSync(projectFile) || !fs.readFileSync(projectFile,'utf8').startsWith('gm82_version=')) throw new Error(`GameMaker 工程入口格式不正确：${projectFile}`);
   normalizeState(s);
   validateState(s);
-  for (const [name,code] of [['rf_ease',easeGml],['rf_bounce',bounceGml],['rf_fx_reset_target',fxResetGml],['rf_trail_draw',trailGml],['rf_rainbow_index',rainbowGml]]) {atomicWrite(path.join(project,'scripts',`${name}.gml`),code);appendUnique(path.join(project,'scripts','index.yyd'),name);appendUnique(path.join(project,'scripts','tree.yyd'),`	|${name}`);}
+  for (const [name,code] of [['rf_camera_apply',cameraApplyGml],['rf_camera_composite',cameraCompositeGml],['rf_bullet_trails',bulletTrailGml],['rf_ease',easeGml],['rf_bounce',bounceGml],['rf_fx_reset_target',fxResetGml],['rf_trail_draw',trailGml],['rf_rainbow_index',rainbowGml]]) {atomicWrite(path.join(project,'scripts',`${name}.gml`),code);appendUnique(path.join(project,'scripts','index.yyd'),name);appendUnique(path.join(project,'scripts','tree.yyd'),`	|${name}`);}
   const objects = path.join(project,'objects');
   const backgroundFile=path.join(objects,'objBackground.gml');
-  if(fs.existsSync(backgroundFile)){const source=fs.readFileSync(backgroundFile,'utf8');atomicWrite(backgroundFile,source.replace(/\bsurface_reset_target\s*\(\s*\)/g,'rf_fx_reset_target()'));}
+  if(fs.existsSync(backgroundFile)){const source=fs.readFileSync(backgroundFile,'utf8');atomicWrite(backgroundFile,source.replace(/\bsurface_reset_target\s*\(\s*\)/g,'rf_fx_reset_target()').replace(/\bdraw_surface\(global\.surface1,0,0\)/g,'rf_camera_composite(global.surface1,0,0)'));}
   for (const name of ['rf_custom_create','rf_custom_step','rf_custom_draw','rf_custom_bullet']) {
     const file=path.join(project,'scripts',`${name}.gml`);
     if(!fs.existsSync(file)) atomicWrite(file,`/// ${name}: handwritten GameMaker GML hook\nreturn 0;\n`);
@@ -208,6 +227,7 @@ export function syncToGame(s) {
   for (const [name,info,code] of [
     ['objRufController','sprite=\nvisible=1\nsolid=0\npersistent=0\ndepth=-7000000\nparent=\nmask=\n',makeController(s)],
     ['objRufBullet','sprite=sprBullet\nvisible=1\nsolid=0\npersistent=0\ndepth=-100\nparent=playerKiller\nmask=\n',bulletGml],
+    ['objRufTrails','sprite=\nvisible=1\nsolid=0\npersistent=0\ndepth=-99\nparent=\nmask=\n',makeTrails(s)],
     ...makeFxObjects(s)
   ]) {
     atomicWrite(path.join(objects,`${name}.txt`),info);
@@ -258,7 +278,7 @@ export function inventory() {
 
 export function sourcePath(kind,name) {
   if (!safeName(name) || !['scripts','objects','rooms'].includes(kind)) throw new Error('Invalid resource');
-  if (kind==='objects' && ['objRufController','objRufBullet','objRufFxBegin','objRufFxEnd'].includes(name)) throw new Error('Generated object: edit its timeline track instead');
+  if (kind==='objects' && ['objRufController','objRufBullet','objRufTrails','objRufFxBegin','objRufFxEnd'].includes(name)) throw new Error('Generated object: edit its timeline track instead');
   const p=kind==='rooms'?path.join(project,kind,name,'code.gml'):path.join(project,kind,`${name}.gml`);
   if (!fs.existsSync(p)) throw new Error('Resource not found');
   return p;

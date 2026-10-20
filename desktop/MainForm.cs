@@ -34,7 +34,7 @@ internal sealed class MainForm : Form
     private readonly TextBox search=new TextBox();
     private readonly Label projectTitle=new Label(),selectionTitle=new Label(),timeLabel=new Label();
     private readonly ToolStripStatusLabel status=new ToolStripStatusLabel(),coordinates=new ToolStripStatusLabel();
-    private readonly NumericUpDown frameInput=new NumericUpDown(),durationInput=new NumericUpDown();
+    private readonly NumericUpDown frameInput=new WheelSafeNumericUpDown(),durationInput=new WheelSafeNumericUpDown();
     private readonly Timer saveTimer=new Timer(),playTimer=new Timer(),inspectorTimer=new Timer();
     private readonly NativeAudio audio=new NativeAudio();
     private readonly List<KeyClipboardItem> copiedKeys=new List<KeyClipboardItem>();
@@ -113,7 +113,7 @@ internal sealed class MainForm : Form
         var header=new FlowLayoutPanel{Dock=DockStyle.Fill,AutoSize=true,WrapContents=true,BackColor=Theme.Panel};header.Controls.Add(new Label{Text="房间画布",AutoSize=true,Font=Theme.Bold,Margin=new Padding(8,8,12,8)});
         var tools=new FlowLayoutPanel{AutoSize=true,WrapContents=true};
         var grid=new CheckBox{Text="网格",Checked=restoredView==null||restoredView.grid,ForeColor=Theme.Muted,AutoSize=true,Margin=new Padding(5,9,5,0)};stage.Grid=grid.Checked;grid.CheckedChanged+=(s,e)=>{stage.Grid=grid.Checked;stage.DisplayOptionsChanged();};
-        var hitbox=new CheckBox{Text="碰撞框",Checked=restoredView!=null&&restoredView.hitboxes,ForeColor=Theme.Muted,AutoSize=true,Margin=new Padding(5,9,0,0)};stage.Hitboxes=hitbox.Checked;hitbox.CheckedChanged+=(s,e)=>{stage.Hitboxes=hitbox.Checked;stage.DisplayOptionsChanged();};tools.Controls.Add(grid);tools.Controls.Add(hitbox);tools.Controls.Add(Button("适应房间",()=>stage.ResetView(),false,80));tips.SetToolTip(stage,"Ctrl+滚轮：缩放；中键拖动：平移；Ctrl+0 / 双击中键：适应房间");header.Controls.Add(tools);tools.BringToFront();table.Controls.Add(header,0,0);
+        var hitbox=new CheckBox{Text="碰撞框",Checked=restoredView!=null&&restoredView.hitboxes,ForeColor=Theme.Muted,AutoSize=true,Margin=new Padding(5,9,0,0)};stage.Hitboxes=hitbox.Checked;hitbox.CheckedChanged+=(s,e)=>{stage.Hitboxes=hitbox.Checked;stage.DisplayOptionsChanged();};var renderCamera=new CheckBox{Text="渲染拉镜",Checked=restoredView!=null&&restoredView.renderCamera,ForeColor=Theme.Muted,AutoSize=true,Margin=new Padding(8,9,5,0)};stage.RenderCamera=renderCamera.Checked;renderCamera.CheckedChanged+=(s,e)=>{stage.RenderCamera=renderCamera.Checked;stage.DisplayOptionsChanged();};tools.Controls.Add(grid);tools.Controls.Add(hitbox);tools.Controls.Add(renderCamera);tools.Controls.Add(Button("适应房间",()=>stage.ResetView(),false,80));tips.SetToolTip(stage,"Ctrl+滚轮：缩放；中键拖动：平移；Ctrl+0 / 双击中键：适应房间");header.Controls.Add(tools);tools.BringToFront();table.Controls.Add(header,0,0);
         stage.Dock=DockStyle.Fill;stage.Margin=Padding.Empty;stage.SelectedTracks=timeline.SelectedTracks;stage.SelectTracks=(group,primary)=>timeline.SetTrackSelection(group,primary);stage.SelectTrack=SelectTrack;stage.SelectInstance=SelectInstance;stage.BeginEdit=PushUndo;stage.Changed=MarkChanged;
         stage.InstanceMoved=async instance=>await SaveInstance(instance);stage.ResourceDropped=async(kind,name,p)=>await DropResource(kind,name,p);
         stage.PointerMoved=p=>coordinates.Text=String.Format("X {0:0}    Y {1:0}    Shift：16 像素吸附",p.X,p.Y);stage.ContextMenuStrip=CreateContext(false);table.Controls.Add(stage,0,1);parent.Controls.Add(table);
@@ -141,17 +141,17 @@ internal sealed class MainForm : Form
         playButton=Button("▶",TogglePlaying,false,36);bar.Controls.Add(playButton);bar.Controls.Add(Button("■",()=>{StopPlaying();SetFrame(0);},false,36));
         timeLabel.Text="00:00.00";timeLabel.ForeColor=Theme.Text;timeLabel.Font=new Font("Consolas",13);timeLabel.Width=TextRenderer.MeasureText("000:00.00",timeLabel.Font).Width+12;timeLabel.Height=Math.Max(40,timeLabel.Font.Height+12);timeLabel.TextAlign=ContentAlignment.MiddleCenter;bar.Controls.Add(timeLabel);
         frameInput.Width=Math.Max(80,TextRenderer.MeasureText("1000000",Font).Width+30);frameInput.Height=28;frameInput.Margin=new Padding(2,9,14,0);frameInput.BackColor=Theme.Raised;frameInput.ForeColor=Theme.Text;frameInput.Maximum=100000;frameInput.ValueChanged+=(s,e)=>{if(!loading){StopPlaying();SetFrame((int)frameInput.Value);}};bar.Controls.Add(frameInput);
-        foreach(var item in new[]{new[]{"emitter","添加弹幕"},new[]{"rod","添加转转棒"},new[]{"object","添加对象"},new[]{"effect","添加特效"},new[]{"script","添加 GML 事件"}})
-        {string kind=item[0];var button=Button(item[1],()=>{if(kind=="effect")ShowEffectMenu((Control)bar.Controls.Cast<Control>().First(c=>c.Text=="添加特效"));else AddTrack(kind);},false,96);button.AutoSize=true;button.AutoSizeMode=AutoSizeMode.GrowAndShrink;button.MinimumSize=new Size(TextRenderer.MeasureText(item[1],Theme.Font).Width+24,32);bar.Controls.Add(button);}
+        foreach(var item in new[]{new[]{"emitter","添加弹幕"},new[]{"rod","添加整体对象"},new[]{"camera","添加拉镜"},new[]{"object","添加对象"},new[]{"effect","添加特效"},new[]{"script","添加 GML 事件"}})
+        {string kind=item[0];var button=Button(item[1],()=>{if(kind=="rod")ShowShapeMenu((Control)bar.Controls.Cast<Control>().First(c=>c.Text=="添加整体对象"));else if(kind=="effect")ShowEffectMenu((Control)bar.Controls.Cast<Control>().First(c=>c.Text=="添加特效"));else AddTrack(kind);},false,96);button.AutoSize=true;button.AutoSizeMode=AutoSizeMode.GrowAndShrink;button.MinimumSize=new Size(TextRenderer.MeasureText(item[1],Theme.Font).Width+24,32);bar.Controls.Add(button);}
         tips.SetToolTip(playButton,"空格：带音乐播放 / 暂停；F5：原生试玩");table.Controls.Add(bar,0,0);
         var zoomBar=new FlowLayoutPanel{Dock=DockStyle.Fill,AutoSize=true,WrapContents=true,Margin=Padding.Empty};
         zoomBar.Controls.Add(new Label{Text="视野",AutoSize=true,ForeColor=Theme.Muted,Margin=new Padding(8,9,3,0)});
-        var zoom=new ComboBox{Width=Math.Max(105,Font.Height*6),DropDownStyle=ComboBoxStyle.DropDownList,Margin=new Padding(2,5,2,0),BackColor=Theme.Raised,ForeColor=Theme.Text};zoom.Items.AddRange(new object[]{"全曲","10 秒","30 秒","1 分钟","5 分钟"});zoom.SelectedIndexChanged+=(s,e)=>{if(state==null)return;if(zoom.SelectedIndex==0)timeline.FitAll();else timeline.ViewSeconds(new[]{10,30,60,300}[zoom.SelectedIndex-1]);};zoomBar.Controls.Add(zoom);
+        var zoom=new WheelSafeComboBox{Width=Math.Max(105,Font.Height*6),DropDownStyle=ComboBoxStyle.DropDownList,Margin=new Padding(2,5,2,0),BackColor=Theme.Raised,ForeColor=Theme.Text};zoom.Items.AddRange(new object[]{"全曲","10 秒","30 秒","1 分钟","5 分钟"});zoom.SelectedIndexChanged+=(s,e)=>{if(state==null)return;if(zoom.SelectedIndex==0)timeline.FitAll();else timeline.ViewSeconds(new[]{10,30,60,300}[zoom.SelectedIndex-1]);};zoomBar.Controls.Add(zoom);
         zoomBar.Controls.Add(Button("－",()=>timeline.SetZoom(timeline.PixelsPerSecond*.8f),false,32));zoomBar.Controls.Add(Button("＋",()=>timeline.SetZoom(timeline.PixelsPerSecond*1.25f),false,32));zoomBar.Controls.Add(Button("定位播放头",()=>timeline.EnsureFrameVisible(),false,96));
         zoomBar.Controls.Add(new Label{Text="总时长 / 秒",AutoSize=true,ForeColor=Theme.Muted,Margin=new Padding(12,9,3,0)});
         durationInput.DecimalPlaces=2;durationInput.Increment=10;durationInput.Maximum=66666;durationInput.Minimum=1;durationInput.Width=Math.Max(90,TextRenderer.MeasureText("66666.00",Font).Width+30);durationInput.Margin=new Padding(2,5,4,0);durationInput.BackColor=Theme.Raised;durationInput.ForeColor=Theme.Text;durationInput.ValueChanged+=(s,e)=>{if(!durationLoading&&state!=null)ChangeDuration((double)durationInput.Value);};zoomBar.Controls.Add(durationInput);
         zoomBar.Controls.Add(Button("＋60 秒",()=>ChangeDuration(state==null?60:state.duration/(double)state.fps+60),false,80));zoomBar.Controls.Add(Button("按音乐长度",()=>{if(document!=null)ChangeDuration(document.waveform.duration);},false,98));
-        zoomBar.Controls.Add(new Label{Text="音量",AutoSize=true,ForeColor=Theme.Muted,Margin=new Padding(10,9,0,0)});var volume=new TrackBar{Minimum=0,Maximum=100,Value=65,Width=95,Height=32,TickStyle=TickStyle.None,Margin=new Padding(0,4,0,0)};volume.ValueChanged+=(s,e)=>audio.SetVolume(volume.Value/100f);zoomBar.Controls.Add(volume);tips.SetToolTip(volume,"时间轴音乐音量");
+        zoomBar.Controls.Add(new Label{Text="音量",AutoSize=true,ForeColor=Theme.Muted,Margin=new Padding(10,9,0,0)});var volume=new WheelSafeTrackBar{Minimum=0,Maximum=100,Value=65,Width=95,Height=32,TickStyle=TickStyle.None,Margin=new Padding(0,4,0,0)};volume.ValueChanged+=(s,e)=>audio.SetVolume(volume.Value/100f);zoomBar.Controls.Add(volume);tips.SetToolTip(volume,"时间轴音乐音量");
         zoomBar.Controls.Add(new Label{Text="Ctrl+滚轮缩放 · Shift+滚轮横移",AutoSize=true,ForeColor=Theme.Muted,Margin=new Padding(6,9,0,0)});table.Controls.Add(zoomBar,0,1);
         timeline.Dock=DockStyle.Fill;timeline.Margin=Padding.Empty;timeline.Seek=value=>{StopPlaying();SetFrame(value);};timeline.SelectTrack=SelectTrack;timeline.BeginEdit=PushUndo;timeline.Changed=MarkChanged;
         timeline.PreviewChanged=()=>{stage.SceneChanged();inspectorTimer.Stop();inspectorTimer.Start();};
@@ -188,7 +188,7 @@ internal sealed class MainForm : Form
         new WorkspaceView{positioned=true,x=bounds.X,y=bounds.Y,width=bounds.Width,height=bounds.Height,maximized=WindowState==FormWindowState.Maximized,
             leftWidth=leftSplit.Panel1.Width,rightWidth=rightSplit.Panel2.Width,timelineHeight=verticalSplit.Panel2.Height,
             frame=frame,resourceKind=resourceKind,search=search.Text,selectedTrack=selectedTrack==null?null:selectedTrack.id,selectedProperty=timeline.SelectedProperty,
-            grid=stage.Grid,hitboxes=stage.Hitboxes,cameraZoom=stage.ViewZoom,cameraX=stage.ViewX,cameraY=stage.ViewY,timeline=timeline.CaptureView()}.Save(root);
+            grid=stage.Grid,hitboxes=stage.Hitboxes,renderCamera=stage.RenderCamera,cameraZoom=stage.ViewZoom,cameraX=stage.ViewX,cameraY=stage.ViewY,timeline=timeline.CaptureView()}.Save(root);
     }
 
     private ContextMenuStrip CreateContext(bool inspector)
@@ -212,9 +212,9 @@ internal sealed class MainForm : Form
                     menu.Items.Add("所有属性在播放头加键    Ctrl+K",null,(a,b)=>AddAllKeys());
                     menu.Items.Add("清除此属性的全部关键帧",null,(a,b)=>{PushUndo();double v=Motion.Value(t,property,frame);t.keyframes.RemoveAll(k=>k.property==property);var f=typeof(Track).GetField(property);if(f!=null)f.SetValue(t,f.FieldType==typeof(int)?(object)(int)Math.Round(v):v);SelectTrack(t,null);MarkChanged();});
                     var easing=new ToolStripMenuItem(timeline.SelectedKeys.Count==0?"轨道默认缓动":"所选 "+timeline.SelectedKeys.Count+" 个关键帧的缓动");for(int i=0;i<Motion.EaseValues.Length;i++){string value=Motion.EaseValues[i];easing.DropDownItems.Add(Motion.EaseNames[i],null,(a,b)=>{PushUndo();if(timeline.SelectedKeys.Count==0)t.easing=value;else foreach(var key in timeline.SelectedKeys)key.easing=value;MarkChanged();});}menu.Items.Add(easing);
-                    if(Theme.Spatial(t.kind)){
+                    if(Theme.Visual(t.kind)){
                     var motion=new ToolStripMenuItem("运动逻辑");foreach(var pair in new[]{new[]{"keyframes","关键帧"},new[]{"velocity","速度 / 加速度"},new[]{"orbit","圆周运动"}}){string value=pair[0];motion.DropDownItems.Add(pair[1],null,(a,b)=>{PushUndo();t.motion=value;if(value=="velocity"&&t.velocityX==0&&t.velocityY==0)t.velocityX=1;ShowProperties();MarkChanged();});}motion.DropDownItems.Add("匀速自转 1°/帧",null,(a,b)=>{PushUndo();t.angularSpeed=1;MarkChanged();});motion.DropDownItems.Add("停止自转",null,(a,b)=>{PushUndo();t.angularSpeed=0;MarkChanged();});menu.Items.Add(motion);
-                    var trailsMenu=new ToolStripMenuItem("拖影样式");for(int n=0;n<Trails.Values.Length;n++){string mode=Trails.Values[n];trailsMenu.DropDownItems.Add(Trails.Names[n],null,(a,b)=>{PushUndo();foreach(var item in timeline.SelectedTracks.Where(item=>Theme.Spatial(item.kind)))Trails.SetMode(item,mode);ShowProperties();MarkChanged();});}menu.Items.Add(trailsMenu);}
+                    var trailsMenu=new ToolStripMenuItem("拖影样式");for(int n=0;n<Trails.Values.Length;n++){string mode=Trails.Values[n];trailsMenu.DropDownItems.Add(Trails.Names[n],null,(a,b)=>{PushUndo();foreach(var item in timeline.SelectedTracks.Where(item=>Theme.Visual(item.kind)))Trails.SetMode(item,mode);ShowProperties();MarkChanged();});}menu.Items.Add(trailsMenu);}
                 }
                 if(timeline.SelectedKeys.Count>0){menu.Items.Add("复制所选 "+timeline.SelectedKeys.Count+" 个关键帧    Ctrl+C",null,(a,b)=>CopyKey());menu.Items.Add("删除所选关键帧    Delete",null,(a,b)=>RemoveSelection());}
                 menu.Items.Add("选择本轨道全部关键帧    Ctrl+A",null,(a,b)=>timeline.SelectAllKeys(t));
@@ -226,8 +226,8 @@ internal sealed class MainForm : Form
             }
             if(selectedTrack==null&&copiedKind!=null)menu.Items.Add("粘贴    Ctrl+V",null,async(a,b)=>await PasteSelection());
             var emitters=new ToolStripMenuItem("添加弹幕预设");foreach(string template in new[]{"环形弹幕","扇形弹幕","旋转螺旋","渐变弹速"}){string name=template;emitters.DropDownItems.Add(name,null,(a,b)=>AddPreset(name));}menu.Items.Add(emitters);
-            var rods=new ToolStripMenuItem("添加转转棒");foreach(var pair in new[]{new[]{"center","中心 + 角度 + 长度"},new[]{"anchor","自身端点 + 手动端点"},new[]{"endpoints","两个手动端点"}}){string mode=pair[0];rods.DropDownItems.Add(pair[1],null,(a,b)=>{AddTrack("rod");selectedTrack.rodMode=mode;if(mode!="center")selectedTrack.angularSpeed=0;ShowProperties();MarkChanged();});}menu.Items.Add(rods);
-            menu.Items.Add("添加贴图对象",null,(a,b)=>AddTrack("object"));var effects=new ToolStripMenuItem("添加画面特效");FillEffectMenu(effects.DropDownItems);menu.Items.Add(effects);menu.Items.Add("添加 GML 事件",null,(a,b)=>AddTrack("script"));
+            var rods=new ToolStripMenuItem("添加整体对象");rods.DropDownItems.Add("圆环",null,(a,b)=>AddShape("ring"));rods.DropDownItems.Add("多边形",null,(a,b)=>AddShape("polygon"));foreach(var pair in new[]{new[]{"center","中心 + 角度 + 长度"},new[]{"anchor","自身端点 + 手动端点"},new[]{"endpoints","两个手动端点"}}){string mode=pair[0];rods.DropDownItems.Add(pair[1],null,(a,b)=>{AddTrack("rod");selectedTrack.rodMode=mode;if(mode!="center")selectedTrack.angularSpeed=0;ShowProperties();MarkChanged();});}menu.Items.Add(rods);
+            menu.Items.Add("添加拉镜",null,(a,b)=>AddTrack("camera"));menu.Items.Add("添加贴图对象",null,(a,b)=>AddTrack("object"));var effects=new ToolStripMenuItem("添加画面特效");FillEffectMenu(effects.DropDownItems);menu.Items.Add(effects);menu.Items.Add("添加 GML 事件",null,(a,b)=>AddTrack("script"));
             menu.Items.Add(new ToolStripSeparator());menu.Items.Add("撤销    Ctrl+Z",null,(a,b)=>Undo(false)).Enabled=undo.Count>0;menu.Items.Add("重做    Ctrl+Y",null,(a,b)=>Undo(true)).Enabled=redo.Count>0;
         };
         return menu;
@@ -240,6 +240,13 @@ internal sealed class MainForm : Form
         if(effectMenu==null){effectMenu=new ContextMenuStrip{BackColor=Theme.Panel,ForeColor=Theme.Text};FillEffectMenu(effectMenu.Items);}
         effectMenu.Show(anchor,new Point(0,anchor.Height));
     }
+    private ContextMenuStrip shapeMenu;
+    private void ShowShapeMenu(Control anchor)
+    {
+        if(state==null)return;if(shapeMenu==null){shapeMenu=new ContextMenuStrip{BackColor=Theme.Panel,ForeColor=Theme.Text};foreach(string kind in new[]{"rod","ring","polygon"}){string shape=kind;shapeMenu.Items.Add(shape=="rod"?"转转棒":shape=="ring"?"圆环":"多边形",null,(s,e)=>AddShape(shape));}}shapeMenu.Show(anchor,new Point(0,anchor.Height));
+    }
+    private void AddShape(string shape)
+    {AddTrack("rod",t=>{t.shape=shape;t.name=shape=="rod"?"转转棒":shape=="ring"?"圆环":"多边形";if(shape!="rod"){t.count=shape=="ring"?24:30;t.orientation=90;}});}
     private void AddEffect(string effect)
     {
         AddTrack("effect",t=>{t.effect=effect;t.name=Effects.Name(effect);t.color=effect=="flash"?"#FFFFFF":"#000000";
@@ -368,12 +375,12 @@ internal sealed class MainForm : Form
     private void SelectInstance(RoomInstance instance)
     {timeline.ResetSelection(null,null);selectedInstance=instance;selectedTrack=null;selectedKey=null;resourceName=null;UpdateSelection();ShowProperties();}
     private void SelectResource()
-    {if(resourceKind=="sprites"&&selectedTrack!=null&&Theme.Spatial(selectedTrack.kind)){ApplySprite(resourceName);return;}timeline.ResetSelection(null,null);selectedTrack=null;selectedKey=null;selectedInstance=null;UpdateSelection();ShowProperties();}
+    {if(resourceKind=="sprites"&&selectedTrack!=null&&Theme.Visual(selectedTrack.kind)){ApplySprite(resourceName);return;}timeline.ResetSelection(null,null);selectedTrack=null;selectedKey=null;selectedInstance=null;UpdateSelection();ShowProperties();}
     private void SelectProject(){timeline.ResetSelection(null,null);selectedTrack=null;selectedKey=null;selectedInstance=null;resourceName=null;UpdateSelection();ShowProperties();}
     private void Field<T>(NativeProperties bag,string name,string category,Func<T> get,Action<T> set,string[] choices=null,string description="")
     {bag.Add(name,category,typeof(T),()=>get(),value=>{PushUndo();set((T)value);MarkChanged();},choices,description);}
     private static double ClampValue(string property,double value)
-    {if(property=="alpha"||property=="fxOpacity"||property=="fxRetention")return Math.Max(0,Math.Min(1,value));if(property=="count")return Math.Max(1,Math.Min(300,Math.Round(value)));if(property=="life")return Math.Max(1,value);if(property=="length"||property=="strength")return Math.Max(0,value);return value;}
+    {if(property=="alpha"||property=="fxOpacity"||property=="fxRetention")return Math.Max(0,Math.Min(1,value));if(property=="count")return Math.Max(1,Math.Min(300,Math.Round(value)));if(property=="life")return Math.Max(1,value);if(property=="sides")return Math.Max(3,Math.Min(64,Math.Round(value)));if(property=="cameraZoom")return Math.Max(.05,Math.Min(20,value));if(property=="radius"||property=="length"||property=="strength")return Math.Max(0,value);return value;}
     private string CurrentProperty(bool inspector=false)
     {if(selectedTrack==null)return "x";if(inspector&&properties.SelectedLabel!=null){string label=properties.SelectedLabel;foreach(string p in Motion.Fields(selectedTrack))if(Motion.Name(p)==label)return p;}return selectedKey!=null?selectedKey.property:timeline.SelectedProperty;}
     private void EaseField(NativeProperties bag,Track t,Keyframe key)
@@ -403,7 +410,11 @@ internal sealed class MainForm : Form
             var track=selectedTrack;selectionTitle.Text=timeline.SelectedKeys.Count>1?"已选择 "+timeline.SelectedKeys.Count+" 个关键帧":Theme.KindName(track.kind)+" · "+track.name;
             Field(bag,"名称","轨道",()=>track.name,value=>track.name=value);Field(bag,"启用","轨道",()=>track.enabled,value=>track.enabled=value);
             Field(bag,"开始帧","轨道",()=>track.start,value=>track.start=Math.Max(0,Math.Min(track.end,value)));Field(bag,"结束帧","轨道",()=>track.end,value=>track.end=Math.Max(track.start,Math.Min(state.duration,value)));
-            if(Theme.Spatial(track.kind))
+            if(track.kind=="rod"){
+                string[] shapes={"转转棒","圆环","多边形"},shapeValues={"rod","ring","polygon"};
+                Field(bag,"种类","整体对象",()=>shapes[Math.Max(0,Array.IndexOf(shapeValues,track.shape))],value=>{bool autoName=shapes.Contains(track.name);track.shape=shapeValues[Array.IndexOf(shapes,value)];if(autoName)track.name=value;BeginInvoke(new Action(ShowProperties));},shapes);
+            }
+            if(Theme.Visual(track.kind))
             {
                 keyButton.Enabled=true;Field(bag,"贴图","外观",()=>track.sprite,value=>{Rainbow.SetSprite(track,value);BeginInvoke(new Action(ShowProperties));},document.inventory.sprites);
                 if(track.rainbow)bag.Add("颜色（彩虹固定白色）","外观",typeof(Color),()=>Color.White,null);
@@ -427,9 +438,17 @@ internal sealed class MainForm : Form
             }
             if(track.kind=="rod")
             {
+                if(track.shape=="rod"){
                 string[] names={"中心 + 角度 + 长度","自身为端点1 + 手动端点2","手动端点1 + 手动端点2"},values={"center","anchor","endpoints"};
                 Field(bag,"端点模式","转转棒",()=>names[Math.Max(0,Array.IndexOf(values,track.rodMode))],value=>track.rodMode=values[Array.IndexOf(names,value)],names);
                 Field(bag,"循环滚动","转转棒",()=>track.rolling,value=>track.rolling=value,null,"关闭时含两个端点等距摆放；开启时保持数量，在半开线段内循环移动。滚动速度单位为像素/帧。");
+                }else {Field(bag,"沿轮廓滚动","整体对象",()=>track.rolling,value=>track.rolling=value,null,"按滚动速度沿闭合轮廓移动，可叠加自转。单位为像素/帧。");bag.Add("排列方式","整体对象",typeof(string),()=>"闭合轮廓等距排列；角度控制弹幕沿轮廓旋转。",null);}
+            }
+            if(track.kind=="camera")
+            {
+                keyButton.Enabled=true;keyButton.Text="＋ "+Motion.Name(CurrentProperty())+" 关键帧  (K)";EaseField(bag,track,null);
+                Field(bag,"Power 指数","运动",()=>track.easePower,value=>track.easePower=Math.Max(.1,value));Field(bag,"ExpSin 周期","运动",()=>track.easePeriod,value=>track.easePeriod=Math.Max(.01,value));AnimatedFields(bag,track);
+                bag.Add("说明","拉镜",typeof(string),()=>"X/Y 为镜头中心；缩放大于 1 拉近。时段外恢复房间视图；重叠时下方轨道优先。",null);
             }
             if(track.kind=="effect")
             {
@@ -480,10 +499,11 @@ internal sealed class MainForm : Form
         {
             foreach(string property in new[]{"x","y"})
             {string p=property;Field(bag,"整组 "+p.ToUpper()+" · 主物件","批量位置",()=>Motion.Value(primary,p,frame),value=>{double delta=value-Motion.Value(primary,p,frame);foreach(var t in group)Motion.EditValue(t,p,frame,Motion.Value(t,p,frame)+delta);});}
+            if(group.All(t=>Theme.Visual(t.kind))){
             foreach(string property in new[]{"scale","alpha"})
             {string p=property;Field(bag,"统一"+Motion.Name(p),"批量外观",()=>Motion.Value(primary,p,frame),value=>{foreach(var t in group)Motion.EditValue(t,p,frame,ClampValue(p,value));});}
             Field(bag,"统一贴图","批量外观",()=>primary.sprite,value=>{foreach(var t in group)Rainbow.SetSprite(t,value);BeginInvoke(new Action(ShowProperties));},document.inventory.sprites);
-            RainbowFields(bag,group);TrailFields(bag,group);
+            RainbowFields(bag,group);TrailFields(bag,group);}
         }
         bag.Add("操作提示","批量编辑",typeof(string),()=>"拖长条平移，拖边缘改长度；Delete 批量删除。",null);
     }
@@ -519,9 +539,10 @@ internal sealed class MainForm : Form
     }
     private void AddTrack(string kind,Action<Track> configure=null)
     {
-        if(state==null)return;properties.CommitPending();PushUndo();var track=new Track{id=Guid.NewGuid().ToString("N"),kind=kind,name=kind=="rod"?"转转棒":kind=="emitter"?"新弹幕":kind=="object"?"新对象":kind=="effect"?"闪屏":"GML 事件",start=Math.Min(frame,state.duration-1)};
+        if(state==null)return;properties.CommitPending();PushUndo();var track=new Track{id=Guid.NewGuid().ToString("N"),kind=kind,name=kind=="camera"?"拉镜":kind=="rod"?"转转棒":kind=="emitter"?"新弹幕":kind=="object"?"新对象":kind=="effect"?"闪屏":"GML 事件",start=Math.Min(frame,state.duration-1)};
         track.end=Math.Min(state.duration,track.start+(kind=="emitter"?300:kind=="object"?200:10));
         if(kind=="emitter"||kind=="object"||kind=="rod"){track.sprite=kind=="emitter"?"sprBullet":"sprCherry";if(!document.inventory.sprites.Contains(track.sprite))track.sprite=document.inventory.sprites.First();if(kind=="rod"){track.count=5;track.angularSpeed=1;track.end=Math.Min(state.duration,track.start+500);}}
+        if(kind=="camera"){track.x=document.room.width/2.0;track.y=document.room.height/2.0;track.end=Math.Min(state.duration,track.start+500);}
         if(kind=="script")track.code="// 在开始帧执行的 GameMaker GML\r\n";
         if(configure!=null)configure(track);state.tracks.Add(track);SelectTrack(track,null);timeline.Expand(track,true);MarkChanged();
     }
@@ -543,7 +564,7 @@ internal sealed class MainForm : Form
     {if(selectedInstance==null||selectedInstance.name=="objRufController")return;PushUndo();try{var room=await bridge.Call<RoomData>("delete-instance",new{room=state.room,id=selectedInstance.id});selectedInstance=null;ReplaceRoom(room);SelectProject();SetStatus("房间实例已删除 · Ctrl+Z 可撤销");}catch(Exception error){Error(error);}}
     private void ReplaceRoom(RoomData room)
     {string id=selectedInstance==null?null:selectedInstance.id;document.room=room;stage.Room=room;if(id!=null)selectedInstance=room.instances.FirstOrDefault(x=>x.id==id);stage.SelectedInstance=selectedInstance;stage.SceneChanged();}
-    private void ApplySprite(string name){if(selectedTrack==null||!Theme.Spatial(selectedTrack.kind))return;PushUndo();foreach(var t in timeline.SelectedTracks.Where(t=>Theme.Spatial(t.kind)))Rainbow.SetSprite(t,name);ShowProperties();MarkChanged();}
+    private void ApplySprite(string name){if(selectedTrack==null||!Theme.Visual(selectedTrack.kind))return;PushUndo();foreach(var t in timeline.SelectedTracks.Where(t=>Theme.Visual(t.kind)))Rainbow.SetSprite(t,name);ShowProperties();MarkChanged();}
     private async Task DropResource(string kind,string name,PointF position)
     {
         try

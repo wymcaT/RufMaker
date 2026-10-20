@@ -58,7 +58,7 @@ internal sealed class ParameterInspector : UserControl
                     {var button=new Button{Enabled=!p.IsReadOnly,FlatStyle=FlatStyle.Flat,Dock=DockStyle.Fill,Margin=new Padding(0,3,1,3)};Action update=()=>{Color c=(Color)get();button.BackColor=c;button.ForeColor=c.GetBrightness()>.5?Color.Black:Color.White;button.Text=String.Format("#{0:X2}{1:X2}{2:X2}",c.R,c.G,c.B);};button.Click+=(s,e)=>{Select(p);using(var dialog=new ColorDialog{Color=(Color)get(),FullOpen=true})if(dialog.ShowDialog(this)==DialogResult.OK)set(dialog.Color);};editor=button;refreshers.Add(update);update();}
                     else if(p.Converter.GetStandardValuesSupported())
                     {
-                        var combo=new ComboBox{Dock=DockStyle.Fill,DropDownStyle=ComboBoxStyle.DropDownList,BackColor=Theme.Raised,ForeColor=Theme.Text,Enabled=!p.IsReadOnly,Margin=new Padding(0,4,1,2)};
+                        var combo=new WheelSafeComboBox{Dock=DockStyle.Fill,DropDownStyle=ComboBoxStyle.DropDownList,BackColor=Theme.Raised,ForeColor=Theme.Text,Enabled=!p.IsReadOnly,Margin=new Padding(0,4,1,2)};
                         foreach(object item in p.Converter.GetStandardValues())combo.Items.Add(item);combo.DropDownWidth=Math.Max(200,combo.Items.Cast<object>().Max(item=>TextRenderer.MeasureText(Convert.ToString(item),Font).Width)+32);combo.SelectedItem=get();combo.SelectionChangeCommitted+=(s,e)=>{Select(p);set(combo.SelectedItem);};combo.Enter+=(s,e)=>Select(p);editor=combo;refreshers.Add(()=>{if(!combo.DroppedDown)combo.SelectedItem=get();});
                     }
                     else

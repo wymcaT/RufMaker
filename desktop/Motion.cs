@@ -10,10 +10,12 @@ internal static class Motion
     public static readonly string[] EaseNames={"线性","二次缓入","二次缓出","平滑","Sin 缓入","Sin 缓出","Sin 缓入缓出","Circle 缓入","Circle 缓出","Circle 缓入缓出","Power 缓入","Power 缓出","Power 缓入缓出","Expo 缓入","Expo 缓出","Expo 缓入缓出","弹跳缓出","弹跳缓入","弹跳缓入缓出","ExpSin 弹性","Back 回退","保持 / 跳变"};
     public static string Name(string property)
     {
-        switch(property){case "rainbowDensity":return "颜色密度";case "rainbowOffset":return "起始色相 / 帧";case "rainbowSpeed":return "色彩流动速度 / 帧每帧";case "spriteAngle":return "贴图角度";case "x":return "X";case "y":return "Y";case "angle":return "角度";case "scale":return "缩放";case "alpha":return "透明度";case "x1":return "端点1 X";case "y1":return "端点1 Y";case "x2":return "端点2 X";case "y2":return "端点2 Y";case "length":return "棒长";case "rollSpeed":return "滚动速度";case "speed":return "弹速";case "spread":return "角度间隔";case "count":return "弹幕数量";case "interval":return "发射间隔";case "life":return "寿命";case "strength":return "效果强度";case "fxOpacity":return "效果透明度";case "fxAngle":return "效果方向";case "fxRetention":return "帧混合比例";default:return property;}
+        switch(property){case "radius":return "半径";case "orientation":return "多边形朝向";case "sides":return "边数";case "cameraZoom":return "镜头缩放";case "rainbowDensity":return "颜色密度";case "rainbowOffset":return "起始色相 / 帧";case "rainbowSpeed":return "色彩流动速度 / 帧每帧";case "spriteAngle":return "贴图角度";case "x":return "X";case "y":return "Y";case "angle":return "角度";case "scale":return "缩放";case "alpha":return "透明度";case "x1":return "端点1 X";case "y1":return "端点1 Y";case "x2":return "端点2 X";case "y2":return "端点2 Y";case "length":return "棒长";case "rollSpeed":return "滚动速度";case "speed":return "弹速";case "spread":return "角度间隔";case "count":return "弹幕数量";case "interval":return "发射间隔";case "life":return "寿命";case "strength":return "效果强度";case "fxOpacity":return "效果透明度";case "fxAngle":return "效果方向";case "fxRetention":return "帧混合比例";default:return property;}
     }
     public static string[] Fields(Track t)
-    {var fields=t.kind=="effect"?new[]{"strength","fxOpacity","fxAngle","fxRetention"}:t.kind=="rod"?Basic.Concat(new[]{"spriteAngle","x1","y1","x2","y2","length","rollSpeed","count"}).ToArray():t.kind=="emitter"?Basic.Concat(new[]{"spriteAngle","speed","spread","count","life"}).ToArray():t.kind=="object"?Basic:new string[0];return t.rainbow?fields.Concat(Rainbow.Parameters).ToArray():fields;}
+    {
+        var fields=t.kind=="camera"?new[]{"x","y","cameraZoom","angle"}:t.kind=="effect"?new[]{"strength","fxOpacity","fxAngle","fxRetention"}:t.kind=="rod"?Basic.Concat(t.shape=="rod"?new[]{"spriteAngle","x1","y1","x2","y2","length","rollSpeed","count"}:t.shape=="polygon"?new[]{"spriteAngle","radius","orientation","sides","rollSpeed","count"}:new[]{"spriteAngle","radius","rollSpeed","count"}).ToArray():t.kind=="emitter"?Basic.Concat(new[]{"spriteAngle","speed","spread","count","life"}).ToArray():t.kind=="object"?Basic:new string[0];return t.rainbow?fields.Concat(Rainbow.Parameters).ToArray():fields;
+    }
     public static double Base(Track t,string property)
     {var field=typeof(Track).GetField(property);return field==null?0:Convert.ToDouble(field.GetValue(t));}
     public static bool HasKeys(Track t,string property){return t.keyframes.Any(k=>k.property==property);}
@@ -71,6 +73,20 @@ internal static class Motion
     }
     public static PointF[] RodPoints(Track t,double frame)
     {
+        if(t.shape!="rod")
+        {
+            var p=At(t,frame);double radius=Math.Max(0,Value(t,"radius",frame));int n=Math.Max(1,Math.Min(300,(int)Math.Round(Value(t,"count",frame)))),sides=Math.Max(3,Math.Min(64,(int)Math.Round(Value(t,"sides",frame))));var result=new PointF[n];
+            double perimeter=t.shape=="polygon"?2*sides*radius*Math.Sin(Math.PI/sides):2*Math.PI*radius,phase=p.angle/360;
+            if(t.rolling&&perimeter>.001)phase+=(frame-t.start)*Value(t,"rollSpeed",frame)/perimeter;
+            for(int i=0;i<n;i++)
+            {
+                double u=i/(double)n+phase;u-=Math.Floor(u);double x,y;
+                if(t.shape=="polygon"){double v=u*sides,seg=Math.Floor(v),f=v-seg,a=(Value(t,"orientation",frame)+seg*360/sides)*Math.PI/180,b=a+2*Math.PI/sides;x=radius*(Math.Cos(a)*(1-f)+Math.Cos(b)*f);y=-radius*(Math.Sin(a)*(1-f)+Math.Sin(b)*f);}
+                else{x=radius*Math.Cos(u*2*Math.PI);y=-radius*Math.Sin(u*2*Math.PI);}
+                result[i]=new PointF((float)(p.x+x),(float)(p.y+y));
+            }
+            return result;
+        }
         var endpoints=Endpoints(t,frame);double dx=endpoints[1].X-endpoints[0].X,dy=endpoints[1].Y-endpoints[0].Y,len=Math.Sqrt(dx*dx+dy*dy);
         int count=Math.Max(1,Math.Min(300,(int)Math.Round(Value(t,"count",frame))));var points=new PointF[count];
         // Rolling uses a half-open line to keep a constant number of evenly spaced bullets at wraparound.

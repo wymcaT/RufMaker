@@ -314,3 +314,6 @@ rf_bounce
 rf_fx_reset_target
 rf_trail_draw
 rf_rainbow_index
+rf_camera_apply
+rf_camera_composite
+rf_bullet_trails

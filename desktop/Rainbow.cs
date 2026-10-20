@@ -15,7 +15,7 @@ internal static class Rainbow
     public static void SetSprite(Track t,string sprite){if(t.rainbow&&sprite!=Sprite)Enable(t,false);t.sprite=sprite;}
     public static double RodSequence(Track t,int index,int count,double frame)
     {
-        if(t.rodMode!="center")return index;
+        if(t.shape!="rod"||t.rodMode!="center")return index;
         double u=count<=1?.5:t.rolling?index/(double)count:index/(double)(count-1);
         if(t.rolling){var ends=Motion.Endpoints(t,frame);double dx=ends[1].X-ends[0].X,dy=ends[1].Y-ends[0].Y,len=Math.Sqrt(dx*dx+dy*dy);if(len>.001)u+=(frame-t.start)*Motion.Value(t,"rollSpeed",frame)/len;u-=Math.Floor(u);}
         return Math.Abs(u-.5)*(count-1);

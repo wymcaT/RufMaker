@@ -50,7 +50,7 @@ if Part=0{
         draw_rectangle(x,y,x+31,y+31,0)
     }
 
-    draw_surface(global.surface1,0,0)
+    rf_camera_composite(global.surface1,0,0)
     if P0on>0{
         surface_set_target(global.surface2)
         draw_set_color(make_color_rgb(32,32,32))
@@ -151,7 +151,7 @@ if Part=1{
         if place_meeting(x,y-1,block) draw_rectangle(x+2,y,x+29,y+1,0)
         if place_meeting(x,y+1,block) draw_rectangle(x+2,y+30,x+29,y+31,0)
     }
-    draw_surface(global.surface1,0,0)
+    rf_camera_composite(global.surface1,0,0)
     if P1on{
         P1Tim+=1
         for(i=0;i<=40;i+=1){

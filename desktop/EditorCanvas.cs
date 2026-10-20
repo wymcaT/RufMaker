@@ -9,9 +9,10 @@ internal static class Theme
 {
     public static readonly Color Back=Color.FromArgb(19,23,31),Panel=Color.FromArgb(26,31,42),Raised=Color.FromArgb(35,42,56),Line=Color.FromArgb(48,57,75),Text=Color.FromArgb(225,231,241),Muted=Color.FromArgb(141,155,179),Accent=Color.FromArgb(242,113,153);
     public static readonly Font Font=new Font("Microsoft YaHei UI",9f),Small=new Font("Microsoft YaHei UI",8f),Bold=new Font("Microsoft YaHei UI",9f,FontStyle.Bold);
-    public static Color TrackColor(string kind){return kind=="rod"?Color.FromArgb(175,130,230):kind=="emitter"?Color.FromArgb(218,96,140):kind=="effect"?Color.FromArgb(206,165,83):kind=="script"?Color.FromArgb(75,170,146):Color.FromArgb(83,144,210);}
-    public static string KindName(string kind){return kind=="rod"?"转转棒":kind=="emitter"?"弹幕":kind=="object"?"对象":kind=="effect"?"特效":"GML";}
-    public static bool Spatial(string kind){return kind=="rod"||kind=="emitter"||kind=="object";}
+    public static Color TrackColor(string kind){return kind=="camera"?Color.FromArgb(245,203,104):kind=="rod"?Color.FromArgb(175,130,230):kind=="emitter"?Color.FromArgb(218,96,140):kind=="effect"?Color.FromArgb(206,165,83):kind=="script"?Color.FromArgb(75,170,146):Color.FromArgb(83,144,210);}
+    public static string KindName(string kind){return kind=="camera"?"拉镜":kind=="rod"?"整体对象":kind=="emitter"?"弹幕":kind=="object"?"对象":kind=="effect"?"特效":"GML";}
+    public static bool Visual(string kind){return kind=="rod"||kind=="emitter"||kind=="object";}
+    public static bool Spatial(string kind){return kind=="camera"||kind=="rod"||kind=="emitter"||kind=="object";}
     public static void Label(Graphics g,string text,Rectangle bounds,Color color,Font font=null,TextFormatFlags flags=TextFormatFlags.Left|TextFormatFlags.VerticalCenter|TextFormatFlags.EndEllipsis)
     {TextRenderer.DrawText(g,text,font??Font,bounds,color,flags|TextFormatFlags.NoPrefix);}
 }
@@ -25,7 +26,7 @@ internal sealed class StageCanvas : Control
     private readonly Dictionary<Track,Dictionary<string,double>> positions=new Dictionary<Track,Dictionary<string,double>>();
     private PointF pointerDown;
     public Track SelectedTrack;public Keyframe SelectedKey;public RoomInstance SelectedInstance;
-    public int Frame;public bool Grid=true,Hitboxes;
+    public int Frame;public bool Grid=true,Hitboxes,RenderCamera;
     public Action<Track,Keyframe> SelectTrack;public Action<RoomInstance> SelectInstance;
     public Action BeginEdit,Changed;public Action<RoomInstance> InstanceMoved;
     public Action<string,string,PointF> ResourceDropped;public Action<PointF> PointerMoved;
@@ -52,16 +53,16 @@ internal sealed class StageCanvas : Control
     private async void QueueRender()
     {
         if(rendering||renderState==null||!IsHandleCreated||IsDisposed||finished==serial)return;
-        rendering=true;int request=serial,frame=Frame,assets=assetVersion;var state=renderState;var room=renderRoom;var objects=renderObjects;string project=renderProject;var metadata=renderMetadata;bool grid=Grid,hitboxes=Hitboxes;
+        rendering=true;int request=serial,frame=Frame,assets=assetVersion;var state=renderState;var room=renderRoom;var objects=renderObjects;string project=renderProject;var metadata=renderMetadata;bool grid=Grid,hitboxes=Hitboxes;Fit();var transform=DisplayMatrix();int width=Math.Max(1,Width),height=Math.Max(1,Height);RectangleF frameBounds=view;RectangleF? clip=RenderCamera?(RectangleF?)view:null;
         var clock=System.Diagnostics.Stopwatch.StartNew();
         try
         {
-            var next=await System.Threading.Tasks.Task.Run(()=>{if(workerSprites==null||workerSprites.Project!=project||workerAssetVersion!=assets){if(workerSprites!=null)workerSprites.Dispose();workerSprites=new SpriteStore{Project=project};workerAssetVersion=assets;previewCache.Clear();}workerSprites.Metadata=metadata;return PreviewRenderer.Render(state,room,objects,workerSprites,frame,grid,hitboxes,previewCache);});
+            var next=await System.Threading.Tasks.Task.Run(()=>{if(workerSprites==null||workerSprites.Project!=project||workerAssetVersion!=assets){if(workerSprites!=null)workerSprites.Dispose();workerSprites=new SpriteStore{Project=project};workerAssetVersion=assets;previewCache.Clear();}workerSprites.Metadata=metadata;return PreviewRenderer.Render(state,room,objects,workerSprites,frame,grid,hitboxes,previewCache,transform,width,height,clip,frameBounds);});
             LastRenderMilliseconds=clock.Elapsed.TotalMilliseconds;
             if(IsDisposed){next.Dispose();return;}var previous=image;image=next;if(previous!=null)previous.Dispose();finished=request;Invalidate();
         }
         catch(Exception error){if(!IsDisposed){System.Diagnostics.Debug.WriteLine(error);finished=request;}}
-        finally{rendering=false;if(IsDisposed){if(workerSprites!=null){workerSprites.Dispose();workerSprites=null;}previewCache.Dispose();}else if(finished!=serial)QueueRender();}
+        finally{transform.Dispose();rendering=false;if(IsDisposed){if(workerSprites!=null){workerSprites.Dispose();workerSprites=null;}previewCache.Dispose();}else if(finished!=serial)QueueRender();}
     }
     private void Fit()
     {
@@ -69,23 +70,32 @@ internal sealed class StageCanvas : Control
         float scale=Math.Max(.01f,Math.Min((Width-48)/rw,(Height-48)/rh))*(float)ViewZoom;
         view=new RectangleF(Width/2f-(rw/2+(float)ViewX)*scale,Height/2f-(rh/2+(float)ViewY)*scale,rw*scale,rh*scale);
     }
-    public void SetView(double zoom,double x,double y){ViewZoom=Math.Max(.1,Math.Min(32,zoom));ViewX=x;ViewY=y;Fit();Invalidate();}
+    public void SetView(double zoom,double x,double y){ViewZoom=Math.Max(.1,Math.Min(32,zoom));ViewX=x;ViewY=y;Fit();DisplayOptionsChanged();}
     public void ResetView(){SetView(1,0,0);}
     protected override void OnMouseWheel(MouseEventArgs e)
     {
         if((ModifierKeys&Keys.Control)==0||!ContainsFocus){base.OnMouseWheel(e);return;}
-        var before=Position(e.Location);ViewZoom=Math.Max(.1,Math.Min(32,ViewZoom*Math.Pow(1.2,e.Delta/120.0)));Fit();
+        var before=ViewPosition(e.Location);ViewZoom=Math.Max(.1,Math.Min(32,ViewZoom*Math.Pow(1.2,e.Delta/120.0)));Fit();
         float rw=Room==null?800:Room.width,rh=Room==null?608:Room.height,scale=view.Width/rw;
-        ViewX=before.X-rw/2-(e.X-Width/2f)/scale;ViewY=before.Y-rh/2-(e.Y-Height/2f)/scale;Fit();Invalidate();
+        ViewX=before.X-rw/2-(e.X-Width/2f)/scale;ViewY=before.Y-rh/2-(e.Y-Height/2f)/scale;Fit();DisplayOptionsChanged();
     }
     protected override void OnMouseDoubleClick(MouseEventArgs e){base.OnMouseDoubleClick(e);if(e.Button==MouseButtons.Middle){panning=false;ResetView();}}
-    private PointF Position(Point p){Fit();return new PointF((p.X-view.Left)/view.Width*(Room==null?800:Room.width),(p.Y-view.Top)/view.Height*(Room==null?608:Room.height));}
+    private PointF ViewPosition(Point p){Fit();return new PointF((p.X-view.Left)/view.Width*(Room==null?800:Room.width),(p.Y-view.Top)/view.Height*(Room==null?608:Room.height));}
+    private Matrix DisplayMatrix()
+    {
+        Fit();float scale=view.Width/(Room==null?800:Room.width);var m=new Matrix(scale,0,0,scale,view.Left,view.Top);
+        if(RenderCamera&&State!=null&&Room!=null)using(var camera=Camera.At(Camera.Active(State,Frame),Frame,Room).WorldToView(Room.width,Room.height))m.Multiply(camera,MatrixOrder.Prepend);return m;
+    }
+    private PointF Position(Point p){var points=new[]{new PointF(p.X,p.Y)};using(var m=DisplayMatrix()){m.Invert();m.TransformPoints(points);}return points[0];}
+    protected override void OnResize(EventArgs e){base.OnResize(e);if(previewCache!=null)DisplayOptionsChanged();}
     protected override void OnPaint(PaintEventArgs e)
     {
         base.OnPaint(e);Fit();var g=e.Graphics;g.Clear(Color.FromArgb(203,211,222));
-        if(image!=null){g.InterpolationMode=InterpolationMode.NearestNeighbor;g.DrawImage(image,view);}else{Theme.Label(g,"正在绘制房间…",ClientRectangle,Theme.Muted,null,TextFormatFlags.HorizontalCenter|TextFormatFlags.VerticalCenter);QueueRender();}
+        if(image!=null){g.InterpolationMode=InterpolationMode.NearestNeighbor;g.DrawImageUnscaled(image,0,0);}else{Theme.Label(g,"正在绘制房间…",ClientRectangle,Theme.Muted,null,TextFormatFlags.HorizontalCenter|TextFormatFlags.VerticalCenter);QueueRender();}
         if(State==null||Room==null)return;
-        var saved=g.Save();g.SetClip(view);g.TranslateTransform(view.Left,view.Top);g.ScaleTransform(view.Width/Room.width,view.Height/Room.height);g.SmoothingMode=SmoothingMode.AntiAlias;
+        var saved=g.Save();if(RenderCamera)g.SetClip(view);using(var m=DisplayMatrix())g.Transform=m;g.SmoothingMode=SmoothingMode.AntiAlias;
+        foreach(var camera in State.tracks.Where(t=>t.enabled&&t.kind=="camera"&&(t==SelectedTrack||Frame>=t.start&&Frame<=t.end)))
+        {var corners=Camera.At(camera,Frame,Room).Corners(Room.width,Room.height);using(var pen=new Pen(camera==SelectedTrack?Theme.Accent:Color.FromArgb(245,203,104),2)){pen.DashStyle=DashStyle.Dash;g.DrawPolygon(pen,corners);}using(var brush=new SolidBrush(Color.FromArgb(245,203,104)))g.DrawString(camera.name+" · 游戏显示范围",Theme.Small,brush,corners[0]);}
         if(SelectedInstance!=null&&Sprites!=null)
         {string sprite;if(ObjectSprites.TryGetValue(SelectedInstance.name,out sprite)){var r=Sprites.Bounds(sprite,SelectedInstance.x,SelectedInstance.y);using(var pen=new Pen(Theme.Accent,2))g.DrawRectangle(pen,r.X,r.Y,r.Width,r.Height);}}
         foreach(var item in SelectedTracks.Where(t=>t!=SelectedTrack&&Theme.Spatial(t.kind)))
@@ -98,7 +108,7 @@ internal sealed class StageCanvas : Control
             using(var pen=new Pen(Theme.Accent,1.5f))
             {
                 g.DrawEllipse(pen,(float)p.x-14,(float)p.y-14,28,28);g.DrawLine(pen,(float)p.x-23,(float)p.y,(float)p.x+23,(float)p.y);g.DrawLine(pen,(float)p.x,(float)p.y-23,(float)p.x,(float)p.y+23);
-                if(SelectedTrack.kind=="rod"){var ends=Motion.Endpoints(SelectedTrack,Frame);g.DrawLine(pen,ends[0],ends[1]);foreach(var point in ends){g.FillRectangle(Brushes.White,point.X-5,point.Y-5,10,10);g.DrawRectangle(pen,point.X-6,point.Y-6,12,12);}}
+                if(SelectedTrack.kind=="rod"&&SelectedTrack.shape=="rod"){var ends=Motion.Endpoints(SelectedTrack,Frame);g.DrawLine(pen,ends[0],ends[1]);foreach(var point in ends){g.FillRectangle(Brushes.White,point.X-5,point.Y-5,10,10);g.DrawRectangle(pen,point.X-6,point.Y-6,12,12);}}
             }
         }
         g.Restore(saved);using(var pen=new Pen(Theme.Line))g.DrawRectangle(pen,view.X,view.Y,view.Width,view.Height);
@@ -109,7 +119,7 @@ internal sealed class StageCanvas : Control
     protected override void OnMouseDown(MouseEventArgs e)
     {
         base.OnMouseDown(e);if(State==null||Room==null)return;Focus();if(e.Button==MouseButtons.Middle){panning=true;panStart=e.Location;panX=ViewX;panY=ViewY;Cursor=Cursors.Hand;Capture=true;return;}var p=Position(e.Location);down=e.Location;pointerDown=p;moved=false;positions.Clear();
-        if(SelectedTracks.Count<=1&&SelectedTrack!=null&&SelectedTrack.kind=="rod")
+        if(SelectedTracks.Count<=1&&SelectedTrack!=null&&SelectedTrack.kind=="rod"&&SelectedTrack.shape=="rod")
         {var ends=Motion.Endpoints(SelectedTrack,Frame);for(int i=0;i<2;i++)if(Near(ends[i],p,14)){draggingTrack=SelectedTrack;handle=i==0?"first":"second";if(e.Button==MouseButtons.Left){if(BeginEdit!=null)BeginEdit();Capture=true;}else draggingTrack=null;return;}}
         foreach(var t in State.tracks.Where(t=>t.enabled&&Theme.Spatial(t.kind)&&Frame>=t.start&&Frame<=t.end).Reverse())
         {
@@ -129,12 +139,12 @@ internal sealed class StageCanvas : Control
         }
         foreach(var instance in Room.instances.AsEnumerable().Reverse())
         {string name;if(!ObjectSprites.TryGetValue(instance.name,out name)||String.IsNullOrEmpty(name))continue;if(Sprites.Bounds(name,instance.x,instance.y).Contains(p)){if(SelectInstance!=null)SelectInstance(instance);if(e.Button==MouseButtons.Left){if(BeginEdit!=null)BeginEdit();draggingInstance=instance;Capture=true;}return;}}
-        if(e.Button==MouseButtons.Left&&view.Contains(e.Location))
+        if(e.Button==MouseButtons.Left)
         {selectingBox=true;boxFirst=boxLast=p;boxInitial=(ModifierKeys&(Keys.Control|Keys.Shift))!=0?new HashSet<Track>(SelectedTracks):new HashSet<Track>();Capture=true;}
     }
     protected override void OnMouseMove(MouseEventArgs e)
     {
-        base.OnMouseMove(e);if(Room==null)return;if(panning){Fit();double scale=view.Width/Room.width;ViewX=panX-(e.X-panStart.X)/scale;ViewY=panY-(e.Y-panStart.Y)/scale;Fit();Invalidate();return;}var p=Position(e.Location);if(PointerMoved!=null)PointerMoved(p);
+        base.OnMouseMove(e);if(Room==null)return;if(panning){Fit();double scale=view.Width/Room.width;ViewX=panX-(e.X-panStart.X)/scale;ViewY=panY-(e.Y-panStart.Y)/scale;Fit();DisplayOptionsChanged();return;}var p=Position(e.Location);if(PointerMoved!=null)PointerMoved(p);
         if(selectingBox)
         {
             boxLast=p;var r=RectangleF.FromLTRB(Math.Min(boxFirst.X,p.X),Math.Min(boxFirst.Y,p.Y),Math.Max(boxFirst.X,p.X),Math.Max(boxFirst.Y,p.Y));SelectedTracks.Clear();SelectedTracks.UnionWith(boxInitial);
@@ -151,7 +161,7 @@ internal sealed class StageCanvas : Control
             {
                 double dx=Math.Round(p.X-pointerDown.X),dy=Math.Round(p.Y-pointerDown.Y);if((ModifierKeys&Keys.Shift)!=0){dx=Math.Round(dx/16)*16;dy=Math.Round(dy/16)*16;}
                 foreach(var pair in positions)
-                {var item=pair.Key;string[] fields=item.kind=="rod"&&item.rodMode=="endpoints"?new[]{"x1","y1","x2","y2"}:item.kind=="rod"&&item.rodMode=="anchor"?new[]{"x","y","x2","y2"}:new[]{"x","y"};foreach(string field in fields)Motion.EditValue(item,field,Frame,pair.Value[field]+(field.StartsWith("x")?dx:dy));}
+                {var item=pair.Key;string[] fields=item.kind=="rod"&&item.shape=="rod"&&item.rodMode=="endpoints"?new[]{"x1","y1","x2","y2"}:item.kind=="rod"&&item.shape=="rod"&&item.rodMode=="anchor"?new[]{"x","y","x2","y2"}:new[]{"x","y"};foreach(string field in fields)Motion.EditValue(item,field,Frame,pair.Value[field]+(field.StartsWith("x")?dx:dy));}
             }
             else if(t.rodMode=="center")
             {var center=Motion.At(t,Frame);double dx=x-center.x,dy=y-center.y;Motion.EditValue(t,"length",Frame,2*Math.Sqrt(dx*dx+dy*dy));Motion.EditValue(t,"angle",Frame,Math.Atan2(-dy,dx)*180/Math.PI+(handle=="first"?180:0)-t.angularSpeed*Math.Max(0,Frame-t.start));}

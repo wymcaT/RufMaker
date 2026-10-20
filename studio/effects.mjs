@@ -6,23 +6,23 @@ const color=t=>{const h=/^#[\da-f]{6}$/i.test(t.color||'')?t.color.slice(1):'000
 export const effectTypes=['flash','shake','color','fade-in','fade-out','rgb','motion-blur','blur','invert','vignette'];
 export const fxResetGml=`// Restore the timeline's full-frame target after the engine composites its own surfaces.
 if instance_exists(objRufController) {
- if objRufController.rf_fx_active && surface_exists(objRufController.rf_fx_scene) {surface_set_target(objRufController.rf_fx_scene);return 0;}
+ if objRufController.rf_fx_active && surface_exists(objRufController.rf_fx_scene) {surface_set_target(objRufController.rf_fx_scene);rf_camera_apply();return 0;}
 }
 surface_reset_target();return 0;
 `;
 export function fxInitialization(state) {
-  const count=state.tracks.filter(t=>t.enabled!==false&&t.kind==='effect').length;
+  const count=state.tracks.filter(t=>t.enabled!==false&&(t.kind==='effect'||t.kind==='camera')).length;
   return `rf_fx_scene=-1;rf_fx_a=-1;rf_fx_b=-1;rf_fx_active=0;rf_fx_rendering=0;rf_fx_w=0;rf_fx_h=0;
 for(rf_j=0;rf_j<${Math.max(1,count)};rf_j+=1){rf_fx_history[rf_j]=-1;rf_fx_history_frame[rf_j]=-1000000;}
 ${count?'rf_inst=instance_create(0,0,objRufFxBegin);rf_inst.rf_owner=id;rf_inst=instance_create(0,0,objRufFxEnd);rf_inst.rf_owner=id;':''}`;
 }
 export function fxCleanup(state) {
-  const count=state.tracks.filter(t=>t.enabled!==false&&t.kind==='effect').length;
+  const count=state.tracks.filter(t=>t.enabled!==false&&(t.kind==='effect'||t.kind==='camera')).length;
   return `if surface_exists(rf_fx_scene) surface_free(rf_fx_scene);if surface_exists(rf_fx_a) surface_free(rf_fx_a);if surface_exists(rf_fx_b) surface_free(rf_fx_b);var rf_k;for(rf_k=0;rf_k<${count};rf_k+=1)if surface_exists(rf_fx_history[rf_k]) surface_free(rf_fx_history[rf_k]);`;
 }
 export function makeFxObjects(state) {
   const effects=state.tracks.filter(t=>t.enabled!==false&&t.kind==='effect');
-  const enabled=effects.map(t=>`(rf_frame>=${n(t.start)} && rf_frame<=${n(t.end)})`).join(' || ')||'0';
+  const enabled=state.tracks.filter(t=>t.enabled!==false&&(t.kind==='effect'||t.kind==='camera')).map(t=>`(rf_frame>=${n(t.start)} && rf_frame<=${n(t.end)})`).join(' || ')||'0';
   const allocate=['rf_fx_scene','rf_fx_a','rf_fx_b'].map(v=>`if !surface_exists(${v}) ${v}=surface_create(room_width,room_height);`).join('\n');
   const begin=`#define Create_0\n${action}\nrf_owner=noone;
 #define Draw_0
@@ -33,18 +33,18 @@ with(rf_owner) {
  if rf_fx_w!=room_width || rf_fx_h!=room_height {if surface_exists(rf_fx_scene)surface_free(rf_fx_scene);if surface_exists(rf_fx_a)surface_free(rf_fx_a);if surface_exists(rf_fx_b)surface_free(rf_fx_b);rf_fx_w=room_width;rf_fx_h=room_height;}
  ${allocate}
  if !surface_exists(rf_fx_scene) || !surface_exists(rf_fx_a) || !surface_exists(rf_fx_b) exit;
- surface_set_target(rf_fx_scene);draw_set_blend_mode(bm_normal);draw_set_alpha(1);draw_clear(c_black);
+ rf_fx_rendering=1;surface_set_target(rf_fx_scene);draw_set_blend_mode(bm_normal);draw_set_alpha(1);draw_clear(c_black);
  if background_showcolor draw_clear(background_color);
  // The supplied engine draws its room to global.surface1 before compositing objBackground.
  // Preserve that pipeline; rf_fx_reset_target redirects its final composite into our scene.
  if instance_exists(objBackground) && variable_global_exists('surface1') {if surface_exists(global.surface1) surface_set_target(global.surface1);}
- rf_fx_rendering=1;
+ rf_camera_apply();
 }
 `;
   const parts=[`#define Create_0\n${action}\nrf_owner=noone;`, `#define Draw_0\n${action}
 if !instance_exists(rf_owner) {instance_destroy();exit;}
 with(rf_owner) {
-if !rf_fx_rendering exit;surface_reset_target();rf_fx_rendering=0;
+if !rf_fx_rendering exit;surface_reset_target();rf_fx_rendering=0;rf_camera_apply();
 var rf_src,rf_dst,rf_swap,rf_u,rf_dx,rf_dy,rf_age,rf_i,rf_offset,rf_samples,rf_band,rf_inset,rf_coverage,${fields.map(f=>'rf_'+f).join(',')};
 rf_src=rf_fx_scene;rf_dst=rf_fx_a;
 `];

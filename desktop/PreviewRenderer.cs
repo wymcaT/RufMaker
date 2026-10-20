@@ -5,11 +5,10 @@ using System.Drawing.Drawing2D;
 
 internal static class PreviewRenderer
 {
-    public static Bitmap Render(EditorState state,RoomData room,Dictionary<string,string> objectSprites,SpriteStore sprites,int frame,bool grid,bool hitboxes,PreviewCache cache=null)
+    public static Bitmap Render(EditorState state,RoomData room,Dictionary<string,string> objectSprites,SpriteStore sprites,int frame,bool grid,bool hitboxes,PreviewCache cache=null,Matrix transform=null,int width=0,int height=0,RectangleF? displayClip=null,RectangleF? effectsFrame=null)
     {
-        if(cache==null)using(var temporary=new PreviewCache())return Render(state,room,objectSprites,sprites,frame,grid,hitboxes,temporary);
+        if(cache==null)using(var temporary=new PreviewCache())return Render(state,room,objectSprites,sprites,frame,grid,hitboxes,temporary,transform,width,height,displayClip,effectsFrame);
         var signature=new System.Text.StringBuilder().Append(room.width).Append(':').Append(room.height).Append(':').Append(grid).Append(':').Append(hitboxes);
-        foreach(var instance in room.instances){string sprite;objectSprites.TryGetValue(instance.name,out sprite);signature.Append('|').Append(sprite).Append(',').Append(instance.x).Append(',').Append(instance.y);}
         string roomKey=signature.ToString();
         if(cache.roomLayer==null||cache.roomKey!=roomKey)
         {
@@ -19,32 +18,36 @@ internal static class PreviewRenderer
                 using(var bg=new LinearGradientBrush(new Rectangle(0,0,room.width,room.height),Color.FromArgb(29,38,57),Color.FromArgb(13,20,32),90))g.FillRectangle(bg,0,0,room.width,room.height);
                 g.InterpolationMode=InterpolationMode.NearestNeighbor;g.PixelOffsetMode=PixelOffsetMode.Half;
                 if(grid)using(var pen=new Pen(Color.FromArgb(35,104,127,160))){for(int x=0;x<room.width;x+=32)g.DrawLine(pen,x,0,x,room.height);for(int y=0;y<room.height;y+=32)g.DrawLine(pen,0,y,room.width,y);}
-                foreach(var instance in room.instances)
-                {string sprite;if(!objectSprites.TryGetValue(instance.name,out sprite)||String.IsNullOrEmpty(sprite))continue;sprites.Draw(g,sprite,instance.x,instance.y,1,0,1,Color.White);if(hitboxes)using(var pen=new Pen(Color.FromArgb(110,94,212,197))){var r=sprites.Bounds(sprite,instance.x,instance.y);g.DrawRectangle(pen,r.X,r.Y,r.Width,r.Height);}}
+
             }
         }
-        var bitmap=new Bitmap(room.width,room.height);
+        var bitmap=new Bitmap(width>0?width:room.width,height>0?height:room.height);
         try
         {
             using(var g=Graphics.FromImage(bitmap))
             {
-                g.DrawImageUnscaled(cache.roomLayer,0,0);
+                g.Clear(Color.FromArgb(203,211,222));if(displayClip.HasValue)g.SetClip(displayClip.Value);if(transform!=null)g.Transform=transform;
+                g.DrawImage(cache.roomLayer,0,0,room.width,room.height);
                 g.InterpolationMode=InterpolationMode.NearestNeighbor;g.PixelOffsetMode=PixelOffsetMode.Half;
+                for(int pass=0;pass<2;pass++)
+                {
+                if(pass==1)foreach(var instance in room.instances)
+                {string sprite;if(!objectSprites.TryGetValue(instance.name,out sprite)||String.IsNullOrEmpty(sprite))continue;sprites.Draw(g,sprite,instance.x,instance.y,1,0,1,Color.White);if(hitboxes)using(var pen=new Pen(Color.FromArgb(110,94,212,197))){var r=sprites.Bounds(sprite,instance.x,instance.y);g.DrawRectangle(pen,r.X,r.Y,r.Width,r.Height);}}
                 foreach(var track in state.tracks)
                 {
                     if(!track.enabled)continue;Color tint=track.rainbow?Color.White:Motion.ColorOf(track.color);
                     if(frame>=track.start&&frame<=track.end&&(track.kind=="object"||track.kind=="rod"))
                     {
                         var p=Motion.At(track,frame);
-                        if(Trails.Mode(track)!="off")
+                        if(pass==0&&Trails.Mode(track)!="off")
                         for(int sample=(frame/Trails.Interval(track))*Trails.Interval(track);sample>=Math.Max(track.start,frame-Trails.Life(track)+1);sample-=Trails.Interval(track))
                         {
                             var q=Motion.At(track,sample);int tail=frame-sample;
                             if(track.kind=="object")Trails.Draw(g,sprites,track,sample,tail,q.x,q.y,q.scale,q.angle,q.alpha,tint,Rainbow.Index(track,0,sample));
                             else {var points=Motion.RodPoints(track,sample);for(int k=0;k<points.Length;k++)Trails.Draw(g,sprites,track,sample*301+k,tail,points[k].X,points[k].Y,q.scale,Motion.Value(track,"spriteAngle",sample)+(track.rotateSprite?q.angle:0),q.alpha,tint,Rainbow.Index(track,Rainbow.RodSequence(track,k,points.Length,sample),sample));}
                         }
-                        if(track.kind=="object")sprites.Draw(g,track.sprite,p.x,p.y,p.scale,p.angle,p.alpha,tint,Rainbow.Index(track,0,frame));
-                        else {var points=Motion.RodPoints(track,frame);for(int k=0;k<points.Length;k++)sprites.Draw(g,track.sprite,points[k].X,points[k].Y,p.scale,Motion.Value(track,"spriteAngle",frame)+(track.rotateSprite?p.angle:0),p.alpha,tint,Rainbow.Index(track,Rainbow.RodSequence(track,k,points.Length,frame),frame));}
+                        if(pass==1){if(track.kind=="object")sprites.Draw(g,track.sprite,p.x,p.y,p.scale,p.angle,p.alpha,tint,Rainbow.Index(track,0,frame));
+                        else {var points=Motion.RodPoints(track,frame);for(int k=0;k<points.Length;k++)sprites.Draw(g,track.sprite,points[k].X,points[k].Y,p.scale,Motion.Value(track,"spriteAngle",frame)+(track.rotateSprite?p.angle:0),p.alpha,tint,Rainbow.Index(track,Rainbow.RodSequence(track,k,points.Length,frame),frame));}}
                     }
                     if(track.kind!="emitter")continue;
                     // Interval is track-level; speed/spread/count/lifetime are sampled independently at birth.
@@ -62,17 +65,32 @@ internal static class PreviewRenderer
                         for(int j=0;j<count&&drawn<20000;j++,drawn++)
                         {
                             double angle=p.angle+(j-(count-1)/2.0)*spread,rad=angle*Math.PI/180,dx=Math.Cos(rad)*speed,dy=-Math.Sin(rad)*speed;
-                            double x=p.x+dx*age,y=p.y+dy*age;if(x<-80||x>room.width+80||y<-80||y>room.height+80)continue;
+                            double x=p.x+dx*age,y=p.y+dy*age;
                             double sequence=birthOrdinal+j;
                             double imageAngle=Motion.Value(track,"spriteAngle",birth)+(track.rotateSprite?angle:0);
-                            if(Trails.Mode(track)!="off")for(int sample=(age/Trails.Interval(track))*Trails.Interval(track);sample>=Math.Max(0,age-Trails.Life(track)+1);sample-=Trails.Interval(track))
+                            if(pass==0&&Trails.Mode(track)!="off")for(int sample=(age/Trails.Interval(track))*Trails.Interval(track);sample>=Math.Max(0,age-Trails.Life(track)+1);sample-=Trails.Interval(track))
                                 Trails.Draw(g,sprites,track,(birth+sample)*301+j,age-sample,p.x+dx*sample,p.y+dy*sample,p.scale,imageAngle,p.alpha,tint,Rainbow.Index(track,sequence,birth+sample,birth));
-                            sprites.Draw(g,track.sprite,x,y,p.scale,imageAngle,p.alpha,tint,Rainbow.Index(track,sequence,frame,birth));
+                            if(pass==1)sprites.Draw(g,track.sprite,x,y,p.scale,imageAngle,p.alpha,tint,Rainbow.Index(track,sequence,frame,birth));
                         }
                     }
                 }
+                }
             }
-            return Effects.Apply(bitmap,state,frame,cache);
+            Bitmap result=bitmap;
+            if(effectsFrame.HasValue)
+            {
+                bool active=state.tracks.Exists(t=>t.enabled&&t.kind=="effect"&&frame>=t.start&&frame<=t.end);
+                if(active)
+                {
+                    var area=new Bitmap(room.width,room.height);
+                    using(var g=Graphics.FromImage(area))g.DrawImage(bitmap,new RectangleF(0,0,room.width,room.height),effectsFrame.Value,GraphicsUnit.Pixel);
+                    area=Effects.Apply(area,state,frame,cache);
+                    using(area)using(var g=Graphics.FromImage(bitmap))g.DrawImage(area,effectsFrame.Value);
+                }
+            }
+            else result=Effects.Apply(bitmap,state,frame,cache);
+            if(displayClip.HasValue)using(var g=Graphics.FromImage(result)){g.SetClip(displayClip.Value,CombineMode.Exclude);using(var outside=new SolidBrush(Color.FromArgb(203,211,222)))g.FillRectangle(outside,0,0,result.Width,result.Height);}
+            return result;
         }
         catch{bitmap.Dispose();throw;}
     }

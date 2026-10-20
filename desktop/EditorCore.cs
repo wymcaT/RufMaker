@@ -21,6 +21,8 @@ internal sealed class Track
 {
     public string id, name, kind, sprite="sprBullet", easing="linear", color="#ff6d91", effect="flash", code="", rodMode="center", motion="keyframes";
     public bool enabled=true, trail, rolling, rotateSprite, trailRandom;
+    public string shape="rod";
+    public double radius=120,orientation,sides=5,cameraZoom=1;
     public string trailMode="legacy";
     public int trailInterval=3,trailLife=18;
     public double spriteAngle,trailScaleDecay=.035,trailAlphaDecay=.035,trailStartAlpha=.55,trailSpeed,trailDirection;

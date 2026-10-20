@@ -4,8 +4,8 @@ using System.Windows.Forms;
 
 internal sealed class SelectionTimeControl : UserControl
 {
-    private readonly TrackBar progress=new TrackBar{Dock=DockStyle.Fill,TickStyle=TickStyle.None,Minimum=0,Maximum=1,SmallChange=1,Margin=Padding.Empty};
-    private readonly NumericUpDown frames=new NumericUpDown(),seconds=new NumericUpDown();
+    private readonly TrackBar progress=new WheelSafeTrackBar{Dock=DockStyle.Fill,TickStyle=TickStyle.None,Minimum=0,Maximum=1,SmallChange=1,Margin=Padding.Empty};
+    private readonly NumericUpDown frames=new WheelSafeNumericUpDown(),seconds=new WheelSafeNumericUpDown();
     private readonly Label range=new Label{Dock=DockStyle.Fill,ForeColor=Theme.Muted,TextAlign=ContentAlignment.MiddleLeft};
     private readonly Button begin=new Button(),end=new Button();
     private readonly CheckBox selectedRange=new CheckBox{Text="物件时段",Checked=true,AutoSize=true,ForeColor=Theme.Muted,Margin=new Padding(4,5,0,0)};

@@ -1,13 +1,13 @@
 import {normalizeRainbow} from './rainbow.mjs';
 export const basic=['x','y','angle','scale','alpha'];
-export const fields=['x','y','angle','scale','alpha','speed','spread','count','life','x1','y1','x2','y2','length','rollSpeed','rainbowDensity','rainbowOffset','rainbowSpeed','spriteAngle','strength','fxOpacity','fxAngle','fxRetention'];
-export const defaults={x:400,y:304,angle:0,scale:1,alpha:1,speed:3,spread:30,count:12,life:160,x1:280,y1:304,x2:520,y2:304,length:240,rollSpeed:2,rainbowDensity:1,rainbowOffset:0,rainbowSpeed:.25,spriteAngle:0,strength:6,fxOpacity:1,fxAngle:0,fxRetention:.5};
+export const fields=['x','y','angle','scale','alpha','speed','spread','count','life','x1','y1','x2','y2','length','rollSpeed','rainbowDensity','rainbowOffset','rainbowSpeed','spriteAngle','strength','fxOpacity','fxAngle','fxRetention','radius','orientation','sides','cameraZoom'];
+export const defaults={radius:120,orientation:0,sides:5,cameraZoom:1,x:400,y:304,angle:0,scale:1,alpha:1,speed:3,spread:30,count:12,life:160,x1:280,y1:304,x2:520,y2:304,length:240,rollSpeed:2,rainbowDensity:1,rainbowOffset:0,rainbowSpeed:.25,spriteAngle:0,strength:6,fxOpacity:1,fxAngle:0,fxRetention:.5};
 export function normalizeState(s) {
   if(s.version===1) {
     for(const t of s.tracks)t.keyframes=t.keyframes.flatMap(k=>k.property?[k]:basic.map(property=>({frame:k.frame,property,value:(k[property]??defaults[property])+(property==='angle'&&t.kind==='emitter'?(t.angle||0):0),easing:''})));
     s.version=2;
   }
-  for(const t of s.tracks)Object.assign(t,Object.fromEntries(Object.entries({motion:'keyframes',rodMode:'center',easePower:3,easePeriod:.3,velocityX:0,velocityY:0,accelerationX:0,accelerationY:0,angularSpeed:0,orbitRadius:100,orbitSpeed:1,orbitPhase:0,rolling:false,fxSamples:6,fxFrequency:1,...defaults}).filter(([key])=>t[key]===undefined)));
+  for(const t of s.tracks)Object.assign(t,Object.fromEntries(Object.entries({motion:'keyframes',shape:'rod',rodMode:'center',easePower:3,easePeriod:.3,velocityX:0,velocityY:0,accelerationX:0,accelerationY:0,angularSpeed:0,orbitRadius:100,orbitSpeed:1,orbitPhase:0,rolling:false,fxSamples:6,fxFrequency:1,...defaults}).filter(([key])=>t[key]===undefined)));
   for(const t of s.tracks) {
     normalizeRainbow(t);
     if(t.trailMode===undefined||t.trailMode==='legacy')t.trailMode=t.trail?'fade':'off';
