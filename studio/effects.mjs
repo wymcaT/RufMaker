@@ -1,7 +1,7 @@
 import {stateCode,fields} from './motion.mjs';
+import {gmlNumber as n} from './gml.mjs';
 
 const action=`/*"/*'/**//* YYD ACTION\nlib_id=1\naction_id=603\napplies_to=self\n*/`;
-const n=(v,d=0)=>Number.isFinite(Number(v))?String(Number(v)):String(d);
 const color=t=>{const h=/^#[\da-f]{6}$/i.test(t.color||'')?t.color.slice(1):'000000';return `make_color_rgb(${parseInt(h.slice(0,2),16)},${parseInt(h.slice(2,4),16)},${parseInt(h.slice(4,6),16)})`;};
 export const effectTypes=['flash','shake','color','fade-in','fade-out','rgb','motion-blur','blur','invert','vignette'];
 export const fxResetGml=`// Restore the timeline's full-frame target after the engine composites its own surfaces.

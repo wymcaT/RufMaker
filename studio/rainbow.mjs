@@ -1,4 +1,4 @@
-const n=(v,d=0)=>String(Number.isFinite(Number(v))?Number(v):d);
+import {gmlNumber as n} from './gml.mjs';
 export const rainbowSprite='sprrainbowcherry';
 export function normalizeRainbow(t) {
   const defaults={rainbow:false,rainbowReverse:false,rainbowDynamic:false,rainbowSourceSprite:'',rainbowSourceColor:'',rainbowSprite:'',rainbowDensity:1,rainbowOffset:0,rainbowSpeed:.25};

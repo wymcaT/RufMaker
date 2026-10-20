@@ -58,7 +58,7 @@ internal sealed partial class MainForm : Form
         inspectorTimer.Interval=100;inspectorTimer.Tick+=(s,e)=>{inspectorTimer.Stop();properties.Refresh();};
         Shown+=async(s,e)=>{try{currentProjectPath=restoredView!=null&&File.Exists(restoredView.projectPath)?restoredView.projectPath:"";bridge=new NativeBridge(root,currentProjectPath);await LoadProject();}catch(Exception error){Error(error);}};
         FormClosing+=OnClosing;
-        FormClosed+=(s,e)=>{saveTimer.Dispose();playTimer.Dispose();inspectorTimer.Dispose();audio.Dispose();if(effectMenu!=null)effectMenu.Dispose();if(bridge!=null)bridge.Dispose();if(sprites!=null)sprites.Dispose();if(pendingUpdate!=null)Updater.Start(pendingUpdate);};
+        FormClosed+=(s,e)=>{saveTimer.Dispose();playTimer.Dispose();inspectorTimer.Dispose();nativeWatch.Dispose();audio.Dispose();if(effectMenu!=null)effectMenu.Dispose();if(bridge!=null)bridge.Dispose();if(sprites!=null)sprites.Dispose();if(pendingUpdate!=null)Updater.Start(pendingUpdate);};
     }
 
     private Button Button(string text,Action click,bool primary=false,int width=90)
@@ -117,7 +117,7 @@ internal sealed partial class MainForm : Form
         var hitbox=new CheckBox{Text="碰撞框",Checked=restoredView!=null&&restoredView.hitboxes,ForeColor=Theme.Muted,AutoSize=true,Margin=new Padding(5,9,0,0)};stage.Hitboxes=hitbox.Checked;hitbox.CheckedChanged+=(s,e)=>{stage.Hitboxes=hitbox.Checked;stage.DisplayOptionsChanged();};var renderCamera=new CheckBox{Text="渲染拉镜",Checked=restoredView!=null&&restoredView.renderCamera,ForeColor=Theme.Muted,AutoSize=true,Margin=new Padding(8,9,5,0)};stage.RenderCamera=renderCamera.Checked;renderCamera.CheckedChanged+=(s,e)=>{stage.RenderCamera=renderCamera.Checked;stage.DisplayOptionsChanged();};tools.Controls.Add(grid);tools.Controls.Add(hitbox);tools.Controls.Add(renderCamera);tools.Controls.Add(Button("适应房间",()=>stage.ResetView(),false,80));tips.SetToolTip(stage,"Ctrl+滚轮：缩放；中键拖动：平移；Ctrl+0 / 双击中键：适应房间");header.Controls.Add(tools);tools.BringToFront();table.Controls.Add(header,0,0);
         stage.Dock=DockStyle.Fill;stage.Margin=Padding.Empty;stage.SelectedTracks=timeline.SelectedTracks;stage.SelectTracks=(group,primary)=>timeline.SetTrackSelection(group,primary);stage.SelectTrack=SelectTrack;stage.SelectInstance=SelectInstance;stage.BeginEdit=PushUndo;stage.Changed=MarkChanged;
         stage.InstanceMoved=async instance=>await SaveInstance(instance);stage.ResourceDropped=async(kind,name,p)=>await DropResource(kind,name,p);
-        stage.PointerMoved=p=>coordinates.Text=String.Format("X {0:0}    Y {1:0}    Shift：16 像素吸附",p.X,p.Y);stage.ContextMenuStrip=CreateContext(false);table.Controls.Add(stage,0,1);tools.Controls.Add(nativeRender);tools.Controls.Add(regenerateNativeFilm);nativeRender.CheckedChanged+=(s,e)=>ToggleNativeFilm();regenerateNativeFilm.Click+=async(s,e)=>await GenerateNativeFilm();tips.SetToolTip(regenerateNativeFilm,"首次生成后会保存。改动原生代码后，可点此重新生成。");parent.Controls.Add(table);
+        stage.PointerMoved=p=>coordinates.Text=String.Format("X {0:0}    Y {1:0}    Shift：16 像素吸附",p.X,p.Y);stage.ContextMenuStrip=CreateContext(false);table.Controls.Add(stage,0,1);tools.Controls.Add(nativeRender);tools.Controls.Add(regenerateNativeFilm);BuildNativeTestTools(tools);nativeRender.CheckedChanged+=(s,e)=>ToggleNativeFilm();regenerateNativeFilm.Click+=async(s,e)=>await GenerateNativeFilm();tips.SetToolTip(regenerateNativeFilm,"首次生成后会保存。改动原生代码后，可点此重新生成。");parent.Controls.Add(table);
     }
     private void BuildInspector(Control parent)
     {
@@ -329,7 +329,7 @@ internal sealed partial class MainForm : Form
             bool migrated=!state.timelineInitialized;if(migrated){if(state.nativeProject==null&&state.duration==1500)state.duration=Math.Max(state.tracks.Count==0?state.fps:state.tracks.Max(t=>Math.Max(t.end,t.keyframes.Count==0?0:t.keyframes.Max(k=>k.frame))),(int)Math.Ceiling(document.waveform.duration*state.fps));state.timelineInitialized=true;}
             if(sprites!=null)sprites.Dispose();sprites=new SpriteStore{Project=document.project,Metadata=document.spriteMeta};
             selectedTrack=null;selectedKey=null;selectedInstance=null;selectedNativeEvent=null;resourceName=null;dirty=false;undo.Clear();redo.Clear();
-            stage.State=state;stage.Room=document.room;stage.Sprites=sprites;stage.ObjectSprites=document.inventory.objectSprites;
+            stage.State=state;stage.Room=document.room;stage.Sprites=sprites;stage.ObjectSprites=document.inventory.objectSprites;RefreshNativeTestPlayer();
             timeline.ClearKeySelection();timeline.State=state;timeline.Wave=document.waveform;frameInput.Maximum=state.duration;FillResources();SelectProject();SetFrame(Math.Min(frame,state.duration));timeline.RefreshLayout();timeline.FitAll();RestoreDocumentView();UpdateTitle();stage.SceneChanged();
 
             if(state.nativeProject!=null){var original=state.tracks.FirstOrDefault(t=>t.kind=="native");if(original!=null){original.end=Math.Min(state.duration,state.nativeProject.duration);timeline.Expand(original,true);}}
@@ -628,7 +628,7 @@ internal sealed partial class MainForm : Form
             var payload=new{state=Json.Read<EditorState>(Json.Write(state)),frame=target};BuildResult result;
             if(state.nativeProject!=null){using(var dialog=new NativeReplayProgressForm(bridge,payload,target)){dialog.ShowDialog(this);if(dialog.Cancelled){SetStatus("原生试玩重放已取消。");return;}if(dialog.ErrorText!=null)throw new IOException(dialog.ErrorText);result=dialog.Result;}}
             else result=await bridge.Call<BuildResult>("run",payload);
-            if(current==revision)dirty=false;SetStatus(result.ready?"原生试玩已进入 "+result.status["room"]+" · 第 "+result.status["frame"]+" 帧":"游戏已启动，请查看游戏窗口");
+            if(current==revision)dirty=false;SetStatus(result.ready?"原生试玩已进入 "+result.status["room"]+" · 第 "+result.status["frame"]+" 帧":"游戏已启动，请查看游戏窗口");if(state.nativeProject!=null){nativePhase="";nativeWatch.Start();}
         }
         catch(Exception error){Error(error);}finally{SetBusy(false);}
     }

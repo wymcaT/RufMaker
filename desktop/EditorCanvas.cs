@@ -35,6 +35,7 @@ internal sealed class StageCanvas : Control
     public Track SelectedTrack;public Keyframe SelectedKey;public RoomInstance SelectedInstance;
     public int Frame;public bool Grid=true,Hitboxes,RenderCamera;
     public string NativeFilmPath;
+    public bool EditNativeTest;public string NativeTestSprite;public Action NativeTestPreview,NativeTestChanged;private bool draggingNativeTest;
     public HashSet<string> NativeFilmIds=new HashSet<string>();
     public Action<Track,Keyframe> SelectTrack;public Action<RoomInstance> SelectInstance;
     public Action BeginEdit,Changed;public Action<RoomInstance> InstanceMoved;
@@ -105,6 +106,10 @@ internal sealed class StageCanvas : Control
         var saved=g.Save();if(RenderCamera)g.SetClip(view);using(var m=DisplayMatrix())g.Transform=m;g.SmoothingMode=SmoothingMode.AntiAlias;
         foreach(var camera in State.tracks.Where(t=>t.enabled&&t.kind=="camera"&&(t==SelectedTrack||Frame>=t.start&&Frame<=t.end)))
         {var corners=Camera.At(camera,Frame,Room).Corners(Room.width,Room.height);using(var pen=new Pen(camera==SelectedTrack?Theme.Accent:Color.FromArgb(245,203,104),2)){pen.DashStyle=DashStyle.Dash;g.DrawPolygon(pen,corners);}using(var brush=new SolidBrush(Color.FromArgb(245,203,104)))g.DrawString(camera.name+" · 游戏显示范围",Theme.Small,brush,corners[0]);}
+        if(EditNativeTest&&State.nativeProject!=null&&State.nativeTest!=null){float x=(float)State.nativeTest.x,y=(float)State.nativeTest.y;
+            if(Sprites!=null&&!String.IsNullOrEmpty(NativeTestSprite))Sprites.Draw(g,NativeTestSprite,x,y,1,0,.8,Color.White);
+            using(var pen=new Pen(Color.Cyan,1.5f)){g.DrawRectangle(pen,x-12,y-16,24,32);g.DrawLine(pen,x-20,y,x+20,y);g.DrawLine(pen,x,y-23,x,y+23);}using(var brush=new SolidBrush(Color.Cyan))g.DrawString("试玩玩家 · "+x.ToString("0.##")+", "+y.ToString("0.##"),Theme.Small,brush,x+15,y-20);
+        }
         if(SelectedInstance!=null&&Sprites!=null)
         {string sprite;if(ObjectSprites.TryGetValue(SelectedInstance.name,out sprite)){var r=Sprites.Bounds(sprite,SelectedInstance.x,SelectedInstance.y);using(var pen=new Pen(Theme.Accent,2))g.DrawRectangle(pen,r.X,r.Y,r.Width,r.Height);}}
         foreach(var item in SelectedTracks.Where(t=>t!=SelectedTrack&&Theme.Spatial(t.kind)))
@@ -134,6 +139,7 @@ internal sealed class StageCanvas : Control
     protected override void OnMouseDown(MouseEventArgs e)
     {
         base.OnMouseDown(e);if(State==null||Room==null)return;Focus();if(e.Button==MouseButtons.Middle){panning=true;panStart=e.Location;panX=ViewX;panY=ViewY;Cursor=Cursors.Hand;Capture=true;return;}var p=Position(e.Location);down=e.Location;pointerDown=p;moved=false;positions.Clear();
+        if(EditNativeTest&&State.nativeProject!=null&&e.Button==MouseButtons.Left){if(BeginEdit!=null)BeginEdit();draggingNativeTest=true;Capture=true;PlaceNativeTest(p);return;}
         if(SelectedTracks.Count<=1&&SelectedTrack!=null&&SelectedTrack.kind=="rod"&&SelectedTrack.shape=="rod")
         {var ends=Motion.Endpoints(SelectedTrack,Frame);for(int i=0;i<2;i++)if(Near(ends[i],p,14)){draggingTrack=SelectedTrack;handle=i==0?"first":"second";if(e.Button==MouseButtons.Left){if(BeginEdit!=null)BeginEdit();Capture=true;}else draggingTrack=null;return;}}
         foreach(var t in State.tracks.Where(t=>t.enabled&&Theme.Spatial(t.kind)&&Frame>=t.start&&Frame<=t.end).Reverse())
@@ -160,6 +166,7 @@ internal sealed class StageCanvas : Control
     protected override void OnMouseMove(MouseEventArgs e)
     {
         base.OnMouseMove(e);if(Room==null)return;if(panning){Fit();double scale=view.Width/Room.width;ViewX=panX-(e.X-panStart.X)/scale;ViewY=panY-(e.Y-panStart.Y)/scale;Fit();DisplayOptionsChanged();return;}var p=Position(e.Location);if(PointerMoved!=null)PointerMoved(p);
+        if(draggingNativeTest){PlaceNativeTest(p);return;}
         if(selectingBox)
         {
             boxLast=p;var r=RectangleF.FromLTRB(Math.Min(boxFirst.X,p.X),Math.Min(boxFirst.Y,p.Y),Math.Max(boxFirst.X,p.X),Math.Max(boxFirst.Y,p.Y));SelectedTracks.Clear();SelectedTracks.UnionWith(boxInitial);
@@ -184,9 +191,12 @@ internal sealed class StageCanvas : Control
         }
         else{draggingInstance.x=x;draggingInstance.y=y;}SceneChanged();
     }
+    private void PlaceNativeTest(PointF point)
+    {if(State.nativeTest==null)State.nativeTest=new NativeTestPosition();double x=point.X,y=point.Y;if((ModifierKeys&Keys.Shift)!=0){x=Math.Round(x/16)*16;y=Math.Round(y/16)*16;}State.nativeTest.x=Math.Max(-100000,Math.Min(100000,Math.Round(x,2)));State.nativeTest.y=Math.Max(-100000,Math.Min(100000,Math.Round(y,2)));Invalidate();if(NativeTestPreview!=null)NativeTestPreview();}
+    private void FinishNativeTest(){draggingNativeTest=false;if(NativeTestChanged!=null)NativeTestChanged();}
     protected override void OnMouseUp(MouseEventArgs e)
-    {base.OnMouseUp(e);if(panning||e.Button==MouseButtons.Middle){panning=false;Capture=false;Cursor=Cursors.Default;return;}if(selectingBox){selectingBox=false;var chosen=SelectedTracks.ToArray();if(SelectTracks!=null)SelectTracks(chosen,chosen.FirstOrDefault());Invalidate();}Capture=false;if(moved&&draggingTrack!=null&&Changed!=null)Changed();if(moved&&draggingInstance!=null&&InstanceMoved!=null)InstanceMoved(draggingInstance);draggingTrack=null;draggingInstance=null;}
-    protected override void OnMouseCaptureChanged(EventArgs e){base.OnMouseCaptureChanged(e);if(!Capture&&panning){panning=false;Cursor=Cursors.Default;}}
+    {base.OnMouseUp(e);if(draggingNativeTest){FinishNativeTest();Capture=false;return;}if(panning||e.Button==MouseButtons.Middle){panning=false;Capture=false;Cursor=Cursors.Default;return;}if(selectingBox){selectingBox=false;var chosen=SelectedTracks.ToArray();if(SelectTracks!=null)SelectTracks(chosen,chosen.FirstOrDefault());Invalidate();}Capture=false;if(moved&&draggingTrack!=null&&Changed!=null)Changed();if(moved&&draggingInstance!=null&&InstanceMoved!=null)InstanceMoved(draggingInstance);draggingTrack=null;draggingInstance=null;}
+    protected override void OnMouseCaptureChanged(EventArgs e){base.OnMouseCaptureChanged(e);if(!Capture&&draggingNativeTest)FinishNativeTest();if(!Capture&&panning){panning=false;Cursor=Cursors.Default;}}
     protected override void OnDragEnter(DragEventArgs e){if(e.Data.GetDataPresent(DataFormats.Text))e.Effect=DragDropEffects.Copy;}
     protected override void OnDragDrop(DragEventArgs e){var text=e.Data.GetData(DataFormats.Text) as string;if(text==null||ResourceDropped==null)return;var parts=text.Split('|');if(parts.Length==2)ResourceDropped(parts[0],parts[1],Position(PointToClient(new Point(e.X,e.Y))));}
     protected override void Dispose(bool disposing){if(disposing){if(image!=null){image.Dispose();image=null;}if(!rendering){if(workerSprites!=null){workerSprites.Dispose();workerSprites=null;}previewCache.Dispose();}}base.Dispose(disposing);}

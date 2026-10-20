@@ -19,8 +19,10 @@ internal sealed class EditorState
     public bool timelineInitialized;
     public string[] plainRooms=new string[0];
     public NativeProject nativeProject;
+    public NativeTestPosition nativeTest=new NativeTestPosition();
     public List<Track> tracks=new List<Track>();
 }
+internal sealed class NativeTestPosition {public double x=400,y=304;}
 internal sealed class PlayerSettings {public double gravity=.4,moveSpeed=3,jumpSpeed=8.5,doubleJumpSpeed=7;public int maxJumps=2;public bool infiniteJump;}
 internal sealed class Track
 {
@@ -82,7 +84,7 @@ internal sealed class LoadData
 internal sealed class SourceData {public string content,hash;}
 internal sealed class SaveResult {public RoomData room;}
 internal sealed class BuildResult {public string exe,dir;public long bytes;public bool ready,cached;public int pid;public Dictionary<string,string> status;}
-internal sealed class NativeRunProgress {public string phase,room;public int frame,target;}
+internal sealed class NativeRunProgress {public string phase,room,error;public int frame,target;}
 internal sealed class NativeEvent {public string id,file,expression,kind,label,snippet,reason;public int frame,line;public double period;}
 internal sealed class NativeProject
 {

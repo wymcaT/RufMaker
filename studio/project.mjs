@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import {gmlNumber as gnum} from './gml.mjs';
 import {locateProject} from './project-files.mjs';
 import {preparePlainRoom} from './plain-room.mjs';
 import {shapeSetup,shapePoint} from './shapes.mjs';
@@ -65,7 +66,6 @@ export function validateState(s) {
 function lines(file) { return fs.readFileSync(file, 'utf8').replace(/\r/g, '').split('\n'); }
 function appendUnique(file, value) { const arr = lines(file); if (!arr.includes(value)) fs.appendFileSync(file, `${value}\n`, 'utf8'); }
 function atomicWrite(file, value) { if (fs.existsSync(file) && fs.readFileSync(file,'utf8')===value) return; const temp = `${file}.${crypto.randomBytes(4).toString('hex')}.tmp`; fs.writeFileSync(temp, value, 'utf8'); fs.renameSync(temp, file); }
-function gnum(n, fallback = 0) { return Number.isFinite(Number(n)) ? String(Number(n)) : String(fallback); }
 function gcolor(hex) { const v = /^#[0-9a-f]{6}$/i.test(hex || '') ? hex.slice(1) : 'ffffff'; return `make_color_rgb(${parseInt(v.slice(0,2),16)},${parseInt(v.slice(2,4),16)},${parseInt(v.slice(4,6),16)})`; }
 
 const stateAt=stateCode;

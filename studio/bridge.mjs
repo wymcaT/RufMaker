@@ -6,7 +6,7 @@ import {createProject,copySong,terrainLayout} from './project-files.mjs';
 import {scanNativeFolder,importNativeProject,analyzeNativeProject,refreshNativeState} from './native-import.mjs';
 import {nativeEventBlock,replaceNativeEventBlock} from './native-blocks.mjs';
 import {root,project,projectFile,descriptor,projectName,pack,readState,syncToGame,roomInfo,inventory,sourcePath,moveRoomInstance,importSprite} from './project.mjs';
-import {ensureBuild,exportStatus,packageGame,runNative,openNative,nativeRunStatus,cancelNativeRun} from './native.mjs';
+import {ensureBuild,exportStatus,packageGame,runNative,openNative,nativeRunStatus,cancelNativeRun,closeNativePlay} from './native.mjs';
 import {prepareNativeSession} from './native-preview.mjs';
 import {prepareNativeFilm} from './native-film.mjs';
 import {buildDir,gameMaker} from './project.mjs';
@@ -95,7 +95,7 @@ input.on('line',async line=>{
   let request;
   try {
     request=JSON.parse(line);
-    if(request.command==='shutdown') {input.close();return;}
+    if(request.command==='shutdown') {await closeNativePlay();input.close();return;}
     const result=await execute(request.command,request.payload);
     process.stdout.write(JSON.stringify({id:request.id,ok:true,result})+'\n');
   } catch(error) {

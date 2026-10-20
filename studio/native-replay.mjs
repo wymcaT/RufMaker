@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {setTimeout as sleep} from 'node:timers/promises';
 
-function readStatus(file) {
+export function readNativeStatus(file) {
   try {
     return Object.fromEntries(fs.readFileSync(file,'utf8').split(/\r?\n/).filter(line=>line.includes('=')).map(line=>{
       const at=line.indexOf('=');return [line.slice(0,at).trim(),line.slice(at+1).trim().replace(/^"|"$/g,'')];
@@ -19,7 +19,7 @@ export async function waitForNativeReplay({child,statusFile,target,dir,signal,on
   for(;;) {
     signal?.throwIfAborted();
     if(child.exitCode!==null||child.signalCode)throw new Error('原生试玩在重放阶段退出，请查看 '+path.join(dir,'game_errors.log')+'。');
-    const status=readStatus(statusFile),frame=status.frame!==undefined&&status.frame.trim()!==''?Number(status.frame):NaN;
+    const status=readNativeStatus(statusFile),frame=status.frame!==undefined&&status.frame.trim()!==''?Number(status.frame):NaN;
     if(Number.isFinite(frame)&&frame>=0) {
       if(frame>highest){highest=frame;lastProgress=now();}
       onProgress({frame:Math.min(target,highest),target,room:status.room||''});

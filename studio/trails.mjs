@@ -1,6 +1,6 @@
+import {gmlNumber as num} from './gml.mjs';
 // Trail samples are evaluated from their birth time, so seeking needs no simulation.
 export const trailModes=['off','fade','shrink','shrink-fade','appear','custom'];
-const num=v=>String(Number.isFinite(Number(v))?Number(v):0);
 export const trailMode=t=>t.trailMode==='legacy'||t.trailMode===undefined?(t.trail?'fade':'off'):t.trailMode;
 export const trailDirection=(t,seed)=>t.trailRandom?`((sin((${seed}+1)*12.9898)*43758.5453-floor(sin((${seed}+1)*12.9898)*43758.5453))*360)`:num(t.trailDirection);
 export function trailCall(t,{sprite=t.sprite,x='rf_x',y='rf_y',scale='rf_scale',angle='rf_angle',alpha='rf_alpha',color,age,seed,subimage='0'}) {

@@ -4,15 +4,17 @@ import { spawn } from 'node:child_process';
 import crypto from 'node:crypto';
 import { root, project, projectFile, makerFile, gameMaker, buildDir, gameExe, readState } from './project.mjs';
 import {prepareNativeSession,copyNativeExtras} from './native-preview.mjs';
-import {waitForNativeReplay} from './native-replay.mjs';
+import {NativePlaySession} from './native-play-session.mjs';
 
 const exportedExe=gameExe;
 let buildTask=null;
 let previewProcess=null;
 let nativeReplay=null;
+let nativePlay=null;
 
-export function nativeRunStatus(){return nativeReplay?{phase:nativeReplay.phase,frame:nativeReplay.frame,target:nativeReplay.target,room:nativeReplay.room}:null;}
-export function cancelNativeRun(){nativeReplay?.cancel.abort();return {cancelled:!!nativeReplay};}
+export function nativeRunStatus(){return nativeReplay?{phase:nativeReplay.phase,frame:nativeReplay.frame,target:nativeReplay.target,room:nativeReplay.room,error:nativeReplay.error||''}:null;}
+export async function cancelNativeRun(){const session=nativeReplay;session?.cancel.abort();if(nativePlay)await nativePlay.stop();if(session)session.phase='ended';return {cancelled:!!session};}
+export async function closeNativePlay(){if(nativePlay){const previous=nativePlay;nativePlay=null;await previous.stop();}}
 
 function sourceStamp() {
   let latest=Math.max(fs.statSync(makerFile).mtimeMs,fs.statSync(projectFile).mtimeMs);
@@ -93,6 +95,7 @@ export function packageGame(preview,frame=0) {
 }
 
 async function stopPreviousPreview() {
+  await closeNativePlay();
   if (previewProcess && previewProcess.exitCode===null) {
     const previous=previewProcess;
     await new Promise((resolve,reject)=>{
@@ -107,21 +110,20 @@ export async function runNative(frame=0) {
   const state=readState();
   if(state.nativeProject?.imported){
     const target=Math.max(0,Math.min(state.duration,Math.round(frame))),session={phase:'compile',frame:0,target,room:'',cancel:new AbortController()};nativeReplay=session;
-    let child;
+    let play;
     try {
       await stopPreviousPreview();session.cancel.signal.throwIfAborted();
       const cacheDir=path.join(root,'build','native-projects',crypto.createHash('sha256').update(project.toLowerCase()).digest('hex').slice(0,16));
       const result=await prepareNativeSession({project,projectFile,buildDir,cacheDir,gameMaker,state,frame:target,playable:true});
       session.cancel.signal.throwIfAborted();session.phase='replay';
-      child=spawn(result.exe,[],{cwd:result.dir,detached:true,windowsHide:true,stdio:'ignore'});
-      await new Promise((resolve,reject)=>{child.once('spawn',resolve);child.once('error',reject);});previewProcess=child;child.unref();
-      const status=await waitForNativeReplay({child,statusFile:result.statusFile,target,dir:result.dir,signal:session.cancel.signal,onProgress:progress=>Object.assign(session,progress)});
-      return {...result,pid:child.pid,ready:true,status};
+      play=new NativePlaySession({result,target,cancel:session.cancel,onProgress:progress=>Object.assign(session,progress)});nativePlay=play;
+      const status=await play.start();return {...result,pid:play.child.pid,ready:true,status};
     } catch(error) {
-      if(child&&child.exitCode===null)child.kill();
-      if(session.cancel.signal.aborted)throw new Error('已取消原生试玩重放。');
+      const cancelled=session.cancel.signal.aborted;
+      if(play){await play.stop().catch(()=>{});if(nativePlay===play)nativePlay=null;}
+      if(cancelled)throw new Error('已取消原生试玩重放。');
       throw error;
-    } finally {if(nativeReplay===session)nativeReplay=null;}
+    } finally {if(nativeReplay===session&&!nativePlay)nativeReplay=null;}
   }
   await stopPreviousPreview();
   const build=await ensureBuild();

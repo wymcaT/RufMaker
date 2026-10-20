@@ -28,6 +28,7 @@ internal static class Motion
     {if(HasKeys(t,property))SetKey(t,property,frame,value);else SetBase(t,property,value);}
     public static void Normalize(EditorState state)
     {
+        if(state.nativeTest==null)state.nativeTest=new NativeTestPosition();
         foreach(var t in state.tracks)
         {
             if(t.rainbow){t.sprite=String.IsNullOrEmpty(t.rainbowSprite)?Rainbow.Sprite:t.rainbowSprite;t.color="#FFFFFF";}
