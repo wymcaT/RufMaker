@@ -1,9 +1,9 @@
 const n=(v,d=0)=>String(Number.isFinite(Number(v))?Number(v):d);
 export const rainbowSprite='sprrainbowcherry';
 export function normalizeRainbow(t) {
-  const defaults={rainbow:false,rainbowReverse:false,rainbowDynamic:false,rainbowSourceSprite:'',rainbowSourceColor:'',rainbowDensity:1,rainbowOffset:0,rainbowSpeed:.25};
+  const defaults={rainbow:false,rainbowReverse:false,rainbowDynamic:false,rainbowSourceSprite:'',rainbowSourceColor:'',rainbowSprite:'',rainbowDensity:1,rainbowOffset:0,rainbowSpeed:.25};
   for(const [key,value] of Object.entries(defaults))if(t[key]===undefined)t[key]=value;
-  if(t.rainbow){t.sprite=rainbowSprite;t.color='#FFFFFF';}
+  if(t.rainbow){t.sprite=t.rainbowSprite||rainbowSprite;t.color='#FFFFFF';}
 }
 export function rainbowCode(t,sequence,time,{sampled=true}={}) {
   if(!t.rainbow)return '0';

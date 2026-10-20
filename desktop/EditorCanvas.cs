@@ -127,9 +127,9 @@ internal sealed class StageCanvas : Control
     private static bool Near(PointF a,PointF b,double radius){return Math.Abs(a.X-b.X)<radius&&Math.Abs(a.Y-b.Y)<radius;}
     public Track TrackAt(PointF p)
     {
-        return State==null?null:State.tracks.LastOrDefault(t=>t.enabled&&Theme.Visual(t.kind)&&Frame>=t.start&&Frame<=t.end&&
+        return State==null?null:State.tracks.LastOrDefault(t=>t.enabled&&Theme.Spatial(t.kind)&&Frame>=t.start&&Frame<=t.end&&
             (Near(new PointF((float)Motion.At(t,Frame).x,(float)Motion.At(t,Frame).y),p,22)||(t.kind=="rod"&&Motion.RodPoints(t,Frame).Any(q=>Near(q,p,16)))||
-            (Sprites!=null&&Sprites.Bounds(t.sprite,Motion.At(t,Frame).x,Motion.At(t,Frame).y).Contains(p))));
+            (Theme.Visual(t.kind)&&Sprites!=null&&Sprites.Bounds(t.sprite,Motion.At(t,Frame).x,Motion.At(t,Frame).y).Contains(p))));
     }
     protected override void OnMouseDown(MouseEventArgs e)
     {

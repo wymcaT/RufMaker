@@ -11,10 +11,10 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 
-[assembly:System.Reflection.AssemblyVersion("1.3.1.0")]
-[assembly:System.Reflection.AssemblyFileVersion("1.3.1.0")]
-[assembly:System.Reflection.AssemblyInformationalVersion("1.3.1")]
-internal static class AppVersion {public const string Current="1.3.1";}
+[assembly:System.Reflection.AssemblyVersion("1.4.0.0")]
+[assembly:System.Reflection.AssemblyFileVersion("1.4.0.0")]
+[assembly:System.Reflection.AssemblyInformationalVersion("1.4.0")]
+internal static class AppVersion {public const string Current="1.4.0";}
 #pragma warning disable 0649
 internal sealed class ReleaseAsset {public string name,browser_download_url;}
 internal sealed class GitRelease {public string tag_name;public ReleaseAsset[] assets;}

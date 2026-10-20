@@ -94,19 +94,19 @@ internal sealed partial class MainForm : Form
     }
     private void BuildResources(Control parent)
     {
-        var table=new TableLayoutPanel{Dock=DockStyle.Fill,ColumnCount=1,RowCount=4,BackColor=Theme.Panel,Margin=Padding.Empty};
-        table.RowStyles.Add(new RowStyle(SizeType.AutoSize));table.RowStyles.Add(new RowStyle(SizeType.AutoSize));table.RowStyles.Add(new RowStyle(SizeType.Absolute,Font.Height+16));table.RowStyles.Add(new RowStyle(SizeType.Percent,100));
-        var header=new FlowLayoutPanel{Dock=DockStyle.Fill,AutoSize=true,WrapContents=true,Margin=Padding.Empty};header.Controls.Add(new Label{Text="资源库",AutoSize=true,Font=Theme.Bold,Margin=new Padding(9,10,12,8)});var import=Button("导入",async()=>await ImportAssets(),false,58);header.Controls.Add(import);table.Controls.Add(header,0,0);
+        var table=new TableLayoutPanel{Dock=DockStyle.Fill,ColumnCount=1,RowCount=5,BackColor=Theme.Panel,Margin=Padding.Empty};
+        table.RowStyles.Add(new RowStyle(SizeType.AutoSize));table.RowStyles.Add(new RowStyle(SizeType.AutoSize));table.RowStyles.Add(new RowStyle(SizeType.Absolute,Font.Height+16));table.RowStyles.Add(new RowStyle(SizeType.AutoSize));table.RowStyles.Add(new RowStyle(SizeType.Percent,100));
+        var header=new FlowLayoutPanel{Dock=DockStyle.Fill,AutoSize=true,WrapContents=true,Margin=Padding.Empty};header.Controls.Add(new Label{Text="资源库",AutoSize=true,Font=Theme.Bold,Margin=new Padding(9,10,12,8)});var import=Button("导入",async()=>{if(IsPresetKind(resourceKind))ImportPresets();else await ImportAssets();},false,58);header.Controls.Add(import);table.Controls.Add(header,0,0);
         var tabs=new FlowLayoutPanel{Dock=DockStyle.Fill,AutoSize=true,WrapContents=true,Margin=Padding.Empty};
-        foreach(var item in new[]{new[]{"objects","对象"},new[]{"sprites","贴图"},new[]{"scripts","脚本"},new[]{"presets","运动预设"}})
+        foreach(var item in new[]{new[]{"objects","对象"},new[]{"sprites","贴图"},new[]{"scripts","脚本"},new[]{"presets","动作预设"},new[]{"effect-presets","特效预设"},new[]{"camera-presets","拉镜预设"},new[]{"custom-presets","自定义预设"}})
         {string kind=item[0];var button=Button(item[1],()=>{resourceKind=kind;resourceName=null;FillResources();},false,62);button.Margin=new Padding(3,2,0,2);tabs.Controls.Add(button);}table.Controls.Add(tabs,0,1);
-        search.Dock=DockStyle.Fill;search.Margin=new Padding(9,3,9,5);search.BackColor=Theme.Raised;search.ForeColor=Theme.Text;search.BorderStyle=BorderStyle.FixedSingle;search.TextChanged+=(s,e)=>FillResources();tips.SetToolTip(search,"按名称筛选对象、贴图或脚本");table.Controls.Add(search,0,2);
+        search.Dock=DockStyle.Fill;search.Margin=new Padding(9,3,9,5);search.BackColor=Theme.Raised;search.ForeColor=Theme.Text;search.BorderStyle=BorderStyle.FixedSingle;search.TextChanged+=(s,e)=>FillResources();tips.SetToolTip(search,"按名称筛选当前分类的资源或预设");table.Controls.Add(search,0,2);table.Controls.Add(BuildPresetTools(),0,3);
         resources.Dock=DockStyle.Fill;resources.View=View.Details;resources.HeaderStyle=ColumnHeaderStyle.None;resources.Columns.Add("资源",196);resources.FullRowSelect=true;resources.MultiSelect=false;resources.HideSelection=false;resources.BorderStyle=BorderStyle.None;resources.BackColor=Theme.Panel;resources.ForeColor=Theme.Text;
         resources.Resize+=(s,e)=>{if(resources.Columns.Count>0)resources.Columns[0].Width=Math.Max(60,resources.ClientSize.Width-6);};
         resources.SelectedIndexChanged+=(s,e)=>{if(resources.SelectedItems.Count==0)return;resourceName=resources.SelectedItems[0].Text;SelectResource();};
-        resources.DoubleClick+=async(s,e)=>{if(resourceName==null)return;if(resourceKind=="presets"){ApplyMotionPreset(resourceName,selectedTrack);return;}if(resourceKind=="sprites")ApplySprite(resourceName);else await EditResource(resourceKind,resourceName);};
-        resources.ItemDrag+=(s,e)=>{if(resources.SelectedItems.Count>0)resources.DoDragDrop(resourceKind+"|"+resources.SelectedItems[0].Text,DragDropEffects.Copy);};
-        table.Controls.Add(resources,0,3);parent.Controls.Add(table);
+        resources.DoubleClick+=async(s,e)=>{if(IsPresetKind(resourceKind)){await ActivatePresetResource();return;}if(resourceName==null)return;if(resourceKind=="sprites")ApplySprite(resourceName);else await EditResource(resourceKind,resourceName);};
+        resources.ItemDrag+=(s,e)=>{if(resources.SelectedItems.Count==0)return;string payload=IsPresetKind(resourceKind)?PresetDragText():resourceKind+"|"+resources.SelectedItems[0].Text;if(payload!=null)resources.DoDragDrop(payload,DragDropEffects.Copy);};
+        resources.ShowItemToolTips=true;resources.ContextMenuStrip=PresetResourceMenu();table.Controls.Add(resources,0,4);parent.Controls.Add(table);
     }
     private void BuildStage(Control parent)
     {
@@ -156,7 +156,7 @@ internal sealed partial class MainForm : Form
         zoomBar.Controls.Add(new Label{Text="音量",AutoSize=true,ForeColor=Theme.Muted,Margin=new Padding(10,9,0,0)});var volume=new WheelSafeTrackBar{Minimum=0,Maximum=100,Value=65,Width=95,Height=32,TickStyle=TickStyle.None,Margin=new Padding(0,4,0,0)};volume.ValueChanged+=(s,e)=>audio.SetVolume(volume.Value/100f);zoomBar.Controls.Add(volume);tips.SetToolTip(volume,"时间轴音乐音量");
         zoomBar.Controls.Add(new Label{Text="Ctrl+滚轮缩放 · Shift+滚轮横移",AutoSize=true,ForeColor=Theme.Muted,Margin=new Padding(6,9,0,0)});table.Controls.Add(zoomBar,0,1);
         table.Controls.Add(BuildBeatControls(),0,2);
-        timeline.Dock=DockStyle.Fill;timeline.Margin=Padding.Empty;timeline.Seek=value=>{StopPlaying();SetFrame(value);};timeline.PresetDropped=ApplyMotionPreset;timeline.SelectTrack=SelectTrack;timeline.BeginEdit=PushUndo;timeline.Changed=MarkChanged;
+        timeline.Dock=DockStyle.Fill;timeline.Margin=Padding.Empty;timeline.Seek=value=>{StopPlaying();SetFrame(value);};timeline.PresetDropped=async(kind,name,target,at)=>await UsePreset(kind,name,target,at);timeline.SelectTrack=SelectTrack;timeline.BeginEdit=PushUndo;timeline.Changed=MarkChanged;
         timeline.SelectNativeEvent=async(item,edit)=>{selectedNativeEvent=item;ShowProperties();if(edit&&item!=null)await EditNativeEvent();};
         timeline.PreviewChanged=()=>{stage.SceneChanged();inspectorTimer.Stop();inspectorTimer.Start();};
         timeline.InsertKey=(t,p,f)=>{SelectTrack(t,null);timeline.SelectedProperty=p;SetFrame(f);AddKey();};
@@ -209,6 +209,7 @@ internal sealed partial class MainForm : Form
             {
                 var t=selectedTrack;
                 menu.Items.Add("复制所选物件（含全部关键帧）    Ctrl+C",null,(a,b)=>{timeline.ClearKeySelection();CopySelection();});
+                menu.Items.Add("存为自定义预设…",null,(a,b)=>SaveSelectionAsPreset());
                 menu.Items.Add("展开属性轨道",null,(a,b)=>timeline.Expand(t,true));menu.Items.Add("收起属性轨道",null,(a,b)=>timeline.Expand(t,false));
                 if(Motion.Fields(t).Length>0)
                 {
@@ -340,7 +341,7 @@ internal sealed partial class MainForm : Form
     }
     private void FillResources()
     {
-        if(document==null)return;string[] names=resourceKind=="presets"?MotionPresets.Names:resourceKind=="objects"?document.inventory.objects:resourceKind=="sprites"?document.inventory.sprites:document.inventory.scripts;
+        if(document==null)return;if(IsPresetKind(resourceKind)){FillPresetResources();return;}presetTools.Visible=false;string[] names=resourceKind=="objects"?document.inventory.objects:resourceKind=="sprites"?document.inventory.sprites:document.inventory.scripts;
         resources.BeginUpdate();resources.Items.Clear();var previous=resources.SmallImageList;var icons=new ImageList{ImageSize=new Size(24,24),ColorDepth=ColorDepth.Depth32Bit};
         foreach(string name in names.Where(n=>n.IndexOf(search.Text,StringComparison.OrdinalIgnoreCase)>=0))
         {
@@ -386,7 +387,7 @@ internal sealed partial class MainForm : Form
     private void SelectInstance(RoomInstance instance)
     {timeline.ResetSelection(null,null);selectedInstance=instance;selectedTrack=null;selectedKey=null;resourceName=null;UpdateSelection();ShowProperties();}
     private void SelectResource()
-    {if(resourceKind=="presets"){SetStatus("将运动预设拖到画布或时间轴上的物件；双击应用到单个所选物件。");return;}if(resourceKind=="sprites"&&selectedTrack!=null&&Theme.Visual(selectedTrack.kind)){ApplySprite(resourceName);return;}timeline.ResetSelection(null,null);selectedTrack=null;selectedKey=null;selectedInstance=null;UpdateSelection();ShowProperties();}
+    {if(IsPresetKind(resourceKind)){SetStatus(resourceKind=="presets"?"拖到物件或拉镜轨道应用动作；双击应用到所选轨道。":resourceKind=="custom-presets"?"双击进入分类或添加预设；拖入时间轴按落点新建，右键管理名称、分类与导入导出。":"拖到同类轨道上应用；拖到空白处或双击新建预设轨道。");return;}if(resourceKind=="sprites"&&selectedTrack!=null&&Theme.Visual(selectedTrack.kind)){ApplySprite(resourceName);return;}timeline.ResetSelection(null,null);selectedTrack=null;selectedKey=null;selectedInstance=null;UpdateSelection();ShowProperties();}
     private void SelectProject(){timeline.ResetSelection(null,null);selectedTrack=null;selectedKey=null;selectedInstance=null;resourceName=null;UpdateSelection();ShowProperties();}
     private void Field<T>(NativeProperties bag,string name,string category,Func<T> get,Action<T> set,string[] choices=null,string description="")
     {bag.Add(name,category,typeof(T),()=>get(),value=>{PushUndo();set((T)value);MarkChanged();},choices,description);}
@@ -437,12 +438,7 @@ internal sealed partial class MainForm : Form
                 TrailFields(bag,new[]{track});
                 EaseField(bag,track,null);
                 Field(bag,"Power 指数","运动",()=>track.easePower,value=>track.easePower=Math.Max(.1,value));Field(bag,"ExpSin 周期","运动",()=>track.easePeriod,value=>track.easePeriod=Math.Max(.01,value));
-                string[] motionNames={"关键帧","速度 / 加速度","圆周运动","抛物线（起点 / 终点 / 峰）"},motionValues={"keyframes","velocity","orbit","parabola"};
-                Field(bag,"运动逻辑","运动",()=>motionNames[Math.Max(0,Array.IndexOf(motionValues,track.motion))],value=>{track.motion=motionValues[Array.IndexOf(motionNames,value)];BeginInvoke(new Action(ShowProperties));},motionNames,"运动叠加在关键帧位置上，时间单位为帧。");
-                Field(bag,"自转速度 °/帧","运动",()=>track.angularSpeed,value=>track.angularSpeed=value);
-                if(track.motion=="velocity"){Field(bag,"X 速度","运动",()=>track.velocityX,value=>track.velocityX=value);Field(bag,"Y 速度","运动",()=>track.velocityY,value=>track.velocityY=value);Field(bag,"X 加速度","运动",()=>track.accelerationX,value=>track.accelerationX=value);Field(bag,"Y 加速度","运动",()=>track.accelerationY,value=>track.accelerationY=value);}
-                if(track.motion=="orbit")Field(bag,"公转速度 °/帧","运动",()=>track.orbitSpeed,value=>track.orbitSpeed=value);
-                if(track.motion=="parabola")bag.Add("路径说明","运动",typeof(string),()=>"设置起点、终点和峰（通过点）；路径进度 0→1 沿连续曲线运动。",null);
+                MotionControls(bag,track);
                 AnimatedFields(bag,track);
                 keyButton.Text="＋ "+Motion.Name(CurrentProperty())+" 关键帧  (K)";
             }
@@ -461,7 +457,7 @@ internal sealed partial class MainForm : Form
             if(track.kind=="camera")
             {
                 keyButton.Enabled=true;keyButton.Text="＋ "+Motion.Name(CurrentProperty())+" 关键帧  (K)";EaseField(bag,track,null);
-                Field(bag,"Power 指数","运动",()=>track.easePower,value=>track.easePower=Math.Max(.1,value));Field(bag,"ExpSin 周期","运动",()=>track.easePeriod,value=>track.easePeriod=Math.Max(.01,value));AnimatedFields(bag,track);
+                Field(bag,"Power 指数","运动",()=>track.easePower,value=>track.easePower=Math.Max(.1,value));Field(bag,"ExpSin 周期","运动",()=>track.easePeriod,value=>track.easePeriod=Math.Max(.01,value));MotionControls(bag,track);AnimatedFields(bag,track);
                 bag.Add("说明","拉镜",typeof(string),()=>"X/Y 为镜头中心；缩放大于 1 拉近。时段外恢复房间视图；重叠时下方轨道优先。",null);
             }
             if(track.kind=="effect")
@@ -579,7 +575,7 @@ internal sealed partial class MainForm : Form
     {
         try
         {
-            if(kind=="presets"){ApplyMotionPreset(name,stage.TrackAt(position));return;}
+            if(IsPresetKind(kind)){await UsePreset(kind,name,stage.TrackAt(position),frame);return;}
             if(kind=="sprites"){AddTrack("object");selectedTrack.sprite=name;selectedTrack.x=Math.Round(position.X);selectedTrack.y=Math.Round(position.Y);ShowProperties();MarkChanged();}
             else if(kind=="objects")
             {PushUndo();ReplaceRoom(await bridge.Call<RoomData>("add-instance",new{room=state.room,name=name,x=(double)position.X,y=(double)position.Y}));SelectInstance(document.room.instances.Last());SetStatus("对象实例已加入 GameMaker 房间");}

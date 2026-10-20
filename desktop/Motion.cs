@@ -16,7 +16,7 @@ internal static class Motion
     public static string[] Fields(Track t)
     {
         var fields=t.kind=="camera"?new[]{"x","y","cameraZoom","angle"}:t.kind=="effect"?new[]{"strength","fxOpacity","fxAngle","fxRetention"}:t.kind=="rod"?Basic.Concat(t.shape=="rod"?new[]{"spriteAngle","x1","y1","x2","y2","length","rollSpeed","count"}:t.shape=="polygon"?new[]{"spriteAngle","radius","orientation","sides","rollSpeed","count"}:new[]{"spriteAngle","radius","rollSpeed","count"}).ToArray():t.kind=="emitter"?Basic.Concat(new[]{"spriteAngle","speed","spread","count","life"}).ToArray():t.kind=="object"?Basic:new string[0];
-        if(Theme.Visual(t.kind)){if(t.motion=="parabola")fields=fields.Concat(MotionPresets.PathFields).ToArray();if(t.motion=="orbit")fields=fields.Concat(new[]{"orbitRadius","orbitPhase"}).ToArray();}
+        if(Theme.Spatial(t.kind)){if(t.motion=="parabola")fields=fields.Concat(MotionPresets.PathFields).ToArray();if(t.motion=="orbit")fields=fields.Concat(new[]{"orbitRadius","orbitPhase"}).ToArray();}
         return t.rainbow?fields.Concat(Rainbow.Parameters).ToArray():fields;
     }
     public static double Base(Track t,string property)
@@ -30,7 +30,7 @@ internal static class Motion
     {
         foreach(var t in state.tracks)
         {
-            if(t.rainbow){t.sprite=Rainbow.Sprite;t.color="#FFFFFF";}
+            if(t.rainbow){t.sprite=String.IsNullOrEmpty(t.rainbowSprite)?Rainbow.Sprite:t.rainbowSprite;t.color="#FFFFFF";}
             var converted=new List<Keyframe>();
             foreach(var key in t.keyframes)
             {

@@ -32,7 +32,7 @@ internal sealed class Track
     public int trailInterval=3,trailLife=18;
     public double spriteAngle,trailScaleDecay=.035,trailAlphaDecay=.035,trailStartAlpha=.55,trailSpeed,trailDirection;
     public bool rainbow,rainbowReverse,rainbowDynamic;
-    public string rainbowSourceSprite="",rainbowSourceColor="";
+    public string rainbowSourceSprite="",rainbowSourceColor="",rainbowSprite="";
     public double rainbowDensity=1,rainbowOffset,rainbowSpeed=.25;
     public int start, end, interval=25, count=12, life=160;
     public double speed=3, spread=30, angle, strength=6;

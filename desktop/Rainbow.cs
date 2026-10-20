@@ -9,10 +9,10 @@ internal static class Rainbow
     {
         if(enabled&&!t.rainbow){t.rainbowSourceSprite=t.sprite;t.rainbowSourceColor=t.color;}
         t.rainbow=enabled;
-        if(enabled){t.sprite=Sprite;t.color="#FFFFFF";}
+        if(enabled){t.sprite=String.IsNullOrEmpty(t.rainbowSprite)?Sprite:t.rainbowSprite;t.color="#FFFFFF";}
         else {if(!String.IsNullOrEmpty(t.rainbowSourceSprite))t.sprite=t.rainbowSourceSprite;if(!String.IsNullOrEmpty(t.rainbowSourceColor))t.color=t.rainbowSourceColor;}
     }
-    public static void SetSprite(Track t,string sprite){if(t.rainbow&&sprite!=Sprite)Enable(t,false);t.sprite=sprite;}
+    public static void SetSprite(Track t,string sprite){if(t.rainbow&&sprite!=(String.IsNullOrEmpty(t.rainbowSprite)?Sprite:t.rainbowSprite))Enable(t,false);t.sprite=sprite;}
     public static double RodSequence(Track t,int index,int count,double frame)
     {
         if(t.shape!="rod"||t.rodMode!="center")return index;

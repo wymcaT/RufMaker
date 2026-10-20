@@ -43,6 +43,7 @@ async function execute(command,payload={}) {
     case 'audio-cache': fs.mkdirSync(path.join(project,'cache'),{recursive:true});fs.writeFileSync(path.join(project,'cache','rufmaker-waveform.json'),JSON.stringify(payload));return {ok:true};
     case 'save': syncToGame(payload); return {room:roomInfo(payload.room),export:exportStatus()};
     case 'source-read': return {content:fs.readFileSync(sourcePath(payload.kind,payload.name),'utf8')};
+    case 'asset-info': return {inventory:inventory(),spriteMeta:spriteMetadata()};
     case 'source-save': fs.writeFileSync(sourcePath(payload.kind,payload.name),payload.content,'utf8'); return {ok:true};
     case 'native-source-read': return {content:fs.readFileSync(nativeSourcePath(payload.path),'utf8')};
     case 'native-source-save': fs.writeFileSync(nativeSourcePath(payload.path),payload.content,'utf8');return {ok:true};
