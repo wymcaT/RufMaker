@@ -1,9 +1,6 @@
 using System;
-using System.Collections.Generic;
-using System.Diagnostics;
 using System.Drawing;
 using System.IO;
-using System.Globalization;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Threading.Tasks;
@@ -23,50 +20,59 @@ internal sealed class NativeGamePreview:Panel
     private struct NativeRect {public int left,top,right,bottom;}
     private readonly Timer poll=new Timer{Interval=40};private readonly Label message=new Label{Dock=DockStyle.Fill,TextAlign=ContentAlignment.MiddleCenter,ForeColor=Theme.Muted};
     private readonly PictureBox pausedFrame=new PictureBox{Dock=DockStyle.Fill,SizeMode=PictureBoxSizeMode.Zoom,Visible=false,BackColor=Theme.Back};private int imageSequence=-1,imageFrame=-1;
-    private NativeSession session;private Process process;private IntPtr gameWindow;private int serial=1,requested,lastStatus=-1,lastTest;private bool commandDirty,playing,stopping;private DateTime lastWrite=DateTime.MinValue;private int generation;
+    private NativeSession session;private NativePreviewRunner runner;private IntPtr gameWindow;private int requested,lastStatus=-1,actualFrame=-1,lastTest;private bool commandDirty,pendingSeek,playing,stopping,launching;private DateTime lastWrite=DateTime.MinValue;private int generation;
     public Action<int,bool,bool> Progress;public Action<string> Failure;public Action RequestTest;
-    public bool Running {get{return process!=null&&!process.HasExited&&gameWindow!=IntPtr.Zero;}}
+    public bool Running {get{return session!=null&&runner!=null&&!stopping&&(launching||runner.Alive);}}
     public bool Playing {get{return playing;}}
     public NativeGamePreview(){DoubleBuffered=true;BackColor=Theme.Back;Controls.Add(message);Controls.Add(pausedFrame);poll.Tick+=(s,e)=>Tick();Resize+=(s,e)=>Fit();}
     public async Task Start(NativeSession next,int frame)
     {
-        Stop();int current=++generation;session=next;serial=1;lastTest=0;requested=frame;lastStatus=-1;playing=false;message.Text="正在启动原生 GML 渲染…";message.Visible=true;Visible=true;
-        process=Process.Start(new ProcessStartInfo{FileName=next.exe,WorkingDirectory=next.dir,UseShellExecute=false,CreateNoWindow=true,WindowStyle=ProcessWindowStyle.Hidden});var launched=process;
-        for(int i=0;i<300;i++){
-            if(current!=generation)return;if(launched.HasExited)throw new InvalidOperationException("原生渲染在启动时退出；请检查原工程的运行错误和插件依赖。");
-            IntPtr found=IntPtr.Zero;long area=0;EnumWindows((window,p)=>{uint owner;GetWindowThreadProcessId(window,out owner);NativeRect rect;if(owner==(uint)launched.Id&&GetClientRect(window,out rect)){long size=(long)(rect.right-rect.left)*(rect.bottom-rect.top);if(size>area){area=size;found=window;}}return true;},IntPtr.Zero);
-            if(found!=IntPtr.Zero&&area>10000&&File.Exists(next.statusFile)){gameWindow=found;break;}await Task.Delay(50);
-        }
-        if(current!=generation)return;if(gameWindow==IntPtr.Zero)throw new InvalidOperationException("没有找到原生游戏绘图窗口。请用 F5 检查原工程是否弹出了运行错误。");
-        SetParent(gameWindow,Handle);int style=GetWindowLong(gameWindow,-16);SetWindowLong(gameWindow,-16,(style&~unchecked((int)0x80C40000))|0x50000000);SetWindowLong(gameWindow,-20,GetWindowLong(gameWindow,-20)&~0x00040000);Fit();ShowWindow(gameWindow,5);commandDirty=true;message.Visible=false;poll.Start();
+        Stop();session=next;runner=new NativePreviewRunner(next);requested=Math.Max(0,frame);Visible=true;await Launch(++generation);
     }
-    public void Seek(int frame){if(session==null)return;requested=Math.Max(0,frame);playing=false;commandDirty=true;}
+    private async Task Launch(int current)
+    {
+        var owned=runner;var next=session;launching=true;poll.Stop();gameWindow=IntPtr.Zero;lastStatus=-1;actualFrame=-1;lastTest=0;imageSequence=-1;imageFrame=-1;commandDirty=false;pendingSeek=false;lastWrite=DateTime.MinValue;
+        message.Text="正在初始化并逐帧重放原生 GML…";pausedFrame.Visible=pausedFrame.Image!=null;message.Visible=!pausedFrame.Visible;if(pausedFrame.Visible)pausedFrame.BringToFront();else message.BringToFront();if(Progress!=null)Progress(0,false,true);
+        try{
+            await owned.Restart(requested,playing);if(current!=generation||runner!=owned)return;var launched=owned.Process;
+            for(int i=0;i<300;i++){
+                if(current!=generation)return;if(launched==null||launched.HasExited)throw new InvalidOperationException("原生渲染副本在启动时退出，请查看 GameMaker 的运行报错。");
+                IntPtr found=IntPtr.Zero;long area=0;EnumWindows((window,p)=>{uint owner;GetWindowThreadProcessId(window,out owner);NativeRect rect;if(owner==(uint)launched.Id&&GetClientRect(window,out rect)){long size=(long)(rect.right-rect.left)*(rect.bottom-rect.top);if(size>area){area=size;found=window;}}return true;},IntPtr.Zero);
+                if(found!=IntPtr.Zero&&area>10000&&File.Exists(next.statusFile)){gameWindow=found;break;}await Task.Delay(50);
+            }
+            if(current!=generation)return;if(gameWindow==IntPtr.Zero)throw new InvalidOperationException("没有找到原生游戏绘图窗口。请用 F5 查看 GameMaker 的运行报错。");
+            SetParent(gameWindow,Handle);int style=GetWindowLong(gameWindow,-16);SetWindowLong(gameWindow,-16,(style&~unchecked((int)0x80C40000))|0x50000000);SetWindowLong(gameWindow,-20,GetWindowLong(gameWindow,-20)&~0x00040000);Fit();ShowWindow(gameWindow,5);message.Visible=false;poll.Start();
+        }finally{if(current==generation)launching=false;}
+    }
+    public void Seek(int frame){if(session==null)return;requested=Math.Max(0,frame);playing=false;pendingSeek=true;commandDirty=true;}
     public void SetPlaying(bool value){if(session==null)return;if(playing==value)return;playing=value;commandDirty=true;}
     private void Fit(){if(gameWindow==IntPtr.Zero||session==null)return;double scale=Math.Min(Width/(double)Math.Max(1,session.width),Height/(double)Math.Max(1,session.height));int w=Math.Max(1,(int)(session.width*scale)),h=Math.Max(1,(int)(session.height*scale));MoveWindow(gameWindow,(Width-w)/2,(Height-h)/2,w,h,true);commandDirty=true;}
-    private static bool Number(string text,out int value){double parsed;value=0;if(!Double.TryParse(text,NumberStyles.Float,CultureInfo.InvariantCulture,out parsed)||Double.IsNaN(parsed)||Double.IsInfinity(parsed)||parsed<Int32.MinValue||parsed>Int32.MaxValue)return false;value=(int)Math.Round(parsed);return true;}
-    private void Tick()
+    private async void Tick()
     {
-        if(stopping||session==null)return;
+        if(stopping||launching||session==null||runner==null)return;int current=generation;var owned=runner;
         try{
-            if(process==null||process.HasExited){Stop();if(Failure!=null)Failure("原生渲染已退出；请用 F5 查看游戏错误，或重新打开原生渲染。");return;}
-            if(commandDirty&&(DateTime.UtcNow-lastWrite).TotalMilliseconds>=75){string data="[control]\r\nserial="+(++serial)+"\r\nframe="+requested+"\r\nplaying="+(playing?1:0)+"\r\nplayable=0\r\n",temp=session.commandFile+".tmp";File.WriteAllText(temp,data);if(File.Exists(session.commandFile))File.Replace(temp,session.commandFile,null);else File.Move(temp,session.commandFile);commandDirty=false;lastWrite=DateTime.UtcNow;}
-            if(!File.Exists(session.statusFile))return;
-            var values=new Dictionary<string,string>();foreach(string line in File.ReadAllLines(session.statusFile)){int at=line.IndexOf('=');if(at>0)values[line.Substring(0,at).Trim()]=line.Substring(at+1).Trim().Trim('"');}
-            string text;int frame,target,sequence,flag;if(!values.TryGetValue("sequence",out text)||!Number(text,out sequence)||sequence<serial)return;if(!values.TryGetValue("frame",out text)||!Number(text,out frame)||!values.TryGetValue("target",out text)||!Number(text,out target))return;
-            bool active=values.TryGetValue("playing",out text)&&Number(text,out flag)&&flag!=0,seeking=frame<target,changed=frame!=lastStatus||active!=playing;if(!commandDirty)playing=active;if(!commandDirty&&playing&&!seeking)requested=frame;
+            if(!owned.Alive){Stop();if(Failure!=null)Failure("原生渲染副本已退出；请用 F5 查看运行报错，或重新打开原生渲染。");return;}
+            var status=owned.ReadStatus();if(status!=null)actualFrame=status.frame;
+            if(status!=null&&status.rewind){await Launch(current);return;}
+            if(commandDirty&&(DateTime.UtcNow-lastWrite).TotalMilliseconds>=75){
+                if(pendingSeek&&requested<actualFrame){await Launch(current);return;}
+                owned.WriteControl(requested,playing,pendingSeek);commandDirty=false;pendingSeek=false;lastWrite=DateTime.UtcNow;return;
+            }
+            if(status==null)return;int frame=status.frame,target=status.target,sequence=status.sequence;
+            bool active=status.playing,seeking=frame<target,changed=frame!=lastStatus||active!=playing;if(!commandDirty)playing=active;if(!commandDirty&&playing&&!seeking)requested=frame;
             if(!active&&!seeking&&!commandDirty&&File.Exists(session.frameFile)&&(imageSequence!=sequence||imageFrame!=frame)){
                 using(var stream=new MemoryStream(File.ReadAllBytes(session.frameFile)))using(var original=Image.FromStream(stream)){var old=pausedFrame.Image;pausedFrame.Image=new Bitmap(original);if(old!=null)old.Dispose();}
                 imageSequence=sequence;imageFrame=frame;pausedFrame.Visible=true;pausedFrame.BringToFront();
             }
             if(active&&!seeking)pausedFrame.Visible=false;
             if(changed){lastStatus=frame;if(Progress!=null)Progress(frame,active&&!commandDirty,seeking);}
-            int test;if(values.TryGetValue("test",out text)&&Number(text,out test)&&test>lastTest){lastTest=test;if(RequestTest!=null)BeginInvoke(RequestTest);}
-        }catch(IOException){}catch(Exception error){Stop();if(Failure!=null)Failure(error.Message);}
+            if(status.test>lastTest){lastTest=status.test;if(RequestTest!=null)BeginInvoke(RequestTest);}
+        }catch(IOException error){if(!poll.Enabled&&current==generation&&runner==owned){Stop();if(Failure!=null)Failure(error.Message);}}catch(Exception error){if(current==generation&&runner==owned){Stop();if(Failure!=null)Failure(error.Message);}}
     }
     public void Stop()
     {
-        generation++;stopping=true;poll.Stop();gameWindow=IntPtr.Zero;var owned=process;process=null;session=null;commandDirty=false;playing=false;pausedFrame.Visible=false;var oldImage=pausedFrame.Image;pausedFrame.Image=null;if(oldImage!=null)oldImage.Dispose();imageSequence=-1;imageFrame=-1;
-        if(owned!=null){try{if(!owned.HasExited)owned.Kill();}catch(InvalidOperationException){}finally{owned.Dispose();}}
+        generation++;stopping=true;poll.Stop();gameWindow=IntPtr.Zero;var owned=runner;runner=null;session=null;commandDirty=false;pendingSeek=false;playing=false;launching=false;pausedFrame.Visible=false;var oldImage=pausedFrame.Image;pausedFrame.Image=null;if(oldImage!=null)oldImage.Dispose();imageSequence=-1;imageFrame=-1;
+        if(owned!=null)owned.Dispose();
         stopping=false;message.Visible=true;message.Text="原生游戏渲染已停止";
     }
     protected override void Dispose(bool disposing){if(disposing){Stop();poll.Dispose();}base.Dispose(disposing);}

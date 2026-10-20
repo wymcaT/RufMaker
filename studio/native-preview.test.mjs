@@ -1,9 +1,14 @@
 import fs from 'node:fs';
 import assert from 'node:assert/strict';
 import {test} from 'node:test';
-import {rewriteNativeRuntime} from './native-preview.mjs';
+import {rewriteNativeRuntime,makeNativeHarness,commandText} from './native-preview.mjs';
 
 const state={fps:50,nativeProject:{hasFmod:true}};
+test('generated preview uses the host rewind protocol without unsupported GM game_restart',()=>{
+  const code=makeNativeHarness({...state,room:'rAvoidance',duration:6700});
+  assert(!/\bgame_restart\s*\(/.test(code));assert(code.includes('rf_native_wait_rewind()'));
+  assert(commandText(40).includes('seek=1\r\n'));
+});
 test('preserve native debug speed write targets from the reported world Step error',()=>{
   const source='room_speed += 50;\nif(room_speed>10)room_speed -= 10;\nroom_speed = 50;\n';
   assert.equal(rewriteNativeRuntime(source,state),'room_speed += 50;\nif(50>10)room_speed -= 10;\nroom_speed = 50;\n');

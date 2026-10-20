@@ -12,7 +12,7 @@ function append(file,line){const source=fs.readFileSync(file,'utf8');if(!source.
 export function copyNativeExtras(project,destination){for(const entry of fs.readdirSync(project,{withFileTypes:true}).filter(e=>e.isFile()&&e.name!=='rufmaker.json'&&(/\.(dll|ini|dat|cfg|bin|png|jpe?g|bmp|gif|webp|mp3|ogg|wav|flac|mp4|avi|wmv|json)$/i.test(e.name)||/^save\d*$/i.test(e.name))))fs.copyFileSync(path.join(project,entry.name),path.join(destination,entry.name));}
 function allFiles(folder){const result=[];for(const e of fs.readdirSync(folder,{withFileTypes:true})){const f=path.join(folder,e.name);if(e.isDirectory()&&!['cache','build'].includes(e.name))result.push(...allFiles(f));else if(e.isFile()&&!/rufmaker_(?:preview|native)/.test(e.name))result.push(f);}return result;}
 export function nativePreviewStamp(project){return allFiles(project).reduce((n,f)=>Math.max(n,fs.statSync(f).mtimeMs),0);}
-export function commandText(frame,playing=false,playable=false){return `[control]\r\nserial=1\r\nframe=${Math.max(0,Math.round(frame))}\r\nplaying=${playing?1:0}\r\nplayable=${playable?1:0}\r\n` ;}
+export function commandText(frame,playing=false,playable=false){return `[control]\r\nserial=1\r\nframe=${Math.max(0,Math.round(frame))}\r\nplaying=${playing?1:0}\r\nplayable=${playable?1:0}\r\nseek=1\r\n` ;}
 export function rewriteNativeRuntime(source,state){
   const clean=codeOnly(source).replace(/(['"])[\s\S]*?\1/g,m=>' '.repeat(m.length)),edits=[];
   for(const m of clean.matchAll(/\b(room_speed|ffps|FMODInstanceSetVolume)\b|\brandomize\s*\(\s*\)/g)){
@@ -33,11 +33,11 @@ export function rewriteNativeRuntime(source,state){
 export function makeNativeHarness(state) {
   const n=state.nativeProject,fps=state.fps;
   const fmod=n.hasFmod?`if variable_global_exists('BGMHandler') {if global.BGMHandler>0 {FMODInstanceSetVolume(global.BGMHandler,rf_volume);}}`:'';
-  return section('Create_0',`window_set_visible(0);global.rf_native_preview=1;global.rf_native_frame=0;rf_target=0;rf_playing=0;rf_playable=0;rf_sequence=-1;rf_test=0;rf_boot=0;rf_entered=0;rf_presented=0;rf_refresh=1;rf_pause_draw=0;random_set_seed(1234567);`)+
+  return section('Create_0',`window_set_visible(0);global.rf_native_preview=1;global.rf_native_frame=0;rf_target=0;rf_playing=0;rf_playable=0;rf_sequence=-1;rf_test=0;rf_boot=0;rf_entered=0;rf_presented=0;rf_refresh=1;rf_pause_draw=0;rf_rewind=0;random_set_seed(1234567);`)+
   section('Step_1',`rf_native_read();if !rf_playable rf_native_keys();
 if !rf_presented window_set_visible(0);
 if !rf_entered {rf_boot+=1;if rf_boot=3 {${n.musicInitializer||''}room_goto(${state.room});}exit;}
-if !rf_playing && rf_target<global.rf_native_frame {game_restart();exit;}
+if !rf_playing && rf_target<global.rf_native_frame rf_native_wait_rewind();
 if global.rf_native_frame>=rf_target {
  room_speed=${fps};
  if !rf_presented {rf_presented=1;screen_refresh();window_set_visible(1);}
@@ -48,7 +48,7 @@ if global.rf_native_frame>=rf_target && !rf_playing {
  rf_native_status();
  while !rf_playing && rf_target<=global.rf_native_frame {
   sleep(15);io_handle();rf_native_read();if !rf_playable rf_native_keys();
-  if rf_target<global.rf_native_frame {game_restart();exit;}
+  if rf_target<global.rf_native_frame rf_native_wait_rewind();
   if rf_refresh {screen_refresh();rf_refresh=0;rf_native_status();}
  }
 }
@@ -65,8 +65,9 @@ function writeHarness(project,state){
   const native=state.nativeProject,fps=state.fps;
   const data=path.join(project,'Data');fs.mkdirSync(data,{recursive:true});
   const scripts={
-    rf_native_read:`if file_exists(working_directory+'\\Data\\rufmaker_native_command.ini') {ini_open(working_directory+'\\Data\\rufmaker_native_command.ini');var rf_serial;rf_serial=ini_read_real('control','serial',1);if rf_serial!=rf_sequence {rf_sequence=rf_serial;rf_refresh=1;rf_target=max(0,min(${state.duration},ini_read_real('control','frame',0)));rf_playing=ini_read_real('control','playing',0);rf_playable=ini_read_real('control','playable',0);}ini_close();}return 0;`,
-    rf_native_status:`ini_open(working_directory+'\\Data\\rufmaker_native_status.ini');ini_write_real('native','test',rf_test);ini_write_real('native','sequence',rf_sequence);ini_write_real('native','frame',global.rf_native_frame);ini_write_real('native','target',rf_target);ini_write_real('native','playing',rf_playing);ini_write_real('native','ready',rf_presented);ini_write_string('native','room',room_get_name(room));ini_close();return 0;`,
+    rf_native_read:`if file_exists(working_directory+'\\Data\\rufmaker_native_command.ini') {ini_open(working_directory+'\\Data\\rufmaker_native_command.ini');var rf_serial,rf_seek;rf_serial=ini_read_real('control','serial',1);if rf_serial!=rf_sequence {rf_sequence=rf_serial;rf_refresh=1;rf_seek=ini_read_real('control','seek',1);if rf_seek {rf_target=max(0,min(${state.duration},ini_read_real('control','frame',0)));}else if global.rf_native_frame>=rf_target {rf_target=global.rf_native_frame;}rf_playing=ini_read_real('control','playing',0);if rf_seek && rf_target<global.rf_native_frame rf_playing=0;rf_playable=ini_read_real('control','playable',0);}ini_close();}return 0;`,
+    rf_native_status:`ini_open(working_directory+'\\Data\\rufmaker_native_status.ini');ini_write_real('native','test',rf_test);ini_write_real('native','sequence',rf_sequence);ini_write_real('native','frame',global.rf_native_frame);ini_write_real('native','target',rf_target);ini_write_real('native','playing',rf_playing);ini_write_real('native','ready',rf_presented);ini_write_real('native','rewind',rf_rewind);ini_write_string('native','room',room_get_name(room));ini_close();return 0;`,
+    rf_native_wait_rewind:`rf_rewind=1;rf_playing=0;rf_native_status();while rf_target<global.rf_native_frame {sleep(15);io_handle();rf_native_read();if rf_refresh {rf_refresh=0;rf_native_status();}}rf_rewind=0;rf_native_status();return 0;`,
     rf_native_keys:`if keyboard_check_pressed(vk_space) {keyboard_clear(vk_space);rf_playing=1-rf_playing;rf_target=global.rf_native_frame;}if keyboard_check_pressed(vk_f5) {keyboard_clear(vk_f5);rf_test+=1;rf_native_status();}return 0;`
   };
   if(native.hasFmod)scripts.rf_native_volume=`var volume;volume=argument1;if instance_exists(objRufNativePreview) {if (!objRufNativePreview.rf_playable && ${state.music?'1':'0'}) || !objRufNativePreview.rf_playing || global.rf_native_frame<objRufNativePreview.rf_target volume=0;}return FMODInstanceSetVolume(argument0,volume);`;
