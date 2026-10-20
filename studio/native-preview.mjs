@@ -13,6 +13,23 @@ export function copyNativeExtras(project,destination){for(const entry of fs.read
 function allFiles(folder){const result=[];for(const e of fs.readdirSync(folder,{withFileTypes:true})){const f=path.join(folder,e.name);if(e.isDirectory()&&!['cache','build'].includes(e.name))result.push(...allFiles(f));else if(e.isFile()&&!/rufmaker_(?:preview|native)/.test(e.name))result.push(f);}return result;}
 export function nativePreviewStamp(project){return allFiles(project).reduce((n,f)=>Math.max(n,fs.statSync(f).mtimeMs),0);}
 export function commandText(frame,playing=false,playable=false){return `[control]\r\nserial=1\r\nframe=${Math.max(0,Math.round(frame))}\r\nplaying=${playing?1:0}\r\nplayable=${playable?1:0}\r\n` ;}
+export function rewriteNativeRuntime(source,state){
+  const clean=codeOnly(source).replace(/(['"])[\s\S]*?\1/g,m=>' '.repeat(m.length)),edits=[];
+  for(const m of clean.matchAll(/\b(room_speed|ffps|FMODInstanceSetVolume)\b|\brandomize\s*\(\s*\)/g)){
+    const before=clean.slice(0,m.index),after=clean.slice(m.index+m[0].length);
+    if(/\.\s*$/.test(before))continue;
+    if(m[0].startsWith('randomize')){edits.push([m.index,m[0].length,'random_set_seed(1234567)']);continue;}
+    if(m[1]==='FMODInstanceSetVolume'){
+      if(state.nativeProject.hasFmod&&/^\s*\(/.test(after))edits.push([m.index,m[0].length,'rf_native_volume']);
+      continue;
+    }
+    // Leave every write target intact, including compound assignments and ++/--.
+    if(/^\s*(?:=(?!=)|(?:<<|>>|[+\-*/%&|^])=|\+\+|--)/.test(after)||/(?:\+\+|--)\s*$/.test(before))continue;
+    edits.push([m.index,m[0].length,String(state.fps)]);
+  }
+  let result=source;for(const [at,length,value] of edits.reverse())result=result.slice(0,at)+value+result.slice(at+length);
+  return result;
+}
 export function makeNativeHarness(state) {
   const n=state.nativeProject,fps=state.fps;
   const fmod=n.hasFmod?`if variable_global_exists('BGMHandler') {if global.BGMHandler>0 {FMODInstanceSetVolume(global.BGMHandler,rf_volume);}}`:'';
@@ -71,15 +88,7 @@ function writeHarness(project,state){
   // Preserve frame-based timing while the runner fast-forwards actual GM steps.
   // Other native code, surfaces, draw events, resources and rooms stay intact.
   for(const file of allFiles(project).filter(f=>f.endsWith('.gml')&&!/^(objRufNativePreview|rf_native_\w+)\.gml$/.test(path.basename(f)))){
-    const source=fs.readFileSync(file,'utf8'),clean=codeOnly(source).replace(/(['"])[\s\S]*?\1/g,m=>' '.repeat(m.length)),edits=[];
-    for(const m of clean.matchAll(/\b(room_speed|ffps|FMODInstanceSetVolume)\b|\brandomize\s*\(\s*\)/g)){
-      if(clean[m.index-1]==='.')continue;
-      if(m[0].startsWith('randomize')){edits.push([m.index,m[0].length,'random_set_seed(1234567)']);continue;}
-      if(m[1]==='room_speed'&&/^\s*=(?!=)/.test(clean.slice(m.index+m[0].length)))continue;
-      if(m[1]==='FMODInstanceSetVolume'&&!native.hasFmod)continue;
-      edits.push([m.index,m[0].length,m[1]==='FMODInstanceSetVolume'?'rf_native_volume':String(fps)]);
-    }
-    let result=source;for(const [at,length,value] of edits.reverse())result=result.slice(0,at)+value+result.slice(at+length);if(result!==source)write(file,result);
+    const source=fs.readFileSync(file,'utf8'),result=rewriteNativeRuntime(source,state);if(result!==source)write(file,result);
   }
   for(const file of fs.readdirSync(path.join(project,'scripts')).filter(name=>/^(killPlayer|scrKillPlayer)\.gml$/i.test(name))){const f=path.join(project,'scripts',file);write(f,"if variable_global_exists('rf_native_preview') {if global.rf_native_preview {if instance_exists(objRufNativePreview) {if !objRufNativePreview.rf_playable || global.rf_native_frame<=objRufNativePreview.rf_target return 0;}}}\n"+fs.readFileSync(f,'utf8'));}
 }
