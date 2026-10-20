@@ -1,0 +1,34 @@
+name: Publish Windows release
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build native editor and package
+        shell: pwsh
+        run: |
+          $version=[regex]::Match((Get-Content desktop/Updater.cs -Raw),'Current="([0-9.]+)"').Groups[1].Value
+          if($env:GITHUB_REF_TYPE -eq 'tag' -and $env:GITHUB_REF_NAME -ne "v$version"){throw 'Tag and application versions do not match.'}
+          ./desktop/Package-Release.ps1 -Version $version
+          "RUFMAKER_VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+      - name: Publish verified update assets
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag="v$env:RUFMAKER_VERSION"
+          $headers=@{Authorization="Bearer $env:GH_TOKEN";Accept='application/vnd.github+json';'User-Agent'='RufMaker-release'}
+          $base="https://api.github.com/repos/$env:GITHUB_REPOSITORY"
+          $body=@{tag_name=$tag;target_commitish=$env:GITHUB_SHA;name="RufMaker $tag";body='Native Windows editor update package. Application files only; projects and songs are preserved.';draft=$true;prerelease=$false} | ConvertTo-Json
+          $release=Invoke-RestMethod -Method Post -Uri "$base/releases" -Headers $headers -ContentType 'application/json' -Body $body
+          foreach($file in Get-ChildItem build/distribution -File){
+            $url="https://uploads.github.com/repos/$env:GITHUB_REPOSITORY/releases/$($release.id)/assets?name=$([uri]::EscapeDataString($file.Name))"
+            Invoke-RestMethod -Method Post -Uri $url -Headers $headers -ContentType 'application/octet-stream' -InFile $file.FullName | Out-Null
+          }
+          Invoke-RestMethod -Method Patch -Uri "$base/releases/$($release.id)" -Headers $headers -ContentType 'application/json' -Body '{"draft":false,"make_latest":"true"}' | Out-Null

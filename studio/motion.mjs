@@ -1,6 +1,6 @@
 import {normalizeRainbow} from './rainbow.mjs';
 export const basic=['x','y','angle','scale','alpha'];
-export const fields=['x','y','angle','scale','alpha','speed','spread','count','life','x1','y1','x2','y2','length','rollSpeed','rainbowDensity','rainbowOffset','rainbowSpeed','spriteAngle','strength','fxOpacity','fxAngle','fxRetention','radius','orientation','sides','cameraZoom'];
+export const fields=['x','y','angle','scale','alpha','speed','spread','count','life','x1','y1','x2','y2','length','rollSpeed','rainbowDensity','rainbowOffset','rainbowSpeed','spriteAngle','strength','fxOpacity','fxAngle','fxRetention','radius','orientation','sides','cameraZoom','orbitRadius','orbitPhase','pathStartX','pathStartY','pathEndX','pathEndY','pathPeakX','pathPeakY','pathProgress'];
 export const defaults={radius:120,orientation:0,sides:5,cameraZoom:1,x:400,y:304,angle:0,scale:1,alpha:1,speed:3,spread:30,count:12,life:160,x1:280,y1:304,x2:520,y2:304,length:240,rollSpeed:2,rainbowDensity:1,rainbowOffset:0,rainbowSpeed:.25,spriteAngle:0,strength:6,fxOpacity:1,fxAngle:0,fxRetention:.5};
 export function normalizeState(s) {
   if(s.version===1) {
@@ -49,7 +49,8 @@ export function stateCode(t,time) {
   }
   const dt=`max(0,${time}-${num(t.start)})`;
   if(t.motion==='velocity')out.push(`rf_x+=${num(t.velocityX)}*${dt}+${num(t.accelerationX)}*sqr(${dt})/2;rf_y+=${num(t.velocityY)}*${dt}+${num(t.accelerationY)}*sqr(${dt})/2;`);
-  if(t.motion==='orbit')out.push(`rf_x+=lengthdir_x(${num(t.orbitRadius,100)},${num(t.orbitPhase)}+${num(t.orbitSpeed,1)}*${dt});rf_y+=lengthdir_y(${num(t.orbitRadius,100)},${num(t.orbitPhase)}+${num(t.orbitSpeed,1)}*${dt});`);
+  if(t.motion==='orbit')out.push(`rf_x+=lengthdir_x(rf_orbitRadius,rf_orbitPhase+${num(t.orbitSpeed,1)}*${dt});rf_y+=lengthdir_y(rf_orbitRadius,rf_orbitPhase+${num(t.orbitSpeed,1)}*${dt});`);
+  if(t.motion==='parabola')out.push(`rf_u=max(0,min(1,rf_pathProgress));rf_x+=sqr(1-rf_u)*rf_pathStartX+2*(1-rf_u)*rf_u*(2*rf_pathPeakX-(rf_pathStartX+rf_pathEndX)/2)+sqr(rf_u)*rf_pathEndX;rf_y+=sqr(1-rf_u)*rf_pathStartY+2*(1-rf_u)*rf_u*(2*rf_pathPeakY-(rf_pathStartY+rf_pathEndY)/2)+sqr(rf_u)*rf_pathEndY;`);
   out.push(`rf_angle+=${num(t.angularSpeed)}*${dt};`);return out.join('\n');
 }
 export const easeGml=`// Shared with the native editor: normalized outgoing segment easing.

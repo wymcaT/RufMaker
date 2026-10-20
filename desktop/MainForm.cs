@@ -45,10 +45,11 @@ internal sealed partial class MainForm : Form
     private Button runButton,exportButton,playButton,codeButton,keyButton,deleteButton;
     private readonly ToolTip tips=new ToolTip();
     private ContextMenuStrip effectMenu;
+    private readonly CheckBox keySnap=new CheckBox{Text="游标吸附关键帧",AutoSize=true,Margin=new Padding(8,9,5,0)};
 
     public MainForm(string root)
     {
-        this.root=root;Text="RufMaker · 原生耐久制作器";BackColor=Theme.Back;ForeColor=Theme.Text;Font=Theme.Font;
+        this.root=root;Text="RufMaker · 原生耐久制作器";BackColor=Theme.Back;ForeColor=Theme.Text;Font=Theme.Font;Icon=System.Drawing.Icon.ExtractAssociatedIcon(Application.ExecutablePath);
         StartPosition=FormStartPosition.CenterScreen;Size=new Size(1500,940);MinimumSize=new Size(1100,740);AutoScaleMode=AutoScaleMode.None;KeyPreview=true;
         restoredView=WorkspaceView.Load(root);if(restoredView!=null&&restoredView.positioned){StartPosition=FormStartPosition.Manual;Bounds=restoredView.VisibleBounds();if(restoredView.maximized)WindowState=FormWindowState.Maximized;}
         BuildLayout();
@@ -57,7 +58,7 @@ internal sealed partial class MainForm : Form
         inspectorTimer.Interval=100;inspectorTimer.Tick+=(s,e)=>{inspectorTimer.Stop();properties.Refresh();};
         Shown+=async(s,e)=>{try{currentProjectPath=restoredView!=null&&File.Exists(restoredView.projectPath)?restoredView.projectPath:"";bridge=new NativeBridge(root,currentProjectPath);await LoadProject();}catch(Exception error){Error(error);}};
         FormClosing+=OnClosing;
-        FormClosed+=(s,e)=>{saveTimer.Dispose();playTimer.Dispose();inspectorTimer.Dispose();audio.Dispose();if(effectMenu!=null)effectMenu.Dispose();if(bridge!=null)bridge.Dispose();if(sprites!=null)sprites.Dispose();};
+        FormClosed+=(s,e)=>{saveTimer.Dispose();playTimer.Dispose();inspectorTimer.Dispose();audio.Dispose();if(effectMenu!=null)effectMenu.Dispose();if(bridge!=null)bridge.Dispose();if(sprites!=null)sprites.Dispose();if(pendingUpdate!=null)Updater.Start(pendingUpdate);};
     }
 
     private Button Button(string text,Action click,bool primary=false,int width=90)
@@ -81,7 +82,7 @@ internal sealed partial class MainForm : Form
         topActions.Controls.Add(Button("保存",async()=>await SaveNow(true),false,64));
         topActions.Controls.Add(Button("GameMaker",async()=>{try{await SaveNow(false);await bridge.Call<object>("open-native",new{});SetStatus("已打开 GameMaker 工程");}catch(Exception error){Error(error);}},false,100));
         topActions.Controls.Add(Button("重新读取",async()=>{await SaveNow(false);await LoadProject();},false,92));
-        topActions.Controls.Add(Button("工程设置",()=>SelectProject(),false,92));layout.Controls.Add(top,0,0);
+        topActions.Controls.Add(Button("工程设置",OpenProjectSettings,false,92));topActions.Controls.Add(Button("检测更新",async()=>await CheckUpdates(),false,92));layout.Controls.Add(top,0,0);
 
         var vertical=verticalSplit;vertical.Dock=DockStyle.Fill;vertical.Orientation=Orientation.Horizontal;vertical.SplitterWidth=6;vertical.BackColor=Theme.Back;vertical.FixedPanel=FixedPanel.Panel2;vertical.Margin=Padding.Empty;
         layout.Controls.Add(vertical,0,1);
@@ -97,13 +98,13 @@ internal sealed partial class MainForm : Form
         table.RowStyles.Add(new RowStyle(SizeType.AutoSize));table.RowStyles.Add(new RowStyle(SizeType.AutoSize));table.RowStyles.Add(new RowStyle(SizeType.Absolute,Font.Height+16));table.RowStyles.Add(new RowStyle(SizeType.Percent,100));
         var header=new FlowLayoutPanel{Dock=DockStyle.Fill,AutoSize=true,WrapContents=true,Margin=Padding.Empty};header.Controls.Add(new Label{Text="资源库",AutoSize=true,Font=Theme.Bold,Margin=new Padding(9,10,12,8)});var import=Button("导入",async()=>await ImportAssets(),false,58);header.Controls.Add(import);table.Controls.Add(header,0,0);
         var tabs=new FlowLayoutPanel{Dock=DockStyle.Fill,AutoSize=true,WrapContents=true,Margin=Padding.Empty};
-        foreach(var item in new[]{new[]{"objects","对象"},new[]{"sprites","贴图"},new[]{"scripts","脚本"}})
+        foreach(var item in new[]{new[]{"objects","对象"},new[]{"sprites","贴图"},new[]{"scripts","脚本"},new[]{"presets","运动预设"}})
         {string kind=item[0];var button=Button(item[1],()=>{resourceKind=kind;resourceName=null;FillResources();},false,62);button.Margin=new Padding(3,2,0,2);tabs.Controls.Add(button);}table.Controls.Add(tabs,0,1);
         search.Dock=DockStyle.Fill;search.Margin=new Padding(9,3,9,5);search.BackColor=Theme.Raised;search.ForeColor=Theme.Text;search.BorderStyle=BorderStyle.FixedSingle;search.TextChanged+=(s,e)=>FillResources();tips.SetToolTip(search,"按名称筛选对象、贴图或脚本");table.Controls.Add(search,0,2);
         resources.Dock=DockStyle.Fill;resources.View=View.Details;resources.HeaderStyle=ColumnHeaderStyle.None;resources.Columns.Add("资源",196);resources.FullRowSelect=true;resources.MultiSelect=false;resources.HideSelection=false;resources.BorderStyle=BorderStyle.None;resources.BackColor=Theme.Panel;resources.ForeColor=Theme.Text;
         resources.Resize+=(s,e)=>{if(resources.Columns.Count>0)resources.Columns[0].Width=Math.Max(60,resources.ClientSize.Width-6);};
         resources.SelectedIndexChanged+=(s,e)=>{if(resources.SelectedItems.Count==0)return;resourceName=resources.SelectedItems[0].Text;SelectResource();};
-        resources.DoubleClick+=async(s,e)=>{if(resourceName==null)return;if(resourceKind=="sprites")ApplySprite(resourceName);else await EditResource(resourceKind,resourceName);};
+        resources.DoubleClick+=async(s,e)=>{if(resourceName==null)return;if(resourceKind=="presets"){ApplyMotionPreset(resourceName,selectedTrack);return;}if(resourceKind=="sprites")ApplySprite(resourceName);else await EditResource(resourceKind,resourceName);};
         resources.ItemDrag+=(s,e)=>{if(resources.SelectedItems.Count>0)resources.DoDragDrop(resourceKind+"|"+resources.SelectedItems[0].Text,DragDropEffects.Copy);};
         table.Controls.Add(resources,0,3);parent.Controls.Add(table);
     }
@@ -120,18 +121,18 @@ internal sealed partial class MainForm : Form
     }
     private void BuildInspector(Control parent)
     {
-        var outer=new Panel{Dock=DockStyle.Fill,AutoScroll=true,BackColor=Theme.Panel};
-        var table=new TableLayoutPanel{Dock=DockStyle.Top,ColumnCount=1,RowCount=4,BackColor=Theme.Panel,Margin=Padding.Empty};
+        var outer=new Panel{Dock=DockStyle.Fill,AutoScroll=false,BackColor=Theme.Panel};
+        var table=new TableLayoutPanel{Dock=DockStyle.Fill,ColumnCount=1,RowCount=4,BackColor=Theme.Panel,Margin=Padding.Empty};
         table.RowStyles.Add(new RowStyle(SizeType.Absolute,Font.Height+20));table.RowStyles.Add(new RowStyle(SizeType.Absolute,rightTime.PreferredSize.Height));table.RowStyles.Add(new RowStyle(SizeType.Percent,100));table.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         selectionTitle.Text="属性检查器";selectionTitle.Dock=DockStyle.Fill;selectionTitle.AutoEllipsis=true;selectionTitle.Padding=new Padding(8,0,0,0);selectionTitle.TextAlign=ContentAlignment.MiddleLeft;selectionTitle.Font=Theme.Bold;table.Controls.Add(selectionTitle,0,0);
-        rightTime.Dock=DockStyle.Fill;rightTime.Margin=Padding.Empty;rightTime.SnapFrame=value=>state==null||(ModifierKeys&Keys.Alt)!=0?value:BeatGrid.Snap(state,value);rightTime.Seek=value=>{StopPlaying();SetFrame(value);timeline.EnsureFrameVisible();};table.Controls.Add(rightTime,0,1);
+        rightTime.Dock=DockStyle.Fill;rightTime.Margin=Padding.Empty;rightTime.SnapFrame=value=>SnapCursor(value,Math.Max(1,state==null?1:10.0*(selectedTrack==null?state.duration:Math.Max(1,selectedTrack.end-selectedTrack.start))/Math.Max(100,rightTime.Width)));rightTime.Seek=value=>{StopPlaying();SetFrame(value);timeline.EnsureFrameVisible();};table.Controls.Add(rightTime,0,1);
         properties.Dock=DockStyle.Fill;properties.BeginScrub=()=>{StopPlaying();PushUndo();parameterScrubbing=true;saveTimer.Stop();};properties.EndScrub=()=>{parameterScrubbing=false;timeline.RefreshLayout();UpdateTitle();if(state!=null)rightTime.SetView(state.fps,state.duration,frame,selectedTrack);if(selectedInstance!=null)SaveInstanceFromProperty(selectedInstance);else if(dirty){saveTimer.Stop();saveTimer.Start();}};
         table.Controls.Add(properties,0,2);
         var actions=new FlowLayoutPanel{Dock=DockStyle.Fill,AutoSize=true,WrapContents=true,Padding=new Padding(4),Margin=Padding.Empty};
         codeButton=Button("编辑 GML",async()=>await EditSelection(),false,90);keyButton=Button("＋ 属性关键帧 (K)",AddKey,false,150);deleteButton=Button("删除所选 (Delete)",RemoveSelection,false,150);deleteButton.ForeColor=Theme.Accent;
         properties.ContextMenuStrip=CreateContext(true);
         foreach(var button in new[]{codeButton,keyButton,deleteButton}){button.Margin=new Padding(2);actions.Controls.Add(button);}table.Controls.Add(actions,0,3);outer.Controls.Add(table);parent.Controls.Add(outer);
-        Action fit=()=>{table.Width=Math.Max(160,outer.ClientSize.Width-(outer.VerticalScroll.Visible?SystemInformation.VerticalScrollBarWidth:0));int timeHeight=rightTime.GetPreferredSize(new Size(table.Width,0)).Height;table.RowStyles[1].Height=timeHeight;int foot=actions.GetPreferredSize(new Size(table.Width,0)).Height;table.Height=Math.Max(outer.ClientSize.Height,Font.Height+20+timeHeight+foot+180);};
+        Action fit=()=>{int timeHeight=rightTime.GetPreferredSize(new Size(Math.Max(160,outer.ClientSize.Width),0)).Height;table.RowStyles[1].Height=timeHeight;};
         outer.Resize+=(a,b)=>fit();actions.SizeChanged+=(a,b)=>fit();rightTime.RangeChanged=fit;fit();
     }
     private void BuildTimeline(Control parent)
@@ -148,13 +149,14 @@ internal sealed partial class MainForm : Form
         zoomBar.Controls.Add(new Label{Text="视野",AutoSize=true,ForeColor=Theme.Muted,Margin=new Padding(8,9,3,0)});
         var zoom=new WheelSafeComboBox{Width=Math.Max(105,Font.Height*6),DropDownStyle=ComboBoxStyle.DropDownList,Margin=new Padding(2,5,2,0),BackColor=Theme.Raised,ForeColor=Theme.Text};zoom.Items.AddRange(new object[]{"全曲","10 秒","30 秒","1 分钟","5 分钟"});zoom.SelectedIndexChanged+=(s,e)=>{if(state==null)return;if(zoom.SelectedIndex==0)timeline.FitAll();else timeline.ViewSeconds(new[]{10,30,60,300}[zoom.SelectedIndex-1]);};zoomBar.Controls.Add(zoom);
         zoomBar.Controls.Add(Button("－",()=>timeline.SetZoom(timeline.PixelsPerSecond*.8f),false,32));zoomBar.Controls.Add(Button("＋",()=>timeline.SetZoom(timeline.PixelsPerSecond*1.25f),false,32));zoomBar.Controls.Add(Button("定位播放头",()=>timeline.EnsureFrameVisible(),false,96));
+        keySnap.Checked=restoredView!=null&&restoredView.keySnap;keySnap.Enabled=false;zoomBar.Controls.Add(keySnap);tips.SetToolTip(keySnap,"仅对单个所选物件生效；接近关键帧时吸附，Alt 临时关闭。输入帧数和逐帧按钮不吸附。");timeline.SnapCursor=value=>SnapCursor(value,state==null?1:Math.Max(1,10.0*state.fps/timeline.PixelsPerSecond));
         zoomBar.Controls.Add(new Label{Text="总时长 / 秒",AutoSize=true,ForeColor=Theme.Muted,Margin=new Padding(12,9,3,0)});
         durationInput.DecimalPlaces=2;durationInput.Increment=10;durationInput.Maximum=66666;durationInput.Minimum=1;durationInput.Width=Math.Max(90,TextRenderer.MeasureText("66666.00",Font).Width+30);durationInput.Margin=new Padding(2,5,4,0);durationInput.BackColor=Theme.Raised;durationInput.ForeColor=Theme.Text;durationInput.ValueChanged+=(s,e)=>{if(!durationLoading&&state!=null)ChangeDuration((double)durationInput.Value);};zoomBar.Controls.Add(durationInput);
         zoomBar.Controls.Add(Button("＋60 秒",()=>ChangeDuration(state==null?60:state.duration/(double)state.fps+60),false,80));zoomBar.Controls.Add(Button("按音乐长度",()=>{if(document!=null)ChangeDuration(document.waveform.duration);},false,98));
         zoomBar.Controls.Add(new Label{Text="音量",AutoSize=true,ForeColor=Theme.Muted,Margin=new Padding(10,9,0,0)});var volume=new WheelSafeTrackBar{Minimum=0,Maximum=100,Value=65,Width=95,Height=32,TickStyle=TickStyle.None,Margin=new Padding(0,4,0,0)};volume.ValueChanged+=(s,e)=>audio.SetVolume(volume.Value/100f);zoomBar.Controls.Add(volume);tips.SetToolTip(volume,"时间轴音乐音量");
         zoomBar.Controls.Add(new Label{Text="Ctrl+滚轮缩放 · Shift+滚轮横移",AutoSize=true,ForeColor=Theme.Muted,Margin=new Padding(6,9,0,0)});table.Controls.Add(zoomBar,0,1);
         table.Controls.Add(BuildBeatControls(),0,2);
-        timeline.Dock=DockStyle.Fill;timeline.Margin=Padding.Empty;timeline.Seek=value=>{StopPlaying();SetFrame(value);};timeline.SelectTrack=SelectTrack;timeline.BeginEdit=PushUndo;timeline.Changed=MarkChanged;
+        timeline.Dock=DockStyle.Fill;timeline.Margin=Padding.Empty;timeline.Seek=value=>{StopPlaying();SetFrame(value);};timeline.PresetDropped=ApplyMotionPreset;timeline.SelectTrack=SelectTrack;timeline.BeginEdit=PushUndo;timeline.Changed=MarkChanged;
         timeline.PreviewChanged=()=>{stage.SceneChanged();inspectorTimer.Stop();inspectorTimer.Start();};
         timeline.InsertKey=(t,p,f)=>{SelectTrack(t,null);timeline.SelectedProperty=p;SetFrame(f);AddKey();};
         timeline.ContextMenuStrip=CreateContext(false);table.Controls.Add(timeline,0,3);parent.Controls.Add(table);
@@ -179,7 +181,7 @@ internal sealed partial class MainForm : Form
     private void RestoreDocumentView()
     {
         if(restoredDocumentView)return;restoredDocumentView=true;if(restoredView==null)return;var view=restoredView;
-        resourceKind=new[]{"objects","sprites","scripts"}.Contains(view.resourceKind)?view.resourceKind:"objects";search.Text=view.search??"";FillResources();
+        resourceKind=new[]{"objects","sprites","scripts","presets"}.Contains(view.resourceKind)?view.resourceKind:"objects";search.Text=view.search??"";FillResources();
         stage.SetView(view.cameraZoom,view.cameraX,view.cameraY);SetFrame(view.frame);timeline.RestoreView(view.timeline);timeline.SelectedProperty=view.selectedProperty??"x";
         var track=state.tracks.FirstOrDefault(t=>t.id==view.selectedTrack);if(track!=null)SelectTrack(track,null);
     }
@@ -189,7 +191,7 @@ internal sealed partial class MainForm : Form
         new WorkspaceView{positioned=true,x=bounds.X,y=bounds.Y,width=bounds.Width,height=bounds.Height,maximized=WindowState==FormWindowState.Maximized,
             leftWidth=leftSplit.Panel1.Width,rightWidth=rightSplit.Panel2.Width,timelineHeight=verticalSplit.Panel2.Height,
             projectPath=currentProjectPath,frame=frame,resourceKind=resourceKind,search=search.Text,selectedTrack=selectedTrack==null?null:selectedTrack.id,selectedProperty=timeline.SelectedProperty,
-            grid=stage.Grid,hitboxes=stage.Hitboxes,renderCamera=stage.RenderCamera,cameraZoom=stage.ViewZoom,cameraX=stage.ViewX,cameraY=stage.ViewY,timeline=timeline.CaptureView()}.Save(root);
+            grid=stage.Grid,hitboxes=stage.Hitboxes,renderCamera=stage.RenderCamera,keySnap=keySnap.Checked,cameraZoom=stage.ViewZoom,cameraX=stage.ViewX,cameraY=stage.ViewY,timeline=timeline.CaptureView()}.Save(root);
     }
 
     private ContextMenuStrip CreateContext(bool inspector)
@@ -333,16 +335,16 @@ internal sealed partial class MainForm : Form
     }
     private void FillResources()
     {
-        if(document==null)return;string[] names=resourceKind=="objects"?document.inventory.objects:resourceKind=="sprites"?document.inventory.sprites:document.inventory.scripts;
+        if(document==null)return;string[] names=resourceKind=="presets"?MotionPresets.Names:resourceKind=="objects"?document.inventory.objects:resourceKind=="sprites"?document.inventory.sprites:document.inventory.scripts;
         resources.BeginUpdate();resources.Items.Clear();var previous=resources.SmallImageList;var icons=new ImageList{ImageSize=new Size(24,24),ColorDepth=ColorDepth.Depth32Bit};
         foreach(string name in names.Where(n=>n.IndexOf(search.Text,StringComparison.OrdinalIgnoreCase)>=0))
         {
             string spriteName=name;if(resourceKind=="objects")document.inventory.objectSprites.TryGetValue(name,out spriteName);
             var icon=new Bitmap(24,24);using(var g=Graphics.FromImage(icon))
             {
-                var image=resourceKind=="scripts"?null:sprites.Get(spriteName);g.Clear(Color.Transparent);
+                var image=resourceKind=="scripts"||resourceKind=="presets"?null:sprites.Get(spriteName);g.Clear(Color.Transparent);
                 if(image!=null){float ratio=Math.Min(22f/image.Width,22f/image.Height);g.InterpolationMode=System.Drawing.Drawing2D.InterpolationMode.NearestNeighbor;g.DrawImage(image,(24-image.Width*ratio)/2,(24-image.Height*ratio)/2,image.Width*ratio,image.Height*ratio);}
-                else Theme.Label(g,resourceKind=="scripts"?"{}":"◇",new Rectangle(0,0,24,24),Theme.Accent,Theme.Bold,TextFormatFlags.HorizontalCenter|TextFormatFlags.VerticalCenter);
+                else Theme.Label(g,resourceKind=="scripts"?"{}":resourceKind=="presets"?"↗":"◇",new Rectangle(0,0,24,24),Theme.Accent,Theme.Bold,TextFormatFlags.HorizontalCenter|TextFormatFlags.VerticalCenter);
             }
             icons.Images.Add(icon);resources.Items.Add(new ListViewItem(name,icons.Images.Count-1));
         }
@@ -372,13 +374,13 @@ internal sealed partial class MainForm : Form
         finally{saveGate.Release();if(dirty&&!closeInProgress&&!parameterScrubbing){saveTimer.Stop();saveTimer.Start();}}
     }
     private void UpdateSelection()
-    {stage.SelectedTrack=selectedTrack;stage.SelectedKey=selectedKey;stage.SelectedInstance=selectedInstance;timeline.SelectedTrack=selectedTrack;timeline.SelectedKey=selectedKey;if(state!=null)rightTime.SetView(state.fps,state.duration,frame,selectedTrack);stage.Invalidate();timeline.Invalidate();}
+    {stage.SelectedTrack=selectedTrack;stage.SelectedKey=selectedKey;stage.SelectedInstance=selectedInstance;timeline.SelectedTrack=selectedTrack;timeline.SelectedKey=selectedKey;keySnap.Enabled=selectedTrack!=null&&timeline.SelectedTracks.Count==1;if(state!=null)rightTime.SetView(state.fps,state.duration,frame,selectedTrack);stage.Invalidate();timeline.Invalidate();}
     private void SelectTrack(Track track,Keyframe key)
     {if(!timeline.NotifyingSelection)timeline.ResetSelection(track,key);selectedTrack=track;selectedKey=key;selectedInstance=null;resourceName=null;if(key!=null)timeline.SelectedProperty=key.property;if(track!=null&&!Motion.Fields(track).Contains(timeline.SelectedProperty))timeline.SelectedProperty=Motion.Fields(track).FirstOrDefault()??"x";UpdateSelection();ShowProperties();}
     private void SelectInstance(RoomInstance instance)
     {timeline.ResetSelection(null,null);selectedInstance=instance;selectedTrack=null;selectedKey=null;resourceName=null;UpdateSelection();ShowProperties();}
     private void SelectResource()
-    {if(resourceKind=="sprites"&&selectedTrack!=null&&Theme.Visual(selectedTrack.kind)){ApplySprite(resourceName);return;}timeline.ResetSelection(null,null);selectedTrack=null;selectedKey=null;selectedInstance=null;UpdateSelection();ShowProperties();}
+    {if(resourceKind=="presets"){SetStatus("将运动预设拖到画布或时间轴上的物件；双击应用到单个所选物件。");return;}if(resourceKind=="sprites"&&selectedTrack!=null&&Theme.Visual(selectedTrack.kind)){ApplySprite(resourceName);return;}timeline.ResetSelection(null,null);selectedTrack=null;selectedKey=null;selectedInstance=null;UpdateSelection();ShowProperties();}
     private void SelectProject(){timeline.ResetSelection(null,null);selectedTrack=null;selectedKey=null;selectedInstance=null;resourceName=null;UpdateSelection();ShowProperties();}
     private void Field<T>(NativeProperties bag,string name,string category,Func<T> get,Action<T> set,string[] choices=null,string description="")
     {bag.Add(name,category,typeof(T),()=>get(),value=>{PushUndo();set((T)value);MarkChanged();},choices,description);}
@@ -427,11 +429,12 @@ internal sealed partial class MainForm : Form
                 TrailFields(bag,new[]{track});
                 EaseField(bag,track,null);
                 Field(bag,"Power 指数","运动",()=>track.easePower,value=>track.easePower=Math.Max(.1,value));Field(bag,"ExpSin 周期","运动",()=>track.easePeriod,value=>track.easePeriod=Math.Max(.01,value));
-                string[] motionNames={"关键帧","速度 / 加速度","圆周运动"},motionValues={"keyframes","velocity","orbit"};
+                string[] motionNames={"关键帧","速度 / 加速度","圆周运动","抛物线（起点 / 终点 / 峰）"},motionValues={"keyframes","velocity","orbit","parabola"};
                 Field(bag,"运动逻辑","运动",()=>motionNames[Math.Max(0,Array.IndexOf(motionValues,track.motion))],value=>{track.motion=motionValues[Array.IndexOf(motionNames,value)];BeginInvoke(new Action(ShowProperties));},motionNames,"运动叠加在关键帧位置上，时间单位为帧。");
                 Field(bag,"自转速度 °/帧","运动",()=>track.angularSpeed,value=>track.angularSpeed=value);
                 if(track.motion=="velocity"){Field(bag,"X 速度","运动",()=>track.velocityX,value=>track.velocityX=value);Field(bag,"Y 速度","运动",()=>track.velocityY,value=>track.velocityY=value);Field(bag,"X 加速度","运动",()=>track.accelerationX,value=>track.accelerationX=value);Field(bag,"Y 加速度","运动",()=>track.accelerationY,value=>track.accelerationY=value);}
-                if(track.motion=="orbit"){Field(bag,"圆周半径","运动",()=>track.orbitRadius,value=>track.orbitRadius=value);Field(bag,"公转速度 °/帧","运动",()=>track.orbitSpeed,value=>track.orbitSpeed=value);Field(bag,"公转初相角","运动",()=>track.orbitPhase,value=>track.orbitPhase=value);}
+                if(track.motion=="orbit")Field(bag,"公转速度 °/帧","运动",()=>track.orbitSpeed,value=>track.orbitSpeed=value);
+                if(track.motion=="parabola")bag.Add("路径说明","运动",typeof(string),()=>"设置起点、终点和峰（通过点）；路径进度 0→1 沿连续曲线运动。",null);
                 AnimatedFields(bag,track);
                 keyButton.Text="＋ "+Motion.Name(CurrentProperty())+" 关键帧  (K)";
             }
@@ -480,13 +483,7 @@ internal sealed partial class MainForm : Form
         }
         else
         {
-            selectionTitle.Text="工程设置";bag.Add("房间","工程",typeof(string),()=>state.room,null);
-            Field(bag,"FPS","时间",()=>state.fps,value=>state.fps=Math.Max(15,Math.Min(240,value)));Field(bag,"BPM","时间",()=>state.bpm,value=>state.bpm=Math.Max(1,Math.Min(1000,value)));
-            bag.Add("歌曲","时间",typeof(string),()=>String.IsNullOrEmpty(state.musicTitle)?Path.GetFileName(state.music):state.musicTitle,null);
-            if(state.player!=null){Field(bag,"重力","玩家",()=>state.player.gravity,value=>state.player.gravity=Math.Max(0,value));Field(bag,"水平速度","玩家",()=>state.player.moveSpeed,value=>state.player.moveSpeed=Math.Max(0,value));Field(bag,"一段跳速度","玩家",()=>state.player.jumpSpeed,value=>state.player.jumpSpeed=Math.Max(0,value));Field(bag,"后续跳速度","玩家",()=>state.player.doubleJumpSpeed,value=>state.player.doubleJumpSpeed=Math.Max(0,value));Field(bag,"最大跳跃次数","玩家",()=>state.player.maxJumps,value=>state.player.maxJumps=Math.Max(1,Math.Min(8,value)));Field(bag,"无限跳跃","玩家",()=>state.player.infiniteJump,value=>state.player.infiniteJump=value);}
-            bag.Add("总帧数","时间",typeof(int),()=>state.duration,value=>ChangeDuration((int)value/(double)state.fps));
-            bag.Add("音乐时长 / 秒","时间",typeof(double),()=>document.waveform.duration,null);
-            bag.Add("轨道数量","工程",typeof(int),()=>state.tracks.Count,null);bag.Add("工程目录","工程",typeof(string),()=>document.project,null);
+            selectionTitle.Text="属性检查器";bag.Add("操作","编辑",typeof(string),()=>"选中画布或时间轴物件以编辑参数。工程设置请点击顶栏按钮。",null);
         }
         properties.SelectedObject=bag;
     }
@@ -574,6 +571,7 @@ internal sealed partial class MainForm : Form
     {
         try
         {
+            if(kind=="presets"){ApplyMotionPreset(name,stage.TrackAt(position));return;}
             if(kind=="sprites"){AddTrack("object");selectedTrack.sprite=name;selectedTrack.x=Math.Round(position.X);selectedTrack.y=Math.Round(position.Y);ShowProperties();MarkChanged();}
             else if(kind=="objects")
             {PushUndo();ReplaceRoom(await bridge.Call<RoomData>("add-instance",new{room=state.room,name=name,x=(double)position.X,y=(double)position.Y}));SelectInstance(document.room.instances.Last());SetStatus("对象实例已加入 GameMaker 房间");}
@@ -639,7 +637,7 @@ internal sealed partial class MainForm : Form
     }
     protected override bool ProcessCmdKey(ref Message msg,Keys keyData)
     {
-        bool editing=beatBar!=null&&beatBar.ContainsFocus||search.ContainsFocus||properties.EditingText||durationInput.ContainsFocus||frameInput.ContainsFocus;
+        bool editing=beatBar!=null&&beatBar.ContainsFocus||search.ContainsFocus||properties.EditingText||rightTime.ContainsFocus||durationInput.ContainsFocus||frameInput.ContainsFocus;
         if(keyData==(Keys.Control|Keys.N)){NewFromKeyboard();return true;}if(keyData==(Keys.Control|Keys.O)){OpenFromKeyboard();return true;}
         if(keyData==(Keys.Control|Keys.S)){stage.Focus();SaveFromKeyboard();return true;}
         if(keyData==Keys.F5){stage.Focus();RunFromKeyboard();return true;}

@@ -13,6 +13,13 @@ internal static class Theme
     public static string KindName(string kind){return kind=="camera"?"拉镜":kind=="rod"?"整体对象":kind=="emitter"?"弹幕":kind=="object"?"对象":kind=="effect"?"特效":"GML";}
     public static bool Visual(string kind){return kind=="rod"||kind=="emitter"||kind=="object";}
     public static bool Spatial(string kind){return kind=="camera"||kind=="rod"||kind=="emitter"||kind=="object";}
+    public static void Workspace(Graphics g,Rectangle bounds)
+    {
+        using(var tile=new Bitmap(24,24)){
+            using(var t=Graphics.FromImage(tile)){t.Clear(Color.FromArgb(53,55,60));using(var b=new SolidBrush(Color.FromArgb(65,67,72))){t.FillRectangle(b,0,0,12,12);t.FillRectangle(b,12,12,12,12);}}
+            using(var brush=new TextureBrush(tile))g.FillRectangle(brush,bounds);
+        }
+    }
     public static void Label(Graphics g,string text,Rectangle bounds,Color color,Font font=null,TextFormatFlags flags=TextFormatFlags.Left|TextFormatFlags.VerticalCenter|TextFormatFlags.EndEllipsis)
     {TextRenderer.DrawText(g,text,font??Font,bounds,color,flags|TextFormatFlags.NoPrefix);}
 }
@@ -90,7 +97,7 @@ internal sealed class StageCanvas : Control
     protected override void OnResize(EventArgs e){base.OnResize(e);if(previewCache!=null)DisplayOptionsChanged();}
     protected override void OnPaint(PaintEventArgs e)
     {
-        base.OnPaint(e);Fit();var g=e.Graphics;g.Clear(Color.FromArgb(203,211,222));
+        base.OnPaint(e);Fit();var g=e.Graphics;Theme.Workspace(g,ClientRectangle);
         if(image!=null){g.InterpolationMode=InterpolationMode.NearestNeighbor;g.DrawImageUnscaled(image,0,0);}else{Theme.Label(g,"正在绘制房间…",ClientRectangle,Theme.Muted,null,TextFormatFlags.HorizontalCenter|TextFormatFlags.VerticalCenter);QueueRender();}
         if(State==null||Room==null)return;
         var saved=g.Save();if(RenderCamera)g.SetClip(view);using(var m=DisplayMatrix())g.Transform=m;g.SmoothingMode=SmoothingMode.AntiAlias;
@@ -116,6 +123,12 @@ internal sealed class StageCanvas : Control
         Theme.Label(g,Room.name+" · "+Frame+" F · "+(view.Width/Room.width*100).ToString("0")+"% · Ctrl+滚轮 / 中键平移",new Rectangle(14,Height-31,Math.Max(1,Width-28),24),Theme.Text,Theme.Small);
     }
     private static bool Near(PointF a,PointF b,double radius){return Math.Abs(a.X-b.X)<radius&&Math.Abs(a.Y-b.Y)<radius;}
+    public Track TrackAt(PointF p)
+    {
+        return State==null?null:State.tracks.LastOrDefault(t=>t.enabled&&Theme.Visual(t.kind)&&Frame>=t.start&&Frame<=t.end&&
+            (Near(new PointF((float)Motion.At(t,Frame).x,(float)Motion.At(t,Frame).y),p,22)||(t.kind=="rod"&&Motion.RodPoints(t,Frame).Any(q=>Near(q,p,16)))||
+            (Sprites!=null&&Sprites.Bounds(t.sprite,Motion.At(t,Frame).x,Motion.At(t,Frame).y).Contains(p))));
+    }
     protected override void OnMouseDown(MouseEventArgs e)
     {
         base.OnMouseDown(e);if(State==null||Room==null)return;Focus();if(e.Button==MouseButtons.Middle){panning=true;panStart=e.Location;panX=ViewX;panY=ViewY;Cursor=Cursors.Hand;Capture=true;return;}var p=Position(e.Location);down=e.Location;pointerDown=p;moved=false;positions.Clear();

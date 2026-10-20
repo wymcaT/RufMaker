@@ -10,6 +10,8 @@ internal sealed class TimelineCanvas : UserControl
     private sealed class Lane {public Track track;public string property;}
     public EditorState State;public WaveData Wave;public Track SelectedTrack;public Keyframe SelectedKey;public string SelectedProperty="x";public int Frame;
     public Action<int> Seek;
+    public Func<int,int> SnapCursor;
+    public Action<string,Track> PresetDropped;
     public Action<Track,Keyframe> SelectTrack;
     public Action<Track,string,int> InsertKey;
     public Action BeginEdit,Changed,PreviewChanged;
@@ -30,7 +32,7 @@ internal sealed class TimelineCanvas : UserControl
     private readonly ToolTip tips=new ToolTip();
     public TimelineCanvas()
     {
-        DoubleBuffered=true;ResizeRedraw=true;BackColor=Theme.Panel;TabStop=true;
+        DoubleBuffered=true;ResizeRedraw=true;BackColor=Theme.Panel;TabStop=true;AllowDrop=true;
         horizontal.Dock=DockStyle.Bottom;vertical.Dock=DockStyle.Right;Controls.Add(horizontal);Controls.Add(vertical);
         horizontal.ValueChanged+=(s,e)=>Invalidate();vertical.ValueChanged+=(s,e)=>Invalidate();
     }
@@ -96,6 +98,10 @@ internal sealed class TimelineCanvas : UserControl
     protected override void OnResize(EventArgs e){base.OnResize(e);RefreshLayout();}
     private float X(int frame){return State==null?Names:Names+frame/(float)State.fps*PixelsPerSecond-horizontal.Value;}
     private int ToFrame(int x){int frame=Math.Max(0,Math.Min(State.duration,(int)Math.Round((x-Names+horizontal.Value)/PixelsPerSecond*State.fps)));return (ModifierKeys&Keys.Alt)!=0?frame:BeatGrid.Snap(State,frame);}
+    private int CursorFrame(int x){int value=Math.Max(0,Math.Min(State.duration,(int)Math.Round((x-Names+horizontal.Value)/PixelsPerSecond*State.fps)));return SnapCursor==null?ToFrame(x):SnapCursor(value);}
+    protected override void OnDragEnter(DragEventArgs e){e.Effect=e.Data.GetDataPresent(DataFormats.Text)&&Convert.ToString(e.Data.GetData(DataFormats.Text)).StartsWith("presets|")?DragDropEffects.Copy:DragDropEffects.None;}
+    protected override void OnDragOver(DragEventArgs e){OnDragEnter(e);}
+    protected override void OnDragDrop(DragEventArgs e){var text=e.Data.GetData(DataFormats.Text) as string;if(text==null||!text.StartsWith("presets|")||PresetDropped==null)return;var p=PointToClient(new Point(e.X,e.Y));int row=(p.Y-Header+vertical.Value)/Row;if(p.Y>=Header&&row>=0&&row<lanes.Count)PresetDropped(text.Substring(8),lanes[row].track);}
     protected override void OnPaint(PaintEventArgs e)
     {
         base.OnPaint(e);var g=e.Graphics;g.Clear(Theme.Panel);if(State==null)return;
@@ -197,7 +203,7 @@ internal sealed class TimelineCanvas : UserControl
         }
         else if(e.X>=Names&&e.Button==MouseButtons.Left)
         {
-            if(e.Y<Header){dragMode="seek";if(Seek!=null)Seek(ToFrame(e.X));}
+            if(e.Y<Header){dragMode="seek";if(Seek!=null)Seek(CursorFrame(e.X));}
             else BeginBox(e.Location,true,additive);
         }
         if(dragMode!=null)Capture=true;
@@ -251,7 +257,7 @@ internal sealed class TimelineCanvas : UserControl
         base.OnMouseMove(e);if(State==null)return;
         if(dragMode==null){var lane=LaneAt(e.Location);string edge=EdgeAt(lane,e.Location);var key=KeyAt(lane,e.Location);hoverTrack=edge==null?null:lane.track;hoverEdge=edge;Cursor=edge!=null?Cursors.SizeWE:key!=null?Cursors.SizeAll:lane!=null&&lane.property==null&&e.X>=X(lane.track.start)&&e.X<=X(lane.track.end)?Cursors.SizeAll:Cursors.Default;string tip=edge=="left"?"左右拖动：修改开始帧（不移动关键帧）":edge=="right"?"左右拖动：修改结束帧（不移动关键帧）":key!=null?"拖动移动所选关键帧；Ctrl / Shift 加选；Delete 删除":"主行空白框选物件；属性行空白框选关键帧；Ctrl / Shift 加选";if(tips.GetToolTip(this)!=tip)tips.SetToolTip(this,tip);Invalidate();return;}
         if(e.X>Width-vertical.Width-15)ScrollHorizontal(20);else if(e.X<Names+5)ScrollHorizontal(-20);
-        if(dragMode=="seek"){if(Seek!=null)Seek(ToFrame(e.X));return;}
+        if(dragMode=="seek"){if(Seek!=null)Seek(CursorFrame(e.X));return;}
         if(dragMode=="box"){if(e.Y>Height-horizontal.Height-12)ScrollVertical(Row/2);else if(e.Y<Header+5)ScrollVertical(-Row/2);UpdateBox(e.Location);return;}
         if(!dragChanged&&Math.Abs(e.X-dragStart.X)+Math.Abs(e.Y-dragStart.Y)<3)return;
         if(!dragChanged){if(BeginEdit!=null)BeginEdit();dragChanged=true;}

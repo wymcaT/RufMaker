@@ -35,9 +35,6 @@ with(rf_owner) {
  if !surface_exists(rf_fx_scene) || !surface_exists(rf_fx_a) || !surface_exists(rf_fx_b) exit;
  rf_fx_rendering=1;surface_set_target(rf_fx_scene);draw_set_blend_mode(bm_normal);draw_set_alpha(1);draw_clear(c_black);
  if background_showcolor draw_clear(background_color);
- // The supplied engine draws its room to global.surface1 before compositing objBackground.
- // Preserve that pipeline; rf_fx_reset_target redirects its final composite into our scene.
- if instance_exists(objBackground) && variable_global_exists('surface1') {if surface_exists(global.surface1) surface_set_target(global.surface1);}
  rf_camera_apply();
 }
 `;

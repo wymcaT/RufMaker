@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import {locateProject} from './project-files.mjs';
+import {preparePlainRoom} from './plain-room.mjs';
 import {shapeSetup,shapePoint} from './shapes.mjs';
 import {cameraApplyGml,cameraCompositeGml,cameraUpdate} from './camera.mjs';
 import path from 'node:path';
@@ -207,6 +208,7 @@ export function syncToGame(s) {
   if (!fs.existsSync(projectFile) || !fs.readFileSync(projectFile,'utf8').startsWith('gm82_version=')) throw new Error(`GameMaker 工程入口格式不正确：${projectFile}`);
   normalizeState(s);
   validateState(s);
+  preparePlainRoom(path.resolve(sourceDir,'..'),project,s,atomicWrite,appendUnique);
   for (const [name,code] of [['rf_camera_apply',cameraApplyGml],['rf_camera_composite',cameraCompositeGml],['rf_bullet_trails',bulletTrailGml],['rf_ease',easeGml],['rf_bounce',bounceGml],['rf_fx_reset_target',fxResetGml],['rf_trail_draw',trailGml],['rf_rainbow_index',rainbowGml]]) {atomicWrite(path.join(project,'scripts',`${name}.gml`),code);appendUnique(path.join(project,'scripts','index.yyd'),name);appendUnique(path.join(project,'scripts','tree.yyd'),`	|${name}`);}
   if(typeof s.music!=='string'||!/^Data\/Music\/[A-Za-z0-9_. -]+\.(ogg|mp3|wav|flac)$/i.test(s.music)||!fs.existsSync(path.join(project,s.music)))throw new Error('工程音乐不存在，请重新导入歌曲');
   const musicInit=path.join(project,'scripts','music_init.gml');
@@ -262,7 +264,7 @@ export function roomInfo(room='rAvoidance') {
   const rfile=path.join(project,'rooms',room,'room.txt');
   const settings=Object.fromEntries(lines(rfile).filter(x=>x.includes('=')).map(x=>x.split(/=(.*)/s).slice(0,2)));
   const instances=lines(path.join(project,'rooms',room,'instances.txt')).filter(Boolean).map((line,index)=>{ const a=line.split(','); return { index,id:a[3],name:a[0],x:Number(a[1]),y:Number(a[2]),raw:line }; });
-  return { name:room,width:Number(settings.width),height:Number(settings.height),fps:Number(settings.roomspeed),instances };
+  return { name:room,width:Number(settings.width),height:Number(settings.height),fps:Number(settings.roomspeed),bgColor:Number(settings.bg_color??2105376),instances };
 }
 
 export function inventory() {

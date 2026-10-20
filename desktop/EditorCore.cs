@@ -17,6 +17,7 @@ internal sealed class EditorState
     public string name="",musicTitle="";public PlayerSettings player;public object terrain;
     public string room="rAvoidance", music="Data/Music/BGM.ogg";
     public bool timelineInitialized;
+    public string[] plainRooms=new string[0];
     public List<Track> tracks=new List<Track>();
 }
 internal sealed class PlayerSettings {public double gravity=.4,moveSpeed=3,jumpSpeed=8.5,doubleJumpSpeed=7;public int maxJumps=2;public bool infiniteJump;}
@@ -36,6 +37,7 @@ internal sealed class Track
     public double speed=3, spread=30, angle, strength=6;
     public double x=400,y=304,scale=1,alpha=1,x1=280,y1=304,x2=520,y2=304,length=240,rollSpeed=2,easePower=3,easePeriod=.3;
     public double velocityX,velocityY,accelerationX,accelerationY,angularSpeed,orbitRadius=100,orbitSpeed=1,orbitPhase;
+    public double pathStartX,pathStartY,pathEndX,pathEndY,pathPeakX,pathPeakY,pathProgress;
     public double fxOpacity=1,fxAngle,fxRetention=.5,fxFrequency=1;
     public int fxSamples=6;
     public List<Keyframe> keyframes=new List<Keyframe>();
@@ -52,9 +54,9 @@ internal sealed class Keyframe
 internal sealed class RoomData
 {
     public string name;
-    public int width=800,height=608,fps=50;
+    public int width=800,height=608,fps=50,bgColor=0x202020;
     public List<RoomInstance> instances=new List<RoomInstance>();
-    public RoomData Snapshot(){return new RoomData{name=name,width=width,height=height,fps=fps,instances=instances.Select(i=>i.Snapshot()).ToList()};}
+    public RoomData Snapshot(){return new RoomData{name=name,width=width,height=height,fps=fps,bgColor=bgColor,instances=instances.Select(i=>i.Snapshot()).ToList()};}
 }
 internal sealed class RoomInstance {public int index;public string id,name,raw;public double x,y;public RoomInstance Snapshot(){return (RoomInstance)MemberwiseClone();}}
 internal sealed class UndoSnapshot {public EditorState state;public RoomData room;}

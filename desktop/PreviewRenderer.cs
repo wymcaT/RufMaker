@@ -8,14 +8,14 @@ internal static class PreviewRenderer
     public static Bitmap Render(EditorState state,RoomData room,Dictionary<string,string> objectSprites,SpriteStore sprites,int frame,bool grid,bool hitboxes,PreviewCache cache=null,Matrix transform=null,int width=0,int height=0,RectangleF? displayClip=null,RectangleF? effectsFrame=null)
     {
         if(cache==null)using(var temporary=new PreviewCache())return Render(state,room,objectSprites,sprites,frame,grid,hitboxes,temporary,transform,width,height,displayClip,effectsFrame);
-        var signature=new System.Text.StringBuilder().Append(room.width).Append(':').Append(room.height).Append(':').Append(grid).Append(':').Append(hitboxes);
+        var signature=new System.Text.StringBuilder().Append(room.width).Append(':').Append(room.height).Append(':').Append(room.bgColor).Append(':').Append(grid).Append(':').Append(hitboxes);
         string roomKey=signature.ToString();
         if(cache.roomLayer==null||cache.roomKey!=roomKey)
         {
             if(cache.roomLayer!=null)cache.roomLayer.Dispose();cache.roomLayer=new Bitmap(room.width,room.height);cache.roomKey=roomKey;
             using(var g=Graphics.FromImage(cache.roomLayer))
             {
-                using(var bg=new LinearGradientBrush(new Rectangle(0,0,room.width,room.height),Color.FromArgb(29,38,57),Color.FromArgb(13,20,32),90))g.FillRectangle(bg,0,0,room.width,room.height);
+                g.Clear(Color.FromArgb(room.bgColor&255,(room.bgColor>>8)&255,(room.bgColor>>16)&255));
                 g.InterpolationMode=InterpolationMode.NearestNeighbor;g.PixelOffsetMode=PixelOffsetMode.Half;
                 if(grid)using(var pen=new Pen(Color.FromArgb(35,104,127,160))){for(int x=0;x<room.width;x+=32)g.DrawLine(pen,x,0,x,room.height);for(int y=0;y<room.height;y+=32)g.DrawLine(pen,0,y,room.width,y);}
 
@@ -26,7 +26,7 @@ internal static class PreviewRenderer
         {
             using(var g=Graphics.FromImage(bitmap))
             {
-                g.Clear(Color.FromArgb(203,211,222));if(displayClip.HasValue)g.SetClip(displayClip.Value);if(transform!=null)g.Transform=transform;
+                Theme.Workspace(g,new Rectangle(0,0,bitmap.Width,bitmap.Height));if(displayClip.HasValue)g.SetClip(displayClip.Value);if(transform!=null)g.Transform=transform;
                 g.DrawImage(cache.roomLayer,0,0,room.width,room.height);
                 g.InterpolationMode=InterpolationMode.NearestNeighbor;g.PixelOffsetMode=PixelOffsetMode.Half;
                 for(int pass=0;pass<2;pass++)
@@ -89,7 +89,7 @@ internal static class PreviewRenderer
                 }
             }
             else result=Effects.Apply(bitmap,state,frame,cache);
-            if(displayClip.HasValue)using(var g=Graphics.FromImage(result)){g.SetClip(displayClip.Value,CombineMode.Exclude);using(var outside=new SolidBrush(Color.FromArgb(203,211,222)))g.FillRectangle(outside,0,0,result.Width,result.Height);}
+            if(displayClip.HasValue)using(var g=Graphics.FromImage(result)){g.SetClip(displayClip.Value,CombineMode.Exclude);Theme.Workspace(g,new Rectangle(0,0,result.Width,result.Height));}
             return result;
         }
         catch{bitmap.Dispose();throw;}

@@ -14,9 +14,10 @@ internal static class Program
     [DllImport("user32.dll")] private static extern bool ShowWindow(IntPtr window,int command);
 
     [STAThread]
-    private static void Main()
+    private static void Main(string[] args)
     {
         SetProcessDPIAware();Application.EnableVisualStyles();Application.SetCompatibleTextRenderingDefault(false);
+        if(args.Length>0&&args[0]=="--apply-update"){Updater.Apply(args);return;}
         string root=AppDomain.CurrentDomain.BaseDirectory.TrimEnd(Path.DirectorySeparatorChar);
         Directory.SetCurrentDirectory(root);
         string identity;

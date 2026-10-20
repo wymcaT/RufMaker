@@ -16,6 +16,7 @@ function spriteMetadata() {
 
 function loadProject() {
   const state=readState();
+  syncToGame(state);
   let waveform={duration:0,peaks:[]};
   const cache=path.join(project,'cache','rufmaker-waveform.json');
   if(fs.existsSync(cache)){const data=JSON.parse(fs.readFileSync(cache,'utf8'));if(data.source===state.music)waveform=data;}
@@ -54,8 +55,10 @@ async function execute(command,payload={}) {
     }
     case 'add-instance': {
       if (!inventory().objects.includes(payload.name) || !inventory().rooms.includes(payload.room) || !Number.isFinite(payload.x)||!Number.isFinite(payload.y)) throw new Error('无效的房间对象');
+      const plain=readState().room===payload.room;
+      const name=plain?({block:'objRufBlock',platform:'objRufPlatform'}[payload.name]||payload.name):payload.name;
       const id=crypto.randomBytes(4).toString('hex').toUpperCase();
-      fs.appendFileSync(path.join(project,'rooms',payload.room,'instances.txt'),`${payload.name},${Math.round(payload.x)},${Math.round(payload.y)},${id},0,1,1,4294967295,0,0\n`);
+      fs.appendFileSync(path.join(project,'rooms',payload.room,'instances.txt'),`${name},${Math.round(payload.x)},${Math.round(payload.y)},${id},0,1,1,4294967295,0,0\n`);
       return roomInfo(payload.room);
     }
     case 'import': return {name:importSprite(payload.folder,payload.name),inventory:inventory(),spriteMeta:spriteMetadata()};
