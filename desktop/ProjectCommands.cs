@@ -16,6 +16,7 @@ internal sealed partial class MainForm
     private void BuildProjectActions(FlowLayoutPanel bar)
     {
         bar.Controls.Add(Button("新建工程",async()=>await NewProject(),false,90));bar.Controls.Add(Button("打开工程",async()=>await OpenProject(),false,90));bar.Controls.Add(Button("导入歌曲",async()=>await ImportMusic(),false,90));
+        bar.Controls.Add(Button("导入非 RufMaker 工程",async()=>await ImportNativeProject(),false,160));
     }
     private FlowLayoutPanel BuildBeatControls()
     {
@@ -62,6 +63,7 @@ internal sealed partial class MainForm
     }
     private async Task LoadCurrentMusic()
     {
+        if(state.nativeProject!=null&&(String.IsNullOrEmpty(state.music)||!File.Exists(Path.Combine(document.project,state.music)))){audio.Dispose();document.waveform=new WaveData{duration=0,peaks=new double[0],source=state.music};timeline.Wave=document.waveform;return;}
         string file=Path.Combine(document.project,state.music.Replace('/',Path.DirectorySeparatorChar));await Task.Run(()=>audio.Load(file));
         if(document.waveform==null||document.waveform.duration<=0||document.waveform.source!=state.music)
         {
@@ -79,7 +81,7 @@ internal sealed partial class MainForm
             {
                 SetStatus("正在导入歌曲并生成波形…");var result=await bridge.Call<ProjectPathResult>("import-song",new{path=dialog.FileName});string file=Path.Combine(document.project,result.music.Replace('/',Path.DirectorySeparatorChar));
                 var wave=await Task.Run(()=>AudioAnalyzer.Analyze(file));await Task.Run(()=>audio.Load(file));PushUndo();state.music=result.music;state.musicTitle=result.title;wave.source=state.music;document.waveform=wave;timeline.Wave=wave;
-                state.duration=Math.Max((int)Math.Ceiling(wave.duration*state.fps),state.tracks.Count==0?1:state.tracks.Max(t=>Math.Max(t.end,t.keyframes.Count==0?0:t.keyframes.Max(k=>k.frame))));
+                state.duration=Math.Max((int)Math.Ceiling(wave.duration*state.fps),Math.Max(1,ContentEnd()));
                 await bridge.Call<object>("audio-cache",wave);MarkChanged();SetFrame(Math.Min(frame,state.duration));timeline.FitAll();await SaveNow(false);SetStatus("已导入 "+result.title+"；可点击自动检测 BPM / 延迟");
             }
             catch(Exception error){Error(error);}finally{Enabled=true;SetBusy(false);}

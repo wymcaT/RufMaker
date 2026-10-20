@@ -3,8 +3,11 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import readline from 'node:readline';
 import {createProject,copySong,terrainLayout} from './project-files.mjs';
+import {scanNativeFolder,importNativeProject,analyzeNativeProject} from './native-import.mjs';
 import {root,project,projectFile,descriptor,projectName,pack,readState,syncToGame,roomInfo,inventory,sourcePath,moveRoomInstance,importSprite} from './project.mjs';
 import {ensureBuild,exportStatus,packageGame,runNative,openNative} from './native.mjs';
+import {prepareNativeSession} from './native-preview.mjs';
+import {buildDir,gameMaker} from './project.mjs';
 
 function spriteMetadata() {
   return Object.fromEntries(inventory().sprites.map(name=>{
@@ -16,6 +19,7 @@ function spriteMetadata() {
 
 function loadProject() {
   const state=readState();
+  if(state.nativeProject?.imported){const fresh=analyzeNativeProject(projectFile,state.room,state.nativeProject.controller,true);for(const key of ['events','unresolved','warnings','clock','timeline','timelineSpeed','bootObject','musicInitializer','confidence','fps','width','height'])state.nativeProject[key]=fresh[key];state.fps=fresh.fps;}
   syncToGame(state);
   let waveform={duration:0,peaks:[]};
   const cache=path.join(project,'cache','rufmaker-waveform.json');
@@ -28,12 +32,17 @@ async function execute(command,payload={}) {
   switch(command) {
     case 'load': return loadProject();
     case 'new-project': return createProject(root,payload);
+    case 'native-scan': return scanNativeFolder(payload.folder,payload.entry,payload.room,payload.controller);
+    case 'native-import': return importNativeProject(root,payload);
+    case 'native-preview': {const state=readState();if(!state.nativeProject?.imported)throw new Error('当前不是原生导入工程');const cacheDir=path.join(root,'build','native-projects',crypto.createHash('sha256').update(project.toLowerCase()).digest('hex').slice(0,16));return prepareNativeSession({project,projectFile,buildDir,cacheDir,gameMaker,state,frame:payload.frame||0,playable:false});}
     case 'terrain-preview': return terrainLayout(payload);
     case 'import-song': return copySong(project,payload.path);
     case 'audio-cache': fs.mkdirSync(path.join(project,'cache'),{recursive:true});fs.writeFileSync(path.join(project,'cache','rufmaker-waveform.json'),JSON.stringify(payload));return {ok:true};
     case 'save': syncToGame(payload); return {room:roomInfo(payload.room),export:exportStatus()};
     case 'source-read': return {content:fs.readFileSync(sourcePath(payload.kind,payload.name),'utf8')};
     case 'source-save': fs.writeFileSync(sourcePath(payload.kind,payload.name),payload.content,'utf8'); return {ok:true};
+    case 'native-source-read': return {content:fs.readFileSync(nativeSourcePath(payload.path),'utf8')};
+    case 'native-source-save': fs.writeFileSync(nativeSourcePath(payload.path),payload.content,'utf8');return {ok:true};
     case 'move-instance': moveRoomInstance(payload.room,payload.index,payload.x,payload.y); return roomInfo(payload.room);
     case 'delete-instance': {
       const room=roomInfo(payload.room),target=room.instances.find(x=>x.id===payload.id);
@@ -55,7 +64,7 @@ async function execute(command,payload={}) {
     }
     case 'add-instance': {
       if (!inventory().objects.includes(payload.name) || !inventory().rooms.includes(payload.room) || !Number.isFinite(payload.x)||!Number.isFinite(payload.y)) throw new Error('无效的房间对象');
-      const plain=readState().room===payload.room;
+      const state=readState(),plain=!state.nativeProject?.imported&&state.room===payload.room;
       const name=plain?({block:'objRufBlock',platform:'objRufPlatform'}[payload.name]||payload.name):payload.name;
       const id=crypto.randomBytes(4).toString('hex').toUpperCase();
       fs.appendFileSync(path.join(project,'rooms',payload.room,'instances.txt'),`${name},${Math.round(payload.x)},${Math.round(payload.y)},${id},0,1,1,4294967295,0,0\n`);
@@ -69,6 +78,8 @@ async function execute(command,payload={}) {
     default: throw new Error('未知操作：'+command);
   }
 }
+
+function nativeSourcePath(relative){if(!readState().nativeProject?.imported||typeof relative!=='string'||!relative.endsWith('.gml')||!['objects','scripts','timelines','rooms'].includes(relative.split('/')[0]))throw new Error('无效的原生 GML 路径');const file=path.resolve(project,relative);if(!file.startsWith(path.resolve(project)+path.sep)||!fs.existsSync(file))throw new Error('原生 GML 文件不存在');return file;}
 
 const input=readline.createInterface({input:process.stdin,crlfDelay:Infinity});
 input.on('line',async line=>{

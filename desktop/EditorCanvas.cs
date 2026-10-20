@@ -9,7 +9,7 @@ internal static class Theme
 {
     public static readonly Color Back=Color.FromArgb(19,23,31),Panel=Color.FromArgb(26,31,42),Raised=Color.FromArgb(35,42,56),Line=Color.FromArgb(48,57,75),Text=Color.FromArgb(225,231,241),Muted=Color.FromArgb(141,155,179),Accent=Color.FromArgb(242,113,153);
     public static readonly Font Font=new Font("Microsoft YaHei UI",9f),Small=new Font("Microsoft YaHei UI",8f),Bold=new Font("Microsoft YaHei UI",9f,FontStyle.Bold);
-    public static Color TrackColor(string kind){return kind=="camera"?Color.FromArgb(245,203,104):kind=="rod"?Color.FromArgb(175,130,230):kind=="emitter"?Color.FromArgb(218,96,140):kind=="effect"?Color.FromArgb(206,165,83):kind=="script"?Color.FromArgb(75,170,146):Color.FromArgb(83,144,210);}
+    public static Color TrackColor(string kind){return kind=="native"?Color.FromArgb(97,165,130):kind=="camera"?Color.FromArgb(245,203,104):kind=="rod"?Color.FromArgb(175,130,230):kind=="emitter"?Color.FromArgb(218,96,140):kind=="effect"?Color.FromArgb(206,165,83):kind=="script"?Color.FromArgb(75,170,146):Color.FromArgb(83,144,210);}
     public static string KindName(string kind){return kind=="camera"?"拉镜":kind=="rod"?"整体对象":kind=="emitter"?"弹幕":kind=="object"?"对象":kind=="effect"?"特效":"GML";}
     public static bool Visual(string kind){return kind=="rod"||kind=="emitter"||kind=="object";}
     public static bool Spatial(string kind){return kind=="camera"||kind=="rod"||kind=="emitter"||kind=="object";}

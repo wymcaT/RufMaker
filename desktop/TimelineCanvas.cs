@@ -14,6 +14,7 @@ internal sealed class TimelineCanvas : UserControl
     public Action<string,Track> PresetDropped;
     public Action<Track,Keyframe> SelectTrack;
     public Action<Track,string,int> InsertKey;
+    public Action<NativeEvent,bool> SelectNativeEvent;
     public Action BeginEdit,Changed,PreviewChanged;
     public readonly HashSet<Track> SelectedTracks=new HashSet<Track>();
     public readonly HashSet<Keyframe> SelectedKeys=new HashSet<Keyframe>();
@@ -42,7 +43,7 @@ internal sealed class TimelineCanvas : UserControl
     {if(view==null)return;PixelsPerSecond=Math.Max(.5f,Math.Min(2400,view.pixelsPerSecond));expanded.Clear();foreach(string id in view.expanded??new string[0])expanded.Add(id);RefreshLayout();horizontal.Value=Math.Max(0,Math.Min(horizontal.Maximum-horizontal.LargeChange+1,view.horizontal));vertical.Value=Math.Max(0,Math.Min(vertical.Maximum-vertical.LargeChange+1,view.vertical));Invalidate();}
     public void ResetSelection(Track track,Keyframe key){SelectedTracks.Clear();if(track!=null)SelectedTracks.Add(track);SelectOnly(key);}
     public void SetTrackSelection(IEnumerable<Track> tracks,Track primary=null)
-    {SelectedTracks.Clear();SelectedTracks.UnionWith(tracks.Where(t=>State.tracks.Contains(t)));ClearKeySelection();NotifySelection(primary!=null&&SelectedTracks.Contains(primary)?primary:SelectedTracks.FirstOrDefault(),null);}
+    {SelectedTracks.Clear();SelectedTracks.UnionWith(tracks.Where(t=>State.tracks.Contains(t)&&t.kind!="native"));ClearKeySelection();NotifySelection(primary!=null&&SelectedTracks.Contains(primary)?primary:SelectedTracks.FirstOrDefault(),null);}
     public void MoveTracks(int delta)
     {
         if(SelectedTracks.Count==0)return;
@@ -74,7 +75,7 @@ internal sealed class TimelineCanvas : UserControl
     public void RefreshLayout()
     {
         if(horizontal==null||vertical==null)return;
-        lanes.Clear();if(State!=null)foreach(var t in State.tracks){lanes.Add(new Lane{track=t});if(expanded.Contains(t.id))foreach(var p in Motion.Fields(t).Where(p=>Motion.HasKeys(t,p)))lanes.Add(new Lane{track=t,property=p});}
+        lanes.Clear();if(State!=null)foreach(var t in State.tracks){lanes.Add(new Lane{track=t});if(expanded.Contains(t.id)){if(t.kind=="native"&&State.nativeProject!=null){foreach(string file in State.nativeProject.events.Select(e=>e.file).Distinct())lanes.Add(new Lane{track=t,property="@gm:"+file});}else foreach(var p in Motion.Fields(t).Where(p=>Motion.HasKeys(t,p)))lanes.Add(new Lane{track=t,property=p});}}
         if(State!=null){SelectedKeys.RemoveWhere(k=>Owner(k)==null);SelectedTracks.RemoveWhere(t=>!State.tracks.Contains(t));}
         int width=Math.Max(1,Width-Names-vertical.Width),height=Math.Max(1,Height-Header-horizontal.Height);
         int total=State==null?width:(int)Math.Ceiling(State.duration/(double)State.fps*PixelsPerSecond)+40;
@@ -125,8 +126,8 @@ internal sealed class TimelineCanvas : UserControl
             bool chosen=(SelectedTracks.Contains(t)||t==SelectedTrack)&&(lane.property==null||lane.property==SelectedProperty);
             using(var bg=new SolidBrush(chosen?Color.FromArgb(47,44,62):lane.property!=null?Color.FromArgb(23,29,39):i%2==0?Theme.Panel:Color.FromArgb(29,35,47)))g.FillRectangle(bg,0,y,width,Row);
             Color color=t.enabled?Theme.TrackColor(t.kind):Color.FromArgb(80,87,100);
-            Theme.Label(g,lane.property==null?(expanded.Contains(t.id)?"▾ ":"▸ ")+t.name:"    ◇  "+Motion.Name(lane.property),new Rectangle(8,y,Names-36,Row),lane.property==null?Theme.Text:chosen?Theme.Accent:Theme.Muted,lane.property==null?Theme.Font:Theme.Small);
-            if(lane.property==null)Theme.Label(g,t.enabled?"●":"○",new Rectangle(Names-28,y,24,Row),color);
+            Theme.Label(g,lane.property==null?(expanded.Contains(t.id)?"▾ ":"▸ ")+t.name:"    ◇  "+(lane.property.StartsWith("@gm:")?System.IO.Path.GetFileNameWithoutExtension(lane.property.Substring(4)):Motion.Name(lane.property)),new Rectangle(8,y,Names-36,Row),lane.property==null?Theme.Text:chosen?Theme.Accent:Theme.Muted,lane.property==null?Theme.Font:Theme.Small);
+            if(lane.property==null)Theme.Label(g,t.kind=="native"?"G":t.enabled?"●":"○",new Rectangle(Names-28,y,24,Row),color);
             g.SetClip(new Rectangle(Names,Header,width-Names,height-Header));
             float x=X(t.start),end=X(t.end);
             if(lane.property==null)
@@ -136,6 +137,7 @@ internal sealed class TimelineCanvas : UserControl
                 {float edge=hoverEdge=="left"?x:end;g.DrawLine(pen,edge,y+4,edge,y+26);g.DrawLine(pen,edge-5,y+15,edge+5,y+15);g.DrawLine(pen,edge-5,y+15,edge-2,y+12);g.DrawLine(pen,edge+5,y+15,edge+2,y+18);}
             }
             else using(var pen=new Pen(Color.FromArgb(80,color)))g.DrawLine(pen,x,y+15,end,y+15);
+            if(t.kind=="native")foreach(var item in NativeEvents(lane)){float at=X(item.frame);if(at<Names||at>width)continue;using(var pen=new Pen(Color.FromArgb(255,205,110),2))g.DrawLine(pen,at,y+7,at,y+23);}
             foreach(var key in t.keyframes)
             {
                 if(lane.property==null&&expanded.Contains(t.id)||lane.property!=null&&key.property!=lane.property)continue;float kx=X(key.frame);if(kx<Names-7||kx>width+7)continue;
@@ -166,6 +168,10 @@ internal sealed class TimelineCanvas : UserControl
     {
         base.OnMouseDown(e);if(State==null)return;Focus();dragStart=e.Location;dragStartX=e.X+horizontal.Value;dragChanged=false;dragMode=null;
         var lane=LaneAt(e.Location);var key=KeyAt(lane,e.Location);string edge=EdgeAt(lane,e.Location);
+        if(lane!=null&&lane.track.kind=="native"){
+            ResetSelection(lane.track,null);NotifySelection(lane.track,null);
+            if(e.Button==MouseButtons.Left){if(e.X<27&&lane.property==null)Expand(lane.track,!expanded.Contains(lane.track.id));else if(e.X>=Names){var item=NativeAt(lane,e.X);if(SelectNativeEvent!=null)SelectNativeEvent(item,false);if(Seek!=null)Seek(item==null?CursorFrame(e.X):item.frame);dragMode="seek";Capture=true;}}return;
+        }
         bool additive=(ModifierKeys&(Keys.Control|Keys.Shift))!=0;
         if(lane!=null)
         {
@@ -216,7 +222,9 @@ internal sealed class TimelineCanvas : UserControl
     }
     private Lane LaneAt(Point point){int i=(point.Y-Header+vertical.Value)/Row;return point.Y>=Header&&i>=0&&i<lanes.Count?lanes[i]:null;}
     private string EdgeAt(Lane lane,Point point)
-    {if(lane==null||lane.property!=null||point.X<Names)return null;double left=Math.Abs(point.X-X(lane.track.start)),right=Math.Abs(point.X-X(lane.track.end));if(Math.Min(left,right)>8)return null;return left<right?"left":"right";}
+    {if(lane==null||lane.track.kind=="native"||lane.property!=null||point.X<Names)return null;double left=Math.Abs(point.X-X(lane.track.start)),right=Math.Abs(point.X-X(lane.track.end));if(Math.Min(left,right)>8)return null;return left<right?"left":"right";}
+    private IEnumerable<NativeEvent> NativeEvents(Lane lane){if(State.nativeProject==null)return new NativeEvent[0];return State.nativeProject.events.Where(e=>lane.property==null||lane.property=="@gm:"+e.file);}
+    private NativeEvent NativeAt(Lane lane,int x){return NativeEvents(lane).OrderBy(e=>Math.Abs(X(e.frame)-x)).FirstOrDefault(e=>Math.Abs(X(e.frame)-x)<8);}
     private Keyframe KeyAt(Lane lane,Point point)
     {if(lane==null||point.X<Names||lane.property==null&&expanded.Contains(lane.track.id))return null;return lane.track.keyframes.Where(k=>lane.property==null||k.property==lane.property).OrderBy(k=>Math.Abs(X(k.frame)-point.X)).FirstOrDefault(k=>Math.Abs(X(k.frame)-point.X)<8);}
     private void PrepareBar(Track track,string mode)
@@ -240,6 +248,7 @@ internal sealed class TimelineCanvas : UserControl
         for(int i=0;i<lanes.Count;i++)
         {
             var lane=lanes[i];float y=i*Row+15;if(y<rect.Top||y>rect.Bottom)continue;
+            if(lane.track.kind=="native")continue;
             if(boxTracks)
             {if(lane.property==null&&lane.track.start/(float)State.fps*PixelsPerSecond<=rect.Right&&lane.track.end/(float)State.fps*PixelsPerSecond>=rect.Left)SelectedTracks.Add(lane.track);continue;}
             if(lane.property==null)continue;
@@ -250,11 +259,13 @@ internal sealed class TimelineCanvas : UserControl
     protected override void OnMouseDoubleClick(MouseEventArgs e)
     {
         base.OnMouseDoubleClick(e);if(State==null||e.X<Names||e.Y<Header)return;int i=(e.Y-Header+vertical.Value)/Row;
+        if(i>=0&&i<lanes.Count&&lanes[i].track.kind=="native"){if(SelectNativeEvent!=null)SelectNativeEvent(NativeAt(lanes[i],e.X),true);return;}
         if(i>=0&&i<lanes.Count&&lanes[i].property!=null&&InsertKey!=null)InsertKey(lanes[i].track,lanes[i].property,ToFrame(e.X));
     }
     protected override void OnMouseMove(MouseEventArgs e)
     {
         base.OnMouseMove(e);if(State==null)return;
+        if(dragMode==null){var nativeLane=LaneAt(e.Location);if(nativeLane!=null&&nativeLane.track.kind=="native"){var item=NativeAt(nativeLane,e.X);Cursor=Cursors.Hand;tips.SetToolTip(this,item==null?"GM 原生轨道：只读定位；双击编辑原 GML。":item.file+":"+item.line+" · "+item.expression+"\n"+item.snippet);return;}}
         if(dragMode==null){var lane=LaneAt(e.Location);string edge=EdgeAt(lane,e.Location);var key=KeyAt(lane,e.Location);hoverTrack=edge==null?null:lane.track;hoverEdge=edge;Cursor=edge!=null?Cursors.SizeWE:key!=null?Cursors.SizeAll:lane!=null&&lane.property==null&&e.X>=X(lane.track.start)&&e.X<=X(lane.track.end)?Cursors.SizeAll:Cursors.Default;string tip=edge=="left"?"左右拖动：修改开始帧（不移动关键帧）":edge=="right"?"左右拖动：修改结束帧（不移动关键帧）":key!=null?"拖动移动所选关键帧；Ctrl / Shift 加选；Delete 删除":"主行空白框选物件；属性行空白框选关键帧；Ctrl / Shift 加选";if(tips.GetToolTip(this)!=tip)tips.SetToolTip(this,tip);Invalidate();return;}
         if(e.X>Width-vertical.Width-15)ScrollHorizontal(20);else if(e.X<Names+5)ScrollHorizontal(-20);
         if(dragMode=="seek"){if(Seek!=null)Seek(CursorFrame(e.X));return;}

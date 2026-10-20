@@ -1,7 +1,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
+import crypto from 'node:crypto';
 import { root, project, projectFile, makerFile, gameMaker, buildDir, gameExe, readState } from './project.mjs';
+import {prepareNativeSession,copyNativeExtras} from './native-preview.mjs';
 
 const exportedExe=gameExe;
 let buildTask=null;
@@ -75,7 +77,8 @@ export function packageGame(preview,frame=0) {
   fs.mkdirSync(dir,{recursive:true});
   const exe=path.join(dir,'rufmaker-game.exe');
   fs.copyFileSync(exportedExe,exe);
-  fs.cpSync(path.join(project,'Data'),path.join(dir,'Data'),{recursive:true,force:true});
+  if(fs.existsSync(path.join(project,'Data')))fs.cpSync(path.join(project,'Data'),path.join(dir,'Data'),{recursive:true,force:true});else fs.mkdirSync(path.join(dir,'Data'),{recursive:true});
+  if(readState().nativeProject?.imported)copyNativeExtras(project,dir);else for(const item of fs.readdirSync(project,{withFileTypes:true}).filter(e=>e.isFile()&&/\.(dll|ini|dat|cfg)$/i.test(e.name)))fs.copyFileSync(path.join(project,item.name),path.join(dir,item.name));
   const ini=path.join(dir,'Data','rufmaker_preview.ini');
   const status=path.join(dir,'Data','rufmaker_preview_status.ini');
   if (fs.existsSync(status)) fs.unlinkSync(status);
@@ -85,7 +88,7 @@ export function packageGame(preview,frame=0) {
 }
 
 export async function runNative(frame=0) {
-  const build=await ensureBuild();
+  const state=readState();
   if (previewProcess && previewProcess.exitCode===null) {
     const previous=previewProcess;
     await new Promise((resolve,reject)=>{
@@ -94,6 +97,8 @@ export async function runNative(frame=0) {
       if (!previous.kill()) {clearTimeout(timer);resolve();}
     });
   }
+  if(state.nativeProject?.imported){const cacheDir=path.join(root,'build','native-projects',crypto.createHash('sha256').update(project.toLowerCase()).digest('hex').slice(0,16));const result=await prepareNativeSession({project,projectFile,buildDir,cacheDir,gameMaker,state,frame,playable:true});const child=spawn(result.exe,[],{cwd:result.dir,detached:true,stdio:'ignore'});await new Promise((resolve,reject)=>{child.once('spawn',resolve);child.once('error',reject);});previewProcess=child;child.unref();return {...result,pid:child.pid,ready:false};}
+  const build=await ensureBuild();
   const result=packageGame(true,frame);
   const child=spawn(result.exe,[],{cwd:result.dir,detached:true,stdio:'ignore'});
   previewProcess=child;

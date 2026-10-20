@@ -18,6 +18,7 @@ internal sealed class EditorState
     public string room="rAvoidance", music="Data/Music/BGM.ogg";
     public bool timelineInitialized;
     public string[] plainRooms=new string[0];
+    public NativeProject nativeProject;
     public List<Track> tracks=new List<Track>();
 }
 internal sealed class PlayerSettings {public double gravity=.4,moveSpeed=3,jumpSpeed=8.5,doubleJumpSpeed=7;public int maxJumps=2;public bool infiniteJump;}
@@ -81,6 +82,20 @@ internal sealed class LoadData
 internal sealed class SourceData {public string content;}
 internal sealed class SaveResult {public RoomData room;}
 internal sealed class BuildResult {public string exe,dir;public long bytes;public bool ready,cached;public int pid;public Dictionary<string,string> status;}
+internal sealed class NativeEvent {public string id,file,expression,kind,label,snippet,reason;public int frame,line;public double period;}
+internal sealed class NativeProject
+{
+    public int version=1,fps=50,width=800,height=608,duration;public bool imported,hasFmod;public double timelineSpeed=1,originalStart,bpm;
+    public string entry,source,name,room,controller,clock,timeline,music,bootObject,musicInitializer,confidence,defaultSprite,killerParent;
+    public NativeEvent[] events=new NativeEvent[0],unresolved=new NativeEvent[0];public string[] warnings=new string[0];
+}
+internal sealed class NativeRoomCandidate {public string name;public int width,height,fps,score;public NativeControllerCandidate[] controllers;public override string ToString(){return name+(score>0?" · 候选":"");}}
+internal sealed class NativeControllerCandidate {public string name;public int score;public bool direct;}
+internal sealed class NativeScan:NativeScanBase {}
+internal class NativeScanBase {public string entry,name,room,controller,clock,timeline,music,confidence;public int fps,duration;public string[] entries,controllers,musicChoices,warnings;public NativeRoomCandidate[] rooms;public NativeEvent[] events,unresolved;}
+internal sealed class NativeImportOptions {public string entry,name,parent,room,controller,music;public double duration;}
+internal sealed class NativeImportResult {public string path;public string[] warnings;public int events;}
+internal sealed class NativeSession {public string exe,dir,commandFile,statusFile;public bool cached;public int width,height;}
 internal sealed class ImportResult {public string name;public Inventory inventory;public Dictionary<string,SpriteMeta> spriteMeta;}
 internal sealed class RpcResponse {public int id;public bool ok;public object result;public string error;}
 #pragma warning restore 0649
