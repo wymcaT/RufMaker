@@ -6,7 +6,7 @@ import {shapeSetup,shapePoint} from './shapes.mjs';
 import {cameraApplyGml,cameraCompositeGml,cameraUpdate} from './camera.mjs';
 import path from 'node:path';
 import {normalizeState,stateCode,easeGml,bounceGml,fields} from "./motion.mjs";
-import {effectTypes,fxResetGml,fxInitialization,fxCleanup,makeFxObjects} from './effects.mjs';
+import {effectTypes,fxResetGml,fxOpaqueGml,fxInitialization,fxCleanup,makeFxObjects} from './effects.mjs';
 import crypto from 'node:crypto';
 import {rainbowCode,rainbowGml,rodSequence} from './rainbow.mjs';
 import {trailModes,trailMode,trailCall,trailGml} from './trails.mjs';
@@ -219,7 +219,7 @@ export function syncToGame(s) {
     for(const dir of ['objects','scripts'])for(const file of fs.readdirSync(path.join(project,dir)).filter(f=>f.endsWith('.gml')&&!/^(?:objRuf|rf_)/.test(f))){const target=path.join(project,dir,file);atomicWrite(target,patchNativeSurfaceReset(fs.readFileSync(target,'utf8')));}
     for(const [name,code] of [['rf_native_compose',nativeComposeGml(s)],['rf_native_surface_reset',nativeSurfaceResetGml]]){atomicWrite(path.join(project,'scripts',name+'.gml'),code);appendUnique(path.join(project,'scripts','index.yyd'),name);appendUnique(path.join(project,'scripts','tree.yyd'),'\t|'+name);}
   }
-  for (const [name,code] of [['rf_camera_apply',cameraApplyGml],['rf_camera_composite',cameraCompositeGml],['rf_bullet_trails',bulletTrailGml],['rf_ease',easeGml],['rf_bounce',bounceGml],['rf_fx_reset_target',fxResetGml],['rf_trail_draw',trailGml],['rf_rainbow_index',rainbowGml]]) {atomicWrite(path.join(project,'scripts',`${name}.gml`),code);appendUnique(path.join(project,'scripts','index.yyd'),name);appendUnique(path.join(project,'scripts','tree.yyd'),`	|${name}`);}
+  for (const [name,code] of [['rf_camera_apply',cameraApplyGml],['rf_camera_composite',cameraCompositeGml],['rf_bullet_trails',bulletTrailGml],['rf_ease',easeGml],['rf_bounce',bounceGml],['rf_fx_reset_target',fxResetGml],['rf_fx_opaque',fxOpaqueGml],['rf_trail_draw',trailGml],['rf_rainbow_index',rainbowGml]]) {atomicWrite(path.join(project,'scripts',`${name}.gml`),code);appendUnique(path.join(project,'scripts','index.yyd'),name);appendUnique(path.join(project,'scripts','tree.yyd'),`	|${name}`);}
   if(!native&&(typeof s.music!=='string'||!/^Data\/Music\/[A-Za-z0-9_. -]+\.(ogg|mp3|wav|flac)$/i.test(s.music)||!fs.existsSync(path.join(project,s.music))))throw new Error('工程音乐不存在，请重新导入歌曲');
   const musicInit=path.join(project,'scripts','music_init.gml');
   if(!native)atomicWrite(musicInit,fs.readFileSync(musicInit,'utf8').replace(/^BGM_Ad\s*=.*$/m,`BGM_Ad = FMODSoundAdd('${s.music}',0,0);`).replace(/global\.music_directory\s*\+\s*'([^']+)'/g,(_,file)=>`'Data/Music/${file}'`));

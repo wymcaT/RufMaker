@@ -15,7 +15,7 @@ internal sealed class NativeImportForm:Form
     public NativeImportOptions Options {get;private set;}
     public NativeImportForm(string initial,string parent,Func<object,Task<NativeScan>> scan)
     {
-        this.scan=scan;Text="导入非 RufMaker 工程";Font=Theme.Font;BackColor=Theme.Panel;ForeColor=Theme.Text;Size=new Size(850,780);MinimumSize=new Size(650,560);StartPosition=FormStartPosition.CenterParent;ShowInTaskbar=false;
+        this.scan=scan;Text="导入非 RufMaker 工程";Font=Theme.Font;BackColor=Theme.Panel;ForeColor=Theme.Text;Size=new Size(850,780);MinimumSize=new Size(650,560);StartPosition=FormStartPosition.CenterParent;ShowInTaskbar=false;Icon=AppWindow.LoadIcon();
         var table=new TableLayoutPanel{Dock=DockStyle.Fill,ColumnCount=3,RowCount=10,Padding=new Padding(12)};table.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute,110));table.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,100));table.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute,90));
         for(int i=0;i<9;i++)table.RowStyles.Add(new RowStyle(SizeType.Absolute,40));table.RowStyles.Add(new RowStyle(SizeType.Percent,100));
         folder.Text=initial;destination.Text=parent;

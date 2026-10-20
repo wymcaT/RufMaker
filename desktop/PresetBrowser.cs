@@ -26,7 +26,7 @@ internal sealed class PresetNameForm:Form
     public string ResultName,Category;
     public PresetNameForm(string title,string name,string category,string[] folders,string hint)
     {
-        Text=title;Size=new Size(520,255);MinimumSize=Size;MaximumSize=Size;StartPosition=FormStartPosition.CenterParent;FormBorderStyle=FormBorderStyle.FixedDialog;MaximizeBox=false;MinimizeBox=false;Font=Theme.Font;BackColor=Theme.Panel;ForeColor=Theme.Text;
+        Text=title;Size=new Size(520,255);MinimumSize=Size;MaximumSize=Size;StartPosition=FormStartPosition.CenterParent;FormBorderStyle=FormBorderStyle.FixedDialog;MaximizeBox=false;MinimizeBox=false;Font=Theme.Font;BackColor=Theme.Panel;ForeColor=Theme.Text;Icon=AppWindow.LoadIcon();ShowInTaskbar=false;
         var layout=new TableLayoutPanel{Dock=DockStyle.Fill,ColumnCount=2,RowCount=4,Padding=new Padding(14)};layout.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,100));
         var text=new TextBox{Text=name,Dock=DockStyle.Fill,BackColor=Theme.Raised,ForeColor=Theme.Text};var combo=new WheelSafeComboBox{DropDownStyle=ComboBoxStyle.DropDownList,Dock=DockStyle.Fill,BackColor=Theme.Raised,ForeColor=Theme.Text};foreach(string folder in folders)combo.Items.Add(folder==""?"（根目录）":folder);combo.SelectedIndex=Math.Max(0,Array.IndexOf(folders,category));
         layout.Controls.Add(new Label{Text="名称",AutoSize=true,Margin=new Padding(0,6,14,0)},0,0);layout.Controls.Add(text,1,0);layout.Controls.Add(new Label{Text="分类文件夹",AutoSize=true,Margin=new Padding(0,6,14,0)},0,1);layout.Controls.Add(combo,1,1);

@@ -49,7 +49,7 @@ internal sealed partial class MainForm : Form
 
     public MainForm(string root)
     {
-        this.root=root;Text="RufMaker · 原生耐久制作器";BackColor=Theme.Back;ForeColor=Theme.Text;Font=Theme.Font;Icon=System.Drawing.Icon.ExtractAssociatedIcon(Application.ExecutablePath);
+        this.root=root;Text="RufMaker · 原生耐久制作器";BackColor=Theme.Back;ForeColor=Theme.Text;Font=Theme.Font;Icon=AppWindow.LoadIcon();
         StartPosition=FormStartPosition.CenterScreen;Size=new Size(1500,940);MinimumSize=new Size(1100,740);AutoScaleMode=AutoScaleMode.None;KeyPreview=true;
         restoredView=WorkspaceView.Load(root);if(restoredView!=null&&restoredView.positioned){StartPosition=FormStartPosition.Manual;Bounds=restoredView.VisibleBounds();if(restoredView.maximized)WindowState=FormWindowState.Maximized;}
         BuildLayout();
@@ -629,6 +629,9 @@ internal sealed partial class MainForm : Form
             if(state.nativeProject!=null){using(var dialog=new NativeReplayProgressForm(bridge,payload,target)){dialog.ShowDialog(this);if(dialog.Cancelled){SetStatus("原生试玩重放已取消。");return;}if(dialog.ErrorText!=null)throw new IOException(dialog.ErrorText);result=dialog.Result;}}
             else result=await bridge.Call<BuildResult>("run",payload);
             if(current==revision)dirty=false;SetStatus(result.ready?"原生试玩已进入 "+result.status["room"]+" · 第 "+result.status["frame"]+" 帧":"游戏已启动，请查看游戏窗口");if(state.nativeProject!=null){nativePhase="";nativeWatch.Start();}
+            // A modal progress window reactivates its editor owner when it closes.
+            // Transfer input after that modal loop and the busy state have ended.
+            int gamePid=result.pid;BeginInvoke(new Action(()=>AppWindow.FocusGame(gamePid)));
         }
         catch(Exception error){Error(error);}finally{SetBusy(false);}
     }
@@ -678,7 +681,7 @@ internal sealed class CodeForm : Form
     private readonly TextBox code=new TextBox();private readonly Button save=new Button();private readonly Func<string,Task> persist;private readonly string newline;
     public CodeForm(string name,string content,Func<string,Task> persist,int line=1)
     {
-        this.persist=persist;newline=CodeText.NewlineOf(content);Text="GML · "+name;Size=new Size(920,680);MinimumSize=new Size(600,400);StartPosition=FormStartPosition.CenterParent;BackColor=Theme.Back;ForeColor=Theme.Text;Font=Theme.Font;
+        this.persist=persist;newline=CodeText.NewlineOf(content);Text="GML · "+name;Size=new Size(920,680);MinimumSize=new Size(600,400);StartPosition=FormStartPosition.CenterParent;BackColor=Theme.Back;ForeColor=Theme.Text;Font=Theme.Font;Icon=AppWindow.LoadIcon();ShowInTaskbar=false;
         var foot=new FlowLayoutPanel{Dock=DockStyle.Bottom,Height=48,FlowDirection=FlowDirection.RightToLeft};save.Text="保存 GML";save.Width=120;save.Height=32;save.Margin=new Padding(8);save.BackColor=Theme.Accent;save.ForeColor=Theme.Back;save.FlatStyle=FlatStyle.Flat;save.Click+=async(s,e)=>await Save();foot.Controls.Add(save);
         var label=new Label{Text="直接编辑 GameMaker GML    ·    Ctrl+S 保存",Dock=DockStyle.Top,Height=34,Padding=new Padding(12,0,0,0),TextAlign=ContentAlignment.MiddleLeft,ForeColor=Theme.Muted};
         var wrap=new CheckBox{Text="自动折行",Checked=true,AutoSize=true,Margin=new Padding(8,15,12,0)};wrap.CheckedChanged+=(s,e)=>{code.WordWrap=wrap.Checked;code.ScrollBars=wrap.Checked?ScrollBars.Vertical:ScrollBars.Both;};foot.Controls.Add(wrap);

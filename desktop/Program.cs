@@ -21,6 +21,7 @@ internal static class Program
         if(args.Length>0&&args[0]=="--apply-update"){Updater.Apply(args);return;}
         string root=AppDomain.CurrentDomain.BaseDirectory.TrimEnd(Path.DirectorySeparatorChar);
         Directory.SetCurrentDirectory(root);
+        AppWindow.RefreshFileIcon(Application.ExecutablePath);
         string identity;
         using(var hash=SHA256.Create())identity=BitConverter.ToString(hash.ComputeHash(Encoding.UTF8.GetBytes(root.ToUpperInvariant()))).Replace("-","");
         using(var instance=new Mutex(false,"Local\\RufMakerNative-"+identity))

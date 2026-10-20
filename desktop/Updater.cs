@@ -11,10 +11,10 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 
-[assembly:System.Reflection.AssemblyVersion("1.5.1.0")]
-[assembly:System.Reflection.AssemblyFileVersion("1.5.1.0")]
-[assembly:System.Reflection.AssemblyInformationalVersion("1.5.1")]
-internal static class AppVersion {public const string Current="1.5.1";}
+[assembly:System.Reflection.AssemblyVersion("1.5.2.0")]
+[assembly:System.Reflection.AssemblyFileVersion("1.5.2.0")]
+[assembly:System.Reflection.AssemblyInformationalVersion("1.5.2")]
+internal static class AppVersion {public const string Current="1.5.2";}
 #pragma warning disable 0649
 internal sealed class ReleaseAsset {public string name,browser_download_url;}
 internal sealed class GitRelease {public string tag_name;public ReleaseAsset[] assets;}
@@ -76,7 +76,7 @@ internal static class Updater
             try{using(var process=Process.GetProcessById(Int32.Parse(args[3])))if(!process.WaitForExit(90000))throw new IOException("编辑器仍在运行，更新已取消。");}catch(ArgumentException){}
             var manifest=Validate(payload);Directory.CreateDirectory(backup);
             foreach(var file in manifest.files){string destination=Inside(root,file.path),old=Inside(backup,file.path);if(File.Exists(destination)){Directory.CreateDirectory(Path.GetDirectoryName(old));File.Copy(destination,old,true);existed.Add(file.path);}applied.Add(file);Directory.CreateDirectory(Path.GetDirectoryName(destination));File.Copy(Inside(payload,file.path),destination,true);}
-            Process.Start(new ProcessStartInfo{FileName=Path.Combine(root,"RufMaker.exe"),WorkingDirectory=root,UseShellExecute=true});
+            AppWindow.RefreshFileIcon(Path.Combine(root,"RufMaker.exe"));Process.Start(new ProcessStartInfo{FileName=Path.Combine(root,"RufMaker.exe"),WorkingDirectory=root,UseShellExecute=true});
         }
         catch(Exception error)
         {

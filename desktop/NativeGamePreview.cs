@@ -5,16 +5,31 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 
+internal static class NativeProgressLayout
+{
+    public static void Build(Form form,Label label,ProgressBar progress,Button cancel)
+    {
+        form.AutoScaleDimensions=new SizeF(96,96);form.AutoScaleMode=AutoScaleMode.Dpi;form.Font=Theme.Font;form.Icon=AppWindow.LoadIcon();form.ShowInTaskbar=false;
+        form.ClientSize=new Size(540,160);form.MinimumSize=new Size(560,0);form.AutoSize=true;form.AutoSizeMode=AutoSizeMode.GrowAndShrink;
+        var layout=new TableLayoutPanel{Dock=DockStyle.Top,AutoSize=true,AutoSizeMode=AutoSizeMode.GrowAndShrink,Padding=new Padding(16),ColumnCount=1,RowCount=3};
+        layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,100));for(int i=0;i<3;i++)layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        label.AutoSize=true;label.Dock=DockStyle.Fill;label.Padding=Padding.Empty;label.Margin=new Padding(0,0,0,14);label.MaximumSize=new Size(508,0);label.UseMnemonic=false;
+        progress.Dock=DockStyle.Fill;progress.Height=24;progress.Margin=new Padding(0,0,0,14);
+        cancel.AutoSize=true;cancel.Dock=DockStyle.Fill;cancel.MinimumSize=new Size(0,36);cancel.Margin=Padding.Empty;
+        layout.Controls.Add(label,0,0);layout.Controls.Add(progress,0,1);layout.Controls.Add(cancel,0,2);form.Controls.Add(layout);
+    }
+}
+
 internal sealed class NativeReplayProgressForm:Form
 {
     private readonly NativeBridge bridge;private readonly System.Windows.Forms.Timer poll=new System.Windows.Forms.Timer{Interval=500};private readonly Label label;private readonly ProgressBar bar;private readonly Button cancel;
     private bool finished,polling;public bool Cancelled;public string ErrorText;public BuildResult Result;
     public NativeReplayProgressForm(NativeBridge bridge,object payload,int target)
     {
-        this.bridge=bridge;Text="准备原生试玩";Size=new Size(560,190);FormBorderStyle=FormBorderStyle.FixedDialog;MaximizeBox=false;MinimizeBox=false;StartPosition=FormStartPosition.CenterParent;Font=Theme.Font;BackColor=Theme.Panel;ForeColor=Theme.Text;
-        label=new Label{Text="正在同步并编译原生试玩副本…",Dock=DockStyle.Top,Height=54,Padding=new Padding(15,15,10,0)};
+        this.bridge=bridge;Text="准备原生试玩";FormBorderStyle=FormBorderStyle.FixedDialog;MaximizeBox=false;MinimizeBox=false;StartPosition=FormStartPosition.CenterParent;BackColor=Theme.Panel;ForeColor=Theme.Text;
+        label=new Label{Text="正在同步并编译原生试玩副本…"};
         bar=new ProgressBar{Dock=DockStyle.Top,Height=25,Minimum=0,Maximum=Math.Max(1,target),Style=ProgressBarStyle.Marquee};
-        cancel=new Button{Text="取消",Dock=DockStyle.Bottom,Height=34};cancel.Click+=(s,e)=>CancelReplay();Controls.Add(bar);Controls.Add(label);Controls.Add(cancel);
+        cancel=new Button{Text="取消"};cancel.Click+=(s,e)=>CancelReplay();NativeProgressLayout.Build(this,label,bar,cancel);
         FormClosing+=(s,e)=>{if(!finished){e.Cancel=true;CancelReplay();}};poll.Tick+=async(s,e)=>await ReadProgress();
         Shown+=async(s,e)=>{
             poll.Start();try{Result=await bridge.Call<BuildResult>("run",payload);}catch(Exception error){if(!Cancelled)ErrorText=error.Message;}finally{finished=true;poll.Stop();Close();}
@@ -41,10 +56,10 @@ internal sealed class NativeFilmProgressForm:Form
     public NativeFilmInfo Result;public string ErrorText;
     public NativeFilmProgressForm(NativeFilmJob job)
     {
-        Text="生成原生底片";Size=new Size(540,190);FormBorderStyle=FormBorderStyle.FixedDialog;MaximizeBox=false;MinimizeBox=false;StartPosition=FormStartPosition.CenterParent;Font=Theme.Font;BackColor=Theme.Panel;ForeColor=Theme.Text;
-        var label=new Label{Text="正在完整运行原生耐久，player 固定在 (400,304)…",Dock=DockStyle.Top,Height=54,Padding=new Padding(15,15,10,0)};
+        Text="生成原生底片";FormBorderStyle=FormBorderStyle.FixedDialog;MaximizeBox=false;MinimizeBox=false;StartPosition=FormStartPosition.CenterParent;BackColor=Theme.Panel;ForeColor=Theme.Text;
+        var label=new Label{Text="正在完整运行原生耐久，player 固定在 (400,304)…"};
         var bar=new ProgressBar{Dock=DockStyle.Top,Height=25,Minimum=0,Maximum=job.frameCount};
-        var cancel=new Button{Text="取消",Dock=DockStyle.Bottom,Height=34};cancel.Click+=(s,e)=>{cancellation.Cancel();cancel.Enabled=false;label.Text="正在停止生成，已有底片会保留…";};Controls.Add(bar);Controls.Add(label);Controls.Add(cancel);
+        var cancel=new Button{Text="取消"};cancel.Click+=(s,e)=>{cancellation.Cancel();cancel.Enabled=false;label.Text="正在停止生成，已有底片会保留…";};NativeProgressLayout.Build(this,label,bar,cancel);
         FormClosing+=(s,e)=>{if(!finished){e.Cancel=true;cancellation.Cancel();cancel.Enabled=false;}};
         Shown+=async(s,e)=>{
             try{var progress=new Progress<NativeFilmProgress>(value=>{if(IsDisposed||finished)return;bar.Value=Math.Min(bar.Maximum,value.frame);label.Text="正在生成原生底片 · "+value.frame+" / "+value.total+" 帧（50 FPS）";});Result=await Task.Run(()=>NativeFilmBuilder.Generate(job,cancellation.Token,progress));DialogResult=DialogResult.OK;}

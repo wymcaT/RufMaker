@@ -30,7 +30,7 @@ internal sealed class NewProjectForm : Form
     public NewProjectOptions Options {get;private set;}
     public NewProjectForm(string defaultParent,Func<NewProjectOptions,Task<TerrainLayout>> render)
     {
-        this.render=render;Text="新建 RufMaker 工程";Font=Theme.Font;ForeColor=Theme.Text;BackColor=Theme.Panel;Size=new Size(1000,760);MinimumSize=new Size(900,650);StartPosition=FormStartPosition.CenterParent;
+        this.render=render;Text="新建 RufMaker 工程";Font=Theme.Font;ForeColor=Theme.Text;BackColor=Theme.Panel;Size=new Size(1000,760);MinimumSize=new Size(900,650);StartPosition=FormStartPosition.CenterParent;Icon=AppWindow.LoadIcon();ShowInTaskbar=false;
         foreach(var input in new[]{projectName,parent,song}){input.BackColor=Theme.Raised;input.ForeColor=Theme.Text;input.BorderStyle=BorderStyle.FixedSingle;}preset.BackColor=Theme.Raised;preset.ForeColor=Theme.Text;create.BackColor=Theme.Accent;create.ForeColor=Theme.Back;create.FlatStyle=FlatStyle.Flat;
         var body=new TableLayoutPanel{Dock=DockStyle.Fill,ColumnCount=2,Padding=new Padding(8)};body.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,53));body.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,47));
         var scroll=new Panel{Dock=DockStyle.Fill,AutoScroll=true};fields.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,48));fields.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,52));scroll.Controls.Add(fields);body.Controls.Add(scroll,0,0);
