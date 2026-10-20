@@ -79,7 +79,7 @@ internal sealed class LoadData
     public Dictionary<string,SpriteMeta> spriteMeta;
     public WaveData waveform;
 }
-internal sealed class SourceData {public string content;}
+internal sealed class SourceData {public string content,hash;}
 internal sealed class SaveResult {public RoomData room;}
 internal sealed class BuildResult {public string exe,dir;public long bytes;public bool ready,cached;public int pid;public Dictionary<string,string> status;}
 internal sealed class NativeEvent {public string id,file,expression,kind,label,snippet,reason;public int frame,line;public double period;}
@@ -95,7 +95,7 @@ internal sealed class NativeScan:NativeScanBase {}
 internal class NativeScanBase {public string entry,name,room,controller,clock,timeline,music,confidence;public int fps,duration;public string[] entries,controllers,musicChoices,warnings;public NativeRoomCandidate[] rooms;public NativeEvent[] events,unresolved;}
 internal sealed class NativeImportOptions {public string entry,name,parent,room,controller,music;public double duration;}
 internal sealed class NativeImportResult {public string path;public string[] warnings;public int events;}
-internal sealed class NativeSession {public string exe,dir,commandFile,statusFile;public bool cached;public int width,height;}
+internal sealed class NativeSession {public string exe,dir,commandFile,statusFile,frameFile;public bool cached;public int width,height;}
 internal sealed class ImportResult {public string name;public Inventory inventory;public Dictionary<string,SpriteMeta> spriteMeta;}
 internal sealed class RpcResponse {public int id;public bool ok;public object result;public string error;}
 #pragma warning restore 0649

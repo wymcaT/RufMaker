@@ -259,7 +259,7 @@ internal sealed class TimelineCanvas : UserControl
     protected override void OnMouseDoubleClick(MouseEventArgs e)
     {
         base.OnMouseDoubleClick(e);if(State==null||e.X<Names||e.Y<Header)return;int i=(e.Y-Header+vertical.Value)/Row;
-        if(i>=0&&i<lanes.Count&&lanes[i].track.kind=="native"){if(SelectNativeEvent!=null)SelectNativeEvent(NativeAt(lanes[i],e.X),true);return;}
+        if(i>=0&&i<lanes.Count&&lanes[i].track.kind=="native"){var item=NativeAt(lanes[i],e.X);if(item!=null&&SelectNativeEvent!=null)SelectNativeEvent(item,true);return;}
         if(i>=0&&i<lanes.Count&&lanes[i].property!=null&&InsertKey!=null)InsertKey(lanes[i].track,lanes[i].property,ToFrame(e.X));
     }
     protected override void OnMouseMove(MouseEventArgs e)

@@ -3,7 +3,8 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import readline from 'node:readline';
 import {createProject,copySong,terrainLayout} from './project-files.mjs';
-import {scanNativeFolder,importNativeProject,analyzeNativeProject} from './native-import.mjs';
+import {scanNativeFolder,importNativeProject,analyzeNativeProject,refreshNativeState} from './native-import.mjs';
+import {nativeEventBlock,replaceNativeEventBlock} from './native-blocks.mjs';
 import {root,project,projectFile,descriptor,projectName,pack,readState,syncToGame,roomInfo,inventory,sourcePath,moveRoomInstance,importSprite} from './project.mjs';
 import {ensureBuild,exportStatus,packageGame,runNative,openNative} from './native.mjs';
 import {prepareNativeSession} from './native-preview.mjs';
@@ -19,7 +20,7 @@ function spriteMetadata() {
 
 function loadProject() {
   const state=readState();
-  if(state.nativeProject?.imported){const fresh=analyzeNativeProject(projectFile,state.room,state.nativeProject.controller,true);for(const key of ['events','unresolved','warnings','clock','timeline','timelineSpeed','bootObject','musicInitializer','confidence','fps','width','height'])state.nativeProject[key]=fresh[key];state.fps=fresh.fps;}
+  if(state.nativeProject?.imported)refreshNativeState(projectFile,state);
   syncToGame(state);
   let waveform={duration:0,peaks:[]};
   const cache=path.join(project,'cache','rufmaker-waveform.json');
@@ -43,6 +44,8 @@ async function execute(command,payload={}) {
     case 'source-save': fs.writeFileSync(sourcePath(payload.kind,payload.name),payload.content,'utf8'); return {ok:true};
     case 'native-source-read': return {content:fs.readFileSync(nativeSourcePath(payload.path),'utf8')};
     case 'native-source-save': fs.writeFileSync(nativeSourcePath(payload.path),payload.content,'utf8');return {ok:true};
+    case 'native-event-read': {const file=nativeSourcePath(payload.event.file);return nativeEventBlock(fs.readFileSync(file,'utf8'),verifiedNativeEvent(payload.event));}
+    case 'native-event-save': {const file=nativeSourcePath(payload.event.file),source=fs.readFileSync(file,'utf8');fs.writeFileSync(file,replaceNativeEventBlock(source,verifiedNativeEvent(payload.event),payload.content,payload.hash),'utf8');return {ok:true};}
     case 'move-instance': moveRoomInstance(payload.room,payload.index,payload.x,payload.y); return roomInfo(payload.room);
     case 'delete-instance': {
       const room=roomInfo(payload.room),target=room.instances.find(x=>x.id===payload.id);
@@ -80,6 +83,7 @@ async function execute(command,payload={}) {
 }
 
 function nativeSourcePath(relative){if(!readState().nativeProject?.imported||typeof relative!=='string'||!relative.endsWith('.gml')||!['objects','scripts','timelines','rooms'].includes(relative.split('/')[0]))throw new Error('无效的原生 GML 路径');const file=path.resolve(project,relative);if(!file.startsWith(path.resolve(project)+path.sep)||!fs.existsSync(file))throw new Error('原生 GML 文件不存在');return file;}
+function verifiedNativeEvent(event){const state=readState(),report=analyzeNativeProject(projectFile,state.room,state.nativeProject.controller,true);const found=report.events.find(e=>e.file===event.file&&e.line===event.line&&e.kind===event.kind&&e.expression===event.expression);if(!found)throw new Error('所选原生事件已变化，请重新读取工程。');return found;}
 
 const input=readline.createInterface({input:process.stdin,crlfDelay:Infinity});
 input.on('line',async line=>{

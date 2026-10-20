@@ -211,7 +211,7 @@ export function syncToGame(s) {
   normalizeState(s);
   validateState(s);
   const native=Boolean(s.nativeProject?.imported);
-  if(native){for(const t of s.tracks.filter(t=>t.kind==='native')){t.start=0;t.end=s.duration;t.enabled=true;}if(!s.tracks.some(t=>t.kind!=='native')){atomicWrite(makerFile,JSON.stringify(s,null,2)+'\n');return;}}
+  if(native){for(const t of s.tracks.filter(t=>t.kind==='native')){t.start=0;t.end=Math.min(s.duration,s.nativeProject.duration||s.duration);t.enabled=true;}if(!s.tracks.some(t=>t.kind!=='native')){atomicWrite(makerFile,JSON.stringify(s,null,2)+'\n');return;}}
   if(!native)preparePlainRoom(path.resolve(sourceDir,'..'),project,s,atomicWrite,appendUnique);
   for (const [name,code] of [['rf_camera_apply',cameraApplyGml],['rf_camera_composite',cameraCompositeGml],['rf_bullet_trails',bulletTrailGml],['rf_ease',easeGml],['rf_bounce',bounceGml],['rf_fx_reset_target',fxResetGml],['rf_trail_draw',trailGml],['rf_rainbow_index',rainbowGml]]) {atomicWrite(path.join(project,'scripts',`${name}.gml`),code);appendUnique(path.join(project,'scripts','index.yyd'),name);appendUnique(path.join(project,'scripts','tree.yyd'),`	|${name}`);}
   if(!native&&(typeof s.music!=='string'||!/^Data\/Music\/[A-Za-z0-9_. -]+\.(ogg|mp3|wav|flac)$/i.test(s.music)||!fs.existsSync(path.join(project,s.music))))throw new Error('工程音乐不存在，请重新导入歌曲');

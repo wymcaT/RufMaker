@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
 using System.IO;
+using System.Globalization;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Threading.Tasks;
@@ -21,11 +22,12 @@ internal sealed class NativeGamePreview:Panel
     private delegate bool WindowCallback(IntPtr window,IntPtr parameter);
     private struct NativeRect {public int left,top,right,bottom;}
     private readonly Timer poll=new Timer{Interval=40};private readonly Label message=new Label{Dock=DockStyle.Fill,TextAlign=ContentAlignment.MiddleCenter,ForeColor=Theme.Muted};
+    private readonly PictureBox pausedFrame=new PictureBox{Dock=DockStyle.Fill,SizeMode=PictureBoxSizeMode.Zoom,Visible=false,BackColor=Theme.Back};private int imageSequence=-1,imageFrame=-1;
     private NativeSession session;private Process process;private IntPtr gameWindow;private int serial=1,requested,lastStatus=-1,lastTest;private bool commandDirty,playing,stopping;private DateTime lastWrite=DateTime.MinValue;private int generation;
     public Action<int,bool,bool> Progress;public Action<string> Failure;public Action RequestTest;
     public bool Running {get{return process!=null&&!process.HasExited&&gameWindow!=IntPtr.Zero;}}
     public bool Playing {get{return playing;}}
-    public NativeGamePreview(){DoubleBuffered=true;BackColor=Theme.Back;Controls.Add(message);poll.Tick+=(s,e)=>Tick();Resize+=(s,e)=>Fit();}
+    public NativeGamePreview(){DoubleBuffered=true;BackColor=Theme.Back;Controls.Add(message);Controls.Add(pausedFrame);poll.Tick+=(s,e)=>Tick();Resize+=(s,e)=>Fit();}
     public async Task Start(NativeSession next,int frame)
     {
         Stop();int current=++generation;session=next;serial=1;lastTest=0;requested=frame;lastStatus=-1;playing=false;message.Text="正在启动原生 GML 渲染…";message.Visible=true;Visible=true;
@@ -36,11 +38,12 @@ internal sealed class NativeGamePreview:Panel
             if(found!=IntPtr.Zero&&area>10000&&File.Exists(next.statusFile)){gameWindow=found;break;}await Task.Delay(50);
         }
         if(current!=generation)return;if(gameWindow==IntPtr.Zero)throw new InvalidOperationException("没有找到原生游戏绘图窗口。请用 F5 检查原工程是否弹出了运行错误。");
-        SetParent(gameWindow,Handle);int style=GetWindowLong(gameWindow,-16);SetWindowLong(gameWindow,-16,(style&~unchecked((int)0x80C40000))|0x50000000);SetWindowLong(gameWindow,-20,GetWindowLong(gameWindow,-20)&~0x00040000);Fit();ShowWindow(gameWindow,5);message.Visible=false;poll.Start();
+        SetParent(gameWindow,Handle);int style=GetWindowLong(gameWindow,-16);SetWindowLong(gameWindow,-16,(style&~unchecked((int)0x80C40000))|0x50000000);SetWindowLong(gameWindow,-20,GetWindowLong(gameWindow,-20)&~0x00040000);Fit();ShowWindow(gameWindow,5);commandDirty=true;message.Visible=false;poll.Start();
     }
     public void Seek(int frame){if(session==null)return;requested=Math.Max(0,frame);playing=false;commandDirty=true;}
     public void SetPlaying(bool value){if(session==null)return;if(playing==value)return;playing=value;commandDirty=true;}
-    private void Fit(){if(gameWindow==IntPtr.Zero||session==null)return;double scale=Math.Min(Width/(double)Math.Max(1,session.width),Height/(double)Math.Max(1,session.height));int w=Math.Max(1,(int)(session.width*scale)),h=Math.Max(1,(int)(session.height*scale));MoveWindow(gameWindow,(Width-w)/2,(Height-h)/2,w,h,true);}
+    private void Fit(){if(gameWindow==IntPtr.Zero||session==null)return;double scale=Math.Min(Width/(double)Math.Max(1,session.width),Height/(double)Math.Max(1,session.height));int w=Math.Max(1,(int)(session.width*scale)),h=Math.Max(1,(int)(session.height*scale));MoveWindow(gameWindow,(Width-w)/2,(Height-h)/2,w,h,true);commandDirty=true;}
+    private static bool Number(string text,out int value){double parsed;value=0;if(!Double.TryParse(text,NumberStyles.Float,CultureInfo.InvariantCulture,out parsed)||Double.IsNaN(parsed)||Double.IsInfinity(parsed)||parsed<Int32.MinValue||parsed>Int32.MaxValue)return false;value=(int)Math.Round(parsed);return true;}
     private void Tick()
     {
         if(stopping||session==null)return;
@@ -49,15 +52,20 @@ internal sealed class NativeGamePreview:Panel
             if(commandDirty&&(DateTime.UtcNow-lastWrite).TotalMilliseconds>=75){string data="[control]\r\nserial="+(++serial)+"\r\nframe="+requested+"\r\nplaying="+(playing?1:0)+"\r\nplayable=0\r\n",temp=session.commandFile+".tmp";File.WriteAllText(temp,data);if(File.Exists(session.commandFile))File.Replace(temp,session.commandFile,null);else File.Move(temp,session.commandFile);commandDirty=false;lastWrite=DateTime.UtcNow;}
             if(!File.Exists(session.statusFile))return;
             var values=new Dictionary<string,string>();foreach(string line in File.ReadAllLines(session.statusFile)){int at=line.IndexOf('=');if(at>0)values[line.Substring(0,at).Trim()]=line.Substring(at+1).Trim().Trim('"');}
-            string text;int frame,target,sequence;if(!values.TryGetValue("sequence",out text)||!Int32.TryParse(text,out sequence)||sequence<serial)return;if(!values.TryGetValue("frame",out text)||!Int32.TryParse(text,out frame)||!values.TryGetValue("target",out text)||!Int32.TryParse(text,out target))return;
-            bool active=values.TryGetValue("playing",out text)&&text=="1",seeking=frame<target,changed=frame!=lastStatus||active!=playing;if(!commandDirty)playing=active;if(!commandDirty&&playing&&!seeking)requested=frame;
+            string text;int frame,target,sequence,flag;if(!values.TryGetValue("sequence",out text)||!Number(text,out sequence)||sequence<serial)return;if(!values.TryGetValue("frame",out text)||!Number(text,out frame)||!values.TryGetValue("target",out text)||!Number(text,out target))return;
+            bool active=values.TryGetValue("playing",out text)&&Number(text,out flag)&&flag!=0,seeking=frame<target,changed=frame!=lastStatus||active!=playing;if(!commandDirty)playing=active;if(!commandDirty&&playing&&!seeking)requested=frame;
+            if(!active&&!seeking&&!commandDirty&&File.Exists(session.frameFile)&&(imageSequence!=sequence||imageFrame!=frame)){
+                using(var stream=new MemoryStream(File.ReadAllBytes(session.frameFile)))using(var original=Image.FromStream(stream)){var old=pausedFrame.Image;pausedFrame.Image=new Bitmap(original);if(old!=null)old.Dispose();}
+                imageSequence=sequence;imageFrame=frame;pausedFrame.Visible=true;pausedFrame.BringToFront();
+            }
+            if(active&&!seeking)pausedFrame.Visible=false;
             if(changed){lastStatus=frame;if(Progress!=null)Progress(frame,active&&!commandDirty,seeking);}
-            int test;if(values.TryGetValue("test",out text)&&Int32.TryParse(text,out test)&&test>lastTest){lastTest=test;if(RequestTest!=null)BeginInvoke(RequestTest);}
+            int test;if(values.TryGetValue("test",out text)&&Number(text,out test)&&test>lastTest){lastTest=test;if(RequestTest!=null)BeginInvoke(RequestTest);}
         }catch(IOException){}catch(Exception error){Stop();if(Failure!=null)Failure(error.Message);}
     }
     public void Stop()
     {
-        generation++;stopping=true;poll.Stop();gameWindow=IntPtr.Zero;var owned=process;process=null;session=null;commandDirty=false;playing=false;
+        generation++;stopping=true;poll.Stop();gameWindow=IntPtr.Zero;var owned=process;process=null;session=null;commandDirty=false;playing=false;pausedFrame.Visible=false;var oldImage=pausedFrame.Image;pausedFrame.Image=null;if(oldImage!=null)oldImage.Dispose();imageSequence=-1;imageFrame=-1;
         if(owned!=null){try{if(!owned.HasExited)owned.Kill();}catch(InvalidOperationException){}finally{owned.Dispose();}}
         stopping=false;message.Visible=true;message.Text="原生游戏渲染已停止";
     }
@@ -87,7 +95,12 @@ internal sealed partial class MainForm
         bag.Add("耐久房间","原生工程",typeof(string),()=>state.room,null);bag.Add("控制对象","原生工程",typeof(string),()=>native.controller,null);bag.Add("计时方式","原生工程",typeof(string),()=>String.IsNullOrEmpty(native.timeline)?native.clock:native.timeline+" × "+native.timelineSpeed,null);
         bag.Add("已定位事件","识别结果",typeof(int),()=>native.events.Length,null);bag.Add("未换算表达式","识别结果",typeof(int),()=>native.unresolved.Length,null);
         if(selectedNativeEvent!=null){var item=selectedNativeEvent;bag.Add("原表达式","所选事件",typeof(string),()=>item.expression,null);bag.Add("帧","所选事件",typeof(int),()=>item.frame,null);bag.Add("原始代码","所选事件",typeof(string),()=>item.file+":"+item.line,null);bag.Add("内容","所选事件",typeof(string),()=>item.snippet,null);}
-        bag.Add("兼容提示与建议","识别结果",typeof(string),()=>String.Join("\r\n",native.warnings),null);bag.Add("编辑方式","原生工程",typeof(string),()=>"事件标记只读；双击标记编辑原 GML。用原生游戏渲染查看代码画面，F5 从游标进入试玩。",null);
+        bag.Add("兼容提示与建议","识别结果",typeof(string),()=>String.Join("\r\n",native.warnings),null);bag.Add("编辑方式","原生工程",typeof(string),()=>"双击事件标记编辑该帧代码块；右键可编辑整个源文件。原生游戏渲染执行原 GML，F5 从游标进入试玩。",null);
+    }
+    private async Task EditNativeEvent()
+    {
+        if(state.nativeProject==null||selectedNativeEvent==null)return;var item=selectedNativeEvent;
+        try{StopPlaying();properties.CommitPending();if(!await SaveNow(false))return;nativeView.Stop();bool saved=false;var source=await bridge.Call<SourceData>("native-event-read",new{ @event=item });using(var editor=new CodeForm("第 "+item.frame+" 帧 · "+item.expression+" · "+item.file,source.content,async text=>{await bridge.Call<object>("native-event-save",new{ @event=item,content=text,hash=source.hash });saved=true;}))editor.ShowDialog(this);if(saved)await LoadProject();else if(nativeRender.Checked)await ToggleNativeRender();}catch(Exception error){Error(error);}
     }
     private async Task EditNativeSource()
     {

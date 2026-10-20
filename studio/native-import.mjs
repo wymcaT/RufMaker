@@ -3,9 +3,9 @@ import path from 'node:path';
 
 export function codeOnly(source,segmented=false) {
   if(!segmented){const parts=source.split(/(?=^#define\s)/m);if(parts.length>1)return parts.map(part=>codeOnly(part,true)).join('');}
-  source=source.replace(/\/\*"\/\*'\/\*\*\/\* YYD ACTION[\s\S]*?\*\//g,m=>m.replace(/[^\n]/g,' '));
+  source=source.replace(/\/\*"\/\*'\/\*\*\/\/\* YYD ACTION[\s\S]*?\*\//g,m=>m.replace(/[^\n]/g,' '));
   let out='',i=0;
-  while(i<source.length){const c=source[i],n=source[i+1];if(c==='"'||c==="'"){const quote=c;out+=c;i++;while(i<source.length){const q=source[i++];out+=q;if(q==='\\'&&i<source.length)out+=source[i++];else if(q===quote)break;}}else if(c==='/'&&n==='/'){while(i<source.length&&source[i]!=='\n'){out+=' ';i++;}}else if(c==='/'&&n==='*'){out+='  ';i+=2;while(i<source.length&&!(source[i]==='*'&&source[i+1]==='/')){out+=source[i]==='\n'?'\n':' ';i++;}if(i<source.length){out+='  ';i+=2;}}else{out+=c;i++;}}
+  while(i<source.length){const c=source[i],n=source[i+1];if(c==='"'||c==="'"){const quote=c;out+=c;i++;while(i<source.length){const q=source[i++];out+=q;if(q===quote)break;}}else if(c==='/'&&n==='/'){while(i<source.length&&source[i]!=='\n'){out+=' ';i++;}}else if(c==='/'&&n==='*'){out+='  ';i+=2;while(i<source.length&&!(source[i]==='*'&&source[i+1]==='/')){out+=source[i]==='\n'?'\n':' ';i++;}if(i<source.length){out+='  ';i+=2;}}else{out+=c;i++;}}
   return out;
 }
 export function numberExpression(expression,constants={}) {
@@ -68,7 +68,9 @@ export function analyzeNativeProject(entry,selectedRoom='',selectedController=''
   const rooms=names(path.join(project,'rooms')).filter(n=>!registered.length||registered.includes(n)).map(name=>{const props=settings(path.join(project,'rooms',name,'room.txt')),inst=read(path.join(project,'rooms',name,'instances.txt')).split('\n').filter(Boolean).map(x=>x.split(',')[0]),roomCode=codeOnly(read(path.join(project,'rooms',name,'code.gml')));const candidates=objects.filter(o=>o.score>10&&(inst.includes(o.name)||new RegExp(`\\b${o.name}\\b`).test(roomCode)||inst.some(n=>objects.find(o=>o.name===n)?.code.includes(o.name)))).map(o=>({name:o.name,score:o.score,direct:inst.includes(o.name)})).sort((a,b)=>b.score+(b.direct?10:0)-a.score-(a.direct?10:0));return {name,width:Number(props.width)||800,height:Number(props.height)||608,fps:Number(props.roomspeed)||50,score:candidates[0]?.score||0,controllers:candidates};}).sort((a,b)=>b.score-a.score);
   if(!rooms.length)throw new Error('工程没有可读取的房间');const room=rooms.find(r=>r.name===selectedRoom)||rooms[0];
   const facts=objects.find(o=>o.name===(selectedController||room.controllers[0]?.name))||{name:'',source:'',code:'',file:'',clock:'',timeline:'',timelineMode:false,timelineSpeed:1,constants:{},score:0};
-  const {events,unresolved}=eventsFrom(facts,project,room.fps),music=musicChoices(project,facts),warnings=[];
+  // Avoidance engines run at 50 FPS even when old room resources still say 30.
+  for(const candidate of rooms)candidate.fps=50;
+  const {events,unresolved}=eventsFrom(facts,project,50),music=musicChoices(project,facts),warnings=[];
   if(room.controllers.filter(c=>c.score>=facts.score-10).length>1||rooms.filter(r=>r.score===rooms[0].score).length>1)warnings.push('存在多个可能的耐久房间或控制对象，请在导入窗口确认选择。');
   if(!facts.name)warnings.push('未找到可靠的耐久控制对象。可继续保留原游戏，但不能自动定位事件；请手动选择对象或检查房间创建代码。');
   if(!events.length)warnings.push('没有识别出可定位的计时事件。原 GML 仍会保留；建议检查 Step 中的计时变量、switch/case 或 timeline_index。');
@@ -80,7 +82,28 @@ export function analyzeNativeProject(entry,selectedRoom='',selectedController=''
   const boot=objects.find(o=>/\broom_goto_next\s*\(/.test(o.code)&&/init/i.test(o.name));if(!boot)warnings.push('未识别标准初始化跳转；原生预览使用延迟进入房间，请检查全局变量和插件初始化。');
   warnings.push('原生事件仅显示定位标记，不转换为 UI 关键帧。随机数、鼠标输入、外部计时/DLL 及绘图中修改变量的代码可能影响重放结果。');
   const bpm=facts.constants.MusicBPM||numberExpression(/global\.SPB\s*=\s*3000\s*\/\s*([\d.]+)/.exec(facts.code)?.[1]||'')||120;
-  return {entry,name:path.basename(project),rooms,room:room.name,controller:facts.name,controllers:objects.sort((a,b)=>b.score-a.score).map(o=>o.name),fps:room.fps,width:room.width,height:room.height,clock:facts.clock,timeline:facts.timelineMode?facts.timeline:'',timelineSpeed:facts.timelineSpeed,originalStart,bpm,musicChoices:music.files,music:music.detected,events,unresolved,warnings,bootObject:boot?.name||'',musicInitializer:music.initializer,confidence:events.length?'已识别':'需要手动检查',duration:Math.max(room.fps*30,...events.map(e=>e.frame+room.fps*2)),hasFmod:objects.some(o=>o.code.includes('FMODSoundPlay'))};
+  const last=events.at(-1),terminal=last&&/\b(?:room_goto|room_goto_next|game_end)\s*\(/.test(codeOnly(last.snippet));
+  const duration=terminal?Math.max(1,last.frame):Math.max(1500,...events.map(e=>e.frame+100));
+  return {entry,name:path.basename(project),rooms,room:room.name,controller:facts.name,controllers:objects.sort((a,b)=>b.score-a.score).map(o=>o.name),fps:50,width:room.width,height:room.height,clock:facts.clock,timeline:facts.timelineMode?facts.timeline:'',timelineSpeed:facts.timelineSpeed,originalStart,bpm,musicChoices:music.files,music:music.detected,events,unresolved,warnings,bootObject:boot?.name||'',musicInitializer:music.initializer,confidence:events.length?'已识别':'需要手动检查',duration,hasFmod:objects.some(o=>o.code.includes('FMODSoundPlay'))};
+}
+export function refreshNativeState(entry,state){
+  const project=path.dirname(entry),native=state.nativeProject,fresh=analyzeNativeProject(entry,state.room,native.controller,true),legacy=(native.version||1)<2;
+  const roomFiles=names(path.join(project,'rooms')).map(room=>path.join('rooms',room,'room.txt')).filter(file=>fs.existsSync(path.join(project,file)));
+  const changes=roomFiles.filter(file=>!/^roomspeed=50\s*$/m.test(read(path.join(project,file))));
+  if(legacy||changes.length){
+    const backup=path.join(project,'cache','native-migration-v2');
+    for(const file of ['rufmaker.json',...changes]){const target=path.join(backup,file);if(!fs.existsSync(target)&&fs.existsSync(path.join(project,file))){fs.mkdirSync(path.dirname(target),{recursive:true});fs.copyFileSync(path.join(project,file),target);}}
+    for(const file of changes){const target=path.join(project,file),text=fs.readFileSync(target,'utf8');fs.writeFileSync(target,/^roomspeed=/m.test(text)?text.replace(/^roomspeed=[^\r\n]*/m,'roomspeed=50'):text+'\nroomspeed=50\n');}
+  }
+  if(legacy||state.duration===native.duration){
+    const extra=legacy&&state.duration>native.duration?Math.round(state.duration*50/(state.fps||50)):0;
+    const uiEnd=Math.max(0,...state.tracks.filter(t=>t.kind!=='native').map(t=>Math.max(t.end,...t.keyframes.map(k=>k.frame))));
+    state.duration=Math.max(fresh.duration,extra,uiEnd);
+  }
+  for(const key of ['events','unresolved','warnings','clock','timeline','timelineSpeed','bootObject','musicInitializer','confidence','fps','width','height','duration','hasFmod'])native[key]=fresh[key];
+  native.version=2;state.fps=50;
+  for(const track of state.tracks.filter(t=>t.kind==='native')){track.start=0;track.end=Math.min(state.duration,fresh.duration);}
+  return fresh;
 }
 export function scanNativeFolder(folder,entry='',room='',controller='') {const entries=discoverNativeProjects(folder);if(entry&&!entries.includes(path.resolve(entry)))throw new Error('工程入口不在所选目录中');const result=analyzeNativeProject(entry||entries[0],room,controller);return {...result,entries};}
 export function importNativeProject(root,options) {
@@ -90,9 +113,10 @@ export function importNativeProject(root,options) {
   fs.cpSync(source,project,{recursive:true,filter:(file)=>{const rel=path.relative(path.toNamespacedPath(source),path.toNamespacedPath(file)),parts=rel.split(path.sep),base=path.basename(file);return !parts.some(p=>['cache','build','.git','node_modules'].includes(p))&&!/\.(log|tmp)$/i.test(base)&&!(parts.length===1&&/\.exe$/i.test(base));}});
   let music=String(options.music===undefined?report.music||'':options.music);if(music&&!report.musicChoices.includes(music))throw new Error('歌曲不在检测到的音频列表中');
   const spriteNames=names(path.join(project,'sprites'));
-  const nativeProject={...report,entry:path.basename(report.entry),source:report.entry,music,imported:true,version:1,defaultSprite:spriteNames.find(n=>/cherry|bullet/i.test(n))||spriteNames[0]||'',killerParent:names(path.join(project,'objects'),'.txt').find(n=>/^playerKiller$/i.test(n))||''};delete nativeProject.rooms;delete nativeProject.controllers;delete nativeProject.musicChoices;
+  const nativeProject={...report,entry:path.basename(report.entry),source:report.entry,music,imported:true,version:2,defaultSprite:spriteNames.find(n=>/cherry|bullet/i.test(n))||spriteNames[0]||'',killerParent:names(path.join(project,'objects'),'.txt').find(n=>/^playerKiller$/i.test(n))||''};delete nativeProject.rooms;delete nativeProject.controllers;delete nativeProject.musicChoices;
   const duration=Math.max(report.duration,Math.round((Number(options.duration)||0)*report.fps));
   const state={version:2,name,fps:report.fps,bpm:report.bpm,duration,room:report.room,music,musicTitle:path.basename(music),timelineInitialized:false,nativeProject,tracks:[{id:'gm-native',name:'GM 工程 · 原生',kind:'native',start:0,end:duration,enabled:true,keyframes:[]}]};
+  refreshNativeState(path.join(project,path.basename(report.entry)),state);
   fs.writeFileSync(path.join(project,'rufmaker.json'),JSON.stringify(state,null,2)+'\n');
   fs.writeFileSync(path.join(home,'native-import-report.json'),JSON.stringify(report,null,2)+'\n');
   const descriptor=path.join(home,name+'.rufmaker');fs.writeFileSync(descriptor,JSON.stringify({format:'rufmaker-project',version:1,name,gameProject:'GameMaker.gm82/'+path.basename(report.entry)},null,2)+'\n');

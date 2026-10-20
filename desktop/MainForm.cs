@@ -157,7 +157,7 @@ internal sealed partial class MainForm : Form
         zoomBar.Controls.Add(new Label{Text="Ctrl+滚轮缩放 · Shift+滚轮横移",AutoSize=true,ForeColor=Theme.Muted,Margin=new Padding(6,9,0,0)});table.Controls.Add(zoomBar,0,1);
         table.Controls.Add(BuildBeatControls(),0,2);
         timeline.Dock=DockStyle.Fill;timeline.Margin=Padding.Empty;timeline.Seek=value=>{StopPlaying();SetFrame(value);};timeline.PresetDropped=ApplyMotionPreset;timeline.SelectTrack=SelectTrack;timeline.BeginEdit=PushUndo;timeline.Changed=MarkChanged;
-        timeline.SelectNativeEvent=async(item,edit)=>{selectedNativeEvent=item;ShowProperties();if(edit)await EditNativeSource();};
+        timeline.SelectNativeEvent=async(item,edit)=>{selectedNativeEvent=item;ShowProperties();if(edit&&item!=null)await EditNativeEvent();};
         timeline.PreviewChanged=()=>{stage.SceneChanged();inspectorTimer.Stop();inspectorTimer.Start();};
         timeline.InsertKey=(t,p,f)=>{SelectTrack(t,null);timeline.SelectedProperty=p;SetFrame(f);AddKey();};
         timeline.ContextMenuStrip=CreateContext(false);table.Controls.Add(timeline,0,3);parent.Controls.Add(table);
@@ -201,7 +201,7 @@ internal sealed partial class MainForm : Form
         menu.Opening+=(s,e)=>
         {
             menu.Items.Clear();if(state==null){e.Cancel=true;return;}
-            if(selectedTrack!=null&&selectedTrack.kind=="native"){menu.Items.Add("编辑原生 GML",null,async(a,b)=>await EditNativeSource());menu.Items.Add("展开原生事件来源",null,(a,b)=>timeline.Expand(selectedTrack,true));menu.Items.Add("收起原生事件来源",null,(a,b)=>timeline.Expand(selectedTrack,false));menu.Items.Add("查看识别提示",null,(a,b)=>MessageBox.Show(this,String.Join(Environment.NewLine+Environment.NewLine,state.nativeProject.warnings),"原生工程兼容提示"));return;}
+            if(selectedTrack!=null&&selectedTrack.kind=="native"){if(selectedNativeEvent!=null)menu.Items.Add("编辑此事件代码块",null,async(a,b)=>await EditNativeEvent());menu.Items.Add("编辑整个源文件",null,async(a,b)=>await EditNativeSource());menu.Items.Add("展开原生事件来源",null,(a,b)=>timeline.Expand(selectedTrack,true));menu.Items.Add("收起原生事件来源",null,(a,b)=>timeline.Expand(selectedTrack,false));menu.Items.Add("查看识别提示",null,(a,b)=>MessageBox.Show(this,String.Join(Environment.NewLine+Environment.NewLine,state.nativeProject.warnings),"原生工程兼容提示"));return;}
             string property=CurrentProperty(inspector);
             if(selectedInstance!=null)
             {menu.Items.Add("编辑对象 GML",null,async(a,b)=>await EditSelection());menu.Items.Add("复制房间实例    Ctrl+C",null,(a,b)=>CopySelection());var del=menu.Items.Add("删除房间实例    Delete",null,(a,b)=>RemoveSelection());del.Enabled=selectedInstance.name!="objRufController";menu.Items.Add(new ToolStripSeparator());}
@@ -325,17 +325,18 @@ internal sealed partial class MainForm : Form
         try
         {
             if(bridge==null)return;StopPlaying();nativeView.Stop();nativeRender.Checked=false;SetStatus("正在读取工程…");document=loaded??await bridge.Call<LoadData>("load",new{});state=document.state;nativeRender.Enabled=state.nativeProject!=null;Motion.Normalize(state);currentProjectPath=document.descriptor;await LoadCurrentMusic();RefreshBeatControls();
-            bool migrated=!state.timelineInitialized;if(migrated){if(state.nativeProject!=null)state.duration=Math.Max(state.duration,(int)Math.Ceiling(document.waveform.duration*state.fps));else if(state.duration==1500)state.duration=Math.Max(state.tracks.Count==0?state.fps:state.tracks.Max(t=>Math.Max(t.end,t.keyframes.Count==0?0:t.keyframes.Max(k=>k.frame))),(int)Math.Ceiling(document.waveform.duration*state.fps));state.timelineInitialized=true;}
+            bool migrated=!state.timelineInitialized;if(migrated){if(state.nativeProject==null&&state.duration==1500)state.duration=Math.Max(state.tracks.Count==0?state.fps:state.tracks.Max(t=>Math.Max(t.end,t.keyframes.Count==0?0:t.keyframes.Max(k=>k.frame))),(int)Math.Ceiling(document.waveform.duration*state.fps));state.timelineInitialized=true;}
             if(sprites!=null)sprites.Dispose();sprites=new SpriteStore{Project=document.project,Metadata=document.spriteMeta};
             selectedTrack=null;selectedKey=null;selectedInstance=null;selectedNativeEvent=null;resourceName=null;dirty=false;undo.Clear();redo.Clear();
             stage.State=state;stage.Room=document.room;stage.Sprites=sprites;stage.ObjectSprites=document.inventory.objectSprites;
             timeline.ClearKeySelection();timeline.State=state;timeline.Wave=document.waveform;frameInput.Maximum=state.duration;FillResources();SelectProject();SetFrame(Math.Min(frame,state.duration));timeline.RefreshLayout();timeline.FitAll();RestoreDocumentView();UpdateTitle();stage.SceneChanged();
 
-            if(state.nativeProject!=null){var original=state.tracks.FirstOrDefault(t=>t.kind=="native");if(original!=null){original.end=state.duration;timeline.Expand(original,true);}}
+            if(state.nativeProject!=null){var original=state.tracks.FirstOrDefault(t=>t.kind=="native");if(original!=null){original.end=Math.Min(state.duration,state.nativeProject.duration);timeline.Expand(original,true);}}
             if(migrated)MarkChanged();await SaveNow(false);SetStatus(state.nativeProject==null?"工程已读取 · 空格带音乐播放 · F5 原生试玩 · 右键编辑轨道":"原生工程已读取 · 勾选“原生游戏渲染”执行原 GML 画面；静态画布仅显示资源布局。");
         }
         catch(Exception error){Error(error);}
         finally{Enabled=wasEnabled;SetBusy(wasBusy);}
+        if(state!=null&&state.nativeProject!=null){nativeRenderLoading=true;nativeRender.Checked=true;nativeRenderLoading=false;await ToggleNativeRender();}
     }
     private void FillResources()
     {
@@ -366,7 +367,7 @@ internal sealed partial class MainForm : Form
     private string Snapshot(){return Json.Write(new UndoSnapshot{state=state,room=document.room});}
     private void PushUndo(){if(state==null||parameterScrubbing)return;string snapshot=Snapshot();if(undo.Count==0||undo.Peek()!=snapshot)undo.Push(snapshot);redo.Clear();}
     private void MarkChanged()
-    {if(state==null)return;foreach(var t in state.tracks.Where(t=>t.kind=="native")){t.start=0;t.end=state.duration;t.enabled=true;}dirty=true;revision++;saveTimer.Stop();if(!parameterScrubbing&&!closeInProgress)saveTimer.Start();stage.SceneChanged();RefreshBeatControls();if(!parameterScrubbing){timeline.RefreshLayout();properties.Refresh();UpdateTitle();rightTime.SetView(state.fps,state.duration,frame,selectedTrack);SetStatus("正在同步修改…");}}
+    {if(state==null)return;foreach(var t in state.tracks.Where(t=>t.kind=="native")){t.start=0;t.end=Math.Min(state.duration,state.nativeProject.duration);t.enabled=true;}dirty=true;revision++;saveTimer.Stop();if(!parameterScrubbing&&!closeInProgress)saveTimer.Start();stage.SceneChanged();RefreshBeatControls();if(!parameterScrubbing){timeline.RefreshLayout();properties.Refresh();UpdateTitle();rightTime.SetView(state.fps,state.duration,frame,selectedTrack);SetStatus("正在同步修改…");}}
     private int ContentEnd(){int tracks=state.tracks.Where(t=>t.kind!="native").Select(t=>Math.Max(t.end,t.keyframes.Count==0?0:t.keyframes.Max(k=>k.frame))).DefaultIfEmpty(0).Max();int native=state.nativeProject==null?0:state.nativeProject.events.Select(e=>e.frame).DefaultIfEmpty(0).Max();return Math.Max(tracks,native);}
     private async Task<bool> SaveNow(bool notify)
     {
@@ -593,7 +594,7 @@ internal sealed partial class MainForm : Form
     }
     private async Task EditSelection()
     {
-        if(selectedTrack!=null&&selectedTrack.kind=="native"){await EditNativeSource();return;}
+        if(selectedTrack!=null&&selectedTrack.kind=="native"){if(selectedNativeEvent!=null)await EditNativeEvent();else await EditNativeSource();return;}
         if(selectedTrack!=null&&selectedTrack.kind=="script")
         {var track=selectedTrack;using(var editor=new CodeForm(track.name,track.code,async text=>{PushUndo();track.code=text;MarkChanged();await SaveNow(false);}))editor.ShowDialog(this);}
         else if(selectedInstance!=null)await EditResource("objects",selectedInstance.name);
