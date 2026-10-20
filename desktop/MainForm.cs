@@ -117,7 +117,7 @@ internal sealed partial class MainForm : Form
         var hitbox=new CheckBox{Text="碰撞框",Checked=restoredView!=null&&restoredView.hitboxes,ForeColor=Theme.Muted,AutoSize=true,Margin=new Padding(5,9,0,0)};stage.Hitboxes=hitbox.Checked;hitbox.CheckedChanged+=(s,e)=>{stage.Hitboxes=hitbox.Checked;stage.DisplayOptionsChanged();};var renderCamera=new CheckBox{Text="渲染拉镜",Checked=restoredView!=null&&restoredView.renderCamera,ForeColor=Theme.Muted,AutoSize=true,Margin=new Padding(8,9,5,0)};stage.RenderCamera=renderCamera.Checked;renderCamera.CheckedChanged+=(s,e)=>{stage.RenderCamera=renderCamera.Checked;stage.DisplayOptionsChanged();};tools.Controls.Add(grid);tools.Controls.Add(hitbox);tools.Controls.Add(renderCamera);tools.Controls.Add(Button("适应房间",()=>stage.ResetView(),false,80));tips.SetToolTip(stage,"Ctrl+滚轮：缩放；中键拖动：平移；Ctrl+0 / 双击中键：适应房间");header.Controls.Add(tools);tools.BringToFront();table.Controls.Add(header,0,0);
         stage.Dock=DockStyle.Fill;stage.Margin=Padding.Empty;stage.SelectedTracks=timeline.SelectedTracks;stage.SelectTracks=(group,primary)=>timeline.SetTrackSelection(group,primary);stage.SelectTrack=SelectTrack;stage.SelectInstance=SelectInstance;stage.BeginEdit=PushUndo;stage.Changed=MarkChanged;
         stage.InstanceMoved=async instance=>await SaveInstance(instance);stage.ResourceDropped=async(kind,name,p)=>await DropResource(kind,name,p);
-        stage.PointerMoved=p=>coordinates.Text=String.Format("X {0:0}    Y {1:0}    Shift：16 像素吸附",p.X,p.Y);stage.ContextMenuStrip=CreateContext(false);var canvasHost=new Panel{Dock=DockStyle.Fill,Margin=Padding.Empty};canvasHost.Controls.Add(stage);canvasHost.Controls.Add(nativeView);table.Controls.Add(canvasHost,0,1);tools.Controls.Add(nativeRender);nativeRender.CheckedChanged+=async(s,e)=>await ToggleNativeRender();nativeView.Progress=NativeProgress;nativeView.RequestTest=RunFromKeyboard;nativeView.Failure=text=>{nativeRender.Checked=false;SetStatus(text);};parent.Controls.Add(table);
+        stage.PointerMoved=p=>coordinates.Text=String.Format("X {0:0}    Y {1:0}    Shift：16 像素吸附",p.X,p.Y);stage.ContextMenuStrip=CreateContext(false);table.Controls.Add(stage,0,1);tools.Controls.Add(nativeRender);tools.Controls.Add(regenerateNativeFilm);nativeRender.CheckedChanged+=(s,e)=>ToggleNativeFilm();regenerateNativeFilm.Click+=async(s,e)=>await GenerateNativeFilm();tips.SetToolTip(regenerateNativeFilm,"首次生成后会保存。改动原生代码后，可点此重新生成。");parent.Controls.Add(table);
     }
     private void BuildInspector(Control parent)
     {
@@ -324,7 +324,7 @@ internal sealed partial class MainForm : Form
         bool wasBusy=busy,wasEnabled=Enabled;SetBusy(true);Enabled=false;
         try
         {
-            if(bridge==null)return;StopPlaying();nativeView.Stop();nativeRender.Checked=false;SetStatus("正在读取工程…");document=loaded??await bridge.Call<LoadData>("load",new{});state=document.state;nativeRender.Enabled=state.nativeProject!=null;Motion.Normalize(state);currentProjectPath=document.descriptor;await LoadCurrentMusic();RefreshBeatControls();
+            if(bridge==null)return;StopPlaying();nativeRender.Checked=false;stage.NativeFilmPath=null;SetStatus("正在读取工程…");document=loaded??await bridge.Call<LoadData>("load",new{});state=document.state;nativeRender.Enabled=state.nativeProject!=null;Motion.Normalize(state);currentProjectPath=document.descriptor;await LoadCurrentMusic();RefreshBeatControls();
             bool migrated=!state.timelineInitialized;if(migrated){if(state.nativeProject==null&&state.duration==1500)state.duration=Math.Max(state.tracks.Count==0?state.fps:state.tracks.Max(t=>Math.Max(t.end,t.keyframes.Count==0?0:t.keyframes.Max(k=>k.frame))),(int)Math.Ceiling(document.waveform.duration*state.fps));state.timelineInitialized=true;}
             if(sprites!=null)sprites.Dispose();sprites=new SpriteStore{Project=document.project,Metadata=document.spriteMeta};
             selectedTrack=null;selectedKey=null;selectedInstance=null;selectedNativeEvent=null;resourceName=null;dirty=false;undo.Clear();redo.Clear();
@@ -336,7 +336,7 @@ internal sealed partial class MainForm : Form
         }
         catch(Exception error){Error(error);}
         finally{Enabled=wasEnabled;SetBusy(wasBusy);}
-        if(state!=null&&state.nativeProject!=null){nativeRenderLoading=true;nativeRender.Checked=true;nativeRenderLoading=false;await ToggleNativeRender();}
+        await EnsureNativeFilm();
     }
     private void FillResources()
     {
@@ -362,7 +362,6 @@ internal sealed partial class MainForm : Form
     {
         if(state==null)return;int previous=frame;frame=Math.Max(0,Math.Min(state.duration,value));stage.ShowFrame(frame);timeline.Frame=frame;loading=true;frameInput.Maximum=state.duration;frameInput.Value=frame;loading=false;
         var time=TimeSpan.FromSeconds(frame/(double)state.fps);timeLabel.Text=String.Format("{0:00}:{1:00}.{2:00}",(int)time.TotalMinutes,time.Seconds,time.Milliseconds/10);rightTime.SetFrame(frame);timeline.PlayheadMoved(previous);inspectorTimer.Stop();inspectorTimer.Start();
-        if(!nativeSeekSuppressed&&nativeRender.Checked&&nativeView.Running)nativeView.Seek(frame);
     }
     private string Snapshot(){return Json.Write(new UndoSnapshot{state=state,room=document.room});}
     private void PushUndo(){if(state==null||parameterScrubbing)return;string snapshot=Snapshot();if(undo.Count==0||undo.Peek()!=snapshot)undo.Push(snapshot);redo.Clear();}
@@ -638,8 +637,8 @@ internal sealed partial class MainForm : Form
         try{var result=await bridge.Call<BuildResult>("export",Json.Read<EditorState>(Json.Write(state)));if(current==revision)dirty=false;SetStatus("游戏已导出："+result.exe);Process.Start(new ProcessStartInfo("explorer.exe","\""+result.dir+"\""){UseShellExecute=true});}
         catch(Exception error){Error(error);}finally{SetBusy(false);}
     }
-    private void TogglePlaying(){if(state==null)return;if(nativeRender.Checked&&nativeView.Running){nativeView.SetPlaying(!nativeView.Playing);playButton.Text=nativeView.Playing?"Ⅱ":"▶";if(!nativeView.Playing)audio.Pause();return;}if(playTimer.Enabled){StopPlaying();return;}try{if(frame>=state.duration)SetFrame(0);if(audio.Duration>0)audio.Play(frame/(double)state.fps);playStart=frame;playClock.Restart();playTimer.Start();playButton.Text="Ⅱ";SetStatus(state.nativeProject==null?"时间轴与音乐播放中 · 空格暂停 · F5 进入原生试玩":"静态布局播放中；原 GML 画面请开启原生游戏渲染。");}catch(Exception error){Error(error);}}
-    private void StopPlaying(){playTimer.Stop();playClock.Stop();audio.Pause();if(nativeView!=null)nativeView.SetPlaying(false);playButton.Text="▶";}
+    private void TogglePlaying(){if(state==null)return;if(playTimer.Enabled){StopPlaying();return;}try{if(frame>=state.duration)SetFrame(0);if(audio.Duration>0)audio.Play(frame/(double)state.fps);playStart=frame;playClock.Restart();playTimer.Start();playButton.Text="Ⅱ";SetStatus("时间轴与音乐播放中 · 空格暂停 · F5 进入原生试玩");}catch(Exception error){Error(error);}}
+    private void StopPlaying(){playTimer.Stop();playClock.Stop();audio.Pause();playButton.Text="▶";}
     private async void Undo(bool forward)
     {
         var from=forward?redo:undo;var to=forward?undo:redo;if(state==null||from.Count==0||busy)return;StopPlaying();saveTimer.Stop();to.Push(Snapshot());var snapshot=Json.Read<UndoSnapshot>(from.Pop());

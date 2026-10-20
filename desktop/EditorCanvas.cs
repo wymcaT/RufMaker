@@ -34,6 +34,8 @@ internal sealed class StageCanvas : Control
     private PointF pointerDown;
     public Track SelectedTrack;public Keyframe SelectedKey;public RoomInstance SelectedInstance;
     public int Frame;public bool Grid=true,Hitboxes,RenderCamera;
+    public string NativeFilmPath;
+    public HashSet<string> NativeFilmIds=new HashSet<string>();
     public Action<Track,Keyframe> SelectTrack;public Action<RoomInstance> SelectInstance;
     public Action BeginEdit,Changed;public Action<RoomInstance> InstanceMoved;
     public Action<string,string,PointF> ResourceDropped;public Action<PointF> PointerMoved;
@@ -60,11 +62,11 @@ internal sealed class StageCanvas : Control
     private async void QueueRender()
     {
         if(rendering||renderState==null||!IsHandleCreated||IsDisposed||finished==serial)return;
-        rendering=true;int request=serial,frame=Frame,assets=assetVersion;var state=renderState;var room=renderRoom;var objects=renderObjects;string project=renderProject;var metadata=renderMetadata;bool grid=Grid,hitboxes=Hitboxes;Fit();var transform=DisplayMatrix();int width=Math.Max(1,Width),height=Math.Max(1,Height);RectangleF frameBounds=view;RectangleF? clip=RenderCamera?(RectangleF?)view:null;
+        rendering=true;int request=serial,frame=Frame,assets=assetVersion;var state=renderState;var room=renderRoom;var objects=renderObjects;string project=renderProject,film=NativeFilmPath;var metadata=renderMetadata;bool grid=Grid,hitboxes=Hitboxes;Fit();var transform=DisplayMatrix();int width=Math.Max(1,Width),height=Math.Max(1,Height);RectangleF frameBounds=view;RectangleF? clip=RenderCamera?(RectangleF?)view:null;
         var clock=System.Diagnostics.Stopwatch.StartNew();
         try
         {
-            var next=await System.Threading.Tasks.Task.Run(()=>{if(workerSprites==null||workerSprites.Project!=project||workerAssetVersion!=assets){if(workerSprites!=null)workerSprites.Dispose();workerSprites=new SpriteStore{Project=project};workerAssetVersion=assets;previewCache.Clear();}workerSprites.Metadata=metadata;return PreviewRenderer.Render(state,room,objects,workerSprites,frame,grid,hitboxes,previewCache,transform,width,height,clip,frameBounds);});
+            var next=await System.Threading.Tasks.Task.Run(()=>{if(workerSprites==null||workerSprites.Project!=project||workerAssetVersion!=assets){if(workerSprites!=null)workerSprites.Dispose();workerSprites=new SpriteStore{Project=project};workerAssetVersion=assets;previewCache.Clear();}workerSprites.Metadata=metadata;return PreviewRenderer.Render(state,room,objects,workerSprites,frame,grid,hitboxes,previewCache,transform,width,height,clip,frameBounds,film);});
             LastRenderMilliseconds=clock.Elapsed.TotalMilliseconds;
             if(IsDisposed){next.Dispose();return;}var previous=image;image=next;if(previous!=null)previous.Dispose();finished=request;Invalidate();
         }
@@ -151,7 +153,7 @@ internal sealed class StageCanvas : Control
             return;
         }
         foreach(var instance in Room.instances.AsEnumerable().Reverse())
-        {string name;if(!ObjectSprites.TryGetValue(instance.name,out name)||String.IsNullOrEmpty(name))continue;if(Sprites.Bounds(name,instance.x,instance.y).Contains(p)){if(SelectInstance!=null)SelectInstance(instance);if(e.Button==MouseButtons.Left){if(BeginEdit!=null)BeginEdit();draggingInstance=instance;Capture=true;}return;}}
+        {if(NativeFilmPath!=null&&NativeFilmIds.Contains(instance.id))continue;string name;if(!ObjectSprites.TryGetValue(instance.name,out name)||String.IsNullOrEmpty(name))continue;if(Sprites.Bounds(name,instance.x,instance.y).Contains(p)){if(SelectInstance!=null)SelectInstance(instance);if(e.Button==MouseButtons.Left){if(BeginEdit!=null)BeginEdit();draggingInstance=instance;Capture=true;}return;}}
         if(e.Button==MouseButtons.Left)
         {selectingBox=true;boxFirst=boxLast=p;boxInitial=(ModifierKeys&(Keys.Control|Keys.Shift))!=0?new HashSet<Track>(SelectedTracks):new HashSet<Track>();Capture=true;}
     }

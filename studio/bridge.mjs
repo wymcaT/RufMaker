@@ -8,6 +8,7 @@ import {nativeEventBlock,replaceNativeEventBlock} from './native-blocks.mjs';
 import {root,project,projectFile,descriptor,projectName,pack,readState,syncToGame,roomInfo,inventory,sourcePath,moveRoomInstance,importSprite} from './project.mjs';
 import {ensureBuild,exportStatus,packageGame,runNative,openNative} from './native.mjs';
 import {prepareNativeSession} from './native-preview.mjs';
+import {prepareNativeFilm} from './native-film.mjs';
 import {buildDir,gameMaker} from './project.mjs';
 
 function spriteMetadata() {
@@ -35,6 +36,7 @@ async function execute(command,payload={}) {
     case 'new-project': return createProject(root,payload);
     case 'native-scan': return scanNativeFolder(payload.folder,payload.entry,payload.room,payload.controller);
     case 'native-import': return importNativeProject(root,payload);
+    case 'native-film-prepare': return prepareNativeFilm({root,project,projectFile,gameMaker,state:readState()});
     case 'native-preview': {const state=readState();if(!state.nativeProject?.imported)throw new Error('当前不是原生导入工程');const cacheDir=path.join(root,'build','native-projects',crypto.createHash('sha256').update(project.toLowerCase()).digest('hex').slice(0,16));return prepareNativeSession({project,projectFile,buildDir,cacheDir,gameMaker,state,frame:payload.frame||0,playable:false});}
     case 'terrain-preview': return terrainLayout(payload);
     case 'import-song': return copySong(project,payload.path);

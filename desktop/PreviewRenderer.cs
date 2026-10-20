@@ -5,9 +5,10 @@ using System.Drawing.Drawing2D;
 
 internal static class PreviewRenderer
 {
-    public static Bitmap Render(EditorState state,RoomData room,Dictionary<string,string> objectSprites,SpriteStore sprites,int frame,bool grid,bool hitboxes,PreviewCache cache=null,Matrix transform=null,int width=0,int height=0,RectangleF? displayClip=null,RectangleF? effectsFrame=null)
+    public static Bitmap Render(EditorState state,RoomData room,Dictionary<string,string> objectSprites,SpriteStore sprites,int frame,bool grid,bool hitboxes,PreviewCache cache=null,Matrix transform=null,int width=0,int height=0,RectangleF? displayClip=null,RectangleF? effectsFrame=null,string nativeFilmPath=null)
     {
-        if(cache==null)using(var temporary=new PreviewCache())return Render(state,room,objectSprites,sprites,frame,grid,hitboxes,temporary,transform,width,height,displayClip,effectsFrame);
+        if(cache==null)using(var temporary=new PreviewCache())return Render(state,room,objectSprites,sprites,frame,grid,hitboxes,temporary,transform,width,height,displayClip,effectsFrame,nativeFilmPath);
+        var film=cache.FilmFrame(nativeFilmPath,frame,state.fps);var baked=film==null?null:cache.FilmNativeIds;
         var signature=new System.Text.StringBuilder().Append(room.width).Append(':').Append(room.height).Append(':').Append(room.bgColor).Append(':').Append(grid).Append(':').Append(hitboxes);
         string roomKey=signature.ToString();
         if(cache.roomLayer==null||cache.roomKey!=roomKey)
@@ -27,12 +28,13 @@ internal static class PreviewRenderer
             using(var g=Graphics.FromImage(bitmap))
             {
                 Theme.Workspace(g,new Rectangle(0,0,bitmap.Width,bitmap.Height));if(displayClip.HasValue)g.SetClip(displayClip.Value);if(transform!=null)g.Transform=transform;
-                g.DrawImage(cache.roomLayer,0,0,room.width,room.height);
+                g.DrawImage(film??cache.roomLayer,0,0,room.width,room.height);
+                if(film!=null&&grid)using(var pen=new Pen(Color.FromArgb(35,104,127,160))){for(int x=0;x<room.width;x+=32)g.DrawLine(pen,x,0,x,room.height);for(int y=0;y<room.height;y+=32)g.DrawLine(pen,0,y,room.width,y);}
                 g.InterpolationMode=InterpolationMode.NearestNeighbor;g.PixelOffsetMode=PixelOffsetMode.Half;
                 for(int pass=0;pass<2;pass++)
                 {
                 if(pass==1)foreach(var instance in room.instances)
-                {string sprite;if(!objectSprites.TryGetValue(instance.name,out sprite)||String.IsNullOrEmpty(sprite))continue;sprites.Draw(g,sprite,instance.x,instance.y,1,0,1,Color.White);if(hitboxes)using(var pen=new Pen(Color.FromArgb(110,94,212,197))){var r=sprites.Bounds(sprite,instance.x,instance.y);g.DrawRectangle(pen,r.X,r.Y,r.Width,r.Height);}}
+                {if(baked!=null&&baked.Contains(instance.id))continue;string sprite;if(!objectSprites.TryGetValue(instance.name,out sprite)||String.IsNullOrEmpty(sprite))continue;sprites.Draw(g,sprite,instance.x,instance.y,1,0,1,Color.White);if(hitboxes)using(var pen=new Pen(Color.FromArgb(110,94,212,197))){var r=sprites.Bounds(sprite,instance.x,instance.y);g.DrawRectangle(pen,r.X,r.Y,r.Width,r.Height);}}
                 foreach(var track in state.tracks)
                 {
                     if(!track.enabled)continue;Color tint=track.rainbow?Color.White:Motion.ColorOf(track.color);
