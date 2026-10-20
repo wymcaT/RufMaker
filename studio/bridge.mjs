@@ -6,7 +6,7 @@ import {createProject,copySong,terrainLayout} from './project-files.mjs';
 import {scanNativeFolder,importNativeProject,analyzeNativeProject,refreshNativeState} from './native-import.mjs';
 import {nativeEventBlock,replaceNativeEventBlock} from './native-blocks.mjs';
 import {root,project,projectFile,descriptor,projectName,pack,readState,syncToGame,roomInfo,inventory,sourcePath,moveRoomInstance,importSprite} from './project.mjs';
-import {ensureBuild,exportStatus,packageGame,runNative,openNative} from './native.mjs';
+import {ensureBuild,exportStatus,packageGame,runNative,openNative,nativeRunStatus,cancelNativeRun} from './native.mjs';
 import {prepareNativeSession} from './native-preview.mjs';
 import {prepareNativeFilm} from './native-film.mjs';
 import {buildDir,gameMaker} from './project.mjs';
@@ -77,6 +77,8 @@ async function execute(command,payload={}) {
     }
     case 'import': return {name:importSprite(payload.folder,payload.name),inventory:inventory(),spriteMeta:spriteMetadata()};
     case 'run': syncToGame(payload.state); return await runNative(payload.frame);
+    case 'run-progress': return nativeRunStatus();
+    case 'run-cancel': return cancelNativeRun();
     case 'export': syncToGame(payload); await ensureBuild(); return packageGame(false);
     case 'open-native': return {pid:await openNative()};
     case 'status': return exportStatus();

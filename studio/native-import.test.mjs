@@ -32,6 +32,13 @@ test('timeline block excludes moment headers and YYD metadata',()=>{
   const source=`#define 18\n${action}random_value=irandom(30);\n#define 36\n${action}x=random_value;\n`,event={kind:'timeline',line:1};
   const block=nativeEventBlock(source,event);assert.equal(block.content,'random_value=irandom(30);\n');assert.equal(replaceNativeEventBlock(source,event,block.content,block.hash),source);assert.throws(()=>replaceNativeEventBlock(source,event,'#define 12\nx=1;',block.hash),/事件头/);
 });
+
+test('LF event bodies displayed as Windows CRLF save back without changing sibling code',()=>{
+  const event=analyzeNativeProject(entry).events[0],block=nativeEventBlock(controller,event),display=block.content.replace(/\n/g,'\r\n');
+  assert(block.content.split('\n').length>5);assert.equal(replaceNativeEventBlock(controller,event,display,block.hash),controller);
+  const result=replaceNativeEventBlock(controller,event,display.replace('irandom(10)','irandom(20)'),block.hash);
+  assert(!result.includes('\r'));assert(result.endsWith(controller.slice(block.end)));assert(result.includes('initial=irandom(20)'));
+});
 test('legacy import migration backs up old settings and keeps all event frames',()=>{
   const report=analyzeNativeProject(entry),state={fps:30,duration:560,nativeProject:{...report,version:1,fps:30,duration:560},tracks:[{id:'gm-native',kind:'native',start:0,end:560,keyframes:[]}]};write('rufmaker.json',JSON.stringify(state));
   refreshNativeState(entry,state);assert.equal(state.fps,50);assert.equal(state.duration,500);assert.equal(state.nativeProject.version,2);assert.equal(state.tracks[0].end,500);assert.deepEqual(state.nativeProject.events.map(e=>e.frame),[10,30,500]);

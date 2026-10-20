@@ -5,6 +5,36 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 
+internal sealed class NativeReplayProgressForm:Form
+{
+    private readonly NativeBridge bridge;private readonly System.Windows.Forms.Timer poll=new System.Windows.Forms.Timer{Interval=500};private readonly Label label;private readonly ProgressBar bar;private readonly Button cancel;
+    private bool finished,polling;public bool Cancelled;public string ErrorText;public BuildResult Result;
+    public NativeReplayProgressForm(NativeBridge bridge,object payload,int target)
+    {
+        this.bridge=bridge;Text="准备原生试玩";Size=new Size(560,190);FormBorderStyle=FormBorderStyle.FixedDialog;MaximizeBox=false;MinimizeBox=false;StartPosition=FormStartPosition.CenterParent;Font=Theme.Font;BackColor=Theme.Panel;ForeColor=Theme.Text;
+        label=new Label{Text="正在同步并编译原生试玩副本…",Dock=DockStyle.Top,Height=54,Padding=new Padding(15,15,10,0)};
+        bar=new ProgressBar{Dock=DockStyle.Top,Height=25,Minimum=0,Maximum=Math.Max(1,target),Style=ProgressBarStyle.Marquee};
+        cancel=new Button{Text="取消",Dock=DockStyle.Bottom,Height=34};cancel.Click+=(s,e)=>CancelReplay();Controls.Add(bar);Controls.Add(label);Controls.Add(cancel);
+        FormClosing+=(s,e)=>{if(!finished){e.Cancel=true;CancelReplay();}};poll.Tick+=async(s,e)=>await ReadProgress();
+        Shown+=async(s,e)=>{
+            poll.Start();try{Result=await bridge.Call<BuildResult>("run",payload);}catch(Exception error){if(!Cancelled)ErrorText=error.Message;}finally{finished=true;poll.Stop();Close();}
+        };
+    }
+    private async Task ReadProgress()
+    {
+        if(polling||finished||Cancelled)return;polling=true;
+        try{var progress=await bridge.Call<NativeRunProgress>("run-progress",new{});if(finished||IsDisposed||Cancelled||progress==null)return;
+            if(progress.phase=="replay"){bar.Style=ProgressBarStyle.Continuous;bar.Maximum=Math.Max(1,progress.target);bar.Value=Math.Max(0,Math.Min(bar.Maximum,progress.frame));label.Text="正在重放至播放头 · "+progress.frame+" / "+progress.target+" 帧\r\n画面复杂时可能较慢；有帧进度就会继续等待。";}
+        }catch{ /* The run request reports bridge failures. */ }finally{polling=false;}
+    }
+    private async void CancelReplay()
+    {
+        if(Cancelled||finished)return;Cancelled=true;cancel.Enabled=false;label.Text="正在取消原生试玩重放…";
+        try{await bridge.Call<object>("run-cancel",new{});}catch{ /* The run request reports bridge failures. */ }
+    }
+    protected override void Dispose(bool disposing){if(disposing)poll.Dispose();base.Dispose(disposing);}
+}
+
 internal sealed class NativeFilmProgressForm:Form
 {
     private readonly CancellationTokenSource cancellation=new CancellationTokenSource();private bool finished;

@@ -82,6 +82,7 @@ internal sealed class LoadData
 internal sealed class SourceData {public string content,hash;}
 internal sealed class SaveResult {public RoomData room;}
 internal sealed class BuildResult {public string exe,dir;public long bytes;public bool ready,cached;public int pid;public Dictionary<string,string> status;}
+internal sealed class NativeRunProgress {public string phase,room;public int frame,target;}
 internal sealed class NativeEvent {public string id,file,expression,kind,label,snippet,reason;public int frame,line;public double period;}
 internal sealed class NativeProject
 {

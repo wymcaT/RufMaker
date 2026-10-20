@@ -58,7 +58,7 @@ var rf_volume;rf_volume=0;if (rf_playable || ${state.music?'0':'1'}) && rf_playi
 sound_global_volume(rf_volume);${fmod}
 if rf_playing && global.rf_native_frame>=rf_target rf_target=global.rf_native_frame;
 global.rf_native_frame+=1;`)+
-  section('Step_2',`if rf_entered {rf_native_status();}`)+
+  section('Step_2',`if rf_entered {if rf_presented || global.rf_native_frame mod 10=0 rf_native_status();}`)+
   section('Other_4',`if room=${state.room} && !rf_entered {global.rf_native_frame=0;rf_entered=1;rf_boot=0;rf_pause_draw=0;room_speed=${fps};}`);
 }
 export function writeNativeHarness(project,state){

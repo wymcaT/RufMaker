@@ -628,7 +628,12 @@ internal sealed partial class MainForm : Form
     private async Task RunGame()
     {
         if(state==null||busy)return;StopPlaying();saveTimer.Stop();SetBusy(true);SetStatus("正在同步、编译并进入原生试玩…");int target=frame,current=revision;
-        try{var result=await bridge.Call<BuildResult>("run",new{state=Json.Read<EditorState>(Json.Write(state)),frame=target});if(current==revision)dirty=false;SetStatus(result.ready?"原生试玩已进入 "+result.status["room"]+" · 第 "+result.status["frame"]+" 帧":"游戏已启动，请查看游戏窗口");}
+        try{
+            var payload=new{state=Json.Read<EditorState>(Json.Write(state)),frame=target};BuildResult result;
+            if(state.nativeProject!=null){using(var dialog=new NativeReplayProgressForm(bridge,payload,target)){dialog.ShowDialog(this);if(dialog.Cancelled){SetStatus("原生试玩重放已取消。");return;}if(dialog.ErrorText!=null)throw new IOException(dialog.ErrorText);result=dialog.Result;}}
+            else result=await bridge.Call<BuildResult>("run",payload);
+            if(current==revision)dirty=false;SetStatus(result.ready?"原生试玩已进入 "+result.status["room"]+" · 第 "+result.status["frame"]+" 帧":"游戏已启动，请查看游戏窗口");
+        }
         catch(Exception error){Error(error);}finally{SetBusy(false);}
     }
     private async Task ExportGame()
@@ -674,17 +679,18 @@ internal sealed partial class MainForm : Form
 
 internal sealed class CodeForm : Form
 {
-    private readonly TextBox code=new TextBox();private readonly Button save=new Button();private readonly Func<string,Task> persist;
+    private readonly TextBox code=new TextBox();private readonly Button save=new Button();private readonly Func<string,Task> persist;private readonly string newline;
     public CodeForm(string name,string content,Func<string,Task> persist,int line=1)
     {
-        this.persist=persist;Text="GML · "+name;Size=new Size(920,680);MinimumSize=new Size(600,400);StartPosition=FormStartPosition.CenterParent;BackColor=Theme.Back;ForeColor=Theme.Text;Font=Theme.Font;
+        this.persist=persist;newline=CodeText.NewlineOf(content);Text="GML · "+name;Size=new Size(920,680);MinimumSize=new Size(600,400);StartPosition=FormStartPosition.CenterParent;BackColor=Theme.Back;ForeColor=Theme.Text;Font=Theme.Font;
         var foot=new FlowLayoutPanel{Dock=DockStyle.Bottom,Height=48,FlowDirection=FlowDirection.RightToLeft};save.Text="保存 GML";save.Width=120;save.Height=32;save.Margin=new Padding(8);save.BackColor=Theme.Accent;save.ForeColor=Theme.Back;save.FlatStyle=FlatStyle.Flat;save.Click+=async(s,e)=>await Save();foot.Controls.Add(save);
         var label=new Label{Text="直接编辑 GameMaker GML    ·    Ctrl+S 保存",Dock=DockStyle.Top,Height=34,Padding=new Padding(12,0,0,0),TextAlign=ContentAlignment.MiddleLeft,ForeColor=Theme.Muted};
-        code.Multiline=true;code.AcceptsTab=true;code.AcceptsReturn=true;code.WordWrap=false;code.ScrollBars=ScrollBars.Both;code.Dock=DockStyle.Fill;code.Font=new Font("Consolas",11);code.BackColor=Theme.Panel;code.ForeColor=Theme.Text;code.BorderStyle=BorderStyle.None;code.Text=content??"";
+        var wrap=new CheckBox{Text="自动折行",Checked=true,AutoSize=true,Margin=new Padding(8,15,12,0)};wrap.CheckedChanged+=(s,e)=>{code.WordWrap=wrap.Checked;code.ScrollBars=wrap.Checked?ScrollBars.Vertical:ScrollBars.Both;};foot.Controls.Add(wrap);
+        code.Multiline=true;code.AcceptsTab=true;code.AcceptsReturn=true;code.WordWrap=true;code.ScrollBars=ScrollBars.Vertical;code.Dock=DockStyle.Fill;code.Font=new Font("Consolas",11);code.BackColor=Theme.Panel;code.ForeColor=Theme.Text;code.BorderStyle=BorderStyle.None;code.Text=CodeText.ForDisplay(content);
         Controls.Add(code);Controls.Add(label);Controls.Add(foot);
-        Shown+=(s,e)=>{int index=code.GetFirstCharIndexFromLine(Math.Max(0,line-1));if(index>=0){code.SelectionStart=index;code.SelectionLength=0;code.ScrollToCaret();}code.Focus();};
+        Shown+=(s,e)=>{code.SelectionStart=CodeText.LineOffset(code.Text,line);code.SelectionLength=0;code.ScrollToCaret();code.Focus();};
     }
-    private async Task Save(){save.Enabled=false;try{await persist(code.Text);DialogResult=DialogResult.OK;Close();}catch(Exception error){MessageBox.Show(this,error.Message,"GML 保存失败",MessageBoxButtons.OK,MessageBoxIcon.Error);}finally{save.Enabled=true;}}
+    private async Task Save(){save.Enabled=false;try{await persist(CodeText.ForSource(code.Text,newline));DialogResult=DialogResult.OK;Close();}catch(Exception error){MessageBox.Show(this,error.Message,"GML 保存失败",MessageBoxButtons.OK,MessageBoxIcon.Error);}finally{save.Enabled=true;}}
     protected override bool ProcessCmdKey(ref Message msg,Keys keyData){if(keyData==(Keys.Control|Keys.S)){SaveFromKeyboard();return true;}return base.ProcessCmdKey(ref msg,keyData);}
     private async void SaveFromKeyboard(){await Save();}
 }
