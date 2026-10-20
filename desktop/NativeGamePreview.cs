@@ -71,14 +71,16 @@ internal sealed class NativeFilmProgressForm:Form
 internal sealed partial class MainForm
 {
     private readonly CheckBox nativeRender=new CheckBox{Text="原生底片",AutoSize=true,Enabled=false,ForeColor=Theme.Muted,Margin=new Padding(8,9,5,0)};
-    private readonly Button regenerateNativeFilm=new Button{Text="重新生成原生底片",AutoSize=true,Enabled=false,Margin=new Padding(8,3,5,0)};
+    private readonly Button regenerateNativeFilm=new Button{Text="重新生成原生底片",AutoSize=true,Enabled=false,FlatStyle=FlatStyle.Flat,BackColor=Theme.Raised,ForeColor=Theme.Text,UseVisualStyleBackColor=false,TabStop=false,Padding=new Padding(8,3,8,3),Margin=new Padding(8,3,5,0)};
     private NativeEvent selectedNativeEvent;private NativeFilmInfo nativeFilmInfo;private bool nativeFilmGenerating;
     private string NativeFilmPath {get{return document==null?null:Path.Combine(document.project,"cache","native-film","base.rufvideo");}}
     private void ToggleNativeFilm(){stage.NativeFilmPath=nativeRender.Checked&&File.Exists(NativeFilmPath)?NativeFilmPath:null;stage.NativeFilmInfo=nativeFilmInfo;stage.NativeFilmIds=new System.Collections.Generic.HashSet<string>(nativeFilmInfo==null?new string[0]:nativeFilmInfo.nativeIds??new string[0]);stage.SceneChanged();}
     private async Task EnsureNativeFilm()
     {
-        nativeRender.Enabled=state!=null&&state.nativeProject!=null;regenerateNativeFilm.Enabled=nativeRender.Enabled;nativeFilmInfo=null;
-        if(!nativeRender.Enabled){stage.NativeFilmPath=null;return;}
+        // Enabled includes the parent's temporary disabled state during SwitchProject.
+        // Availability comes from project data, never from a control's effective state.
+        bool available=state!=null&&state.nativeProject!=null;nativeRender.Enabled=available;regenerateNativeFilm.Enabled=available&&!nativeFilmGenerating;nativeFilmInfo=null;
+        if(!available){stage.NativeFilmPath=null;return;}
         if(File.Exists(NativeFilmPath)){
             try{using(var film=new NativeFilmReader(NativeFilmPath))nativeFilmInfo=film.Info;nativeRender.Checked=true;ToggleNativeFilm();SetStatus(nativeFilmInfo.views==null?"旧底片未记录原生视野；请点击“重新生成原生底片”一次，以同步物件和拉镜坐标。":"原生底片已载入 · 物件跟随原生视野，RufMaker 拉镜与特效实时叠加。");}
             catch(Exception error){nativeRender.Checked=false;Error(error);}return;

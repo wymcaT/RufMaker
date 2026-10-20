@@ -6,6 +6,9 @@ using System.IO;
 using System.Linq;
 using System.Security.Cryptography;
 using System.Threading;
+using System.Threading.Tasks;
+using System.Reflection;
+using System.Windows.Forms;
 
 internal static class NativeFilmTests
 {
@@ -30,6 +33,17 @@ internal static class NativeFilmTests
             using(var image=PreviewRenderer.Render(state,room,new Dictionary<string,string>(),sprites,2,false,false,cache,nativeFilmPath:job.output))Check(image.GetPixel(30,30).R>240&&image.GetPixel(30,30).G<10,"Real-time full-screen effects apply to native film too");
         }
         Check(!Directory.GetFiles(folder,"*.partial-*").Any(),"No incomplete movie remains");Console.WriteLine("PASS: persisted frames, random seeking, cache reuse, atomic regeneration, cancellation and real-time layer/effect composition");
+        string cacheFolder=Path.Combine(folder,"cache","native-film");Directory.CreateDirectory(cacheFolder);File.Copy(job.output,Path.Combine(cacheFolder,"base.rufvideo"));
+        // SwitchProject temporarily disables the owner while LoadProject loads its cache.
+        // Effective Control.Enabled must not decide whether a native project exists.
+        using(var editor=new MainForm(folder)){
+            var flags=BindingFlags.Instance|BindingFlags.NonPublic;var nativeState=new EditorState{nativeProject=new NativeProject{imported=true}};
+            typeof(MainForm).GetField("state",flags).SetValue(editor,nativeState);typeof(MainForm).GetField("document",flags).SetValue(editor,new LoadData{project=folder,state=nativeState});editor.Enabled=false;
+            ((Task)typeof(MainForm).GetMethod("EnsureNativeFilm",flags).Invoke(editor,null)).GetAwaiter().GetResult();editor.Enabled=true;
+            var nativeToggle=(CheckBox)typeof(MainForm).GetField("nativeRender",flags).GetValue(editor);var regenerate=(Button)typeof(MainForm).GetField("regenerateNativeFilm",flags).GetValue(editor);
+            Check(nativeToggle.Checked&&regenerate.Enabled,"Native movie must load and regeneration remain enabled after switching a disabled owner");
+        }
+        Console.WriteLine("PASS: native film loads during project switching and regeneration remains available");
         File.WriteAllText(Path.Combine(folder,"count.txt"),"4");var ended=NativeFilmBuilder.Generate(job,CancellationToken.None);Check(ended.frameCount==4,"A normal native game ending finalizes the captured frames");
         File.WriteAllText(Path.Combine(folder,"view.txt"),"1");var withView=NativeFilmBuilder.Generate(job,CancellationToken.None);Check(withView.views.Length==4&&withView.views[2].x==4,"Per-frame native view persists in the movie");
         state.tracks.RemoveAll(t=>t.kind=="effect");using(var sprites=new SpriteStore{Project=folder})using(var cache=new PreviewCache())
@@ -41,7 +55,7 @@ internal static class NativeFilmTests
         Check(Math.Abs(points[0].X-400)<.01&&Math.Abs(points[0].Y-304)<.01&&Math.Abs(points[1].X-486.6025)<.01&&Math.Abs(points[1].Y-354)<.01,"Native view composes before RufMaker camera; physics coordinates remain native");
         Console.WriteLine("PASS: per-frame view capture, preview composition, native world coordinates and post camera transform");
     }
-    public static int Main(string[] args)
+    [STAThread] public static int Main(string[] args)
     {
         try{if(args[0]=="--inspect"){
             Directory.CreateDirectory(args[2]);using(var reader=new NativeFilmReader(args[1])){foreach(int frame in new[]{0,Math.Min(1000,reader.Info.frameCount-1),reader.Info.frameCount/2,reader.Info.frameCount-1}.Distinct())reader.Frame(frame).Save(Path.Combine(args[2],frame+".png"),ImageFormat.Png);Console.WriteLine(NativeFilmReader.Json(reader.Info));}return 0;
