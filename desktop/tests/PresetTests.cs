@@ -20,6 +20,13 @@ internal static class PresetTests
     private static int Main(string[] args)
     {
         try{
+            if(args.Length==1&&args[0]=="--icons"){
+                for(int rebuild=0;rebuild<24;rebuild++)using(var icons=PresetIcons.Create()){
+                    Assert(icons.Handle!=IntPtr.Zero&&icons.Images.Count==3,"Preset image list handle missing");
+                    for(int i=0;i<icons.Images.Count;i++)using(var image=icons.Images[i])Assert(image.Width==24&&image.Height==24,"Preset icon was disposed before list creation");
+                }
+                Console.WriteLine("Preset image handle and bitmap lifetime checks passed (24 rebuilds, no application window).");return 0;
+            }
             var generated=new List<Track>();
             foreach(string name in MotionPresets.Names){var t=CameraTrack();Motion.SetKey(t,"cameraZoom",10,1.2);Motion.SetKey(t,"cameraZoom",210,1.4);MotionPresets.Apply(t,name,10);Assert(t.start==10&&t.end==210,"Action changed track boundaries");Assert(t.keyframes.Count(k=>k.property=="cameraZoom")==2,"Action erased camera zoom keys");
                 if(t.motion=="parabola")Assert(Motion.Fields(t).Contains("pathProgress"),"Camera path controls missing");if(t.motion=="orbit")Assert(Motion.Fields(t).Contains("orbitPhase"),"Camera orbit controls missing");

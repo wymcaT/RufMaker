@@ -7,6 +7,20 @@ using System.Threading.Tasks;
 using System.Windows.Forms;
 
 internal sealed class PresetEntry {public string name,key;public bool folder;}
+internal static class PresetIcons
+{
+    public static ImageList Create()
+    {
+        var icons=new ImageList{ImageSize=new Size(24,24),ColorDepth=ColorDepth.Depth32Bit};
+        // Materialize the native list first, so Add copies each bitmap before it is disposed.
+        IntPtr handle=icons.Handle;
+        foreach(string glyph in new[]{"↗","▸","◆"})using(var icon=new Bitmap(24,24)){
+            using(var g=Graphics.FromImage(icon))Theme.Label(g,glyph,new Rectangle(0,0,24,24),Theme.Accent,Theme.Bold,TextFormatFlags.HorizontalCenter|TextFormatFlags.VerticalCenter);
+            icons.Images.Add(icon);
+        }
+        return icons;
+    }
+}
 internal sealed class PresetNameForm:Form
 {
     public string ResultName,Category;
@@ -45,8 +59,7 @@ internal sealed partial class MainForm
             entries.AddRange(Directory.GetDirectories(folder).OrderBy(s=>s).Select(s=>new PresetEntry{name=Path.GetFileName(s),key=Library.Relative(s),folder=true}));
             entries.AddRange(Directory.GetFiles(folder,"*.rufpreset").OrderBy(s=>s).Select(s=>new PresetEntry{name=Path.GetFileNameWithoutExtension(s),key=Library.Relative(s)}));
         }else foreach(string name in resourceKind=="presets"?MotionPresets.Names:resourceKind=="camera-presets"?CameraPresets.Names:EffectPresets.Names)entries.Add(new PresetEntry{name=name,key=name});
-        resources.BeginUpdate();resources.Items.Clear();var previous=resources.SmallImageList;var icons=new ImageList{ImageSize=new Size(24,24),ColorDepth=ColorDepth.Depth32Bit};
-        foreach(string glyph in new[]{"↗","▸","◆"}){var icon=new Bitmap(24,24);using(var g=Graphics.FromImage(icon))Theme.Label(g,glyph,new Rectangle(0,0,24,24),Theme.Accent,Theme.Bold,TextFormatFlags.HorizontalCenter|TextFormatFlags.VerticalCenter);icons.Images.Add(icon);icon.Dispose();}
+        var icons=PresetIcons.Create();resources.BeginUpdate();resources.Items.Clear();var previous=resources.SmallImageList;
         foreach(var entry in entries.Where(e=>e.name.IndexOf(search.Text,StringComparison.OrdinalIgnoreCase)>=0))resources.Items.Add(new ListViewItem(entry.name,entry.folder?1:custom?2:0){Tag=entry,ToolTipText=entry.folder?"双击进入分类；右键重命名 / 移动分类":custom?"拖入时间轴按落点新建轨道；双击从播放头添加。保留原位置和全部关键帧。":resourceKind=="presets"?"拖到物件或拉镜上应用动作；双击应用到所选轨道。":"拖到同类轨道上应用；拖到空白处或双击可新建轨道。"});
         resources.SmallImageList=icons;if(previous!=null)previous.Dispose();resources.EndUpdate();
     }
