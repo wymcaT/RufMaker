@@ -1,10 +1,15 @@
 name: Publish Windows release
 on:
   push:
+    branches: ['main']
+    paths: ['.github/workflows/release.yml']
     tags: ['v*']
   workflow_dispatch:
 permissions:
   contents: write
+concurrency:
+  group: windows-release
+  cancel-in-progress: false
 jobs:
   release:
     runs-on: windows-latest
@@ -25,6 +30,10 @@ jobs:
           $tag="v$env:RUFMAKER_VERSION"
           $headers=@{Authorization="Bearer $env:GH_TOKEN";Accept='application/vnd.github+json';'User-Agent'='RufMaker-release'}
           $base="https://api.github.com/repos/$env:GITHUB_REPOSITORY"
+          try {
+            $existing=Invoke-RestMethod -Uri "$base/releases/tags/$tag" -Headers $headers
+            if(!$existing.draft){Write-Host "Release $tag is already published.";exit 0}
+          } catch {if([int]$_.Exception.Response.StatusCode -ne 404){throw}}
           $body=@{tag_name=$tag;target_commitish=$env:GITHUB_SHA;name="RufMaker $tag";body='Native Windows editor update package. Application files only; projects and songs are preserved.';draft=$true;prerelease=$false} | ConvertTo-Json
           $release=Invoke-RestMethod -Method Post -Uri "$base/releases" -Headers $headers -ContentType 'application/json' -Body $body
           foreach($file in Get-ChildItem build/distribution -File){
