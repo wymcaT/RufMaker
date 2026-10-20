@@ -9,7 +9,7 @@ function spriteMetadata() {
   return Object.fromEntries(inventory().sprites.map(name=>{
     const file=path.join(project,'sprites',name,'sprite.txt');
     const values=Object.fromEntries(fs.readFileSync(file,'utf8').split(/\r?\n/).filter(x=>x.includes('=')).map(x=>x.split('=')));
-    return [name,{originX:Number(values.origin_x)||0,originY:Number(values.origin_y)||0}];
+    return [name,{originX:Number(values.origin_x)||0,originY:Number(values.origin_y)||0,frames:Number(values.frames)||1}];
   }));
 }
 
@@ -36,6 +36,12 @@ async function execute(command,payload={}) {
       const current=roomInfo(payload.name),objects=inventory().objects;
       if(!Array.isArray(payload.instances)||payload.instances.some(x=>!objects.includes(x.name)||typeof x.raw!=='string'||x.raw.includes('\n')||x.raw.split(',').length!==10))throw new Error('无效的房间实例快照');
       fs.writeFileSync(path.join(project,'rooms',current.name,'instances.txt'),payload.instances.map(x=>x.raw).join('\n')+'\n');return roomInfo(current.name);
+    }
+    case 'clone-instance': {
+      const room=roomInfo(payload.room),a=String(payload.raw||'').split(',');
+      if(a.length!==10||payload.raw.includes('\n')||payload.raw.includes('\r')||!inventory().objects.includes(a[0])||a[0]==='objRufController')throw new Error('无效的房间实例');
+      a[3]=crypto.randomBytes(4).toString('hex').toUpperCase();
+      fs.appendFileSync(path.join(project,'rooms',room.name,'instances.txt'),a.join(',')+'\n');return roomInfo(room.name);
     }
     case 'add-instance': {
       if (!inventory().objects.includes(payload.name) || !inventory().rooms.includes(payload.room) || !Number.isFinite(payload.x)||!Number.isFinite(payload.y)) throw new Error('无效的房间对象');

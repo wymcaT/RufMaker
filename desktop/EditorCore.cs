@@ -24,6 +24,9 @@ internal sealed class Track
     public string trailMode="legacy";
     public int trailInterval=3,trailLife=18;
     public double spriteAngle,trailScaleDecay=.035,trailAlphaDecay=.035,trailStartAlpha=.55,trailSpeed,trailDirection;
+    public bool rainbow,rainbowReverse,rainbowDynamic;
+    public string rainbowSourceSprite="",rainbowSourceColor="";
+    public double rainbowDensity=1,rainbowOffset,rainbowSpeed=.25;
     public int start, end, interval=25, count=12, life=160;
     public double speed=3, spread=30, angle, strength=6;
     public double x=400,y=304,scale=1,alpha=1,x1=280,y1=304,x2=520,y2=304,length=240,rollSpeed=2,easePower=3,easePeriod=.3;
@@ -56,7 +59,7 @@ internal sealed class Inventory
     public string[] scripts,objects,sprites,rooms,pack;
     public Dictionary<string,string> objectSprites=new Dictionary<string,string>();
 }
-internal sealed class SpriteMeta {public int originX,originY;}
+internal sealed class SpriteMeta {public int originX,originY,frames=1;}
 internal sealed class WaveData {public double duration;public double[] peaks;}
 internal sealed class LoadData
 {
@@ -185,23 +188,24 @@ internal sealed class SpriteStore : IDisposable
     private readonly Dictionary<int,ImageAttributes> attributesCache=new Dictionary<int,ImageAttributes>();
     public string Project;
     public Dictionary<string,SpriteMeta> Metadata=new Dictionary<string,SpriteMeta>();
-    public Bitmap Get(string name)
+    public Bitmap Get(string name,int frame=0)
     {
         if(String.IsNullOrEmpty(name))return null;
-        Bitmap image;if(images.TryGetValue(name,out image))return image;
-        string file=Path.Combine(Project,"sprites",name,"0.png");
+        SpriteMeta meta;Metadata.TryGetValue(name,out meta);int count=meta==null?1:Math.Max(1,meta.frames);frame=(frame%count+count)%count;
+        string key=name+"|"+frame;Bitmap image;if(images.TryGetValue(key,out image))return image;
+        string file=Path.Combine(Project,"sprites",name,frame+".png");
         if(!File.Exists(file))return null;
         using(var stream=new MemoryStream(File.ReadAllBytes(file)))using(var source=Image.FromStream(stream))image=new Bitmap(source);
-        images[name]=image;return image;
+        images[key]=image;return image;
     }
     public RectangleF Bounds(string name,double x,double y)
     {
         var image=Get(name);SpriteMeta meta;Metadata.TryGetValue(name??"",out meta);
         return image==null?new RectangleF((float)x,(float)y,16,16):new RectangleF((float)x-(meta==null?0:meta.originX),(float)y-(meta==null?0:meta.originY),image.Width,image.Height);
     }
-    public void Draw(Graphics g,string name,double x,double y,double scale,double angle,double alpha,Color tint)
+    public void Draw(Graphics g,string name,double x,double y,double scale,double angle,double alpha,Color tint,int frame=0)
     {
-        if(scale==0||alpha<=0)return;var image=Get(name);if(image==null)return;
+        if(scale==0||alpha<=0)return;var image=Get(name,frame);if(image==null)return;
         SpriteMeta meta;Metadata.TryGetValue(name,out meta);
         int ox=meta==null?0:meta.originX,oy=meta==null?0:meta.originY;
         if(scale==1&&Math.Abs(angle%360)<.0001&&alpha>=.999&&tint.ToArgb()==Color.White.ToArgb()){g.DrawImageUnscaled(image,(int)Math.Round(x)-ox,(int)Math.Round(y)-oy);return;}

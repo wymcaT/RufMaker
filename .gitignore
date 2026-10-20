@@ -18,3 +18,5 @@
 *.user
 Thumbs.db
 Desktop.ini
+# Local reference video, used for analysis only.
+/558905419-1-208.mp4

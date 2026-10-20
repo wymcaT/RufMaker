@@ -3,6 +3,7 @@ import path from 'node:path';
 import {normalizeState,stateCode,easeGml,bounceGml,fields} from "./motion.mjs";
 import {effectTypes,fxResetGml,fxInitialization,fxCleanup,makeFxObjects} from './effects.mjs';
 import crypto from 'node:crypto';
+import {rainbowCode,rainbowGml,rodSequence} from './rainbow.mjs';
 import {trailModes,trailMode,trailCall,trailGml} from './trails.mjs';
 import { fileURLToPath } from 'node:url';
 
@@ -63,7 +64,7 @@ function gcolor(hex) { const v = /^#[0-9a-f]{6}$/i.test(hex || '') ? hex.slice(1
 
 const stateAt=stateCode;
 
-function bulletSpawn(track, fromHistory) {
+function bulletSpawn(track, fromHistory, sequence='0') {
   const time = fromHistory ? 'rf_i' : 'rf_frame';
   const age = fromHistory ? '(rf_frame-rf_i)' : '0';
   const pieces = [];
@@ -75,7 +76,8 @@ function bulletSpawn(track, fromHistory) {
   pieces.push(`rf_inst.sprite_index=${track.sprite}; rf_inst.image_blend=${gcolor(track.color)}; rf_inst.image_xscale=rf_scale; rf_inst.image_yscale=rf_scale; rf_inst.image_alpha=rf_alpha; rf_inst.rf_trail=${track.trail ? 1 : 0};`);
   pieces.push(`rf_inst.image_angle=rf_spriteAngle+${track.rotateSprite?'rf_dir':'0'};rf_inst.rf_rotate=${track.rotateSprite?1:0};rf_inst.rf_sprite_angle=rf_spriteAngle;rf_inst.rf_birth=${time};rf_inst.rf_index=rf_j;`);
   pieces.push(`rf_inst.rf_t_mode='${trailMode(track)}';rf_inst.rf_t_interval=${gnum(track.trailInterval,3)};rf_inst.rf_t_life=${gnum(track.trailLife,18)};rf_inst.rf_t_alpha=${gnum(track.trailStartAlpha,.55)};rf_inst.rf_t_scale_decay=${gnum(track.trailScaleDecay,.035)};rf_inst.rf_t_alpha_decay=${gnum(track.trailAlphaDecay,.035)};rf_inst.rf_t_speed=${gnum(track.trailSpeed)};rf_inst.rf_t_direction=${gnum(track.trailDirection)};rf_inst.rf_t_random=${track.trailRandom?1:0};`);
-  pieces.push('} }');
+  if(track.rainbow)pieces.push(`rf_inst.rf_rainbow=1;rf_inst.rf_r_sequence=${sequence}+rf_j;rf_inst.rf_r_density=rf_rainbowDensity;rf_inst.rf_r_offset=rf_rainbowOffset;rf_inst.rf_r_speed=rf_rainbowSpeed;rf_inst.rf_r_start=${gnum(track.start)};rf_inst.rf_r_dynamic=${track.rainbowDynamic?1:0};rf_inst.rf_r_reverse=${track.rainbowReverse?1:0};rf_inst.image_speed=0;rf_inst.image_blend=c_white;rf_inst.image_index=${rainbowCode(track,`${sequence}+rf_j`,'rf_frame')};`);
+  pieces.push('} }');if(track.rainbow)pieces.push(`${sequence}+=max(1,min(300,round(rf_count)));`);
   return pieces.join('\n');
 }
 
@@ -90,6 +92,7 @@ function rodUpdate(t,index) {
   parts.push(`if !instance_exists(${prefix}[rf_j]) {${prefix}[rf_j]=instance_create(0,0,objRufBullet);${prefix}[rf_j].rf_fixed=1;}rf_inst=${prefix}[rf_j];`);
   parts.push(t.rolling?'rf_fraction=rf_j/rf_count+rf_phase;rf_fraction-=floor(rf_fraction);':'if rf_count=1 rf_fraction=.5;else rf_fraction=rf_j/(rf_count-1);');
   parts.push(`rf_inst.x=rf_x1+(rf_x2-rf_x1)*rf_fraction;rf_inst.y=rf_y1+(rf_y2-rf_y1)*rf_fraction;rf_inst.image_angle=rf_spriteAngle+${t.rotateSprite?'rf_angle':'0'};rf_inst.sprite_index=${t.sprite};rf_inst.image_blend=${gcolor(t.color)};rf_inst.image_xscale=rf_scale;rf_inst.image_yscale=rf_scale;rf_inst.image_alpha=rf_alpha;rf_inst.rf_trail=${t.trail?1:0};`);
+  if(t.rainbow)parts.push(`rf_inst.image_speed=0;rf_inst.image_blend=c_white;rf_inst.image_index=${rainbowCode(t,rodSequence(t),'rf_frame')};`);
   parts.push(`}} ${prefix}_count=rf_count; } else if ${prefix}_count>0 {for(rf_j=0;rf_j<${prefix}_count;rf_j+=1) {if instance_exists(${prefix}[rf_j]) with (${prefix}[rf_j]) instance_destroy();${prefix}[rf_j]=noone;}${prefix}_count=0;}`);
   return parts.join('\n');
 }
@@ -99,7 +102,7 @@ function spatialTrails(t) {
   if(trailMode(t)==='off')return '';
   const interval=Math.max(1,t.trailInterval),life=Math.max(1,Math.min(300,t.trailLife));
   const parts=[`if rf_frame>=${gnum(t.start)} && rf_frame<=${gnum(t.end)} {for(rf_sample=floor(rf_frame/${interval})*${interval};rf_sample>=max(${gnum(t.start)},rf_frame-${life}+1);rf_sample-=${interval}) {`,stateAt(t,'rf_sample')];
-  if(t.kind==='object')parts.push(trailCall(t,{color:gcolor(t.color),age:'rf_frame-rf_sample',seed:'rf_sample'}));
+  if(t.kind==='object')parts.push(trailCall(t,{color:gcolor(t.color),age:'rf_frame-rf_sample',seed:'rf_sample',subimage:rainbowCode(t,'0','rf_sample')}));
   else {
     if(t.rodMode==='center')parts.push('rf_x1=rf_x-lengthdir_x(rf_length/2,rf_angle);rf_y1=rf_y-lengthdir_y(rf_length/2,rf_angle);rf_x2=rf_x+lengthdir_x(rf_length/2,rf_angle);rf_y2=rf_y+lengthdir_y(rf_length/2,rf_angle);');
     else if(t.rodMode==='anchor')parts.push('rf_x1=rf_x;rf_y1=rf_y;');
@@ -107,7 +110,7 @@ function spatialTrails(t) {
     if(t.rolling)parts.push(`if rf_len>.001 rf_phase=(rf_sample-${gnum(t.start)})*rf_rollSpeed/rf_len;`);
     parts.push('for(rf_j=0;rf_j<rf_count;rf_j+=1){');
     parts.push(t.rolling?'rf_fraction=rf_j/rf_count+rf_phase;rf_fraction-=floor(rf_fraction);':'if rf_count=1 rf_fraction=.5;else rf_fraction=rf_j/(rf_count-1);');
-    parts.push(trailCall(t,{x:'rf_x1+(rf_x2-rf_x1)*rf_fraction',y:'rf_y1+(rf_y2-rf_y1)*rf_fraction',angle:`rf_spriteAngle+${t.rotateSprite?'rf_angle':'0'}`,color:gcolor(t.color),age:'rf_frame-rf_sample',seed:'rf_sample*301+rf_j'}),'}');
+    parts.push(trailCall(t,{x:'rf_x1+(rf_x2-rf_x1)*rf_fraction',y:'rf_y1+(rf_y2-rf_y1)*rf_fraction',angle:`rf_spriteAngle+${t.rotateSprite?'rf_angle':'0'}`,color:gcolor(t.color),age:'rf_frame-rf_sample',seed:'rf_sample*301+rf_j',subimage:rainbowCode(t,rodSequence(t),'rf_sample')}),'}');
   }
   parts.push('}}');return parts.join('\n');
 }
@@ -117,23 +120,29 @@ function makeController(s) {
     `if file_exists(working_directory+'\\Data\\rufmaker_preview.ini') { ini_open(working_directory+'\\Data\\rufmaker_preview.ini'); rf_target=ini_read_real('preview','frame',0); ini_close(); rf_preview=1; }`,
     `rf_frame=max(0,min(${gnum(s.duration)},round(rf_target))); rf_target=rf_frame;`,
     `FMODInstanceSetPosition(rf_music,(rf_frame/${gnum(s.fps)}*1000)/FMODSoundGetLength(BGM_Ad)); FMODInstanceSetPaused(rf_music,0);`,
-    `var rf_i,rf_j,rf_u,rf_dir,rf_inst,rf_len,rf_phase,rf_fraction,${fields.map(f=>'rf_'+f).join(',')};`, `rf_custom_create();`,fxInitialization(s)];
+    `var rf_k,rf_i,rf_j,rf_u,rf_dir,rf_inst,rf_len,rf_phase,rf_fraction,${fields.map(f=>'rf_'+f).join(',')};`, `rf_custom_create();`,fxInitialization(s)];
   const step = [`#define Step_0`,action,`rf_frame+=1;`, `if rf_frame>${gnum(s.duration)} { room_goto(rEnd); exit; }`,
-    `var rf_i,rf_j,rf_u,rf_dir,rf_inst,rf_len,rf_phase,rf_fraction,${fields.map(f=>'rf_'+f).join(',')};`, `rf_custom_step();`];
+    `var rf_k,rf_i,rf_j,rf_u,rf_dir,rf_inst,rf_len,rf_phase,rf_fraction,${fields.map(f=>'rf_'+f).join(',')};`, `rf_custom_step();`];
   const draw = [`#define Draw_0`,action,`var rf_sample,rf_len,rf_phase,rf_fraction,rf_i,rf_j,rf_u,rf_dir,rf_inst,${fields.map(f=>'rf_'+f).join(',')};`, `rf_custom_draw();`];
-  let rodIndex=0;
+  let rodIndex=0,emitterIndex=0;
   for (const t of s.tracks.filter(x=>x.enabled!==false)) {
     if(t.kind==='rod'||t.kind==='object')draw.push(spatialTrails(t));
     if (t.kind==='emitter') {
       const maxLife=Math.max(t.life||120,...t.keyframes.filter(k=>k.property==='life').map(k=>k.value));
-      create.push(`// RufMaker emitter\nfor (rf_i=${gnum(t.start)}+max(0,ceil((rf_frame-${maxLife}+1-${gnum(t.start)})/${gnum(t.interval,1)}))*${gnum(t.interval,1)};rf_i<=min(${gnum(t.end)},rf_frame);rf_i+=${gnum(t.interval,1)}) { ${bulletSpawn(t,true)} }`);
-      step.push(`if (rf_frame>=${gnum(t.start)} && rf_frame<=${gnum(t.end)} && (rf_frame-${gnum(t.start)}) mod ${gnum(t.interval,1)}=0) { ${bulletSpawn(t,false)} }`);
+      const sequence=`rf_emitter${emitterIndex++}_sequence`,first=`${gnum(t.start)}+max(0,ceil((rf_frame-${maxLife}+1-${gnum(t.start)})/${gnum(t.interval,1)}))*${gnum(t.interval,1)}`;
+      if(t.rainbow) {
+        create.push(`${sequence}=0;`);
+        if(t.keyframes.some(k=>k.property==='count'))create.push(`for(rf_k=${gnum(t.start)};rf_k<min(${first},${gnum(t.end)}+1);rf_k+=${gnum(t.interval,1)}){${stateAt(t,'rf_k')} ${sequence}+=max(1,min(300,round(rf_count)));}`);
+        else create.push(`${sequence}=max(0,ceil((rf_frame-${maxLife}+1-${gnum(t.start)})/${gnum(t.interval,1)}))*${Math.max(1,Math.min(300,Math.round(t.count)))};`);
+      }
+      create.push(`// RufMaker emitter\nfor (rf_i=${first};rf_i<=min(${gnum(t.end)},rf_frame);rf_i+=${gnum(t.interval,1)}) { ${bulletSpawn(t,true,sequence)} }`);
+      step.push(`if (rf_frame>=${gnum(t.start)} && rf_frame<=${gnum(t.end)} && (rf_frame-${gnum(t.start)}) mod ${gnum(t.interval,1)}=0) { ${bulletSpawn(t,false,sequence)} }`);
     } else if(t.kind==='rod') {
       const prefix=`rf_rod${rodIndex}`;
       create.push(`${prefix}_count=0;for(rf_j=0;rf_j<300;rf_j+=1) ${prefix}[rf_j]=noone;`,rodUpdate(t,rodIndex));
       step.push(rodUpdate(t,rodIndex++));
     } else if (t.kind==='object') {
-      draw.push(`if (rf_frame>=${gnum(t.start)} && rf_frame<=${gnum(t.end)}) { ${stateAt(t,'rf_frame')} draw_sprite_ext(${t.sprite},0,rf_x,rf_y,rf_scale,rf_scale,rf_angle,${gcolor(t.color)},rf_alpha); }`);
+      draw.push(`if (rf_frame>=${gnum(t.start)} && rf_frame<=${gnum(t.end)}) { ${stateAt(t,'rf_frame')} draw_sprite_ext(${t.sprite},${rainbowCode(t,'0','rf_frame')},rf_x,rf_y,rf_scale,rf_scale,rf_angle,${gcolor(t.color)},rf_alpha); }`);
     } else if (t.kind==='effect') {
       // Screen effects are evaluated every Draw, including native preview started mid-track.
     } else if (t.kind==='script') {
@@ -149,6 +158,7 @@ function makeController(s) {
 
 const bulletGml = `#define Create_0
 ${action}
+image_speed=0;image_index=0;rf_rainbow=0;rf_r_sequence=0;rf_r_density=1;rf_r_offset=0;rf_r_speed=.25;rf_r_start=0;rf_r_dynamic=0;rf_r_reverse=0;
 rf_age=0;rf_life=120;rf_speed=0;rf_dir=0;rf_trail=0;rf_fixed=0;rf_rotate=0;rf_sprite_angle=0;rf_birth=0;rf_index=0;
 rf_t_mode='off';rf_t_interval=3;rf_t_life=18;rf_t_alpha=.55;rf_t_scale_decay=.035;rf_t_alpha_decay=.035;rf_t_speed=0;rf_t_direction=0;rf_t_random=0;
 #define Step_0
@@ -158,12 +168,15 @@ rf_age+=1;x+=lengthdir_x(rf_speed,rf_dir);y+=lengthdir_y(rf_speed,rf_dir);if rf_
 if rf_age>=rf_life || x<-80 || x>room_width+80 || y<-80 || y>room_height+80 instance_destroy();
 #define Draw_0
 ${action}
-var rf_sample,rf_tail,rf_drift,rf_seed;
+var rf_sample,rf_tail,rf_drift,rf_seed,rf_world,rf_subimage;
+rf_world=rf_birth+rf_age;if instance_exists(objRufController) rf_world=objRufController.rf_frame;
+if rf_rainbow {image_speed=0;image_blend=c_white;image_index=rf_rainbow_index(rf_r_sequence,rf_world,rf_r_density,rf_r_offset,rf_r_speed,rf_r_start,rf_r_dynamic,rf_r_reverse,32);}
 if !rf_fixed && rf_t_mode!='off' {
 for(rf_sample=floor(rf_age/max(1,rf_t_interval))*max(1,rf_t_interval);rf_sample>=max(0,rf_age-rf_t_life+1);rf_sample-=max(1,rf_t_interval)) {
 rf_tail=rf_age-rf_sample;rf_seed=(rf_birth+rf_sample)*301+rf_index;
 rf_drift=rf_t_direction;if rf_t_random rf_drift=(sin((rf_seed+1)*12.9898)*43758.5453-floor(sin((rf_seed+1)*12.9898)*43758.5453))*360;
-rf_trail_draw(sprite_index,x-lengthdir_x(rf_speed*rf_tail,rf_dir),y-lengthdir_y(rf_speed*rf_tail,rf_dir),image_xscale,image_angle,image_alpha,image_blend,rf_tail,rf_t_mode,rf_t_life,rf_t_alpha,rf_t_scale_decay,rf_t_alpha_decay,rf_t_speed,rf_drift);
+rf_subimage=image_index;if rf_rainbow rf_subimage=rf_rainbow_index(rf_r_sequence,rf_world-rf_tail,rf_r_density,rf_r_offset,rf_r_speed,rf_r_start,rf_r_dynamic,rf_r_reverse,32);
+rf_trail_draw(sprite_index,x-lengthdir_x(rf_speed*rf_tail,rf_dir),y-lengthdir_y(rf_speed*rf_tail,rf_dir),image_xscale,image_angle,image_alpha,image_blend,rf_tail,rf_t_mode,rf_t_life,rf_t_alpha,rf_t_scale_decay,rf_t_alpha_decay,rf_t_speed,rf_drift,rf_subimage);
 }}
 draw_sprite_ext(sprite_index,image_index,x,y,image_xscale,image_yscale,image_angle,image_blend,image_alpha);
 `;
@@ -172,7 +185,7 @@ export function syncToGame(s) {
   if (!fs.existsSync(projectFile) || !fs.readFileSync(projectFile,'utf8').startsWith('gm82_version=')) throw new Error(`GameMaker 工程入口格式不正确：${projectFile}`);
   normalizeState(s);
   validateState(s);
-  for (const [name,code] of [['rf_ease',easeGml],['rf_bounce',bounceGml],['rf_fx_reset_target',fxResetGml],['rf_trail_draw',trailGml]]) {atomicWrite(path.join(project,'scripts',`${name}.gml`),code);appendUnique(path.join(project,'scripts','index.yyd'),name);appendUnique(path.join(project,'scripts','tree.yyd'),`	|${name}`);}
+  for (const [name,code] of [['rf_ease',easeGml],['rf_bounce',bounceGml],['rf_fx_reset_target',fxResetGml],['rf_trail_draw',trailGml],['rf_rainbow_index',rainbowGml]]) {atomicWrite(path.join(project,'scripts',`${name}.gml`),code);appendUnique(path.join(project,'scripts','index.yyd'),name);appendUnique(path.join(project,'scripts','tree.yyd'),`	|${name}`);}
   const objects = path.join(project,'objects');
   const backgroundFile=path.join(objects,'objBackground.gml');
   if(fs.existsSync(backgroundFile)){const source=fs.readFileSync(backgroundFile,'utf8');atomicWrite(backgroundFile,source.replace(/\bsurface_reset_target\s*\(\s*\)/g,'rf_fx_reset_target()'));}

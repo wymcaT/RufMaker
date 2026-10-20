@@ -11,7 +11,7 @@ internal static class Trails
     public static int Interval(Track t){return Math.Max(1,t.trailInterval);}
     public static double Direction(Track t,int seed)
     {double n=Math.Sin((seed+1)*12.9898)*43758.5453;return t.trailRandom?(n-Math.Floor(n))*360:t.trailDirection;}
-    public static void Draw(Graphics g,SpriteStore sprites,Track t,int seed,int age,double x,double y,double scale,double angle,double alpha,Color tint)
+    public static void Draw(Graphics g,SpriteStore sprites,Track t,int seed,int age,double x,double y,double scale,double angle,double alpha,Color tint,int spriteFrame=0)
     {
         string mode=Mode(t);if(mode=="off"||age<0||age>=Life(t))return;
         double size=1,opacity=t.trailStartAlpha;
@@ -21,6 +21,6 @@ internal static class Trails
         if(mode=="custom"){size=Math.Max(0,1-t.trailScaleDecay*age);opacity=t.trailStartAlpha-t.trailAlphaDecay*age;}
         double rad=Direction(t,seed)*Math.PI/180,drift=t.trailSpeed*age;
         if(size<=0||opacity<=0)return;
-        sprites.Draw(g,t.sprite,x+Math.Cos(rad)*drift,y-Math.Sin(rad)*drift,scale*size,angle,alpha*Math.Max(0,Math.Min(1,opacity)),tint);
+        sprites.Draw(g,t.rainbow?Rainbow.Sprite:t.sprite,x+Math.Cos(rad)*drift,y-Math.Sin(rad)*drift,scale*size,angle,alpha*Math.Max(0,Math.Min(1,opacity)),t.rainbow?Color.White:tint,spriteFrame);
     }
 }

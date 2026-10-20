@@ -9,5 +9,5 @@ if m='appear' o*=a/n;
 if m='custom' {z=max(0,1-argument11*a);o=argument10-argument12*a;}
 if z<=0 || o<=0 return 0;
 d=argument13*a;
-draw_sprite_ext(argument0,0,argument1+lengthdir_x(d,argument14),argument2+lengthdir_y(d,argument14),argument3*z,argument3*z,argument4,argument6,argument5*max(0,min(1,o)));
+draw_sprite_ext(argument0,argument15,argument1+lengthdir_x(d,argument14),argument2+lengthdir_y(d,argument14),argument3*z,argument3*z,argument4,argument6,argument5*max(0,min(1,o)));
 return 0;

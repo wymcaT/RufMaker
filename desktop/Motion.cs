@@ -10,10 +10,10 @@ internal static class Motion
     public static readonly string[] EaseNames={"线性","二次缓入","二次缓出","平滑","Sin 缓入","Sin 缓出","Sin 缓入缓出","Circle 缓入","Circle 缓出","Circle 缓入缓出","Power 缓入","Power 缓出","Power 缓入缓出","Expo 缓入","Expo 缓出","Expo 缓入缓出","弹跳缓出","弹跳缓入","弹跳缓入缓出","ExpSin 弹性","Back 回退","保持 / 跳变"};
     public static string Name(string property)
     {
-        switch(property){case "spriteAngle":return "贴图角度";case "x":return "X";case "y":return "Y";case "angle":return "角度";case "scale":return "缩放";case "alpha":return "透明度";case "x1":return "端点1 X";case "y1":return "端点1 Y";case "x2":return "端点2 X";case "y2":return "端点2 Y";case "length":return "棒长";case "rollSpeed":return "滚动速度";case "speed":return "弹速";case "spread":return "角度间隔";case "count":return "弹幕数量";case "interval":return "发射间隔";case "life":return "寿命";case "strength":return "效果强度";case "fxOpacity":return "效果透明度";case "fxAngle":return "效果方向";case "fxRetention":return "帧混合比例";default:return property;}
+        switch(property){case "rainbowDensity":return "颜色密度";case "rainbowOffset":return "起始色相 / 帧";case "rainbowSpeed":return "色彩流动速度 / 帧每帧";case "spriteAngle":return "贴图角度";case "x":return "X";case "y":return "Y";case "angle":return "角度";case "scale":return "缩放";case "alpha":return "透明度";case "x1":return "端点1 X";case "y1":return "端点1 Y";case "x2":return "端点2 X";case "y2":return "端点2 Y";case "length":return "棒长";case "rollSpeed":return "滚动速度";case "speed":return "弹速";case "spread":return "角度间隔";case "count":return "弹幕数量";case "interval":return "发射间隔";case "life":return "寿命";case "strength":return "效果强度";case "fxOpacity":return "效果透明度";case "fxAngle":return "效果方向";case "fxRetention":return "帧混合比例";default:return property;}
     }
     public static string[] Fields(Track t)
-    {return t.kind=="effect"?new[]{"strength","fxOpacity","fxAngle","fxRetention"}:t.kind=="rod"?Basic.Concat(new[]{"spriteAngle","x1","y1","x2","y2","length","rollSpeed","count"}).ToArray():t.kind=="emitter"?Basic.Concat(new[]{"spriteAngle","speed","spread","count","life"}).ToArray():t.kind=="object"?Basic:new string[0];}
+    {var fields=t.kind=="effect"?new[]{"strength","fxOpacity","fxAngle","fxRetention"}:t.kind=="rod"?Basic.Concat(new[]{"spriteAngle","x1","y1","x2","y2","length","rollSpeed","count"}).ToArray():t.kind=="emitter"?Basic.Concat(new[]{"spriteAngle","speed","spread","count","life"}).ToArray():t.kind=="object"?Basic:new string[0];return t.rainbow?fields.Concat(Rainbow.Parameters).ToArray():fields;}
     public static double Base(Track t,string property)
     {var field=typeof(Track).GetField(property);return field==null?0:Convert.ToDouble(field.GetValue(t));}
     public static bool HasKeys(Track t,string property){return t.keyframes.Any(k=>k.property==property);}
@@ -25,6 +25,7 @@ internal static class Motion
     {
         foreach(var t in state.tracks)
         {
+            if(t.rainbow){t.sprite=Rainbow.Sprite;t.color="#FFFFFF";}
             var converted=new List<Keyframe>();
             foreach(var key in t.keyframes)
             {

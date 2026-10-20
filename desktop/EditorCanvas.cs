@@ -30,6 +30,8 @@ internal sealed class StageCanvas : Control
     public Action BeginEdit,Changed;public Action<RoomInstance> InstanceMoved;
     public Action<string,string,PointF> ResourceDropped;public Action<PointF> PointerMoved;
     public System.Collections.Generic.Dictionary<string,string> ObjectSprites=new System.Collections.Generic.Dictionary<string,string>();
+    public double ViewZoom=1,ViewX,ViewY;
+    private bool panning;private Point panStart;private double panX,panY;
     private RectangleF view;private Track draggingTrack;private RoomInstance draggingInstance;private string handle;
     private Point down;private bool moved;
     private EditorState renderState;private RoomData renderRoom;private System.Collections.Generic.Dictionary<string,string> renderObjects;
@@ -61,11 +63,26 @@ internal sealed class StageCanvas : Control
         catch(Exception error){if(!IsDisposed){System.Diagnostics.Debug.WriteLine(error);finished=request;}}
         finally{rendering=false;if(IsDisposed){if(workerSprites!=null){workerSprites.Dispose();workerSprites=null;}previewCache.Dispose();}else if(finished!=serial)QueueRender();}
     }
-    private void Fit(){float rw=Room==null?800:Room.width,rh=Room==null?608:Room.height;float scale=Math.Max(.05f,Math.Min((Width-48)/rw,(Height-48)/rh));view=new RectangleF((Width-rw*scale)/2,(Height-rh*scale)/2,rw*scale,rh*scale);}
+    private void Fit()
+    {
+        float rw=Room==null?800:Room.width,rh=Room==null?608:Room.height;
+        float scale=Math.Max(.01f,Math.Min((Width-48)/rw,(Height-48)/rh))*(float)ViewZoom;
+        view=new RectangleF(Width/2f-(rw/2+(float)ViewX)*scale,Height/2f-(rh/2+(float)ViewY)*scale,rw*scale,rh*scale);
+    }
+    public void SetView(double zoom,double x,double y){ViewZoom=Math.Max(.1,Math.Min(32,zoom));ViewX=x;ViewY=y;Fit();Invalidate();}
+    public void ResetView(){SetView(1,0,0);}
+    protected override void OnMouseWheel(MouseEventArgs e)
+    {
+        if((ModifierKeys&Keys.Control)==0||!ContainsFocus){base.OnMouseWheel(e);return;}
+        var before=Position(e.Location);ViewZoom=Math.Max(.1,Math.Min(32,ViewZoom*Math.Pow(1.2,e.Delta/120.0)));Fit();
+        float rw=Room==null?800:Room.width,rh=Room==null?608:Room.height,scale=view.Width/rw;
+        ViewX=before.X-rw/2-(e.X-Width/2f)/scale;ViewY=before.Y-rh/2-(e.Y-Height/2f)/scale;Fit();Invalidate();
+    }
+    protected override void OnMouseDoubleClick(MouseEventArgs e){base.OnMouseDoubleClick(e);if(e.Button==MouseButtons.Middle){panning=false;ResetView();}}
     private PointF Position(Point p){Fit();return new PointF((p.X-view.Left)/view.Width*(Room==null?800:Room.width),(p.Y-view.Top)/view.Height*(Room==null?608:Room.height));}
     protected override void OnPaint(PaintEventArgs e)
     {
-        base.OnPaint(e);Fit();var g=e.Graphics;g.Clear(Theme.Back);
+        base.OnPaint(e);Fit();var g=e.Graphics;g.Clear(Color.FromArgb(203,211,222));
         if(image!=null){g.InterpolationMode=InterpolationMode.NearestNeighbor;g.DrawImage(image,view);}else{Theme.Label(g,"正在绘制房间…",ClientRectangle,Theme.Muted,null,TextFormatFlags.HorizontalCenter|TextFormatFlags.VerticalCenter);QueueRender();}
         if(State==null||Room==null)return;
         var saved=g.Save();g.SetClip(view);g.TranslateTransform(view.Left,view.Top);g.ScaleTransform(view.Width/Room.width,view.Height/Room.height);g.SmoothingMode=SmoothingMode.AntiAlias;
@@ -85,12 +102,13 @@ internal sealed class StageCanvas : Control
             }
         }
         g.Restore(saved);using(var pen=new Pen(Theme.Line))g.DrawRectangle(pen,view.X,view.Y,view.Width,view.Height);
-        Theme.Label(g,Room.name+"   ·   "+Frame+" F",new Rectangle((int)view.X+10,(int)view.Bottom-25,300,22),Theme.Muted,Theme.Small);
+                using(var brush=new SolidBrush(Color.FromArgb(215,Theme.Panel)))g.FillRectangle(brush,8,Height-31,Math.Min(Width-16,420),24);
+        Theme.Label(g,Room.name+" · "+Frame+" F · "+(view.Width/Room.width*100).ToString("0")+"% · Ctrl+滚轮 / 中键平移",new Rectangle(14,Height-31,Math.Max(1,Width-28),24),Theme.Text,Theme.Small);
     }
     private static bool Near(PointF a,PointF b,double radius){return Math.Abs(a.X-b.X)<radius&&Math.Abs(a.Y-b.Y)<radius;}
     protected override void OnMouseDown(MouseEventArgs e)
     {
-        base.OnMouseDown(e);if(State==null||Room==null)return;Focus();var p=Position(e.Location);down=e.Location;pointerDown=p;moved=false;positions.Clear();
+        base.OnMouseDown(e);if(State==null||Room==null)return;Focus();if(e.Button==MouseButtons.Middle){panning=true;panStart=e.Location;panX=ViewX;panY=ViewY;Cursor=Cursors.Hand;Capture=true;return;}var p=Position(e.Location);down=e.Location;pointerDown=p;moved=false;positions.Clear();
         if(SelectedTracks.Count<=1&&SelectedTrack!=null&&SelectedTrack.kind=="rod")
         {var ends=Motion.Endpoints(SelectedTrack,Frame);for(int i=0;i<2;i++)if(Near(ends[i],p,14)){draggingTrack=SelectedTrack;handle=i==0?"first":"second";if(e.Button==MouseButtons.Left){if(BeginEdit!=null)BeginEdit();Capture=true;}else draggingTrack=null;return;}}
         foreach(var t in State.tracks.Where(t=>t.enabled&&Theme.Spatial(t.kind)&&Frame>=t.start&&Frame<=t.end).Reverse())
@@ -116,7 +134,7 @@ internal sealed class StageCanvas : Control
     }
     protected override void OnMouseMove(MouseEventArgs e)
     {
-        base.OnMouseMove(e);if(Room==null)return;var p=Position(e.Location);if(PointerMoved!=null)PointerMoved(p);
+        base.OnMouseMove(e);if(Room==null)return;if(panning){Fit();double scale=view.Width/Room.width;ViewX=panX-(e.X-panStart.X)/scale;ViewY=panY-(e.Y-panStart.Y)/scale;Fit();Invalidate();return;}var p=Position(e.Location);if(PointerMoved!=null)PointerMoved(p);
         if(selectingBox)
         {
             boxLast=p;var r=RectangleF.FromLTRB(Math.Min(boxFirst.X,p.X),Math.Min(boxFirst.Y,p.Y),Math.Max(boxFirst.X,p.X),Math.Max(boxFirst.Y,p.Y));SelectedTracks.Clear();SelectedTracks.UnionWith(boxInitial);
@@ -142,7 +160,8 @@ internal sealed class StageCanvas : Control
         else{draggingInstance.x=x;draggingInstance.y=y;}SceneChanged();
     }
     protected override void OnMouseUp(MouseEventArgs e)
-    {base.OnMouseUp(e);if(selectingBox){selectingBox=false;var chosen=SelectedTracks.ToArray();if(SelectTracks!=null)SelectTracks(chosen,chosen.FirstOrDefault());Invalidate();}Capture=false;if(moved&&draggingTrack!=null&&Changed!=null)Changed();if(moved&&draggingInstance!=null&&InstanceMoved!=null)InstanceMoved(draggingInstance);draggingTrack=null;draggingInstance=null;}
+    {base.OnMouseUp(e);if(panning||e.Button==MouseButtons.Middle){panning=false;Capture=false;Cursor=Cursors.Default;return;}if(selectingBox){selectingBox=false;var chosen=SelectedTracks.ToArray();if(SelectTracks!=null)SelectTracks(chosen,chosen.FirstOrDefault());Invalidate();}Capture=false;if(moved&&draggingTrack!=null&&Changed!=null)Changed();if(moved&&draggingInstance!=null&&InstanceMoved!=null)InstanceMoved(draggingInstance);draggingTrack=null;draggingInstance=null;}
+    protected override void OnMouseCaptureChanged(EventArgs e){base.OnMouseCaptureChanged(e);if(!Capture&&panning){panning=false;Cursor=Cursors.Default;}}
     protected override void OnDragEnter(DragEventArgs e){if(e.Data.GetDataPresent(DataFormats.Text))e.Effect=DragDropEffects.Copy;}
     protected override void OnDragDrop(DragEventArgs e){var text=e.Data.GetData(DataFormats.Text) as string;if(text==null||ResourceDropped==null)return;var parts=text.Split('|');if(parts.Length==2)ResourceDropped(parts[0],parts[1],Position(PointToClient(new Point(e.X,e.Y))));}
     protected override void Dispose(bool disposing){if(disposing){if(image!=null){image.Dispose();image=null;}if(!rendering){if(workerSprites!=null){workerSprites.Dispose();workerSprites=null;}previewCache.Dispose();}}base.Dispose(disposing);}
