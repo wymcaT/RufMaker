@@ -1,4 +1,5 @@
 /build/
+**/build/
 /.rufmaker-browser/
 /.rufmaker-view.json*
 /GameMaker8.2/

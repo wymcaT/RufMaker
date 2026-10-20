@@ -31,7 +31,7 @@ internal sealed class NativeAudio : IDisposable
         Dispose();if(!File.Exists(file))throw new FileNotFoundException("找不到工程音乐",file);
         Check(FMOD_System_Create(out system));uint version;Check(FMOD_System_GetVersion(system,out version));Version=version;
         Check(FMOD_System_Init(system,16,0,IntPtr.Zero));
-        Check(FMOD_System_CreateSound(system,System.Text.Encoding.UTF8.GetBytes(Path.GetFullPath(file)+"\0"),0x00000001|0x00000008|0x00000080,IntPtr.Zero,out sound));
+        Check(FMOD_System_CreateSound(system,System.Text.Encoding.Unicode.GetBytes(Path.GetFullPath(file)+"\0"),0x01000000|0x00000001|0x00000008|0x00000080,IntPtr.Zero,out sound));
         uint length;Check(FMOD_Sound_GetLength(sound,out length,1));Duration=length/1000.0;
     }
     public void Play(double seconds)

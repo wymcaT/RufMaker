@@ -2,7 +2,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import readline from 'node:readline';
-import {project,projectFile,pack,readState,syncToGame,roomInfo,inventory,sourcePath,moveRoomInstance,importSprite} from './project.mjs';
+import {createProject,copySong,terrainLayout} from './project-files.mjs';
+import {root,project,projectFile,descriptor,projectName,pack,readState,syncToGame,roomInfo,inventory,sourcePath,moveRoomInstance,importSprite} from './project.mjs';
 import {ensureBuild,exportStatus,packageGame,runNative,openNative} from './native.mjs';
 
 function spriteMetadata() {
@@ -15,12 +16,20 @@ function spriteMetadata() {
 
 function loadProject() {
   const state=readState();
-  return {state,inventory:inventory(),room:roomInfo(state.room),project,projectFile,pack,spriteMeta:spriteMetadata(),waveform:JSON.parse(fs.readFileSync(new URL('./waveform.json',import.meta.url),'utf8'))};
+  let waveform={duration:0,peaks:[]};
+  const cache=path.join(project,'cache','rufmaker-waveform.json');
+  if(fs.existsSync(cache)){const data=JSON.parse(fs.readFileSync(cache,'utf8'));if(data.source===state.music)waveform=data;}
+  else if(state.music==='Data/Music/BGM.ogg')waveform={...JSON.parse(fs.readFileSync(new URL('./waveform.json',import.meta.url),'utf8')),source:state.music};
+  return {state,inventory:inventory(),room:roomInfo(state.room),project,projectFile,descriptor,projectName,pack,spriteMeta:spriteMetadata(),waveform};
 }
 
 async function execute(command,payload={}) {
   switch(command) {
     case 'load': return loadProject();
+    case 'new-project': return createProject(root,payload);
+    case 'terrain-preview': return terrainLayout(payload);
+    case 'import-song': return copySong(project,payload.path);
+    case 'audio-cache': fs.mkdirSync(path.join(project,'cache'),{recursive:true});fs.writeFileSync(path.join(project,'cache','rufmaker-waveform.json'),JSON.stringify(payload));return {ok:true};
     case 'save': syncToGame(payload); return {room:roomInfo(payload.room),export:exportStatus()};
     case 'source-read': return {content:fs.readFileSync(sourcePath(payload.kind,payload.name),'utf8')};
     case 'source-save': fs.writeFileSync(sourcePath(payload.kind,payload.name),payload.content,'utf8'); return {ok:true};

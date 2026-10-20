@@ -1,0 +1,45 @@
+|block
++savePoint
+	|savePoint
++others
+	|objWater
+	|objWater2
+	|WalljumpR
+	|WalljumpL
+	|movingPlatform
+	|pathPlatform
+	|obj_wall
++warp
+	|warp
+	|invisibleWarp
++player_etc
+	|init
+	|world
+	|playerStart
+	|player
+	|bow
+	|bloodEmitter
+	|bullet
+	|camera
+	|GAMEOVER
+	|titleButton
+	|objDeathSound
++parent
+	|platform
+	|playerKiller
+	|roomChanger
++effect
+	|objHPBar
+	|objShake
+	|objScreenFlash
+	|objShadow
+	|objSmoothView
++Ad
+	|objAd
+	|objBackground
+	|objBullet1
+	|objBullet2
+	|objBullet3
+	|objCreator
+	|objEffect
+	|objDrawer

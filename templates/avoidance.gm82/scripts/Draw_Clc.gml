@@ -1,0 +1,5 @@
+///Draw_Clc(Alpha,color)
+draw_set_color(argument1)
+draw_set_alpha(argument0)
+draw_rectangle(view_xview-300,view_yview-300,view_xview+1100,view_yview+1100,0)
+draw_set_alpha(1)

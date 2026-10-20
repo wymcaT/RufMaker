@@ -1,9 +1,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
-import { root, project, projectFile, makerFile, gameMaker, buildDir, readState } from './project.mjs';
+import { root, project, projectFile, makerFile, gameMaker, buildDir, gameExe, readState } from './project.mjs';
 
-const exportedExe=path.join(root,'rufmaker-demo.exe');
+const exportedExe=gameExe;
 let buildTask=null;
 let previewProcess=null;
 

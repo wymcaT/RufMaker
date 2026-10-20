@@ -12,11 +12,14 @@ using System.Web.Script.Serialization;
 #pragma warning disable 0649 // JSON fields are populated by JavaScriptSerializer.
 internal sealed class EditorState
 {
-    public int version=2, fps=50, bpm=120, duration=1500;
+    public int version=2, fps=50, duration=1500;
+    public double bpm=120,beatOffsetMs;public int beatDivision=4;public bool beatSnap,directStart;
+    public string name="",musicTitle="";public PlayerSettings player;public object terrain;
     public string room="rAvoidance", music="Data/Music/BGM.ogg";
     public bool timelineInitialized;
     public List<Track> tracks=new List<Track>();
 }
+internal sealed class PlayerSettings {public double gravity=.4,moveSpeed=3,jumpSpeed=8.5,doubleJumpSpeed=7;public int maxJumps=2;public bool infiniteJump;}
 internal sealed class Track
 {
     public string id, name, kind, sprite="sprBullet", easing="linear", color="#ff6d91", effect="flash", code="", rodMode="center", motion="keyframes";
@@ -62,13 +65,14 @@ internal sealed class Inventory
     public Dictionary<string,string> objectSprites=new Dictionary<string,string>();
 }
 internal sealed class SpriteMeta {public int originX,originY,frames=1;}
-internal sealed class WaveData {public double duration;public double[] peaks;}
+internal sealed class WaveData {public double duration,bpm,offsetMs,confidence;public double[] peaks;public string source;}
+internal sealed class ProjectPathResult {public string path,music,title;}
 internal sealed class LoadData
 {
     public EditorState state;
     public Inventory inventory;
     public RoomData room;
-    public string project,projectFile,pack;
+    public string project,projectFile,descriptor,projectName,pack;
     public Dictionary<string,SpriteMeta> spriteMeta;
     public WaveData waveform;
 }
@@ -95,7 +99,7 @@ internal sealed class NativeBridge : IDisposable
     private bool disposed;
     private readonly string logPath;
     private readonly StreamWriter input;
-    public NativeBridge(string root)
+    public NativeBridge(string root,string projectPath="")
     {
         Directory.CreateDirectory(Path.Combine(root,"build","logs"));
         logPath=Path.Combine(root,"build","logs","native-bridge.log");
@@ -104,6 +108,7 @@ internal sealed class NativeBridge : IDisposable
         info.RedirectStandardInput=true;info.RedirectStandardOutput=true;info.RedirectStandardError=true;
         info.StandardOutputEncoding=System.Text.Encoding.UTF8;info.StandardErrorEncoding=System.Text.Encoding.UTF8;
         info.EnvironmentVariables["RUFMAKER_ROOT"]=root;
+        if(!String.IsNullOrEmpty(projectPath))info.EnvironmentVariables["RUFMAKER_PROJECT"]=projectPath;else info.EnvironmentVariables.Remove("RUFMAKER_PROJECT");
         process=new Process{StartInfo=info,EnableRaisingEvents=true};
         process.OutputDataReceived+=Receive;
         process.ErrorDataReceived+=(s,e)=>{if(e.Data!=null)lock(sync)File.AppendAllText(logPath,e.Data+Environment.NewLine);};

@@ -12,9 +12,50 @@ var rf_k,rf_i,rf_j,rf_u,rf_dir,rf_inst,rf_len,rf_phase,rf_fraction,rf_px,rf_py,r
 rf_custom_create();
 rf_fx_scene=-1;rf_fx_a=-1;rf_fx_b=-1;rf_fx_active=0;rf_fx_rendering=0;rf_fx_w=0;rf_fx_h=0;
 for(rf_j=0;rf_j<1;rf_j+=1){rf_fx_history[rf_j]=-1;rf_fx_history_frame[rf_j]=-1000000;}
-
+rf_inst=instance_create(0,0,objRufFxBegin);rf_inst.rf_owner=id;rf_inst=instance_create(0,0,objRufFxEnd);rf_inst.rf_owner=id;
 rf_cam_enabled=0;rf_cam_x=room_width/2;rf_cam_y=room_height/2;rf_cam_zoom=1;rf_cam_angle=0;
-
+if rf_frame>=407 && rf_frame<=907 {if (rf_frame<=428) {rf_x=402;}
+else if (rf_frame<533) {rf_u=rf_ease('linear',(rf_frame-428)/105,3,0.3);rf_x=402+(400-402)*rf_u;}
+else if (rf_frame<623) {rf_u=rf_ease('linear',(rf_frame-533)/90,3,0.3);rf_x=400+(622-400)*rf_u;}
+else {rf_x=622;}
+if (rf_frame<=411) {rf_y=554;}
+else if (rf_frame<533) {rf_u=rf_ease('linear',(rf_frame-411)/122,3,0.3);rf_y=554+(304-554)*rf_u;}
+else if (rf_frame<822) {rf_u=rf_ease('linear',(rf_frame-533)/289,3,0.3);rf_y=304+(292-304)*rf_u;}
+else {rf_y=292;}
+if (rf_frame<=479) {rf_angle=-23;}
+else if (rf_frame<822) {rf_u=rf_ease('linear',(rf_frame-479)/343,3,0.3);rf_angle=-23+(159--23)*rf_u;}
+else {rf_angle=159;}
+rf_scale=1;
+rf_alpha=1;
+rf_speed=3;
+rf_spread=30;
+rf_count=12;
+rf_life=160;
+rf_x1=280;
+rf_y1=304;
+rf_x2=520;
+rf_y2=304;
+rf_length=240;
+rf_rollSpeed=2;
+rf_rainbowDensity=1;
+rf_rainbowOffset=0;
+rf_rainbowSpeed=0.25;
+rf_spriteAngle=0;
+rf_strength=6;
+rf_fxOpacity=1;
+rf_fxAngle=0;
+rf_fxRetention=0.5;
+rf_radius=120;
+rf_orientation=0;
+rf_sides=5;
+if (rf_frame<=407) {rf_cameraZoom=5.86;}
+else if (rf_frame<428) {rf_u=rf_ease('linear',(rf_frame-407)/21,3,0.3);rf_cameraZoom=5.86+(2.04-5.86)*rf_u;}
+else if (rf_frame<533) {rf_u=rf_ease('linear',(rf_frame-428)/105,3,0.3);rf_cameraZoom=2.04+(1-2.04)*rf_u;}
+else if (rf_frame<623) {rf_u=rf_ease('linear',(rf_frame-533)/90,3,0.3);rf_cameraZoom=1+(3.41-1)*rf_u;}
+else if (rf_frame<739) {rf_u=rf_ease('linear',(rf_frame-623)/116,3,0.3);rf_cameraZoom=3.41+(4.36-3.41)*rf_u;}
+else if (rf_frame<822) {rf_u=rf_ease('linear',(rf_frame-739)/83,3,0.3);rf_cameraZoom=4.36+(0.66-4.36)*rf_u;}
+else {rf_cameraZoom=0.66;}
+rf_angle+=0*max(0,rf_frame-407); rf_cam_enabled=1;rf_cam_x=rf_x;rf_cam_y=rf_y;rf_cam_zoom=max(.05,min(20,rf_cameraZoom));rf_cam_angle=rf_angle;}
 rf_inst=instance_create(0,0,objRufTrails);rf_inst.rf_owner=id;
 rf_rod0_count=0;for(rf_j=0;rf_j<300;rf_j+=1) rf_rod0[rf_j]=noone;
 if (rf_frame>=512 && rf_frame<=1186) {
@@ -132,7 +173,48 @@ if rf_frame>15716 { room_goto(rEnd); exit; }
 var rf_k,rf_i,rf_j,rf_u,rf_dir,rf_inst,rf_len,rf_phase,rf_fraction,rf_px,rf_py,rf_seg,rf_mix,rf_x,rf_y,rf_angle,rf_scale,rf_alpha,rf_speed,rf_spread,rf_count,rf_life,rf_x1,rf_y1,rf_x2,rf_y2,rf_length,rf_rollSpeed,rf_rainbowDensity,rf_rainbowOffset,rf_rainbowSpeed,rf_spriteAngle,rf_strength,rf_fxOpacity,rf_fxAngle,rf_fxRetention,rf_radius,rf_orientation,rf_sides,rf_cameraZoom;
 rf_custom_step();
 rf_cam_enabled=0;rf_cam_x=room_width/2;rf_cam_y=room_height/2;rf_cam_zoom=1;rf_cam_angle=0;
-
+if rf_frame>=407 && rf_frame<=907 {if (rf_frame<=428) {rf_x=402;}
+else if (rf_frame<533) {rf_u=rf_ease('linear',(rf_frame-428)/105,3,0.3);rf_x=402+(400-402)*rf_u;}
+else if (rf_frame<623) {rf_u=rf_ease('linear',(rf_frame-533)/90,3,0.3);rf_x=400+(622-400)*rf_u;}
+else {rf_x=622;}
+if (rf_frame<=411) {rf_y=554;}
+else if (rf_frame<533) {rf_u=rf_ease('linear',(rf_frame-411)/122,3,0.3);rf_y=554+(304-554)*rf_u;}
+else if (rf_frame<822) {rf_u=rf_ease('linear',(rf_frame-533)/289,3,0.3);rf_y=304+(292-304)*rf_u;}
+else {rf_y=292;}
+if (rf_frame<=479) {rf_angle=-23;}
+else if (rf_frame<822) {rf_u=rf_ease('linear',(rf_frame-479)/343,3,0.3);rf_angle=-23+(159--23)*rf_u;}
+else {rf_angle=159;}
+rf_scale=1;
+rf_alpha=1;
+rf_speed=3;
+rf_spread=30;
+rf_count=12;
+rf_life=160;
+rf_x1=280;
+rf_y1=304;
+rf_x2=520;
+rf_y2=304;
+rf_length=240;
+rf_rollSpeed=2;
+rf_rainbowDensity=1;
+rf_rainbowOffset=0;
+rf_rainbowSpeed=0.25;
+rf_spriteAngle=0;
+rf_strength=6;
+rf_fxOpacity=1;
+rf_fxAngle=0;
+rf_fxRetention=0.5;
+rf_radius=120;
+rf_orientation=0;
+rf_sides=5;
+if (rf_frame<=407) {rf_cameraZoom=5.86;}
+else if (rf_frame<428) {rf_u=rf_ease('linear',(rf_frame-407)/21,3,0.3);rf_cameraZoom=5.86+(2.04-5.86)*rf_u;}
+else if (rf_frame<533) {rf_u=rf_ease('linear',(rf_frame-428)/105,3,0.3);rf_cameraZoom=2.04+(1-2.04)*rf_u;}
+else if (rf_frame<623) {rf_u=rf_ease('linear',(rf_frame-533)/90,3,0.3);rf_cameraZoom=1+(3.41-1)*rf_u;}
+else if (rf_frame<739) {rf_u=rf_ease('linear',(rf_frame-623)/116,3,0.3);rf_cameraZoom=3.41+(4.36-3.41)*rf_u;}
+else if (rf_frame<822) {rf_u=rf_ease('linear',(rf_frame-739)/83,3,0.3);rf_cameraZoom=4.36+(0.66-4.36)*rf_u;}
+else {rf_cameraZoom=0.66;}
+rf_angle+=0*max(0,rf_frame-407); rf_cam_enabled=1;rf_cam_x=rf_x;rf_cam_y=rf_y;rf_cam_zoom=max(.05,min(20,rf_cameraZoom));rf_cam_angle=rf_angle;}
 if (rf_frame>=512 && rf_frame<=1186) {
 if (rf_frame<=512) {rf_x=432;}
 else if (rf_frame<841) {rf_u=rf_ease('linear',(rf_frame-512)/329,3,0.3);rf_x=432+(400-432)*rf_u;}
@@ -236,6 +318,10 @@ rf_px=rf_x1+(rf_x2-rf_x1)*rf_fraction;rf_py=rf_y1+(rf_y2-rf_y1)*rf_fraction;
 rf_inst.x=rf_px;rf_inst.y=rf_py;rf_inst.image_angle=rf_spriteAngle+0;rf_inst.sprite_index=sprrainbowcherry;rf_inst.image_blend=make_color_rgb(255,255,255);rf_inst.image_xscale=rf_scale;rf_inst.image_yscale=rf_scale;rf_inst.image_alpha=rf_alpha;rf_inst.rf_trail=1;
 rf_inst.image_speed=0;rf_inst.image_blend=c_white;rf_inst.image_index=rf_rainbow_index(abs(rf_fraction-.5)*(rf_count-1),rf_frame,rf_rainbowDensity,rf_rainbowOffset,rf_rainbowSpeed,407,1,0,32);
 }} rf_rod1_count=rf_count; } else if rf_rod1_count>0 {for(rf_j=0;rf_j<rf_rod1_count;rf_j+=1) {if instance_exists(rf_rod1[rf_j]) with (rf_rod1[rf_j]) instance_destroy();rf_rod1[rf_j]=noone;}rf_rod1_count=0;}
+if rf_frame=376 {
+// 在开始帧执行的 GameMaker GML
+
+}
 if rf_preview && !rf_ready { rf_ready=1; ini_open(working_directory+'\Data\rufmaker_preview_status.ini'); ini_write_real('preview','frame',rf_target); ini_write_real('preview','current_frame',rf_frame); ini_write_real('preview','fps',room_speed); ini_write_string('preview','room',room_get_name(room)); ini_write_real('preview','bullets',instance_number(objRufBullet)); ini_write_real('preview','players',instance_number(player)); ini_close(); }
 FMODUpdate();
 #define Draw_0
@@ -283,7 +369,7 @@ action_id=603
 applies_to=self
 */
 if FMODInstanceIsPlaying(rf_music) FMODInstanceStop(rf_music);
-if surface_exists(rf_fx_scene) surface_free(rf_fx_scene);if surface_exists(rf_fx_a) surface_free(rf_fx_a);if surface_exists(rf_fx_b) surface_free(rf_fx_b);var rf_k;for(rf_k=0;rf_k<0;rf_k+=1)if surface_exists(rf_fx_history[rf_k]) surface_free(rf_fx_history[rf_k]);
+if surface_exists(rf_fx_scene) surface_free(rf_fx_scene);if surface_exists(rf_fx_a) surface_free(rf_fx_a);if surface_exists(rf_fx_b) surface_free(rf_fx_b);var rf_k;for(rf_k=0;rf_k<1;rf_k+=1)if surface_exists(rf_fx_history[rf_k]) surface_free(rf_fx_history[rf_k]);
 #define Other_4
 /*"/*'/**//* YYD ACTION
 lib_id=1

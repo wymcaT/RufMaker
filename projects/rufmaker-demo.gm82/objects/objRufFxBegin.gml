@@ -13,7 +13,7 @@ applies_to=self
 */
 if !instance_exists(rf_owner) {instance_destroy();exit;}
 with(rf_owner) {
- rf_fx_active=0;rf_fx_rendering=0;if !rf_fx_active exit;
+ rf_fx_active=(rf_frame>=407 && rf_frame<=907);rf_fx_rendering=0;if !rf_fx_active exit;
  if rf_fx_w!=room_width || rf_fx_h!=room_height {if surface_exists(rf_fx_scene)surface_free(rf_fx_scene);if surface_exists(rf_fx_a)surface_free(rf_fx_a);if surface_exists(rf_fx_b)surface_free(rf_fx_b);rf_fx_w=room_width;rf_fx_h=room_height;}
  if !surface_exists(rf_fx_scene) rf_fx_scene=surface_create(room_width,room_height);
 if !surface_exists(rf_fx_a) rf_fx_a=surface_create(room_width,room_height);

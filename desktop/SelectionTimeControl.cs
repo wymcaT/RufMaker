@@ -11,7 +11,7 @@ internal sealed class SelectionTimeControl : UserControl
     private readonly CheckBox selectedRange=new CheckBox{Text="物件时段",Checked=true,AutoSize=true,ForeColor=Theme.Muted,Margin=new Padding(4,5,0,0)};
     private readonly FlowLayoutPanel header=new FlowLayoutPanel{Dock=DockStyle.Fill,AutoSize=true,WrapContents=true,Margin=Padding.Empty};
     private bool updating;private int current,fps=50,duration=1,start,finish=1;private Track track;
-    public Action<int> Seek;public Action RangeChanged;
+    public Action<int> Seek;public Func<int,int> SnapFrame;public Action RangeChanged;
     public SelectionTimeControl()
     {
         AutoScaleMode=AutoScaleMode.None;BackColor=Theme.Panel;Font=Theme.Font;
@@ -26,7 +26,7 @@ internal sealed class SelectionTimeControl : UserControl
         Button before=new Button(),after=new Button();var buttons=new[]{begin,before,after,end};string[] names={"到开始","前一帧","后一帧","到结束"};
         for(int i=0;i<4;i++){buttons[i].Text=names[i];buttons[i].Dock=DockStyle.Fill;buttons[i].FlatStyle=FlatStyle.Flat;buttons[i].BackColor=Theme.Raised;buttons[i].ForeColor=Theme.Text;buttons[i].FlatAppearance.BorderSize=0;buttons[i].Margin=new Padding(1,2,1,3);actions.Controls.Add(buttons[i],i%2,i/2);}
         begin.Click+=(s,e)=>Jump(track==null?0:track.start);end.Click+=(s,e)=>Jump(track==null?duration:track.end);before.Click+=(s,e)=>Jump(current-1);after.Click+=(s,e)=>Jump(current+1);table.Controls.Add(actions,0,3);
-        progress.ValueChanged+=(s,e)=>{if(!updating)Jump(progress.Value);};selectedRange.CheckedChanged+=(s,e)=>UpdateRange();
+        progress.ValueChanged+=(s,e)=>{if(!updating)Jump(Math.Max(start,Math.Min(finish,SnapFrame==null?progress.Value:SnapFrame(progress.Value))));};selectedRange.CheckedChanged+=(s,e)=>UpdateRange();
         Controls.Add(table);
     }
     public override Size GetPreferredSize(Size proposedSize)

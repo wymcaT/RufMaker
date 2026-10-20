@@ -1,0 +1,7 @@
+sprite=
+visible=1
+solid=1
+persistent=1
+depth=-7500000
+parent=
+mask=

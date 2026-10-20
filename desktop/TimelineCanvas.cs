@@ -95,7 +95,7 @@ internal sealed class TimelineCanvas : UserControl
     {int a=(int)X(oldFrame),b=(int)X(Frame);Invalidate(new Rectangle(Math.Max(Names,Math.Min(a,b)-8),0,Math.Abs(a-b)+18,Height-horizontal.Height));}
     protected override void OnResize(EventArgs e){base.OnResize(e);RefreshLayout();}
     private float X(int frame){return State==null?Names:Names+frame/(float)State.fps*PixelsPerSecond-horizontal.Value;}
-    private int ToFrame(int x){return Math.Max(0,Math.Min(State.duration,(int)Math.Round((x-Names+horizontal.Value)/PixelsPerSecond*State.fps)));}
+    private int ToFrame(int x){int frame=Math.Max(0,Math.Min(State.duration,(int)Math.Round((x-Names+horizontal.Value)/PixelsPerSecond*State.fps)));return (ModifierKeys&Keys.Alt)!=0?frame:BeatGrid.Snap(State,frame);}
     protected override void OnPaint(PaintEventArgs e)
     {
         base.OnPaint(e);var g=e.Graphics;g.Clear(Theme.Panel);if(State==null)return;
@@ -103,7 +103,7 @@ internal sealed class TimelineCanvas : UserControl
         using(var brush=new SolidBrush(Theme.Back))g.FillRectangle(brush,Names,0,width-Names,Header);
         using(var pen=new Pen(Theme.Line)){g.DrawLine(pen,Names,0,Names,height);g.DrawLine(pen,0,Header,width,Header);}
         Theme.Label(g,SelectedKeys.Count>1?"已选 "+SelectedKeys.Count+" 个关键帧":SelectedTracks.Count>1?"已选 "+SelectedTracks.Count+" 个物件":"时间轴 · ▸ 展开 · 空白框选",new Rectangle(8,0,Names-12,28),Theme.Text,Theme.Bold);
-        Theme.Label(g,"♫  "+System.IO.Path.GetFileName(State.music),new Rectangle(16,28,Names-25,48),Theme.Muted);
+        Theme.Label(g,"♫  "+(String.IsNullOrEmpty(State.musicTitle)?System.IO.Path.GetFileName(State.music):State.musicTitle),new Rectangle(16,28,Names-25,48),Theme.Muted);
         var clip=g.Save();g.SetClip(new Rectangle(Names,0,width-Names,height));
         double target=65/PixelsPerSecond;double[] steps={.02,.05,.1,.2,.5,1,2,5,10,15,30,60,120,300,600};double step=steps.FirstOrDefault(v=>v>=target);if(step==0)step=600;
         double left=horizontal.Value/PixelsPerSecond,right=(horizontal.Value+width-Names)/PixelsPerSecond;
@@ -139,6 +139,7 @@ internal sealed class TimelineCanvas : UserControl
             }
             g.Restore(rowClip);
         }
+        DrawBeatGrid(g,width,height);
         if(dragMode=="box")
         {
             var saved=g.Save();g.SetClip(new Rectangle(Names,Header,width-Names,height-Header));var rect=BoxRectangle();rect.Offset(Names-horizontal.Value,Header-vertical.Value);
@@ -146,6 +147,14 @@ internal sealed class TimelineCanvas : UserControl
         }
         float playhead=X(Frame);if(playhead>=Names&&playhead<width)
         {using(var pen=new Pen(Theme.Accent,1.5f))g.DrawLine(pen,playhead,8,playhead,height);using(var brush=new SolidBrush(Theme.Accent))g.FillPolygon(brush,new[]{new PointF(playhead-6,0),new PointF(playhead+6,0),new PointF(playhead+6,9),new PointF(playhead,15),new PointF(playhead-6,9)});}
+    }
+    private void DrawBeatGrid(Graphics g,int width,int height)
+    {
+        if(!State.beatSnap)return;double step=BeatGrid.StepSeconds(State),offset=State.beatOffsetMs/1000;
+        double stride=Math.Max(1,Math.Ceiling(5/(step*PixelsPerSecond))),left=horizontal.Value/PixelsPerSecond,right=(horizontal.Value+width-Names)/PixelsPerSecond;
+        double first=Math.Floor((left-offset)/step/stride)*stride;var saved=g.Save();g.SetClip(new Rectangle(Names,24,width-Names,height-24));
+        for(double tick=first;offset+tick*step<=right;tick+=stride){double second=offset+tick*step;if(second<0)continue;float x=Names+(float)second*PixelsPerSecond-horizontal.Value;bool quarter=Math.Abs(tick*4/State.beatDivision-Math.Round(tick*4/State.beatDivision))<.001;using(var pen=new Pen(quarter?Color.FromArgb(70,213,180,94):Color.FromArgb(28,200,173,115)))g.DrawLine(pen,x,25,x,height);}
+        g.Restore(saved);
     }
     protected override void OnMouseDown(MouseEventArgs e)
     {

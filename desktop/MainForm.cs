@@ -7,7 +7,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 
-internal sealed class MainForm : Form
+internal sealed partial class MainForm : Form
 {
     private readonly string root;
     private NativeBridge bridge;
@@ -55,7 +55,7 @@ internal sealed class MainForm : Form
         saveTimer.Interval=400;saveTimer.Tick+=async(s,e)=>{saveTimer.Stop();await SaveNow(false);};
         playTimer.Interval=15;playTimer.Tick+=(s,e)=>{if(state==null)return;audio.Update();SetFrame(playStart+(int)(playClock.Elapsed.TotalSeconds*state.fps));timeline.EnsureFrameVisible();if(frame>=state.duration)StopPlaying();};
         inspectorTimer.Interval=100;inspectorTimer.Tick+=(s,e)=>{inspectorTimer.Stop();properties.Refresh();};
-        Shown+=async(s,e)=>{try{bridge=new NativeBridge(root);await LoadProject();}catch(Exception error){Error(error);}};
+        Shown+=async(s,e)=>{try{currentProjectPath=restoredView!=null&&File.Exists(restoredView.projectPath)?restoredView.projectPath:"";bridge=new NativeBridge(root,currentProjectPath);await LoadProject();}catch(Exception error){Error(error);}};
         FormClosing+=OnClosing;
         FormClosed+=(s,e)=>{saveTimer.Dispose();playTimer.Dispose();inspectorTimer.Dispose();audio.Dispose();if(effectMenu!=null)effectMenu.Dispose();if(bridge!=null)bridge.Dispose();if(sprites!=null)sprites.Dispose();};
     }
@@ -75,7 +75,7 @@ internal sealed class MainForm : Form
         var top=new FlowLayoutPanel{Dock=DockStyle.Fill,AutoSize=true,AutoSizeMode=AutoSizeMode.GrowAndShrink,WrapContents=true,Margin=Padding.Empty};
         top.Controls.Add(new Label{Text="RufMaker",Font=new Font("Segoe UI",19,FontStyle.Bold),ForeColor=Theme.Accent,AutoSize=true,Margin=new Padding(2,0,16,4)});
         projectTitle.AutoSize=true;projectTitle.MaximumSize=new Size(320,0);projectTitle.Margin=new Padding(0,4,16,4);projectTitle.ForeColor=Theme.Muted;projectTitle.Text="原生 Windows 编辑器";top.Controls.Add(projectTitle);
-        var topActions=top;
+        var topActions=top;BuildProjectActions(topActions);
         exportButton=Button("导出游戏",async()=>await ExportGame(),true,96);topActions.Controls.Add(exportButton);
         runButton=Button("试玩 F5",async()=>await RunGame(),false,96);tips.SetToolTip(runButton,"F5：从播放头进入真实 GameMaker 游戏");topActions.Controls.Add(runButton);
         topActions.Controls.Add(Button("保存",async()=>await SaveNow(true),false,64));
@@ -124,7 +124,7 @@ internal sealed class MainForm : Form
         var table=new TableLayoutPanel{Dock=DockStyle.Top,ColumnCount=1,RowCount=4,BackColor=Theme.Panel,Margin=Padding.Empty};
         table.RowStyles.Add(new RowStyle(SizeType.Absolute,Font.Height+20));table.RowStyles.Add(new RowStyle(SizeType.Absolute,rightTime.PreferredSize.Height));table.RowStyles.Add(new RowStyle(SizeType.Percent,100));table.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         selectionTitle.Text="属性检查器";selectionTitle.Dock=DockStyle.Fill;selectionTitle.AutoEllipsis=true;selectionTitle.Padding=new Padding(8,0,0,0);selectionTitle.TextAlign=ContentAlignment.MiddleLeft;selectionTitle.Font=Theme.Bold;table.Controls.Add(selectionTitle,0,0);
-        rightTime.Dock=DockStyle.Fill;rightTime.Margin=Padding.Empty;rightTime.Seek=value=>{StopPlaying();SetFrame(value);timeline.EnsureFrameVisible();};table.Controls.Add(rightTime,0,1);
+        rightTime.Dock=DockStyle.Fill;rightTime.Margin=Padding.Empty;rightTime.SnapFrame=value=>state==null||(ModifierKeys&Keys.Alt)!=0?value:BeatGrid.Snap(state,value);rightTime.Seek=value=>{StopPlaying();SetFrame(value);timeline.EnsureFrameVisible();};table.Controls.Add(rightTime,0,1);
         properties.Dock=DockStyle.Fill;properties.BeginScrub=()=>{StopPlaying();PushUndo();parameterScrubbing=true;saveTimer.Stop();};properties.EndScrub=()=>{parameterScrubbing=false;timeline.RefreshLayout();UpdateTitle();if(state!=null)rightTime.SetView(state.fps,state.duration,frame,selectedTrack);if(selectedInstance!=null)SaveInstanceFromProperty(selectedInstance);else if(dirty){saveTimer.Stop();saveTimer.Start();}};
         table.Controls.Add(properties,0,2);
         var actions=new FlowLayoutPanel{Dock=DockStyle.Fill,AutoSize=true,WrapContents=true,Padding=new Padding(4),Margin=Padding.Empty};
@@ -136,7 +136,7 @@ internal sealed class MainForm : Form
     }
     private void BuildTimeline(Control parent)
     {
-        var table=new TableLayoutPanel{Dock=DockStyle.Fill,ColumnCount=1,RowCount=3,BackColor=Theme.Panel,Margin=Padding.Empty};table.RowStyles.Add(new RowStyle(SizeType.AutoSize));table.RowStyles.Add(new RowStyle(SizeType.AutoSize));table.RowStyles.Add(new RowStyle(SizeType.Percent,100));
+        var table=new TableLayoutPanel{Dock=DockStyle.Fill,ColumnCount=1,RowCount=4,BackColor=Theme.Panel,Margin=Padding.Empty};table.RowStyles.Add(new RowStyle(SizeType.AutoSize));table.RowStyles.Add(new RowStyle(SizeType.AutoSize));table.RowStyles.Add(new RowStyle(SizeType.AutoSize));table.RowStyles.Add(new RowStyle(SizeType.Percent,100));
         var bar=new FlowLayoutPanel{Dock=DockStyle.Fill,AutoSize=true,AutoSizeMode=AutoSizeMode.GrowAndShrink,WrapContents=true,Margin=Padding.Empty};
         playButton=Button("▶",TogglePlaying,false,36);bar.Controls.Add(playButton);bar.Controls.Add(Button("■",()=>{StopPlaying();SetFrame(0);},false,36));
         timeLabel.Text="00:00.00";timeLabel.ForeColor=Theme.Text;timeLabel.Font=new Font("Consolas",13);timeLabel.Width=TextRenderer.MeasureText("000:00.00",timeLabel.Font).Width+12;timeLabel.Height=Math.Max(40,timeLabel.Font.Height+12);timeLabel.TextAlign=ContentAlignment.MiddleCenter;bar.Controls.Add(timeLabel);
@@ -153,10 +153,11 @@ internal sealed class MainForm : Form
         zoomBar.Controls.Add(Button("＋60 秒",()=>ChangeDuration(state==null?60:state.duration/(double)state.fps+60),false,80));zoomBar.Controls.Add(Button("按音乐长度",()=>{if(document!=null)ChangeDuration(document.waveform.duration);},false,98));
         zoomBar.Controls.Add(new Label{Text="音量",AutoSize=true,ForeColor=Theme.Muted,Margin=new Padding(10,9,0,0)});var volume=new WheelSafeTrackBar{Minimum=0,Maximum=100,Value=65,Width=95,Height=32,TickStyle=TickStyle.None,Margin=new Padding(0,4,0,0)};volume.ValueChanged+=(s,e)=>audio.SetVolume(volume.Value/100f);zoomBar.Controls.Add(volume);tips.SetToolTip(volume,"时间轴音乐音量");
         zoomBar.Controls.Add(new Label{Text="Ctrl+滚轮缩放 · Shift+滚轮横移",AutoSize=true,ForeColor=Theme.Muted,Margin=new Padding(6,9,0,0)});table.Controls.Add(zoomBar,0,1);
+        table.Controls.Add(BuildBeatControls(),0,2);
         timeline.Dock=DockStyle.Fill;timeline.Margin=Padding.Empty;timeline.Seek=value=>{StopPlaying();SetFrame(value);};timeline.SelectTrack=SelectTrack;timeline.BeginEdit=PushUndo;timeline.Changed=MarkChanged;
         timeline.PreviewChanged=()=>{stage.SceneChanged();inspectorTimer.Stop();inspectorTimer.Start();};
         timeline.InsertKey=(t,p,f)=>{SelectTrack(t,null);timeline.SelectedProperty=p;SetFrame(f);AddKey();};
-        timeline.ContextMenuStrip=CreateContext(false);table.Controls.Add(timeline,0,2);parent.Controls.Add(table);
+        timeline.ContextMenuStrip=CreateContext(false);table.Controls.Add(timeline,0,3);parent.Controls.Add(table);
     }
 
     private void ChangeDuration(double seconds)
@@ -187,7 +188,7 @@ internal sealed class MainForm : Form
         Rectangle bounds=WindowState==FormWindowState.Normal?Bounds:RestoreBounds;
         new WorkspaceView{positioned=true,x=bounds.X,y=bounds.Y,width=bounds.Width,height=bounds.Height,maximized=WindowState==FormWindowState.Maximized,
             leftWidth=leftSplit.Panel1.Width,rightWidth=rightSplit.Panel2.Width,timelineHeight=verticalSplit.Panel2.Height,
-            frame=frame,resourceKind=resourceKind,search=search.Text,selectedTrack=selectedTrack==null?null:selectedTrack.id,selectedProperty=timeline.SelectedProperty,
+            projectPath=currentProjectPath,frame=frame,resourceKind=resourceKind,search=search.Text,selectedTrack=selectedTrack==null?null:selectedTrack.id,selectedProperty=timeline.SelectedProperty,
             grid=stage.Grid,hitboxes=stage.Hitboxes,renderCamera=stage.RenderCamera,cameraZoom=stage.ViewZoom,cameraX=stage.ViewX,cameraY=stage.ViewY,timeline=timeline.CaptureView()}.Save(root);
     }
 
@@ -313,20 +314,22 @@ internal sealed class MainForm : Form
         foreach(var original in originals){var t=original.Snapshot();t.id=Guid.NewGuid().ToString("N");t.name+=" 副本";t.start+=delta;t.end+=delta;foreach(var key in t.keyframes)key.frame+=delta;state.tracks.Add(t);copies.Add(t);timeline.Expand(t,true);}timeline.SetTrackSelection(copies);MarkChanged();
     }
 
-    private async Task LoadProject()
+    private async Task LoadProject(LoadData loaded=null)
     {
+        bool wasBusy=busy,wasEnabled=Enabled;SetBusy(true);Enabled=false;
         try
         {
-            if(bridge==null)return;StopPlaying();SetStatus("正在读取工程…");document=await bridge.Call<LoadData>("load",new{});state=document.state;Motion.Normalize(state);
-            bool migrated=!state.timelineInitialized;if(migrated){if(state.duration==1500)state.duration=Math.Max(state.duration,(int)Math.Ceiling(document.waveform.duration*state.fps));state.timelineInitialized=true;}
+            if(bridge==null)return;StopPlaying();SetStatus("正在读取工程…");document=loaded??await bridge.Call<LoadData>("load",new{});state=document.state;Motion.Normalize(state);currentProjectPath=document.descriptor;await LoadCurrentMusic();RefreshBeatControls();
+            bool migrated=!state.timelineInitialized;if(migrated){if(state.duration==1500)state.duration=Math.Max(state.tracks.Count==0?state.fps:state.tracks.Max(t=>Math.Max(t.end,t.keyframes.Count==0?0:t.keyframes.Max(k=>k.frame))),(int)Math.Ceiling(document.waveform.duration*state.fps));state.timelineInitialized=true;}
             if(sprites!=null)sprites.Dispose();sprites=new SpriteStore{Project=document.project,Metadata=document.spriteMeta};
             selectedTrack=null;selectedKey=null;selectedInstance=null;resourceName=null;dirty=false;undo.Clear();redo.Clear();
             stage.State=state;stage.Room=document.room;stage.Sprites=sprites;stage.ObjectSprites=document.inventory.objectSprites;
             timeline.ClearKeySelection();timeline.State=state;timeline.Wave=document.waveform;frameInput.Maximum=state.duration;FillResources();SelectProject();SetFrame(Math.Min(frame,state.duration));timeline.RefreshLayout();timeline.FitAll();RestoreDocumentView();UpdateTitle();stage.SceneChanged();
-            await Task.Run(()=>audio.Load(Path.Combine(document.project,state.music.Replace('/',Path.DirectorySeparatorChar))));
+
             if(migrated)MarkChanged();await SaveNow(false);SetStatus("工程已读取 · 空格带音乐播放 · F5 原生试玩 · 右键编辑轨道");
         }
         catch(Exception error){Error(error);}
+        finally{Enabled=wasEnabled;SetBusy(wasBusy);}
     }
     private void FillResources()
     {
@@ -345,7 +348,7 @@ internal sealed class MainForm : Form
         }
         resources.SmallImageList=icons;if(previous!=null)previous.Dispose();resources.EndUpdate();
     }
-    private void UpdateTitle(){if(state!=null){projectTitle.Text=String.Format("{0} / {1}\n{2} FPS    {3} BPM    {4:0.##} 秒",Path.GetFileNameWithoutExtension(document.projectFile),state.room,state.fps,state.bpm,state.duration/(double)state.fps);durationLoading=true;durationInput.Value=Math.Max(durationInput.Minimum,Math.Min(durationInput.Maximum,(decimal)(state.duration/(double)state.fps)));durationLoading=false;}}
+    private void UpdateTitle(){if(state!=null){projectTitle.Text=String.Format("{0} / {1}\n{2} FPS    {3} BPM    {4:0.##} 秒",String.IsNullOrEmpty(state.name)?document.projectName:state.name,state.room,state.fps,state.bpm,state.duration/(double)state.fps);durationLoading=true;durationInput.Value=Math.Max(durationInput.Minimum,Math.Min(durationInput.Maximum,(decimal)(state.duration/(double)state.fps)));durationLoading=false;}}
     private void SetStatus(string text){status.Text=text;}
     private void Error(Exception error){SetStatus("操作失败："+error.Message);MessageBox.Show(this,error.Message,"RufMaker",MessageBoxButtons.OK,MessageBoxIcon.Error);}
     private void SetFrame(int value)
@@ -356,7 +359,7 @@ internal sealed class MainForm : Form
     private string Snapshot(){return Json.Write(new UndoSnapshot{state=state,room=document.room});}
     private void PushUndo(){if(state==null||parameterScrubbing)return;string snapshot=Snapshot();if(undo.Count==0||undo.Peek()!=snapshot)undo.Push(snapshot);redo.Clear();}
     private void MarkChanged()
-    {if(state==null)return;dirty=true;revision++;saveTimer.Stop();if(!parameterScrubbing&&!closeInProgress)saveTimer.Start();stage.SceneChanged();if(!parameterScrubbing){timeline.RefreshLayout();properties.Refresh();UpdateTitle();rightTime.SetView(state.fps,state.duration,frame,selectedTrack);SetStatus("正在同步修改…");}}
+    {if(state==null)return;dirty=true;revision++;saveTimer.Stop();if(!parameterScrubbing&&!closeInProgress)saveTimer.Start();stage.SceneChanged();RefreshBeatControls();if(!parameterScrubbing){timeline.RefreshLayout();properties.Refresh();UpdateTitle();rightTime.SetView(state.fps,state.duration,frame,selectedTrack);SetStatus("正在同步修改…");}}
     private async Task<bool> SaveNow(bool notify)
     {
         if(state==null||bridge==null)return true;await saveGate.WaitAsync();saveTimer.Stop();int current=revision;
@@ -478,7 +481,9 @@ internal sealed class MainForm : Form
         else
         {
             selectionTitle.Text="工程设置";bag.Add("房间","工程",typeof(string),()=>state.room,null);
-            Field(bag,"FPS","时间",()=>state.fps,value=>state.fps=Math.Max(15,Math.Min(240,value)));Field(bag,"BPM","时间",()=>state.bpm,value=>state.bpm=Math.Max(1,value));
+            Field(bag,"FPS","时间",()=>state.fps,value=>state.fps=Math.Max(15,Math.Min(240,value)));Field(bag,"BPM","时间",()=>state.bpm,value=>state.bpm=Math.Max(1,Math.Min(1000,value)));
+            bag.Add("歌曲","时间",typeof(string),()=>String.IsNullOrEmpty(state.musicTitle)?Path.GetFileName(state.music):state.musicTitle,null);
+            if(state.player!=null){Field(bag,"重力","玩家",()=>state.player.gravity,value=>state.player.gravity=Math.Max(0,value));Field(bag,"水平速度","玩家",()=>state.player.moveSpeed,value=>state.player.moveSpeed=Math.Max(0,value));Field(bag,"一段跳速度","玩家",()=>state.player.jumpSpeed,value=>state.player.jumpSpeed=Math.Max(0,value));Field(bag,"后续跳速度","玩家",()=>state.player.doubleJumpSpeed,value=>state.player.doubleJumpSpeed=Math.Max(0,value));Field(bag,"最大跳跃次数","玩家",()=>state.player.maxJumps,value=>state.player.maxJumps=Math.Max(1,Math.Min(8,value)));Field(bag,"无限跳跃","玩家",()=>state.player.infiniteJump,value=>state.player.infiniteJump=value);}
             bag.Add("总帧数","时间",typeof(int),()=>state.duration,value=>ChangeDuration((int)value/(double)state.fps));
             bag.Add("音乐时长 / 秒","时间",typeof(double),()=>document.waveform.duration,null);
             bag.Add("轨道数量","工程",typeof(int),()=>state.tracks.Count,null);bag.Add("工程目录","工程",typeof(string),()=>document.project,null);
@@ -630,11 +635,12 @@ internal sealed class MainForm : Form
     private async void Undo(bool forward)
     {
         var from=forward?redo:undo;var to=forward?undo:redo;if(state==null||from.Count==0||busy)return;StopPlaying();saveTimer.Stop();to.Push(Snapshot());var snapshot=Json.Read<UndoSnapshot>(from.Pop());
-        try{state=snapshot.state;document.state=state;stage.State=state;timeline.State=state;ReplaceRoom(await bridge.Call<RoomData>("restore-room",snapshot.room));SelectProject();SetFrame(frame);MarkChanged();}catch(Exception error){Error(error);}
+        try{state=snapshot.state;document.state=state;stage.State=state;timeline.State=state;await LoadCurrentMusic();RefreshBeatControls();ReplaceRoom(await bridge.Call<RoomData>("restore-room",snapshot.room));SelectProject();SetFrame(frame);MarkChanged();}catch(Exception error){Error(error);}
     }
     protected override bool ProcessCmdKey(ref Message msg,Keys keyData)
     {
-        bool editing=search.ContainsFocus||properties.EditingText||durationInput.ContainsFocus||frameInput.ContainsFocus;
+        bool editing=beatBar!=null&&beatBar.ContainsFocus||search.ContainsFocus||properties.EditingText||durationInput.ContainsFocus||frameInput.ContainsFocus;
+        if(keyData==(Keys.Control|Keys.N)){NewFromKeyboard();return true;}if(keyData==(Keys.Control|Keys.O)){OpenFromKeyboard();return true;}
         if(keyData==(Keys.Control|Keys.S)){stage.Focus();SaveFromKeyboard();return true;}
         if(keyData==Keys.F5){stage.Focus();RunFromKeyboard();return true;}
         if(!editing)
