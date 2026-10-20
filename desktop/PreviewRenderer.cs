@@ -29,6 +29,9 @@ internal static class PreviewRenderer
             {
                 Theme.Workspace(g,new Rectangle(0,0,bitmap.Width,bitmap.Height));if(displayClip.HasValue)g.SetClip(displayClip.Value);if(transform!=null)g.Transform=transform;
                 g.DrawImage(film??cache.roomLayer,0,0,room.width,room.height);
+                var nativeView=film==null||cache.FilmInfo==null?null:cache.FilmInfo.View((int)Math.Round(frame*cache.FilmInfo.fps/(double)Math.Max(1,state.fps)));
+                if(nativeView!=null&&displayClip.HasValue)g.SetClip(nativeView.Viewport(room.width,room.height),CombineMode.Intersect);
+                if(nativeView!=null)using(var matrix=nativeView.WorldToRoom(room.width,room.height))g.MultiplyTransform(matrix,MatrixOrder.Prepend);
                 if(film!=null&&grid)using(var pen=new Pen(Color.FromArgb(35,104,127,160))){for(int x=0;x<room.width;x+=32)g.DrawLine(pen,x,0,x,room.height);for(int y=0;y<room.height;y+=32)g.DrawLine(pen,0,y,room.width,y);}
                 g.InterpolationMode=InterpolationMode.NearestNeighbor;g.PixelOffsetMode=PixelOffsetMode.Half;
                 for(int pass=0;pass<2;pass++)

@@ -59,13 +59,13 @@ internal sealed partial class MainForm
     private readonly Button regenerateNativeFilm=new Button{Text="重新生成原生底片",AutoSize=true,Enabled=false,Margin=new Padding(8,3,5,0)};
     private NativeEvent selectedNativeEvent;private NativeFilmInfo nativeFilmInfo;private bool nativeFilmGenerating;
     private string NativeFilmPath {get{return document==null?null:Path.Combine(document.project,"cache","native-film","base.rufvideo");}}
-    private void ToggleNativeFilm(){stage.NativeFilmPath=nativeRender.Checked&&File.Exists(NativeFilmPath)?NativeFilmPath:null;stage.NativeFilmIds=new System.Collections.Generic.HashSet<string>(nativeFilmInfo==null?new string[0]:nativeFilmInfo.nativeIds??new string[0]);stage.SceneChanged();}
+    private void ToggleNativeFilm(){stage.NativeFilmPath=nativeRender.Checked&&File.Exists(NativeFilmPath)?NativeFilmPath:null;stage.NativeFilmInfo=nativeFilmInfo;stage.NativeFilmIds=new System.Collections.Generic.HashSet<string>(nativeFilmInfo==null?new string[0]:nativeFilmInfo.nativeIds??new string[0]);stage.SceneChanged();}
     private async Task EnsureNativeFilm()
     {
         nativeRender.Enabled=state!=null&&state.nativeProject!=null;regenerateNativeFilm.Enabled=nativeRender.Enabled;nativeFilmInfo=null;
         if(!nativeRender.Enabled){stage.NativeFilmPath=null;return;}
         if(File.Exists(NativeFilmPath)){
-            try{using(var film=new NativeFilmReader(NativeFilmPath))nativeFilmInfo=film.Info;nativeRender.Checked=true;ToggleNativeFilm();SetStatus("原生底片已载入 · 可直接拖动查看，RufMaker 物件与特效实时叠加。");}
+            try{using(var film=new NativeFilmReader(NativeFilmPath))nativeFilmInfo=film.Info;nativeRender.Checked=true;ToggleNativeFilm();SetStatus(nativeFilmInfo.views==null?"旧底片未记录原生视野；请点击“重新生成原生底片”一次，以同步物件和拉镜坐标。":"原生底片已载入 · 物件跟随原生视野，RufMaker 拉镜与特效实时叠加。");}
             catch(Exception error){nativeRender.Checked=false;Error(error);}return;
         }
         await GenerateNativeFilm();
@@ -86,7 +86,7 @@ internal sealed partial class MainForm
         var native=state.nativeProject;selectionTitle.Text="GM 工程 · 原生";codeButton.Enabled=true;
         NativeTestFields(bag);
         bag.Add("耐久房间","原生工程",typeof(string),()=>state.room,null);bag.Add("控制对象","原生工程",typeof(string),()=>native.controller,null);bag.Add("计时方式","原生工程",typeof(string),()=>String.IsNullOrEmpty(native.timeline)?native.clock:native.timeline+" × "+native.timelineSpeed,null);
-        bag.Add("底片状态","原生底片",typeof(string),()=>nativeFilmInfo==null?"尚未生成":nativeFilmInfo.frameCount+" 帧 / "+nativeFilmInfo.fps+" FPS · player (400,304)",null);
+        bag.Add("底片状态","原生底片",typeof(string),()=>nativeFilmInfo==null?"尚未生成":nativeFilmInfo.frameCount+" 帧 / "+nativeFilmInfo.fps+" FPS · "+(nativeFilmInfo.views==null?"缺少原生视野，请重新生成一次":"已记录原生视野"),null);
         bag.Add("已定位事件","识别结果",typeof(int),()=>native.events.Length,null);bag.Add("未换算表达式","识别结果",typeof(int),()=>native.unresolved.Length,null);
         if(selectedNativeEvent!=null){var item=selectedNativeEvent;bag.Add("原表达式","所选事件",typeof(string),()=>item.expression,null);bag.Add("帧","所选事件",typeof(int),()=>item.frame,null);bag.Add("原始代码","所选事件",typeof(string),()=>item.file+":"+item.line,null);bag.Add("内容","所选事件",typeof(string),()=>item.snippet,null);}
         bag.Add("兼容提示与建议","识别结果",typeof(string),()=>String.Join("\r\n",native.warnings),null);bag.Add("编辑方式","原生工程",typeof(string),()=>"双击事件标记编辑该帧代码块。改动原生代码后点击“重新生成原生底片”；RufMaker 物件和特效实时叠加。F5 进入真实试玩。",null);

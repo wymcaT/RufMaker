@@ -35,6 +35,7 @@ internal sealed class StageCanvas : Control
     public Track SelectedTrack;public Keyframe SelectedKey;public RoomInstance SelectedInstance;
     public int Frame;public bool Grid=true,Hitboxes,RenderCamera;
     public string NativeFilmPath;
+    public NativeFilmInfo NativeFilmInfo;
     public bool EditNativeTest;public string NativeTestSprite;public Action NativeTestPreview,NativeTestChanged;private bool draggingNativeTest;
     public HashSet<string> NativeFilmIds=new HashSet<string>();
     public Action<Track,Keyframe> SelectTrack;public Action<RoomInstance> SelectInstance;
@@ -96,7 +97,11 @@ internal sealed class StageCanvas : Control
         Fit();float scale=view.Width/(Room==null?800:Room.width);var m=new Matrix(scale,0,0,scale,view.Left,view.Top);
         if(RenderCamera&&State!=null&&Room!=null)using(var camera=Camera.At(Camera.Active(State,Frame),Frame,Room).WorldToView(Room.width,Room.height))m.Multiply(camera,MatrixOrder.Prepend);return m;
     }
-    private PointF Position(Point p){var points=new[]{new PointF(p.X,p.Y)};using(var m=DisplayMatrix()){m.Invert();m.TransformPoints(points);}return points[0];}
+    private NativeViewPose NativeView {get{return NativeFilmPath==null||NativeFilmInfo==null||State==null?null:NativeFilmInfo.View((int)Math.Round(Frame*NativeFilmInfo.fps/(double)Math.Max(1,State.fps)));}}
+    private Matrix WorldDisplayMatrix(){var m=DisplayMatrix();var pose=NativeView;if(pose!=null&&Room!=null)using(var native=pose.WorldToRoom(Room.width,Room.height))m.Multiply(native,MatrixOrder.Prepend);return m;}
+    private PointF TrackPoint(Track track,PointF point){var pose=NativeView;if(track.kind=="camera"&&pose!=null){var points=new[]{point};using(var m=pose.WorldToRoom(Room.width,Room.height))m.TransformPoints(points);return points[0];}return point;}
+    private PointF WorldPoint(Track track,PointF point){var pose=NativeView;if(track.kind=="camera"&&pose!=null){var points=new[]{point};using(var m=pose.WorldToRoom(Room.width,Room.height)){m.Invert();m.TransformPoints(points);}return points[0];}return point;}
+    private PointF Position(Point p){var points=new[]{new PointF(p.X,p.Y)};using(var m=WorldDisplayMatrix()){m.Invert();m.TransformPoints(points);}return points[0];}
     protected override void OnResize(EventArgs e){base.OnResize(e);if(previewCache!=null)DisplayOptionsChanged();}
     protected override void OnPaint(PaintEventArgs e)
     {
@@ -106,6 +111,7 @@ internal sealed class StageCanvas : Control
         var saved=g.Save();if(RenderCamera)g.SetClip(view);using(var m=DisplayMatrix())g.Transform=m;g.SmoothingMode=SmoothingMode.AntiAlias;
         foreach(var camera in State.tracks.Where(t=>t.enabled&&t.kind=="camera"&&(t==SelectedTrack||Frame>=t.start&&Frame<=t.end)))
         {var corners=Camera.At(camera,Frame,Room).Corners(Room.width,Room.height);using(var pen=new Pen(camera==SelectedTrack?Theme.Accent:Color.FromArgb(245,203,104),2)){pen.DashStyle=DashStyle.Dash;g.DrawPolygon(pen,corners);}using(var brush=new SolidBrush(Color.FromArgb(245,203,104)))g.DrawString(camera.name+" · 游戏显示范围",Theme.Small,brush,corners[0]);}
+        using(var m=WorldDisplayMatrix())g.Transform=m;
         if(EditNativeTest&&State.nativeProject!=null&&State.nativeTest!=null){float x=(float)State.nativeTest.x,y=(float)State.nativeTest.y;
             if(Sprites!=null&&!String.IsNullOrEmpty(NativeTestSprite))Sprites.Draw(g,NativeTestSprite,x,y,1,0,.8,Color.White);
             using(var pen=new Pen(Color.Cyan,1.5f)){g.DrawRectangle(pen,x-12,y-16,24,32);g.DrawLine(pen,x-20,y,x+20,y);g.DrawLine(pen,x,y-23,x,y+23);}using(var brush=new SolidBrush(Color.Cyan))g.DrawString("试玩玩家 · "+x.ToString("0.##")+", "+y.ToString("0.##"),Theme.Small,brush,x+15,y-20);
@@ -113,11 +119,13 @@ internal sealed class StageCanvas : Control
         if(SelectedInstance!=null&&Sprites!=null)
         {string sprite;if(ObjectSprites.TryGetValue(SelectedInstance.name,out sprite)){var r=Sprites.Bounds(sprite,SelectedInstance.x,SelectedInstance.y);using(var pen=new Pen(Theme.Accent,2))g.DrawRectangle(pen,r.X,r.Y,r.Width,r.Height);}}
         foreach(var item in SelectedTracks.Where(t=>t!=SelectedTrack&&Theme.Spatial(t.kind)))
-        {var q=Motion.At(item,Frame);using(var pen=new Pen(Theme.Accent,2))g.DrawRectangle(pen,(float)q.x-16,(float)q.y-16,32,32);}
+        {using(var m=item.kind=="camera"?DisplayMatrix():WorldDisplayMatrix())g.Transform=m;var q=Motion.At(item,Frame);using(var pen=new Pen(Theme.Accent,2))g.DrawRectangle(pen,(float)q.x-16,(float)q.y-16,32,32);}
+        using(var m=WorldDisplayMatrix())g.Transform=m;
         if(selectingBox)
         {var r=RectangleF.FromLTRB(Math.Min(boxFirst.X,boxLast.X),Math.Min(boxFirst.Y,boxLast.Y),Math.Max(boxFirst.X,boxLast.X),Math.Max(boxFirst.Y,boxLast.Y));using(var fill=new SolidBrush(Color.FromArgb(40,Theme.Accent)))g.FillRectangle(fill,r);using(var pen=new Pen(Theme.Accent,1.5f))g.DrawRectangle(pen,r.X,r.Y,r.Width,r.Height);}
         if(SelectedTrack!=null&&Theme.Spatial(SelectedTrack.kind))
         {
+            using(var m=SelectedTrack.kind=="camera"?DisplayMatrix():WorldDisplayMatrix())g.Transform=m;
             var p=Motion.At(SelectedTrack,Frame);
             using(var pen=new Pen(Theme.Accent,1.5f))
             {
@@ -133,7 +141,7 @@ internal sealed class StageCanvas : Control
     public Track TrackAt(PointF p)
     {
         return State==null?null:State.tracks.LastOrDefault(t=>t.enabled&&Theme.Spatial(t.kind)&&Frame>=t.start&&Frame<=t.end&&
-            (Near(new PointF((float)Motion.At(t,Frame).x,(float)Motion.At(t,Frame).y),p,22)||(t.kind=="rod"&&Motion.RodPoints(t,Frame).Any(q=>Near(q,p,16)))||
+            (Near(new PointF((float)Motion.At(t,Frame).x,(float)Motion.At(t,Frame).y),TrackPoint(t,p),22)||(t.kind=="rod"&&Motion.RodPoints(t,Frame).Any(q=>Near(q,p,16)))||
             (Theme.Visual(t.kind)&&Sprites!=null&&Sprites.Bounds(t.sprite,Motion.At(t,Frame).x,Motion.At(t,Frame).y).Contains(p))));
     }
     protected override void OnMouseDown(MouseEventArgs e)
@@ -144,7 +152,7 @@ internal sealed class StageCanvas : Control
         {var ends=Motion.Endpoints(SelectedTrack,Frame);for(int i=0;i<2;i++)if(Near(ends[i],p,14)){draggingTrack=SelectedTrack;handle=i==0?"first":"second";if(e.Button==MouseButtons.Left){if(BeginEdit!=null)BeginEdit();Capture=true;}else draggingTrack=null;return;}}
         foreach(var t in State.tracks.Where(t=>t.enabled&&Theme.Spatial(t.kind)&&Frame>=t.start&&Frame<=t.end).Reverse())
         {
-            var q=Motion.At(t,Frame);bool hit=Near(new PointF((float)q.x,(float)q.y),p,20);
+            var q=Motion.At(t,Frame);bool hit=Near(new PointF((float)q.x,(float)q.y),TrackPoint(t,p),20);
             if(t.kind=="rod")hit=hit||Motion.RodPoints(t,Frame).Any(point=>Near(point,p,14));
             if(!hit)continue;
             bool additive=(ModifierKeys&(Keys.Control|Keys.Shift))!=0;
@@ -171,7 +179,7 @@ internal sealed class StageCanvas : Control
         {
             boxLast=p;var r=RectangleF.FromLTRB(Math.Min(boxFirst.X,p.X),Math.Min(boxFirst.Y,p.Y),Math.Max(boxFirst.X,p.X),Math.Max(boxFirst.Y,p.Y));SelectedTracks.Clear();SelectedTracks.UnionWith(boxInitial);
             foreach(var t in State.tracks.Where(t=>t.enabled&&Theme.Spatial(t.kind)&&Frame>=t.start&&Frame<=t.end))
-            {var q=Motion.At(t,Frame);if(r.Contains((float)q.x,(float)q.y)||t.kind=="rod"&&Motion.RodPoints(t,Frame).Any(point=>r.Contains(point)))SelectedTracks.Add(t);}
+            {var q=Motion.At(t,Frame);var center=WorldPoint(t,new PointF((float)q.x,(float)q.y));if(r.Contains(center)||t.kind=="rod"&&Motion.RodPoints(t,Frame).Any(point=>r.Contains(point)))SelectedTracks.Add(t);}
             Invalidate();return;
         }
         if(draggingTrack==null&&draggingInstance==null)return;
@@ -181,9 +189,8 @@ internal sealed class StageCanvas : Control
             var t=draggingTrack;
             if(handle=="center")
             {
-                double dx=Math.Round(p.X-pointerDown.X),dy=Math.Round(p.Y-pointerDown.Y);if((ModifierKeys&Keys.Shift)!=0){dx=Math.Round(dx/16)*16;dy=Math.Round(dy/16)*16;}
                 foreach(var pair in positions)
-                {var item=pair.Key;string[] fields=item.kind=="rod"&&item.shape=="rod"&&item.rodMode=="endpoints"?new[]{"x1","y1","x2","y2"}:item.kind=="rod"&&item.shape=="rod"&&item.rodMode=="anchor"?new[]{"x","y","x2","y2"}:new[]{"x","y"};foreach(string field in fields)Motion.EditValue(item,field,Frame,pair.Value[field]+(field.StartsWith("x")?dx:dy));}
+                {var item=pair.Key;var current=TrackPoint(item,p);var first=TrackPoint(item,pointerDown);double dx=Math.Round(current.X-first.X),dy=Math.Round(current.Y-first.Y);if((ModifierKeys&Keys.Shift)!=0){dx=Math.Round(dx/16)*16;dy=Math.Round(dy/16)*16;}string[] fields=item.kind=="rod"&&item.shape=="rod"&&item.rodMode=="endpoints"?new[]{"x1","y1","x2","y2"}:item.kind=="rod"&&item.shape=="rod"&&item.rodMode=="anchor"?new[]{"x","y","x2","y2"}:new[]{"x","y"};foreach(string field in fields)Motion.EditValue(item,field,Frame,pair.Value[field]+(field.StartsWith("x")?dx:dy));}
             }
             else if(t.rodMode=="center")
             {var center=Motion.At(t,Frame);double dx=x-center.x,dy=y-center.y;Motion.EditValue(t,"length",Frame,2*Math.Sqrt(dx*dx+dy*dy));Motion.EditValue(t,"angle",Frame,Math.Atan2(-dy,dx)*180/Math.PI+(handle=="first"?180:0)-t.angularSpeed*Math.Max(0,Frame-t.start));}

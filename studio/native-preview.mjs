@@ -4,9 +4,10 @@ import {spawn} from 'node:child_process';
 import crypto from 'node:crypto';
 import {codeOnly} from './native-import.mjs';
 import {gmlNumber} from './gml.mjs';
+import {checkpointScripts} from './native-checkpoint.mjs';
 
 const action=`/*"/*'/**//* YYD ACTION\nlib_id=1\naction_id=603\napplies_to=self\n*/`;
-const generator=crypto.createHash('sha256').update(fs.readFileSync(new URL(import.meta.url))).update(fs.readFileSync(new URL('./native-import.mjs',import.meta.url))).digest('hex');
+const generator=crypto.createHash('sha256').update(fs.readFileSync(new URL(import.meta.url))).update(fs.readFileSync(new URL('./native-import.mjs',import.meta.url))).update(fs.readFileSync(new URL('./native-checkpoint.mjs',import.meta.url))).digest('hex');
 const section=(event,code)=>`#define ${event}\n${action}\n${code}\n`;
 const write=(f,text)=>fs.writeFileSync(f,text,'utf8');
 function append(file,line){const source=fs.readFileSync(file,'utf8');if(!source.split(/\r?\n/).includes(line))fs.appendFileSync(file,(source.endsWith('\n')?'':'\n')+line+'\n');}
@@ -46,15 +47,15 @@ export function rewriteNativeRuntime(source,state){
 export function makeNativeHarness(state,{playable=false}={}) {
   const n=state.nativeProject,fps=state.fps;
   const fmod=n.hasFmod?`if variable_global_exists('BGMHandler') {if global.BGMHandler>0 {FMODInstanceSetVolume(global.BGMHandler,rf_volume);}}`:'';
-  return section('Create_0',`window_set_visible(0);global.rf_native_preview=1;global.rf_native_frame=0;rf_target=0;rf_playing=0;rf_playable=0;rf_sequence=-1;rf_test=0;rf_boot=0;rf_entered=0;rf_presented=0;rf_refresh=1;rf_pause_draw=0;rf_rewind=0;rf_restart=0;rf_test_x=400;rf_test_y=304;random_set_seed(1234567);`)+
+  return section('Create_0',`window_set_visible(0);global.rf_native_preview=1;global.rf_native_frame=0;rf_target=0;rf_playing=0;rf_playable=0;rf_sequence=-1;rf_test=0;rf_boot=0;rf_entered=0;rf_presented=0;rf_refresh=1;rf_pause_draw=0;rf_rewind=0;rf_restart=0;rf_restores=0;rf_checkpoint_ready=0;rf_test_x=400;rf_test_y=304;random_set_seed(1234567);`)+
   section('Step_1',`rf_native_read();if !rf_playable rf_native_keys();
-${playable?"if rf_playable && rf_presented && keyboard_check_pressed(ord('R')) {keyboard_clear(ord('R'));rf_native_retry();exit;}\nif !rf_presented rf_native_place();":''}
+${playable?"rf_native_restore();if rf_playable && rf_presented && keyboard_check_pressed(ord('R')) {keyboard_clear(ord('R'));rf_native_retry();exit;}\nif !rf_presented rf_native_place();":''}
 if !rf_presented window_set_visible(0);
 if !rf_entered {rf_boot+=1;if rf_boot=3 {${n.musicInitializer||''}room_goto(${state.room});}exit;}
 if !rf_playing && rf_target<global.rf_native_frame rf_native_wait_rewind();
 if global.rf_native_frame>=rf_target {
  room_speed=${fps};
- if !rf_presented {${playable?'rf_native_place();rf_native_release();':''}rf_presented=1;screen_refresh();window_set_visible(1);}
+ if !rf_presented {${playable?'rf_native_place();rf_native_release();':''}rf_presented=1;screen_refresh();window_set_visible(1);${playable?'rf_native_checkpoint();':''}}
 }
 if !rf_playable && global.rf_native_frame>=${state.duration} {rf_playing=0;rf_target=global.rf_native_frame;}
 if global.rf_native_frame>=rf_target && !rf_playing {
@@ -88,7 +89,7 @@ export function writeNativeHarness(project,state,{playable=false}={}){
     const players=nativePlayers(project);if(!players.length)throw new Error('未识别玩家对象，无法设置试玩起点。');
     scripts.rf_native_place=players.map(name=>`with(${name}) {if !variable_local_exists('rf_native_gravity') rf_native_gravity=gravity;x=objRufNativePreview.rf_test_x;y=objRufNativePreview.rf_test_y;hspeed=0;vspeed=0;gravity=0;}`).join('\n')+'\nreturn 0;';
     scripts.rf_native_release=players.map(name=>`with(${name}) {if variable_local_exists('rf_native_gravity') gravity=rf_native_gravity;}`).join('\n')+'\nreturn 0;';
-    scripts.rf_native_retry="if !rf_playable || !rf_presented return 0;rf_restart=1;rf_native_status();game_end();return 0;";
+    Object.assign(scripts,checkpointScripts(state));
     for(const file of fs.readdirSync(path.join(project,'objects')).filter(f=>f.endsWith('.gml'))){const target=path.join(project,'objects',file);write(target,patchTestPlayerEvents(fs.readFileSync(target,'utf8'),players.includes(file.slice(0,-4))));}
     for(const file of fs.readdirSync(path.join(project,'scripts')).filter(f=>/^(?:loadGame|scrLoadGame)\.gml$/i.test(f))){const target=path.join(project,'scripts',file);write(target,"if instance_exists(objRufNativePreview) {if objRufNativePreview.rf_playable && objRufNativePreview.rf_presented {with(objRufNativePreview) rf_native_retry();return 0;}}\n"+fs.readFileSync(target,'utf8'));}
   }
@@ -130,7 +131,7 @@ export async function prepareNativeSession({project,projectFile,buildDir,cacheDi
       await new Promise((resolve,reject)=>{const process=spawn(gameMaker,[entry,'--build',exe],{cwd:path.dirname(gameMaker),windowsHide:true,stdio:['ignore','pipe','pipe']});const timer=setTimeout(()=>{process.kill();reject(new Error('原生预览编译超时；请在 GameMaker 检查原工程。记录：'+log));},180000);for(const pipe of [process.stdout,process.stderr])pipe.on('data',x=>fs.appendFileSync(log,x));process.once('error',e=>{clearTimeout(timer);reject(e);});process.once('close',code=>{clearTimeout(timer);code===0?resolve():reject(new Error('原工程或预览接入代码编译失败。请查看 '+log+'；检查扩展包、缺失资源及原 GML 报错。'));});});
       if(!fs.existsSync(exe)||fs.statSync(exe).size<1024)throw new Error('GameMaker 没有生成原生预览程序');if(nativePreviewStamp(project)!==stamp)throw new Error('编译期间工程已修改，请重新打开原生渲染或再次试玩。');write(marker,JSON.stringify({stamp,playable,generator}));
     }
-    const data=path.join(base,'Data');fs.cpSync(path.join(source,'Data'),data,{recursive:true,force:true});const commandFile=path.join(data,'rufmaker_native_command.ini'),statusFile=path.join(data,'rufmaker_native_status.ini'),frameFile=path.join(data,'rufmaker_native_frame.bmp');for(const file of [statusFile,frameFile])if(fs.existsSync(file))fs.unlinkSync(file);write(commandFile,commandText(frame,playable,playable,state.nativeTest||{}));
+    const data=path.join(base,'Data');fs.cpSync(path.join(source,'Data'),data,{recursive:true,force:true});const commandFile=path.join(data,'rufmaker_native_command.ini'),statusFile=path.join(data,'rufmaker_native_status.ini'),frameFile=path.join(data,'rufmaker_native_frame.bmp');for(const file of [statusFile,frameFile,...['rufmaker_checkpoint.sav','rufmaker_checkpoint_restore','rufmaker_checkpoint_count.ini'].map(n=>path.join(data,n))])if(fs.existsSync(file))fs.unlinkSync(file);write(commandFile,commandText(frame,playable,playable,state.nativeTest||{}));
     // Keep root-level plugin/config resources needed by older engines alongside the EXE.
     copyNativeExtras(project,base);
     return {exe,dir:base,commandFile,statusFile,frameFile,cached,width:state.nativeProject.width||800,height:state.nativeProject.height||608};
