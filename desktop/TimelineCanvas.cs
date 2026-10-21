@@ -19,6 +19,7 @@ internal sealed class TimelineCanvas : UserControl
     public readonly HashSet<Track> SelectedTracks=new HashSet<Track>();
     public readonly HashSet<Keyframe> SelectedKeys=new HashSet<Keyframe>();
     public bool NotifyingSelection {get;private set;}
+    public bool KeyboardPreviewNavigation {get;private set;}
     public float PixelsPerSecond=80;
     private readonly HScrollBar horizontal=new HScrollBar();private readonly VScrollBar vertical=new VScrollBar();
     private readonly HashSet<string> expanded=new HashSet<string>();private readonly List<Lane> lanes=new List<Lane>();
@@ -168,6 +169,7 @@ internal sealed class TimelineCanvas : UserControl
     {
         base.OnMouseDown(e);if(State==null)return;Focus();dragStart=e.Location;dragStartX=e.X+horizontal.Value;dragChanged=false;dragMode=null;
         var lane=LaneAt(e.Location);var key=KeyAt(lane,e.Location);string edge=EdgeAt(lane,e.Location);
+        KeyboardPreviewNavigation=e.Button==MouseButtons.Left&&(lane==null||e.X>=Names&&key==null&&edge==null&&(lane.track.kind=="native"?NativeAt(lane,e.X)==null:lane.property!=null||e.X<X(lane.track.start)||e.X>X(lane.track.end)));
         if(lane!=null&&lane.track.kind=="native"){
             ResetSelection(lane.track,null);NotifySelection(lane.track,null);
             if(e.Button==MouseButtons.Left){if(e.X<27&&lane.property==null)Expand(lane.track,!expanded.Contains(lane.track.id));else if(e.X>=Names){var item=NativeAt(lane,e.X);if(SelectNativeEvent!=null)SelectNativeEvent(item,false);if(Seek!=null)Seek(item==null?CursorFrame(e.X):item.frame);dragMode="seek";Capture=true;}}return;

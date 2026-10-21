@@ -14,7 +14,7 @@ internal sealed class TimelineView
 internal sealed class WorkspaceView
 {
     public int version=1,x,y,width=1500,height=940,leftWidth=220,rightWidth=300,timelineHeight=285,frame;
-    public double cameraZoom=1,cameraX,cameraY;
+    public double cameraZoom=1,cameraX,cameraY,previewRate=1;
     public bool positioned,maximized,grid=true,hitboxes,renderCamera,keySnap;
     public string projectPath="";
     public string resourceKind="objects",search="",selectedTrack,selectedProperty="x";

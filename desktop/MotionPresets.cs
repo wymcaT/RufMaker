@@ -48,8 +48,7 @@ internal sealed partial class MainForm
     private int SnapCursor(int value,double tolerance)
     {
         if(state==null||(ModifierKeys&Keys.Alt)!=0)return value;
-        if(keySnap.Checked&&selectedTrack!=null&&timeline.SelectedTracks.Count==1&&selectedTrack.keyframes.Count>0){int closest=selectedTrack.keyframes.Select(k=>k.frame).OrderBy(f=>Math.Abs(f-value)).First();if(Math.Abs(closest-value)<=tolerance)return closest;}
-        return BeatGrid.Snap(state,value);
+        return CursorSnapping.Snap(state,selectedTrack,value,tolerance,keySnap.Checked&&timeline.SelectedTracks.Count==1);
     }
     private void ApplyMotionPreset(string name,Track target)
     {

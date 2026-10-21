@@ -20,10 +20,14 @@ internal sealed class NativeAudio : IDisposable
     [DllImport(Dll,CallingConvention=CallingConvention.StdCall)] private static extern int FMOD_Channel_SetPaused(IntPtr channel,int paused);
     [DllImport(Dll,CallingConvention=CallingConvention.StdCall)] private static extern int FMOD_Channel_SetVolume(IntPtr channel,float volume);
     [DllImport(Dll,CallingConvention=CallingConvention.StdCall)] private static extern int FMOD_Channel_Stop(IntPtr channel);
+    [DllImport(Dll,CallingConvention=CallingConvention.StdCall)] private static extern int FMOD_Channel_GetFrequency(IntPtr channel,out float frequency);
+    [DllImport(Dll,CallingConvention=CallingConvention.StdCall)] private static extern int FMOD_Channel_SetFrequency(IntPtr channel,float frequency);
     private IntPtr system,sound,channel;
+    private float baseFrequency;
     public uint Version {get;private set;}
     public double Duration {get;private set;}
     public bool Playing {get;private set;}
+    public double Rate {get;private set;}
     public float Volume=.65f;
     private static void Check(int error){if(error!=0)throw new InvalidOperationException("音乐播放失败（FMOD "+error+"）");}
     public void Load(string file)
@@ -31,20 +35,24 @@ internal sealed class NativeAudio : IDisposable
         Dispose();if(!File.Exists(file))throw new FileNotFoundException("找不到工程音乐",file);
         Check(FMOD_System_Create(out system));uint version;Check(FMOD_System_GetVersion(system,out version));Version=version;
         Check(FMOD_System_Init(system,16,0,IntPtr.Zero));
-        Check(FMOD_System_CreateSound(system,System.Text.Encoding.Unicode.GetBytes(Path.GetFullPath(file)+"\0"),0x01000000|0x00000001|0x00000008|0x00000080,IntPtr.Zero,out sound));
+        // Decode a software PCM sample so negative frequency can play music backwards.
+        Check(FMOD_System_CreateSound(system,System.Text.Encoding.Unicode.GetBytes(Path.GetFullPath(file)+"\0"),0x01000000|0x00000001|0x00000008|0x00000040|0x00000100,IntPtr.Zero,out sound));
         uint length;Check(FMOD_Sound_GetLength(sound,out length,1));Duration=length/1000.0;
     }
-    public void Play(double seconds)
+    public void Play(double seconds,double rate=1)
     {
         Pause();if(sound==IntPtr.Zero)throw new InvalidOperationException("音乐尚未载入");if(seconds>=Duration)return;
         if(channel!=IntPtr.Zero)FMOD_Channel_Stop(channel);
         Check(FMOD_System_PlaySound(system,-1,sound,1,out channel));
-        Check(FMOD_Channel_SetPosition(channel,(uint)Math.Max(0,seconds*1000),1));
+        Check(FMOD_Channel_GetFrequency(channel,out baseFrequency));Check(FMOD_Channel_SetFrequency(channel,baseFrequency*(float)rate));Rate=rate;
+        Check(FMOD_Channel_SetPosition(channel,(uint)Math.Max(0,Math.Min(Duration-.001,seconds)*1000),1));
         Check(FMOD_Channel_SetVolume(channel,Volume));Check(FMOD_Channel_SetPaused(channel,0));Playing=true;Update();
     }
     public void SetVolume(float volume){Volume=volume;if(channel!=IntPtr.Zero)FMOD_Channel_SetVolume(channel,volume);}
+    public void SetRate(double rate){if(!Playing||Rate==rate)return;Check(FMOD_Channel_SetFrequency(channel,baseFrequency*(float)rate));Rate=rate;}
+    public void Seek(double seconds){if(channel!=IntPtr.Zero)Check(FMOD_Channel_SetPosition(channel,(uint)Math.Max(0,Math.Min(Duration-.001,seconds)*1000),1));}
     public void Pause(){if(channel!=IntPtr.Zero)FMOD_Channel_SetPaused(channel,1);Playing=false;}
     public double Position {get{uint value;return channel!=IntPtr.Zero&&FMOD_Channel_GetPosition(channel,out value,1)==0?value/1000.0:-1;}}
     public void Update(){if(system!=IntPtr.Zero)FMOD_System_Update(system);}
-    public void Dispose(){Playing=false;if(channel!=IntPtr.Zero){FMOD_Channel_Stop(channel);channel=IntPtr.Zero;}if(sound!=IntPtr.Zero){FMOD_Sound_Release(sound);sound=IntPtr.Zero;}if(system!=IntPtr.Zero){FMOD_System_Release(system);system=IntPtr.Zero;}}
+    public void Dispose(){Playing=false;if(channel!=IntPtr.Zero){FMOD_Channel_Stop(channel);channel=IntPtr.Zero;}if(sound!=IntPtr.Zero){FMOD_Sound_Release(sound);sound=IntPtr.Zero;}if(system!=IntPtr.Zero){FMOD_System_Release(system);system=IntPtr.Zero;}Duration=0;baseFrequency=0;Rate=1;}
 }

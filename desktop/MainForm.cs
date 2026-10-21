@@ -41,7 +41,6 @@ internal sealed partial class MainForm : Form
     private string copiedKind;private readonly List<Track> copiedTracks=new List<Track>();private RoomInstance copiedInstance;
     private bool durationLoading;
     private readonly Stopwatch playClock=new Stopwatch();
-    private int playStart;
     private Button runButton,exportButton,playButton,codeButton,keyButton,deleteButton;
     private readonly ToolTip tips=new ToolTip();
     private ContextMenuStrip effectMenu;
@@ -54,7 +53,7 @@ internal sealed partial class MainForm : Form
         restoredView=WorkspaceView.Load(root);if(restoredView!=null&&restoredView.positioned){StartPosition=FormStartPosition.Manual;Bounds=restoredView.VisibleBounds();if(restoredView.maximized)WindowState=FormWindowState.Maximized;}
         BuildLayout();
         saveTimer.Interval=400;saveTimer.Tick+=async(s,e)=>{saveTimer.Stop();await SaveNow(false);};
-        playTimer.Interval=15;playTimer.Tick+=(s,e)=>{if(state==null)return;audio.Update();SetFrame(playStart+(int)(playClock.Elapsed.TotalSeconds*state.fps));timeline.EnsureFrameVisible();if(frame>=state.duration)StopPlaying();};
+        playTimer.Interval=15;playTimer.Tick+=(s,e)=>TickPreview();
         inspectorTimer.Interval=100;inspectorTimer.Tick+=(s,e)=>{inspectorTimer.Stop();properties.Refresh();};
         Shown+=async(s,e)=>{try{currentProjectPath=restoredView!=null&&File.Exists(restoredView.projectPath)?restoredView.projectPath:"";bridge=new NativeBridge(root,currentProjectPath);await LoadProject();}catch(Exception error){Error(error);}};
         FormClosing+=OnClosing;
@@ -142,6 +141,7 @@ internal sealed partial class MainForm : Form
         playButton=Button("▶",TogglePlaying,false,36);bar.Controls.Add(playButton);bar.Controls.Add(Button("■",()=>{StopPlaying();SetFrame(0);},false,36));
         timeLabel.Text="00:00.00";timeLabel.ForeColor=Theme.Text;timeLabel.Font=new Font("Consolas",13);timeLabel.Width=TextRenderer.MeasureText("000:00.00",timeLabel.Font).Width+12;timeLabel.Height=Math.Max(40,timeLabel.Font.Height+12);timeLabel.TextAlign=ContentAlignment.MiddleCenter;bar.Controls.Add(timeLabel);
         frameInput.Width=Math.Max(80,TextRenderer.MeasureText("1000000",Font).Width+30);frameInput.Height=28;frameInput.Margin=new Padding(2,9,14,0);frameInput.BackColor=Theme.Raised;frameInput.ForeColor=Theme.Text;frameInput.Maximum=100000;frameInput.ValueChanged+=(s,e)=>{if(!loading){StopPlaying();SetFrame((int)frameInput.Value);}};bar.Controls.Add(frameInput);
+        BuildPreviewPlayback(bar);
         foreach(var item in new[]{new[]{"emitter","添加弹幕"},new[]{"rod","添加整体对象"},new[]{"camera","添加拉镜"},new[]{"object","添加对象"},new[]{"effect","添加特效"},new[]{"script","添加 GML 事件"}})
         {string kind=item[0];var button=Button(item[1],()=>{if(kind=="rod")ShowShapeMenu((Control)bar.Controls.Cast<Control>().First(c=>c.Text=="添加整体对象"));else if(kind=="effect")ShowEffectMenu((Control)bar.Controls.Cast<Control>().First(c=>c.Text=="添加特效"));else AddTrack(kind);},false,96);button.AutoSize=true;button.AutoSizeMode=AutoSizeMode.GrowAndShrink;button.MinimumSize=new Size(TextRenderer.MeasureText(item[1],Theme.Font).Width+24,32);bar.Controls.Add(button);}
         tips.SetToolTip(playButton,"空格：带音乐播放 / 暂停；F5：原生试玩");table.Controls.Add(bar,0,0);
@@ -149,7 +149,7 @@ internal sealed partial class MainForm : Form
         zoomBar.Controls.Add(new Label{Text="视野",AutoSize=true,ForeColor=Theme.Muted,Margin=new Padding(8,9,3,0)});
         var zoom=new WheelSafeComboBox{Width=Math.Max(105,Font.Height*6),DropDownStyle=ComboBoxStyle.DropDownList,Margin=new Padding(2,5,2,0),BackColor=Theme.Raised,ForeColor=Theme.Text};zoom.Items.AddRange(new object[]{"全曲","10 秒","30 秒","1 分钟","5 分钟"});zoom.SelectedIndexChanged+=(s,e)=>{if(state==null)return;if(zoom.SelectedIndex==0)timeline.FitAll();else timeline.ViewSeconds(new[]{10,30,60,300}[zoom.SelectedIndex-1]);};zoomBar.Controls.Add(zoom);
         zoomBar.Controls.Add(Button("－",()=>timeline.SetZoom(timeline.PixelsPerSecond*.8f),false,32));zoomBar.Controls.Add(Button("＋",()=>timeline.SetZoom(timeline.PixelsPerSecond*1.25f),false,32));zoomBar.Controls.Add(Button("定位播放头",()=>timeline.EnsureFrameVisible(),false,96));
-        keySnap.Checked=restoredView!=null&&restoredView.keySnap;keySnap.Enabled=false;zoomBar.Controls.Add(keySnap);tips.SetToolTip(keySnap,"仅对单个所选物件生效；接近关键帧时吸附，Alt 临时关闭。输入帧数和逐帧按钮不吸附。");timeline.SnapCursor=value=>SnapCursor(value,state==null?1:Math.Max(1,10.0*state.fps/timeline.PixelsPerSecond));
+        keySnap.Checked=restoredView!=null&&restoredView.keySnap;keySnap.Enabled=false;zoomBar.Controls.Add(keySnap);tips.SetToolTip(keySnap,"选中单条轨道时，靠近属性关键帧或原生 GM 代码标记会吸附。Alt 临时关闭；左右键逐帧、长按和直接输入帧数均不吸附。");timeline.SnapCursor=value=>SnapCursor(value,state==null?1:Math.Max(1,10.0*state.fps/timeline.PixelsPerSecond));
         zoomBar.Controls.Add(new Label{Text="总时长 / 秒",AutoSize=true,ForeColor=Theme.Muted,Margin=new Padding(12,9,3,0)});
         durationInput.DecimalPlaces=2;durationInput.Increment=10;durationInput.Maximum=66666;durationInput.Minimum=1;durationInput.Width=Math.Max(90,TextRenderer.MeasureText("66666.00",Font).Width+30);durationInput.Margin=new Padding(2,5,4,0);durationInput.BackColor=Theme.Raised;durationInput.ForeColor=Theme.Text;durationInput.ValueChanged+=(s,e)=>{if(!durationLoading&&state!=null)ChangeDuration((double)durationInput.Value);};zoomBar.Controls.Add(durationInput);
         zoomBar.Controls.Add(Button("＋60 秒",()=>ChangeDuration(state==null?60:state.duration/(double)state.fps+60),false,80));zoomBar.Controls.Add(Button("按音乐长度",()=>{if(document!=null)ChangeDuration(document.waveform.duration);},false,98));
@@ -192,7 +192,7 @@ internal sealed partial class MainForm : Form
         new WorkspaceView{positioned=true,x=bounds.X,y=bounds.Y,width=bounds.Width,height=bounds.Height,maximized=WindowState==FormWindowState.Maximized,
             leftWidth=leftSplit.Panel1.Width,rightWidth=rightSplit.Panel2.Width,timelineHeight=verticalSplit.Panel2.Height,
             projectPath=currentProjectPath,frame=frame,resourceKind=resourceKind,search=search.Text,selectedTrack=selectedTrack==null?null:selectedTrack.id,selectedProperty=timeline.SelectedProperty,
-            grid=stage.Grid,hitboxes=stage.Hitboxes,renderCamera=stage.RenderCamera,keySnap=keySnap.Checked,cameraZoom=stage.ViewZoom,cameraX=stage.ViewX,cameraY=stage.ViewY,timeline=timeline.CaptureView()}.Save(root);
+            grid=stage.Grid,hitboxes=stage.Hitboxes,renderCamera=stage.RenderCamera,keySnap=keySnap.Checked,previewRate=previewRate,cameraZoom=stage.ViewZoom,cameraX=stage.ViewX,cameraY=stage.ViewY,timeline=timeline.CaptureView()}.Save(root);
     }
 
     private ContextMenuStrip CreateContext(bool inspector)
@@ -381,7 +381,7 @@ internal sealed partial class MainForm : Form
         finally{saveGate.Release();if(dirty&&!closeInProgress&&!parameterScrubbing){saveTimer.Stop();saveTimer.Start();}}
     }
     private void UpdateSelection()
-    {stage.SelectedTrack=selectedTrack;stage.SelectedKey=selectedKey;stage.SelectedInstance=selectedInstance;timeline.SelectedTrack=selectedTrack;timeline.SelectedKey=selectedKey;keySnap.Enabled=selectedTrack!=null&&selectedTrack.kind!="native"&&timeline.SelectedTracks.Count==1;if(state!=null)rightTime.SetView(state.fps,state.duration,frame,selectedTrack);stage.Invalidate();timeline.Invalidate();}
+    {stage.SelectedTrack=selectedTrack;stage.SelectedKey=selectedKey;stage.SelectedInstance=selectedInstance;timeline.SelectedTrack=selectedTrack;timeline.SelectedKey=selectedKey;keySnap.Enabled=selectedTrack!=null&&timeline.SelectedTracks.Count==1;if(state!=null)rightTime.SetView(state.fps,state.duration,frame,selectedTrack);stage.Invalidate();timeline.Invalidate();}
     private void SelectTrack(Track track,Keyframe key)
     {if(!timeline.NotifyingSelection)timeline.ResetSelection(track,key);selectedTrack=track;selectedKey=key;selectedInstance=null;resourceName=null;if(key!=null)timeline.SelectedProperty=key.property;if(track!=null&&!Motion.Fields(track).Contains(timeline.SelectedProperty))timeline.SelectedProperty=Motion.Fields(track).FirstOrDefault()??"x";UpdateSelection();ShowProperties();}
     private void SelectInstance(RoomInstance instance)
@@ -641,8 +641,6 @@ internal sealed partial class MainForm : Form
         try{var result=await bridge.Call<BuildResult>("export",Json.Read<EditorState>(Json.Write(state)));if(current==revision)dirty=false;SetStatus("游戏已导出："+result.exe);Process.Start(new ProcessStartInfo("explorer.exe","\""+result.dir+"\""){UseShellExecute=true});}
         catch(Exception error){Error(error);}finally{SetBusy(false);}
     }
-    private void TogglePlaying(){if(state==null)return;if(playTimer.Enabled){StopPlaying();return;}try{if(frame>=state.duration)SetFrame(0);if(audio.Duration>0)audio.Play(frame/(double)state.fps);playStart=frame;playClock.Restart();playTimer.Start();playButton.Text="Ⅱ";SetStatus("时间轴与音乐播放中 · 空格暂停 · F5 进入原生试玩");}catch(Exception error){Error(error);}}
-    private void StopPlaying(){playTimer.Stop();playClock.Stop();audio.Pause();playButton.Text="▶";}
     private async void Undo(bool forward)
     {
         var from=forward?redo:undo;var to=forward?undo:redo;if(state==null||from.Count==0||busy)return;StopPlaying();saveTimer.Stop();to.Push(Snapshot());var snapshot=Json.Read<UndoSnapshot>(from.Pop());
@@ -650,7 +648,8 @@ internal sealed partial class MainForm : Form
     }
     protected override bool ProcessCmdKey(ref Message msg,Keys keyData)
     {
-        bool editing=beatBar!=null&&beatBar.ContainsFocus||search.ContainsFocus||properties.EditingText||rightTime.ContainsFocus||durationInput.ContainsFocus||frameInput.ContainsFocus;
+        bool editing=beatBar!=null&&beatBar.ContainsFocus||search.ContainsFocus||properties.EditingText||rightTime.ContainsFocus||durationInput.ContainsFocus||frameInput.ContainsFocus||previewSpeed.ContainsFocus;
+        if(!editing&&timeline.Focused&&timeline.KeyboardPreviewNavigation&&(keyData==Keys.Left||keyData==Keys.Right)){BeginTimelineArrow(keyData);return true;}
         if(keyData==(Keys.Control|Keys.N)){NewFromKeyboard();return true;}if(keyData==(Keys.Control|Keys.O)){OpenFromKeyboard();return true;}
         if(keyData==(Keys.Control|Keys.S)){stage.Focus();SaveFromKeyboard();return true;}
         if(keyData==Keys.F5){stage.Focus();RunFromKeyboard();return true;}
