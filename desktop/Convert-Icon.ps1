@@ -1,8 +1,8 @@
 param([string]$Source,[string]$Output)
 $ErrorActionPreference='Stop'
 $taskRoot=Split-Path -Parent $PSScriptRoot
-if(!$Source){$Source=Join-Path $taskRoot 'icon.png'}
-if(!$Output){$Output=Join-Path $taskRoot 'icon.ico'}
+if(!$Source){$Source=Join-Path $taskRoot 'assets/icons/icon.png'}
+if(!$Output){$Output=Join-Path $taskRoot 'assets/icons/icon.ico'}
 Add-Type -AssemblyName System.Drawing
 $original=[System.Drawing.Image]::FromFile($Source)
 $sizes=@(16,24,32,48,64,128,256)

@@ -111,7 +111,7 @@ internal sealed class TimelineCanvas : UserControl
         using(var brush=new SolidBrush(Theme.Back))g.FillRectangle(brush,Names,0,width-Names,Header);
         using(var pen=new Pen(Theme.Line)){g.DrawLine(pen,Names,0,Names,height);g.DrawLine(pen,0,Header,width,Header);}
         Theme.Label(g,SelectedKeys.Count>1?"已选 "+SelectedKeys.Count+" 个关键帧":SelectedTracks.Count>1?"已选 "+SelectedTracks.Count+" 个物件":"时间轴 · ▸ 展开 · 空白框选",new Rectangle(8,0,Names-12,28),Theme.Text,Theme.Bold);
-        Theme.Label(g,"♫  "+(String.IsNullOrEmpty(State.musicTitle)?System.IO.Path.GetFileName(State.music):State.musicTitle),new Rectangle(16,28,Names-25,48),Theme.Muted);
+        Theme.Label(g,"♫  "+(String.IsNullOrEmpty(State.musicTitle)?System.IO.Path.GetFileName(State.music):State.musicTitle),new Rectangle(16,28,Names-25,48),Theme.Muted,localize:false);
         var clip=g.Save();g.SetClip(new Rectangle(Names,0,width-Names,height));
         double target=65/PixelsPerSecond;double[] steps={.02,.05,.1,.2,.5,1,2,5,10,15,30,60,120,300,600};double step=steps.FirstOrDefault(v=>v>=target);if(step==0)step=600;
         double left=horizontal.Value/PixelsPerSecond,right=(horizontal.Value+width-Names)/PixelsPerSecond;
@@ -127,7 +127,7 @@ internal sealed class TimelineCanvas : UserControl
             bool chosen=(SelectedTracks.Contains(t)||t==SelectedTrack)&&(lane.property==null||lane.property==SelectedProperty);
             using(var bg=new SolidBrush(chosen?Color.FromArgb(47,44,62):lane.property!=null?Color.FromArgb(23,29,39):i%2==0?Theme.Panel:Color.FromArgb(29,35,47)))g.FillRectangle(bg,0,y,width,Row);
             Color color=t.enabled?Theme.TrackColor(t.kind):Color.FromArgb(80,87,100);
-            Theme.Label(g,lane.property==null?(expanded.Contains(t.id)?"▾ ":"▸ ")+t.name:"    ◇  "+(lane.property.StartsWith("@gm:")?System.IO.Path.GetFileNameWithoutExtension(lane.property.Substring(4)):Motion.Name(lane.property)),new Rectangle(8,y,Names-36,Row),lane.property==null?Theme.Text:chosen?Theme.Accent:Theme.Muted,lane.property==null?Theme.Font:Theme.Small);
+            Theme.Label(g,lane.property==null?(expanded.Contains(t.id)?"▾ ":"▸ ")+t.name:"    ◇  "+(lane.property.StartsWith("@gm:")?System.IO.Path.GetFileNameWithoutExtension(lane.property.Substring(4)):Language.Text(Motion.Name(lane.property))),new Rectangle(8,y,Names-36,Row),lane.property==null?Theme.Text:chosen?Theme.Accent:Theme.Muted,lane.property==null?Theme.Font:Theme.Small,localize:false);
             if(lane.property==null)Theme.Label(g,t.kind=="native"?"G":t.enabled?"●":"○",new Rectangle(Names-28,y,24,Row),color);
             g.SetClip(new Rectangle(Names,Header,width-Names,height-Header));
             float x=X(t.start),end=X(t.end);
@@ -267,8 +267,8 @@ internal sealed class TimelineCanvas : UserControl
     protected override void OnMouseMove(MouseEventArgs e)
     {
         base.OnMouseMove(e);if(State==null)return;
-        if(dragMode==null){var nativeLane=LaneAt(e.Location);if(nativeLane!=null&&nativeLane.track.kind=="native"){var item=NativeAt(nativeLane,e.X);Cursor=Cursors.Hand;tips.SetToolTip(this,item==null?"GM 原生轨道：只读定位；双击编辑原 GML。":item.file+":"+item.line+" · "+item.expression+"\n"+item.snippet);return;}}
-        if(dragMode==null){var lane=LaneAt(e.Location);string edge=EdgeAt(lane,e.Location);var key=KeyAt(lane,e.Location);hoverTrack=edge==null?null:lane.track;hoverEdge=edge;Cursor=edge!=null?Cursors.SizeWE:key!=null?Cursors.SizeAll:lane!=null&&lane.property==null&&e.X>=X(lane.track.start)&&e.X<=X(lane.track.end)?Cursors.SizeAll:Cursors.Default;string tip=edge=="left"?"左右拖动：修改开始帧（不移动关键帧）":edge=="right"?"左右拖动：修改结束帧（不移动关键帧）":key!=null?"拖动移动所选关键帧；Ctrl / Shift 加选；Delete 删除":"主行空白框选物件；属性行空白框选关键帧；Ctrl / Shift 加选";if(tips.GetToolTip(this)!=tip)tips.SetToolTip(this,tip);Invalidate();return;}
+        if(dragMode==null){var nativeLane=LaneAt(e.Location);if(nativeLane!=null&&nativeLane.track.kind=="native"){var item=NativeAt(nativeLane,e.X);Cursor=Cursors.Hand;Language.ToolTip(tips,this,item==null?"GM 原生轨道：只读定位；双击编辑原 GML。":item.file+":"+item.line+" · "+item.expression+"\n"+item.snippet);return;}}
+        if(dragMode==null){var lane=LaneAt(e.Location);string edge=EdgeAt(lane,e.Location);var key=KeyAt(lane,e.Location);hoverTrack=edge==null?null:lane.track;hoverEdge=edge;Cursor=edge!=null?Cursors.SizeWE:key!=null?Cursors.SizeAll:lane!=null&&lane.property==null&&e.X>=X(lane.track.start)&&e.X<=X(lane.track.end)?Cursors.SizeAll:Cursors.Default;string tip=edge=="left"?"左右拖动：修改开始帧（不移动关键帧）":edge=="right"?"左右拖动：修改结束帧（不移动关键帧）":key!=null?"拖动移动所选关键帧；Ctrl / Shift 加选；Delete 删除":"主行空白框选物件；属性行空白框选关键帧；Ctrl / Shift 加选";if(tips.GetToolTip(this)!=tip)Language.ToolTip(tips,this,tip);Invalidate();return;}
         if(e.X>Width-vertical.Width-15)ScrollHorizontal(20);else if(e.X<Names+5)ScrollHorizontal(-20);
         if(dragMode=="seek"){if(Seek!=null)Seek(CursorFrame(e.X));return;}
         if(dragMode=="box"){if(e.Y>Height-horizontal.Height-12)ScrollVertical(Row/2);else if(e.Y<Header+5)ScrollVertical(-Row/2);UpdateBox(e.Location);return;}

@@ -11,10 +11,10 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 
-[assembly:System.Reflection.AssemblyVersion("1.6.0.0")]
-[assembly:System.Reflection.AssemblyFileVersion("1.6.0.0")]
-[assembly:System.Reflection.AssemblyInformationalVersion("1.6.0")]
-internal static class AppVersion {public const string Current="1.6.0";}
+[assembly:System.Reflection.AssemblyVersion("1.7.0.0")]
+[assembly:System.Reflection.AssemblyFileVersion("1.7.0.0")]
+[assembly:System.Reflection.AssemblyInformationalVersion("1.7.0")]
+internal static class AppVersion {public const string Current="1.7.0";}
 #pragma warning disable 0649
 internal sealed class ReleaseAsset {public string name,browser_download_url;}
 internal sealed class GitRelease {public string tag_name;public ReleaseAsset[] assets;}
@@ -43,7 +43,7 @@ internal static class Updater
         if(String.IsNullOrEmpty(path)||path.Contains("\\")||path.StartsWith("/")||path.Split('/').Any(p=>p==".."||p=="."||p.Contains(":")))return false;
         return path=="RufMaker.exe"||path=="README.md"||path=="LICENSE"||path=="icon.ico"||path=="runtime/node.exe"||path=="runtime/fmodex.dll"||
             (path.StartsWith("studio/",StringComparison.Ordinal)&&path.IndexOf('/',7)<0&&(path.EndsWith(".mjs")||path=="studio/waveform.json"))||
-            path=="desktop/assets/sprRufBlock.png"||path=="desktop/assets/sprRufPlatform.png"||path.StartsWith("templates/avoidance.gm82/",StringComparison.Ordinal)||path.StartsWith("Ultimate Avoidance Sprite Pack/",StringComparison.Ordinal);
+            path=="desktop/assets/sprRufBlock.png"||path=="desktop/assets/sprRufPlatform.png"||path=="assets/icons/icon.ico"||path=="assets/terrain/sprRufBlock.png"||path=="assets/terrain/sprRufPlatform.png"||path.StartsWith("assets/sprite-packs/Ultimate Avoidance Sprite Pack/",StringComparison.Ordinal)||path.StartsWith("templates/avoidance.gm82/",StringComparison.Ordinal)||path.StartsWith("Ultimate Avoidance Sprite Pack/",StringComparison.Ordinal);
     }
     public static string Inside(string root,string relative)
     {string full=Path.GetFullPath(Path.Combine(root,relative.Replace('/',Path.DirectorySeparatorChar))),prefix=Path.GetFullPath(root).TrimEnd(Path.DirectorySeparatorChar)+Path.DirectorySeparatorChar;if(!full.StartsWith(prefix,StringComparison.OrdinalIgnoreCase))throw new InvalidDataException("更新包文件路径越界。");return full;}
@@ -53,7 +53,8 @@ internal static class Updater
         if(manifest.files==null||manifest.files.Length==0||manifest.files.Length>20000||expectedVersion!=null&&ParseVersion(manifest.version)!=ParseVersion(expectedVersion))throw new InvalidDataException("更新清单版本不匹配。");
         var unique=new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach(var file in manifest.files){if(!Allowed(file.path)||!unique.Add(file.path))throw new InvalidDataException("更新清单包含无效或重复路径。");if(!String.Equals(Hash(Inside(payload,file.path)),file.sha256,StringComparison.OrdinalIgnoreCase))throw new InvalidDataException("更新文件校验失败："+file.path);}
-        foreach(string required in new[]{"RufMaker.exe","studio/bridge.mjs","runtime/node.exe","runtime/fmodex.dll","desktop/assets/sprRufBlock.png","desktop/assets/sprRufPlatform.png"})if(!unique.Contains(required))throw new InvalidDataException("更新包缺少 "+required);
+        foreach(string required in new[]{"RufMaker.exe","studio/bridge.mjs","runtime/node.exe","runtime/fmodex.dll"})if(!unique.Contains(required))throw new InvalidDataException("更新包缺少 "+required);
+        foreach(string sprite in new[]{"sprRufBlock.png","sprRufPlatform.png"})if(!unique.Contains("assets/terrain/"+sprite)&&!unique.Contains("desktop/assets/"+sprite))throw new InvalidDataException("更新包缺少 "+sprite);
         return manifest;
     }
     public static void Extract(string archive,string payload,string expectedVersion)
@@ -81,7 +82,7 @@ internal static class Updater
         catch(Exception error)
         {
             var rollback=new List<string>();foreach(var file in applied.AsEnumerable().Reverse()){try{string target=Inside(root,file.path);if(existed.Contains(file.path))File.Copy(Inside(backup,file.path),target,true);else if(File.Exists(target))File.Delete(target);}catch(Exception failure){rollback.Add(failure.Message);}}
-            MessageBox.Show("更新失败："+error.Message+(rollback.Count==0?"\n已恢复更新前的程序文件。":"\n部分文件恢复失败："+String.Join("; ",rollback))+"\n备份目录："+backup,"RufMaker 更新",MessageBoxButtons.OK,MessageBoxIcon.Error);
+            Language.Message("更新失败："+error.Message+(rollback.Count==0?"\n已恢复更新前的程序文件。":"\n部分文件恢复失败："+String.Join("; ",rollback))+"\n备份目录："+backup,"RufMaker 更新",MessageBoxButtons.OK,MessageBoxIcon.Error);
         }
     }
 }

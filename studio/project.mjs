@@ -22,7 +22,7 @@ export const makerFile = path.join(project, 'rufmaker.json');
 const installedGameMaker = path.join(process.env.APPDATA || '', 'GameMaker8.2', 'GameMaker.exe');
 const bundledGameMaker = path.join(root, 'GameMaker8.2', 'GameMaker.exe');
 export const gameMaker = process.env.RUFMAKER_GAMEMAKER || (fs.existsSync(bundledGameMaker) ? bundledGameMaker : installedGameMaker);
-export const pack = path.join(root, 'Ultimate Avoidance Sprite Pack');
+export const pack = path.join(root, 'assets','sprite-packs','Ultimate Avoidance Sprite Pack');
 
 const action = `/*"/*'/**//* YYD ACTION\nlib_id=1\naction_id=603\napplies_to=self\n*/`;
 

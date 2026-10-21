@@ -92,7 +92,7 @@ internal sealed class NativeProject
     public string entry,source,name,room,controller,clock,timeline,music,bootObject,musicInitializer,confidence,defaultSprite,killerParent;
     public NativeEvent[] events=new NativeEvent[0],unresolved=new NativeEvent[0];public string[] warnings=new string[0];
 }
-internal sealed class NativeRoomCandidate {public string name;public int width,height,fps,score;public NativeControllerCandidate[] controllers;public override string ToString(){return name+(score>0?" · 候选":"");}}
+internal sealed class NativeRoomCandidate {public string name;public int width,height,fps,score;public NativeControllerCandidate[] controllers;public override string ToString(){return name+Language.Text(score>0?" · 候选":"");}}
 internal sealed class NativeControllerCandidate {public string name;public int score;public bool direct;}
 internal sealed class NativeScan:NativeScanBase {}
 internal class NativeScanBase {public string entry,name,room,controller,clock,timeline,music,confidence;public int fps,duration;public string[] entries,controllers,musicChoices,warnings;public NativeRoomCandidate[] rooms;public NativeEvent[] events,unresolved;}

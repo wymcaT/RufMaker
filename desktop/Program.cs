@@ -31,17 +31,19 @@ internal static class Program
             if(!owner)
             {
                 IntPtr window=FindWindow(null,"RufMaker · 原生耐久制作器");
+                if(window==IntPtr.Zero)window=FindWindow(null,"RufMaker · Avoidance Editor");
                 if(window!=IntPtr.Zero){ShowWindow(window,9);SetForegroundWindow(window);}return;
             }
             try
             {
+                AppPaths.ArrangeAssets(root);
                 Application.ThreadException+=(s,e)=>{
                     string log=Path.Combine(root,"build","logs","native-ui.log");Directory.CreateDirectory(Path.GetDirectoryName(log));File.AppendAllText(log,e.Exception+Environment.NewLine);
-                    MessageBox.Show(e.Exception.Message,"RufMaker",MessageBoxButtons.OK,MessageBoxIcon.Error);
+                    Language.Message(e.Exception.Message,"RufMaker",MessageBoxButtons.OK,MessageBoxIcon.Error);
                 };
                 Application.Run(new MainForm(root));
             }
-            catch(Exception error){MessageBox.Show(error.Message,"RufMaker",MessageBoxButtons.OK,MessageBoxIcon.Error);}
+            catch(Exception error){Language.Message(error.Message,"RufMaker",MessageBoxButtons.OK,MessageBoxIcon.Error);}
             finally{instance.ReleaseMutex();}
         }
     }

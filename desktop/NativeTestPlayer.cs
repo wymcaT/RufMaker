@@ -10,7 +10,7 @@ internal sealed partial class MainForm
     private readonly System.Windows.Forms.Timer nativeWatch=new System.Windows.Forms.Timer{Interval=500};private bool nativePolling;private string nativePhase="";
     private void BuildNativeTestTools(Control tools)
     {
-        tools.Controls.Add(editNativeTest);tips.SetToolTip(editNativeTest,"左键点击或拖动设置试玩玩家位置，Shift 按 16 像素吸附；右栏可输入 X/Y。F5 从播放头进入试玩，游戏内 R 直接恢复本次测试快照。");
+        tools.Controls.Add(editNativeTest);Language.ToolTip(tips,editNativeTest,"左键点击或拖动设置试玩玩家位置，Shift 按 16 像素吸附；右栏可输入 X/Y。F5 从播放头进入试玩，游戏内 R 直接恢复本次测试快照。");
         editNativeTest.CheckedChanged+=(s,e)=>{stage.EditNativeTest=editNativeTest.Checked;if(editNativeTest.Checked&&state!=null){var track=state.tracks.FirstOrDefault(t=>t.kind=="native");if(track!=null)SelectTrack(track,null);}stage.Invalidate();};
         stage.NativeTestPreview=()=>{inspectorTimer.Stop();inspectorTimer.Start();};stage.NativeTestChanged=()=>{MarkChanged();ShowProperties();};
         nativeWatch.Tick+=async(s,e)=>await WatchNativePlay();

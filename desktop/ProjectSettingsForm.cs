@@ -31,9 +31,9 @@ internal sealed partial class MainForm
         {
             var editor=new ParameterInspector{Dock=DockStyle.Fill,SelectedObject=bag};var foot=new FlowLayoutPanel{Dock=DockStyle.Bottom,AutoSize=true,FlowDirection=FlowDirection.RightToLeft,Padding=new Padding(8)};
             var apply=Button("应用并关闭",()=>{},true,120);var cancel=Button("取消",()=>dialog.DialogResult=DialogResult.Cancel,false,80);
-            apply.Click+=(s,e)=>{editor.CommitPending();int required=ContentEnd();if(draft.duration<required){MessageBox.Show(dialog,"总帧数不能短于已有内容（第 "+required+" 帧）。","工程设置");return;}dialog.DialogResult=DialogResult.OK;};
+            apply.Click+=(s,e)=>{editor.CommitPending();int required=ContentEnd();if(draft.duration<required){Language.Message(dialog,"总帧数不能短于已有内容（第 "+required+" 帧）。","工程设置");return;}dialog.DialogResult=DialogResult.OK;};
             foot.Controls.Add(apply);foot.Controls.Add(cancel);dialog.Controls.Add(editor);dialog.Controls.Add(foot);dialog.AcceptButton=apply;dialog.CancelButton=cancel;
-            if(dialog.ShowDialog(this)!=DialogResult.OK)return;
+            if(Language.ShowDialog(dialog,this)!=DialogResult.OK)return;
         }
         PushUndo();state.name=draft.name;state.fps=draft.fps;state.duration=draft.duration;state.bpm=draft.bpm;state.beatOffsetMs=draft.beatOffsetMs;if(state.nativeProject==null){state.directStart=draft.directStart;state.player=draft.player;}
         MarkChanged();SetFrame(frame);SetStatus("工程设置已应用并自动保存。");

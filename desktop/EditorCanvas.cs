@@ -20,8 +20,8 @@ internal static class Theme
             using(var brush=new TextureBrush(tile))g.FillRectangle(brush,bounds);
         }
     }
-    public static void Label(Graphics g,string text,Rectangle bounds,Color color,Font font=null,TextFormatFlags flags=TextFormatFlags.Left|TextFormatFlags.VerticalCenter|TextFormatFlags.EndEllipsis)
-    {TextRenderer.DrawText(g,text,font??Font,bounds,color,flags|TextFormatFlags.NoPrefix);}
+    public static void Label(Graphics g,string text,Rectangle bounds,Color color,Font font=null,TextFormatFlags flags=TextFormatFlags.Left|TextFormatFlags.VerticalCenter|TextFormatFlags.EndEllipsis,bool localize=true)
+    {TextRenderer.DrawText(g,localize?Language.Text(text):text,font??Font,bounds,color,flags|TextFormatFlags.NoPrefix);}
 }
 
 internal sealed class StageCanvas : Control
@@ -135,7 +135,7 @@ internal sealed class StageCanvas : Control
         }
         g.Restore(saved);using(var pen=new Pen(Theme.Line))g.DrawRectangle(pen,view.X,view.Y,view.Width,view.Height);
                 using(var brush=new SolidBrush(Color.FromArgb(215,Theme.Panel)))g.FillRectangle(brush,8,Height-31,Math.Min(Width-16,420),24);
-        Theme.Label(g,Room.name+" · "+Frame+" F · "+(view.Width/Room.width*100).ToString("0")+"% · Ctrl+滚轮 / 中键平移",new Rectangle(14,Height-31,Math.Max(1,Width-28),24),Theme.Text,Theme.Small);
+        Theme.Label(g,Room.name+" · "+Frame+" F · "+(view.Width/Room.width*100).ToString("0")+Language.Text("% · Ctrl+滚轮 / 中键平移"),new Rectangle(14,Height-31,Math.Max(1,Width-28),24),Theme.Text,Theme.Small,localize:false);
     }
     private static bool Near(PointF a,PointF b,double radius){return Math.Abs(a.X-b.X)<radius&&Math.Abs(a.Y-b.Y)<radius;}
     public Track TrackAt(PointF p)

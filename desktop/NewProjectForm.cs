@@ -17,7 +17,7 @@ internal sealed class NewProjectOptions
 internal sealed class TerrainCell {public int x,y,width,height;public string kind;}
 internal sealed class TerrainLayout {public int width,height;public string preset;public double spawnX,spawnY;public TerrainCell[] cells;}
 
-internal sealed class NewProjectForm : Form
+internal sealed class NewProjectForm : LocalizedForm
 {
     readonly TableLayoutPanel fields=new TableLayoutPanel{Dock=DockStyle.Top,AutoSize=true,ColumnCount=2,Padding=new Padding(8)};
     readonly TextBox projectName=new TextBox{Text="新耐久"},parent=new TextBox(),song=new TextBox();
@@ -50,7 +50,7 @@ internal sealed class NewProjectForm : Form
     Control Browse(TextBox input,bool music)
     {
         var p=new TableLayoutPanel{Dock=DockStyle.Fill,ColumnCount=2,AutoSize=true,Margin=Padding.Empty};p.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,100));p.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute,54));input.Dock=DockStyle.Fill;var button=new Button{Text="选择",Dock=DockStyle.Fill};p.Controls.Add(input,0,0);p.Controls.Add(button,1,0);
-        button.Click+=(s,e)=>{if(music){using(var d=new OpenFileDialog{Title="选择耐久歌曲",Filter="音频|*.ogg;*.mp3;*.wav;*.flac"})if(d.ShowDialog(this)==DialogResult.OK)input.Text=d.FileName;}else using(var d=new FolderBrowserDialog{Description="选择新工程的父文件夹",SelectedPath=input.Text})if(d.ShowDialog(this)==DialogResult.OK)input.Text=d.SelectedPath;};return p;
+        button.Click+=(s,e)=>{if(music){using(var d=new OpenFileDialog{Title="选择耐久歌曲",Filter="音频|*.ogg;*.mp3;*.wav;*.flac"})if(Language.ShowDialog(d,this)==DialogResult.OK)input.Text=d.FileName;}else using(var d=new FolderBrowserDialog{Description="选择新工程的父文件夹",SelectedPath=input.Text})if(Language.ShowDialog(d,this)==DialogResult.OK)input.Text=d.SelectedPath;};return p;
     }
     void Heading(string text){var label=new Label{Text=text,ForeColor=Theme.Accent,Font=Theme.Bold,AutoSize=true,Margin=new Padding(0,16,0,8)};int row=fields.RowCount++;fields.Controls.Add(label,0,row);fields.SetColumnSpan(label,2);}
     void Row(string label,Control editor){int row=fields.RowCount++;fields.RowStyles.Add(new RowStyle(SizeType.AutoSize));fields.Controls.Add(new Label{Text=label,AutoSize=true,Margin=new Padding(0,7,4,5)},0,row);editor.Dock=DockStyle.Fill;editor.Margin=new Padding(1,3,1,3);fields.Controls.Add(editor,1,row);}
@@ -72,7 +72,7 @@ internal sealed class NewProjectForm : Form
     }
     async Task RefreshPreview()
     {
-        int id=++request;try{var layout=await render(ReadOptions());if(IsDisposed||id!=request)return;preview.Data=layout;preview.Invalidate();info.Text=String.Format("出生点：{0:0}, {1:0}\n地形会写入原生 GameMaker 房间，可继续在房间编辑器内修改。",layout.spawnX,layout.spawnY);valid=true;create.Enabled=true;}catch(Exception e){if(!IsDisposed&&id==request){valid=false;create.Enabled=false;info.Text=e.Message;}}
+        int id=++request;try{var layout=await render(ReadOptions());if(IsDisposed||id!=request)return;preview.Data=layout;preview.Invalidate();info.Text=String.Format(Language.Text("出生点：{0:0}, {1:0}\n地形会写入原生 GameMaker 房间，可继续在房间编辑器内修改。"),layout.spawnX,layout.spawnY);valid=true;create.Enabled=true;}catch(Exception e){if(!IsDisposed&&id==request){valid=false;create.Enabled=false;info.Text=e.Message;}}
     }
     protected override void OnFormClosed(FormClosedEventArgs e){timer.Stop();request++;base.OnFormClosed(e);}
     protected override void Dispose(bool disposing){if(disposing){request++;timer.Dispose();}base.Dispose(disposing);}

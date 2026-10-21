@@ -26,7 +26,7 @@ export function locateProject(root,selection='') {
   const folder=path.dirname(file);if(!fs.existsSync(path.join(folder,'rufmaker.json')))throw new Error('此 GameMaker 工程尚无 RufMaker 时间轴，请使用顶栏“导入非 RufMaker 工程”创建兼容副本。');
   const home=descriptor?path.dirname(descriptor):folder;
   const isLegacy=path.resolve(file).toLowerCase()===legacy.toLowerCase();
-  return {project:folder,projectFile:file,descriptor:descriptor||file,home,name,buildDir:isLegacy?path.join(root,'build'):path.join(home,'build'),gameExe:isLegacy?path.join(root,'rufmaker-demo.exe'):path.join(home,'build','rufmaker-game.exe')};
+  return {project:folder,projectFile:file,descriptor:descriptor||file,home,name,buildDir:isLegacy?path.join(root,'build'):path.join(home,'build'),gameExe:isLegacy?path.join(root,'build','demo','rufmaker-game.exe'):path.join(home,'build','rufmaker-game.exe')};
 }
 
 const finite=(v,d)=>Number.isFinite(Number(v))?Number(v):d;

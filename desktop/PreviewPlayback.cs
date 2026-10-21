@@ -60,7 +60,7 @@ internal sealed partial class MainForm
         previewSpeed.Items.AddRange(new object[]{"0.5×","0.75×","1×","1.25×","1.5×","2×"});previewSpeed.Text=previewRate.ToString("0.##",CultureInfo.CurrentCulture)+"×";
         previewSpeed.SelectionChangeCommitted+=(s,e)=>ApplyPreviewRate();previewSpeed.Validated+=(s,e)=>ApplyPreviewRate();
         previewSpeed.KeyDown+=(s,e)=>{if(e.KeyCode==Keys.Enter){ApplyPreviewRate();timeline.Focus();e.SuppressKeyPress=true;}else if(e.KeyCode==Keys.Escape){previewSpeed.Text=previewRate.ToString("0.##",CultureInfo.CurrentCulture)+"×";timeline.Focus();e.SuppressKeyPress=true;}};
-        tips.SetToolTip(previewSpeed,"预览专用：可输入 0.05～8 倍，回车应用。画面和音乐同步变速，音调随速度变化；不改变工程 FPS、关键帧或导出游戏。");bar.Controls.Add(previewSpeed);
+        Language.ToolTip(tips,previewSpeed,"预览专用：可输入 0.05～8 倍，回车应用。画面和音乐同步变速，音调随速度变化；不改变工程 FPS、关键帧或导出游戏。");bar.Controls.Add(previewSpeed);
         timeline.LostFocus+=(s,e)=>{if(timelineArrow!=Keys.None)StopPlaying();};Deactivate+=(s,e)=>{if(timelineArrow!=Keys.None)StopPlaying();};
     }
     private void ApplyPreviewRate()

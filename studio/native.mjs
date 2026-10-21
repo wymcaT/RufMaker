@@ -62,7 +62,7 @@ export async function ensureBuild(force=false) {
     try {fs.readSync(fd,signature,0,2,0);} finally {fs.closeSync(fd);}
     if (signature.toString()!=='MZ') throw new Error('GameMaker 输出不是 Windows 可执行文件');
     if (sourceStamp()!==stamp) throw new Error('编译期间工程已修改，请再次试玩或导出');
-    fs.copyFileSync(output,exportedExe);
+    fs.mkdirSync(path.dirname(exportedExe),{recursive:true});fs.copyFileSync(output,exportedExe);
     fs.unlinkSync(output);
     fs.appendFileSync(log,`\n完成：${exportedExe} (${fs.statSync(exportedExe).size} bytes)\n`);
     return {cached:false,log,...exportStatus()};

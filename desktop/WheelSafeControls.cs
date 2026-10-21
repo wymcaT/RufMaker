@@ -16,7 +16,15 @@ internal static class SettingsWheel
     }
 }
 internal sealed class WheelSafeComboBox : ComboBox
-{protected override void OnMouseWheel(MouseEventArgs e){SettingsWheel.Scroll(this,e);}protected override void WndProc(ref Message m){if(m.Msg==0x020A){SettingsWheel.Scroll(this,new MouseEventArgs(MouseButtons.None,0,0,0,(short)((long)m.WParam>>16)));return;}base.WndProc(ref m);}}
+{
+    public bool LocalizeItems=true;
+    private bool refreshingLanguage;
+    public WheelSafeComboBox(){FormattingEnabled=true;Format+=(s,e)=>{if(LocalizeItems)e.Value=Language.Text(Convert.ToString(e.Value));};}
+    public void RefreshLanguage(){refreshingLanguage=true;try{RefreshItems();}finally{refreshingLanguage=false;}}
+    protected override void OnSelectedIndexChanged(EventArgs e){if(!refreshingLanguage)base.OnSelectedIndexChanged(e);}
+    protected override void OnMouseWheel(MouseEventArgs e){SettingsWheel.Scroll(this,e);}
+    protected override void WndProc(ref Message m){if(m.Msg==0x020A){SettingsWheel.Scroll(this,new MouseEventArgs(MouseButtons.None,0,0,0,(short)((long)m.WParam>>16)));return;}base.WndProc(ref m);}
+}
 internal sealed class WheelSafeNumericUpDown : NumericUpDown
 {protected override void OnMouseWheel(MouseEventArgs e){SettingsWheel.Scroll(this,e);}protected override void WndProc(ref Message m){if(m.Msg==0x020A){SettingsWheel.Scroll(this,new MouseEventArgs(MouseButtons.None,0,0,0,(short)((long)m.WParam>>16)));return;}base.WndProc(ref m);}}
 internal sealed class WheelSafeTrackBar : TrackBar

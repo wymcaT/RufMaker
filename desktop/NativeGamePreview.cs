@@ -20,7 +20,7 @@ internal static class NativeProgressLayout
     }
 }
 
-internal sealed class NativeReplayProgressForm:Form
+internal sealed class NativeReplayProgressForm:LocalizedForm
 {
     private readonly NativeBridge bridge;private readonly System.Windows.Forms.Timer poll=new System.Windows.Forms.Timer{Interval=500};private readonly Label label;private readonly ProgressBar bar;private readonly Button cancel;
     private bool finished,polling;public bool Cancelled;public string ErrorText;public BuildResult Result;
@@ -50,7 +50,7 @@ internal sealed class NativeReplayProgressForm:Form
     protected override void Dispose(bool disposing){if(disposing)poll.Dispose();base.Dispose(disposing);}
 }
 
-internal sealed class NativeFilmProgressForm:Form
+internal sealed class NativeFilmProgressForm:LocalizedForm
 {
     private readonly CancellationTokenSource cancellation=new CancellationTokenSource();private bool finished;
     public NativeFilmInfo Result;public string ErrorText;
@@ -93,14 +93,14 @@ internal sealed partial class MainForm
         try{
             properties.CommitPending();if(!await SaveNow(false))return;SetStatus("正在编译原生底片录制副本…");var job=await bridge.Call<NativeFilmJob>("native-film-prepare",new{});
             using(var dialog=new NativeFilmProgressForm(job)){
-                var result=dialog.ShowDialog(this);if(result==DialogResult.OK){nativeFilmInfo=dialog.Result;nativeRender.Checked=true;ToggleNativeFilm();ShowProperties();SetStatus("原生底片已保存 · "+nativeFilmInfo.frameCount+" 帧 · 后续打开直接使用缓存。");}
+                var result=Language.ShowDialog(dialog,this);if(result==DialogResult.OK){nativeFilmInfo=dialog.Result;nativeRender.Checked=true;ToggleNativeFilm();ShowProperties();SetStatus("原生底片已保存 · "+nativeFilmInfo.frameCount+" 帧 · 后续打开直接使用缓存。");}
                 else if(!String.IsNullOrEmpty(dialog.ErrorText))throw new IOException(dialog.ErrorText);else SetStatus("底片生成已取消，可稍后点击重新生成。");
             }
         }catch(Exception error){Error(error);}finally{nativeFilmGenerating=false;regenerateNativeFilm.Enabled=state!=null&&state.nativeProject!=null;SetBusy(wasBusy);}
     }
     private void NativeProperties(NativeProperties bag)
     {
-        var native=state.nativeProject;selectionTitle.Text="GM 工程 · 原生";codeButton.Enabled=true;
+        var native=state.nativeProject;selectionTitle.Text=Language.Text("GM 工程 · 原生");codeButton.Enabled=true;
         NativeTestFields(bag);
         bag.Add("耐久房间","原生工程",typeof(string),()=>state.room,null);bag.Add("控制对象","原生工程",typeof(string),()=>native.controller,null);bag.Add("计时方式","原生工程",typeof(string),()=>String.IsNullOrEmpty(native.timeline)?native.clock:native.timeline+" × "+native.timelineSpeed,null);
         bag.Add("底片状态","原生底片",typeof(string),()=>nativeFilmInfo==null?"尚未生成":nativeFilmInfo.frameCount+" 帧 / "+nativeFilmInfo.fps+" FPS · "+(nativeFilmInfo.views==null?"缺少原生视野，请重新生成一次":"已记录原生视野"),null);
@@ -111,11 +111,11 @@ internal sealed partial class MainForm
     private async Task EditNativeEvent()
     {
         if(state.nativeProject==null||selectedNativeEvent==null)return;var item=selectedNativeEvent;
-        try{StopPlaying();properties.CommitPending();if(!await SaveNow(false))return;bool saved=false;var source=await bridge.Call<SourceData>("native-event-read",new{ @event=item });using(var editor=new CodeForm("第 "+item.frame+" 帧 · "+item.expression+" · "+item.file,source.content,async text=>{await bridge.Call<object>("native-event-save",new{ @event=item,content=text,hash=source.hash });saved=true;}))editor.ShowDialog(this);if(saved){await LoadProject();SetStatus("原生代码已保存，点击“重新生成原生底片”更新画面。");}}catch(Exception error){Error(error);}
+        try{StopPlaying();properties.CommitPending();if(!await SaveNow(false))return;bool saved=false;var source=await bridge.Call<SourceData>("native-event-read",new{ @event=item });using(var editor=new CodeForm("第 "+item.frame+" 帧 · "+item.expression+" · "+item.file,source.content,async text=>{await bridge.Call<object>("native-event-save",new{ @event=item,content=text,hash=source.hash });saved=true;}))Language.ShowDialog(editor,this);if(saved){await LoadProject();SetStatus("原生代码已保存，点击“重新生成原生底片”更新画面。");}}catch(Exception error){Error(error);}
     }
     private async Task EditNativeSource()
     {
         if(state.nativeProject==null)return;string file=selectedNativeEvent==null?"objects/"+state.nativeProject.controller+".gml":selectedNativeEvent.file;if(String.IsNullOrEmpty(state.nativeProject.controller)&&selectedNativeEvent==null){SetStatus("未识别控制对象，请从左栏资源打开对应 GML。");return;}
-        try{bool saved=false;var source=await bridge.Call<SourceData>("native-source-read",new{path=file});using(var editor=new CodeForm(file,source.content,async text=>{await bridge.Call<object>("native-source-save",new{path=file,content=text});await SaveNow(false);saved=true;},selectedNativeEvent==null?1:selectedNativeEvent.line))editor.ShowDialog(this);if(saved){await LoadProject();SetStatus("原生代码已保存，点击“重新生成原生底片”更新画面。");}}catch(Exception error){Error(error);}
+        try{bool saved=false;var source=await bridge.Call<SourceData>("native-source-read",new{path=file});using(var editor=new CodeForm(file,source.content,async text=>{await bridge.Call<object>("native-source-save",new{path=file,content=text});await SaveNow(false);saved=true;},selectedNativeEvent==null?1:selectedNativeEvent.line))Language.ShowDialog(editor,this);if(saved){await LoadProject();SetStatus("原生代码已保存，点击“重新生成原生底片”更新画面。");}}catch(Exception error){Error(error);}
     }
 }

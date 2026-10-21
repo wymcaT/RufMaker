@@ -7,7 +7,7 @@ export function preparePlainRoom(root,project,state,write,append) {
   for(const [name,base,sprite,solid,height] of [['objRufBlock','block','sprRufBlock',1,32],['objRufPlatform','platform','sprRufPlatform',0,8]]) {
     const spriteDir=path.join(project,'sprites',sprite);
     if(!fs.existsSync(spriteDir)){
-      fs.mkdirSync(spriteDir);fs.copyFileSync(path.join(root,'desktop','assets',`${sprite}.png`),path.join(spriteDir,'0.png'));
+      fs.mkdirSync(spriteDir);fs.copyFileSync(path.join(root,'assets','terrain',`${sprite}.png`),path.join(spriteDir,'0.png'));
       write(path.join(spriteDir,'sprite.txt'),`frames=1\norigin_x=0\norigin_y=0\ncollision_shape=0\nalpha_tolerance=0\nper_frame_colliders=0\nbbox_type=0\nbbox_left=0\nbbox_top=0\nbbox_right=31\nbbox_bottom=${height-1}\n`);
       append(path.join(project,'sprites','index.yyd'),sprite);append(path.join(project,'sprites','tree.yyd'),`\t|${sprite}`);
     }

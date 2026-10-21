@@ -18,11 +18,15 @@ $addFile={param($relative,$source)
     $manifestFiles.Add(@{path=$relative;sha256=(Get-FileHash -LiteralPath $source -Algorithm SHA256).Hash.ToLowerInvariant()})
 }
 & $addFile 'RufMaker.exe' $executable
-foreach($relative in @('README.md','LICENSE','icon.ico','runtime/node.exe','runtime/fmodex.dll','desktop/assets/sprRufBlock.png','desktop/assets/sprRufPlatform.png')){& $addFile $relative (Join-Path $taskRoot $relative)}
+foreach($relative in @('README.md','LICENSE','runtime/node.exe','runtime/fmodex.dll')){& $addFile $relative (Join-Path $taskRoot $relative)}
+# Keep transport paths compatible with the 1.6 updater. The new EXE arranges
+# these shipped assets into assets/ before loading a project.
+foreach($entry in @(@('icon.ico','assets/icons/icon.ico'),@('desktop/assets/sprRufBlock.png','assets/terrain/sprRufBlock.png'),@('desktop/assets/sprRufPlatform.png','assets/terrain/sprRufPlatform.png'))){& $addFile $entry[0] (Join-Path $taskRoot $entry[1])}
 foreach($file in Get-ChildItem -LiteralPath (Join-Path $taskRoot 'studio') -File | Where-Object {$_.Extension -eq '.mjs' -or $_.Name -eq 'waveform.json'}){& $addFile ('studio/'+$file.Name) $file.FullName}
-foreach($folder in @('templates/avoidance.gm82','Ultimate Avoidance Sprite Pack')){
+foreach($folder in @('templates/avoidance.gm82','assets/sprite-packs/Ultimate Avoidance Sprite Pack')){
     foreach($file in Get-ChildItem -LiteralPath (Join-Path $taskRoot $folder) -File -Recurse){
         $relative=$file.FullName.Substring($taskRoot.Length+1).Replace('\','/')
+        if($relative.StartsWith('assets/sprite-packs/')){$relative=$relative.Substring('assets/sprite-packs/'.Length)}
         if($relative -match '/(cache|build)/|/Data/Save/(?!\.gitkeep$)|rufmaker_preview|game_errors\.log|/options\.ini$|\.tmp$'){continue}
         & $addFile $relative $file.FullName
     }

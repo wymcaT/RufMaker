@@ -4,6 +4,8 @@ using System.Drawing;
 using System.IO;
 using System.IO.Compression;
 using System.Linq;
+using System.Reflection;
+using System.Windows.Forms;
 
 internal static class PresetTests
 {
@@ -17,9 +19,31 @@ internal static class PresetTests
     }
     private static string NewProject(string scratch,string name)
     {string result=Path.Combine(scratch,name);Directory.CreateDirectory(Path.Combine(result,"sprites"));File.WriteAllText(Path.Combine(result,"sprites","index.yyd"),"");File.WriteAllText(Path.Combine(result,"sprites","tree.yyd"),"");return result;}
-    private static int Main(string[] args)
+    private static void Browser(string folder)
+    {
+        var flags=BindingFlags.Instance|BindingFlags.NonPublic;
+        var library=new PresetLibrary(Path.Combine(folder,"user-presets"));library.CreateFolder("","分类");library.Save("","测试预设",TrackPreset.Capture("测试预设",new[]{CameraTrack()},50),folder);
+        using(var editor=new MainForm(folder)){
+            var state=new EditorState();typeof(MainForm).GetField("state",flags).SetValue(editor,state);
+            typeof(MainForm).GetField("document",flags).SetValue(editor,new LoadData{state=state,project=folder,inventory=new Inventory{objects=new string[0],sprites=new string[0],scripts=new[]{"alpha","beta"}}});
+            var search=(TextBox)typeof(MainForm).GetField("search",flags).GetValue(editor);var list=(ListView)typeof(MainForm).GetField("resources",flags).GetValue(editor);
+            string[] kinds={"presets","effect-presets","camera-presets","custom-presets"};int[] counts={MotionPresets.Names.Length,EffectPresets.Names.Length,CameraPresets.Names.Length,2};
+            for(int i=0;i<kinds.Length;i++){
+                typeof(MainForm).GetField("resourceKind",flags).SetValue(editor,kinds[i]);search.Text="   ";typeof(MainForm).GetMethod("FillResources",flags).Invoke(editor,null);
+                Assert(list.Items.Count==counts[i],"Whitespace hid "+kinds[i]);
+                typeof(MainForm).GetField("restoredDocumentView",flags).SetValue(editor,false);typeof(MainForm).GetField("restoredView",flags).SetValue(editor,new WorkspaceView{resourceKind=kinds[i],search="   "});
+                typeof(MainForm).GetMethod("RestoreDocumentView",flags).Invoke(editor,null);
+                Assert((string)typeof(MainForm).GetField("resourceKind",flags).GetValue(editor)==kinds[i]&&search.Text==""&&list.Items.Count==counts[i],"Restored preset category or blank filter was lost");
+            }
+            typeof(MainForm).GetField("resourceKind",flags).SetValue(editor,"camera-presets");search.Text=" 摇摆 ";Assert(list.Items.Count==1&&list.Items[0].Text=="柔和摇摆","Preset search must trim surrounding spaces and still filter");
+            typeof(MainForm).GetField("resourceKind",flags).SetValue(editor,"scripts");search.Text="   ";Assert(list.Items.Count==2,"Whitespace hid normal resources");search.Text=" beta ";Assert(list.Items.Count==1&&list.Items[0].Text=="beta","Resource filtering must still work");
+        }
+        Console.WriteLine("PASS: blank searches show 14 actions, 10 effects, 8 cameras and custom presets; category restore and normal resource filtering work (no application window).");
+    }
+    [STAThread] private static int Main(string[] args)
     {
         try{
+            if(args.Length==2&&args[0]=="--browser"){Browser(args[1]);return 0;}
             if(args.Length==1&&args[0]=="--icons"){
                 for(int rebuild=0;rebuild<24;rebuild++)using(var icons=PresetIcons.Create()){
                     Assert(icons.Handle!=IntPtr.Zero&&icons.Images.Count==3,"Preset image list handle missing");

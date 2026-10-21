@@ -1,10 +1,14 @@
 # RufMaker
 
+[English guide](https://github.com/wymcaT/RufMaker/blob/main/docs/README.en.md)
+
 用时间轴制作 **I Wanna 耐久**的 Windows 桌面编辑器。
 
 把弹幕、整体对象、镜头和特效放到时间轴上，用关键帧控制它们的变化，配着音乐逐帧调整。需要写代码时，可以继续使用 GameMaker 的对象、脚本和房间编辑器，最后导出可以独立游玩的游戏。
 
 界面是原生 Windows 程序，双击 `RufMaker.exe` 启动。
+
+顶栏的“切换语言 / Language”支持 **简体中文和 English**，选择后立即生效，重启后也会记住。切换语言只改变界面显示，工程名称、用户自定义预设、GML 和参数值保持原样。
 
 ## 下载与准备
 
@@ -153,6 +157,24 @@ powershell -NoProfile -ExecutionPolicy Bypass -File desktop/Build-Native.ps1
 ```
 
 输出为 `build/RufMaker.native.exe`。歌曲与预览由随附的 FMOD 运行库处理，后台工程服务通过进程管道通信。
+
+### 目录说明
+
+| 文件夹 | 用途 |
+| --- | --- |
+| `desktop/` | Windows 界面、预览、语言切换和本地构建脚本 |
+| `studio/` | GameMaker 工程读写、GML 生成、编译和原生工程兼容 |
+| `assets/` | 图标、语言词表、地形贴图、彩虹 Cherry 源素材和弹幕素材包 |
+| `templates/` | 新建耐久使用的 GameMaker 引擎模板 |
+| `runtime/` | Node.js、FMOD 等运行依赖 |
+| `projects/` | 演示工程及自己创建、导入的工程 |
+| `docs/` | 使用补充说明、开发目录说明和参考视频分析 |
+| `user-presets/` | 本机共享的自定义预设，不随更新覆盖 |
+| `user-data/` | 本机语言等偏好设置，不纳入 Git |
+| `build/` | 编译结果、更新包、日志和临时录制文件，不纳入 Git |
+| `references/` | 本地参考材料；参考视频不纳入 Git |
+
+例如，彩虹 Cherry 的源文件现在位于 `assets/sprites/sprrainbowcherry.gmspr`，图标位于 `assets/icons/`，素材包位于 `assets/sprite-packs/`。从旧版更新时，首次启动会自动整理旧资源路径。详见[目录与开发说明](https://github.com/wymcaT/RufMaker/blob/main/docs/目录与开发说明.md)。
 
 [参考耐久视频的功能分析](docs/耐久视频功能分析.md)记录了运动、镜头、场地与弹幕制作方面的分析。
 
