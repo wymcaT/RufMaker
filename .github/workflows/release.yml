@@ -1,8 +1,6 @@
 name: Publish Windows release
 on:
   push:
-    branches: ['main']
-    paths: ['.github/workflows/release.yml']
     tags: ['v*']
   workflow_dispatch:
 permissions:
@@ -22,7 +20,7 @@ jobs:
           if($env:GITHUB_REF_TYPE -eq 'tag' -and $env:GITHUB_REF_NAME -ne "v$version"){throw 'Tag and application versions do not match.'}
           ./desktop/Package-Release.ps1 -Version $version
           "RUFMAKER_VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
-      - name: Publish verified update assets
+      - name: Publish Windows app and update package
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
@@ -30,14 +28,22 @@ jobs:
           $tag="v$env:RUFMAKER_VERSION"
           $headers=@{Authorization="Bearer $env:GH_TOKEN";Accept='application/vnd.github+json';'User-Agent'='RufMaker-release'}
           $base="https://api.github.com/repos/$env:GITHUB_REPOSITORY"
+          $release=$null
           try {
             $existing=Invoke-RestMethod -Uri "$base/releases/tags/$tag" -Headers $headers
             if(!$existing.draft){Write-Host "Release $tag is already published.";exit 0}
+            $release=$existing
           } catch {if([int]$_.Exception.Response.StatusCode -ne 404){throw}}
-          $body=@{tag_name=$tag;target_commitish=$env:GITHUB_SHA;name="RufMaker $tag";body='Native Windows editor update package. Application files only; projects and songs are preserved.';draft=$true;prerelease=$false} | ConvertTo-Json
-          $release=Invoke-RestMethod -Method Post -Uri "$base/releases" -Headers $headers -ContentType 'application/json' -Body $body
+          $notesFile="docs/releases/$tag.md"
+          $notes=if(Test-Path -LiteralPath $notesFile){Get-Content -LiteralPath $notesFile -Raw}else{"首次下载请选择 RufMaker-$env:RUFMAKER_VERSION-Windows-Portable.zip，完整解压后打开 RufMaker.exe。RufMaker-$env:RUFMAKER_VERSION.zip 供软件自动更新使用。`n`nFirst download: choose the Windows-Portable ZIP and extract everything before running RufMaker.exe. The other ZIP is used by the in-app updater."}
+          if(!$release){
+            $body=@{tag_name=$tag;target_commitish=$env:GITHUB_SHA;name="RufMaker $tag · Windows 完整便携版";body=$notes;draft=$true;prerelease=$false} | ConvertTo-Json
+            $release=Invoke-RestMethod -Method Post -Uri "$base/releases" -Headers $headers -ContentType 'application/json' -Body $body
+          }
           foreach($file in Get-ChildItem build/distribution -File){
-            $url="https://uploads.github.com/repos/$env:GITHUB_REPOSITORY/releases/$($release.id)/assets?name=$([uri]::EscapeDataString($file.Name))"
+            foreach($asset in @($release.assets | Where-Object {$_.name -eq $file.Name})){Invoke-RestMethod -Method Delete -Uri "$base/releases/assets/$($asset.id)" -Headers $headers | Out-Null}
+            $label=if($file.Name -like '*Windows-Portable.zip'){'软件本体：Windows 完整便携版（首次下载）'}elseif($file.Name -like '*.zip'){'自动更新包（供软件检测更新使用）'}else{'SHA256 文件校验'}
+            $url="https://uploads.github.com/repos/$env:GITHUB_REPOSITORY/releases/$($release.id)/assets?name=$([uri]::EscapeDataString($file.Name))&label=$([uri]::EscapeDataString($label))"
             Invoke-RestMethod -Method Post -Uri $url -Headers $headers -ContentType 'application/octet-stream' -InFile $file.FullName | Out-Null
           }
           Invoke-RestMethod -Method Patch -Uri "$base/releases/$($release.id)" -Headers $headers -ContentType 'application/json' -Body '{"draft":false,"make_latest":"true"}' | Out-Null

@@ -7,7 +7,21 @@ import {pathToFileURL} from 'node:url';
 export function locateProject(root,selection='') {
   const legacy=path.join(root,'projects','rufmaker-demo.gm82','rufmaker-demo.gm82');
   const defaultDescriptor=path.join(root,'projects','rufmaker-demo.rufmaker');
-  let file=path.resolve(selection||(fs.existsSync(defaultDescriptor)?defaultDescriptor:legacy)),descriptor='';
+  let fallback=fs.existsSync(defaultDescriptor)?defaultDescriptor:legacy;
+  // Release ZIPs contain templates but no personal/demo project. Bootstrap one
+  // only when no project was selected and no bundled default exists.
+  if(!selection&&!fs.existsSync(fallback)) {
+    const record=path.join(root,'user-data','startup-project.json');
+    const saved=fs.existsSync(record)?JSON.parse(fs.readFileSync(record,'utf8')).path:'';
+    if(saved&&fs.existsSync(path.resolve(root,saved)))fallback=path.resolve(root,saved);
+    else {
+      const parent=path.join(root,'projects');fs.mkdirSync(parent,{recursive:true});let name='RufMaker Project',index=2;
+      while(fs.existsSync(path.join(parent,name)))name='RufMaker Project '+index++;
+      fallback=createProject(root,{name,parent,preset:'floor',width:800,height:608,fps:50}).path;
+      fs.mkdirSync(path.dirname(record),{recursive:true});fs.writeFileSync(record,JSON.stringify({path:path.relative(root,fallback).replaceAll('\\','/')},null,2)+'\n');
+    }
+  }
+  let file=path.resolve(selection||fallback),descriptor='';
   if(fs.statSync(file).isDirectory()) {
     const entries=fs.readdirSync(file).filter(n=>n.endsWith('.rufmaker'));
     if(entries.length===1)file=path.join(file,entries[0]);

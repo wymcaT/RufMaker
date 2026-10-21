@@ -25,10 +25,12 @@ internal static class Motion
     public static void SetBase(Track t,string property,double value)
     {var field=typeof(Track).GetField(property);if(field==null)throw new ArgumentException("未知属性："+property);field.SetValue(t,field.FieldType==typeof(int)?(object)(int)Math.Round(value):(object)value);}
     public static void EditValue(Track t,string property,int frame,double value)
-    {if(HasKeys(t,property))SetKey(t,property,frame,value);else SetBase(t,property,value);}
+    {if(HasKeys(t,property))SetKey(t,property,frame,value);else {t.expressions.Remove(property);SetBase(t,property,value);}}
     public static void Normalize(EditorState state)
     {
         if(state.nativeTest==null)state.nativeTest=new NativeTestPosition();
+        TimelineLayout.Normalize(state);
+        TimelineLayout.Order(state);
         foreach(var t in state.tracks)
         {
             if(t.rainbow){t.sprite=String.IsNullOrEmpty(t.rainbowSprite)?Rainbow.Sprite:t.rainbowSprite;t.color="#FFFFFF";}
@@ -43,6 +45,7 @@ internal static class Motion
             if(t.kind=="effect"&&t.effect!="flash"&&t.name=="闪屏")t.name=Effects.Name(t.effect);
         }
         state.version=2;
+        RandomParameters.Resolve(state);
     }
     public static double Value(Track t,string property,double frame)
     {
@@ -72,7 +75,7 @@ internal static class Motion
         p.angle+=t.angularSpeed*dt;return p;
     }
     public static void SetKey(Track t,string property,int frame,double value)
-    {var key=t.keyframes.FirstOrDefault(k=>k.property==property&&k.frame==frame);if(key==null){key=new Keyframe{frame=frame,property=property};t.keyframes.Add(key);}key.value=value;t.start=Math.Min(t.start,frame);t.end=Math.Max(t.end,frame);}
+    {var key=t.keyframes.FirstOrDefault(k=>k.property==property&&k.frame==frame);if(key==null){key=new Keyframe{frame=frame,property=property};t.keyframes.Add(key);}key.expression="";key.value=value;t.start=Math.Min(t.start,frame);t.end=Math.Max(t.end,frame);}
     public static PointF[] Endpoints(Track t,double frame)
     {
         var p=At(t,frame);double dx=Math.Cos(p.angle*Math.PI/180)*Value(t,"length",frame),dy=-Math.Sin(p.angle*Math.PI/180)*Value(t,"length",frame);

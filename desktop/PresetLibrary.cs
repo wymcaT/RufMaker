@@ -15,7 +15,7 @@ internal sealed class TrackPreset
     {
         var result=new TrackPreset{name=name,fps=fps,tracks=selected.Select(t=>t.Snapshot()).ToList()};Validate(result);
         int origin=result.tracks.Min(t=>Math.Min(t.start,t.keyframes.Select(k=>k.frame).DefaultIfEmpty(t.start).Min()));
-        foreach(var t in result.tracks){t.id="";t.start-=origin;t.end-=origin;foreach(var k in t.keyframes)k.frame-=origin;}return result;
+        int firstLane=result.tracks.Min(t=>Math.Max(0,t.lane));foreach(var t in result.tracks){t.lane=Math.Max(0,t.lane-firstLane);t.id="";t.start-=origin;t.end-=origin;foreach(var k in t.keyframes)k.frame-=origin;}return result;
     }
     public List<Track> Instantiate(int frame,int fps)
     {

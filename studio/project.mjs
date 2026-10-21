@@ -1,6 +1,8 @@
 import fs from 'node:fs';
 import {gmlNumber as gnum} from './gml.mjs';
 import {locateProject} from './project-files.mjs';
+import {resolveGameMaker} from './engine-path.mjs';
+import {parameterCode as parameter,randomInitialization,randomNextGml} from './random-parameters.mjs';
 import {preparePlainRoom} from './plain-room.mjs';
 import {shapeSetup,shapePoint} from './shapes.mjs';
 import {cameraApplyGml,cameraCompositeGml,cameraUpdate} from './camera.mjs';
@@ -19,9 +21,7 @@ const location=locateProject(root,process.env.RUFMAKER_PROJECT);
 export const {project,projectFile,descriptor,home,buildDir,gameExe}=location;
 export const projectName=location.name;
 export const makerFile = path.join(project, 'rufmaker.json');
-const installedGameMaker = path.join(process.env.APPDATA || '', 'GameMaker8.2', 'GameMaker.exe');
-const bundledGameMaker = path.join(root, 'GameMaker8.2', 'GameMaker.exe');
-export const gameMaker = process.env.RUFMAKER_GAMEMAKER || (fs.existsSync(bundledGameMaker) ? bundledGameMaker : installedGameMaker);
+export const gameMaker = resolveGameMaker(root);
 export const pack = path.join(root, 'assets','sprite-packs','Ultimate Avoidance Sprite Pack');
 
 const action = `/*"/*'/**//* YYD ACTION\nlib_id=1\naction_id=603\napplies_to=self\n*/`;
@@ -82,7 +82,7 @@ function bulletSpawn(track, fromHistory, sequence='0') {
   pieces.push(`rf_inst.rf_age=${age}; rf_inst.rf_life=rf_life; rf_inst.rf_speed=rf_speed; rf_inst.rf_dir=rf_dir;`);
   pieces.push(`rf_inst.sprite_index=${track.sprite}; rf_inst.image_blend=${gcolor(track.color)}; rf_inst.image_xscale=rf_scale; rf_inst.image_yscale=rf_scale; rf_inst.image_alpha=rf_alpha; rf_inst.rf_trail=${track.trail ? 1 : 0};`);
   pieces.push(`rf_inst.image_angle=rf_spriteAngle+${track.rotateSprite?'rf_dir':'0'};rf_inst.rf_rotate=${track.rotateSprite?1:0};rf_inst.rf_sprite_angle=rf_spriteAngle;rf_inst.rf_birth=${time};rf_inst.rf_index=rf_j;`);
-  pieces.push(`rf_inst.rf_t_mode='${trailMode(track)}';rf_inst.rf_t_interval=${gnum(track.trailInterval,3)};rf_inst.rf_t_life=${gnum(track.trailLife,18)};rf_inst.rf_t_alpha=${gnum(track.trailStartAlpha,.55)};rf_inst.rf_t_scale_decay=${gnum(track.trailScaleDecay,.035)};rf_inst.rf_t_alpha_decay=${gnum(track.trailAlphaDecay,.035)};rf_inst.rf_t_speed=${gnum(track.trailSpeed)};rf_inst.rf_t_direction=${gnum(track.trailDirection)};rf_inst.rf_t_random=${track.trailRandom?1:0};`);
+  pieces.push(`rf_inst.rf_t_mode='${trailMode(track)}';rf_inst.rf_t_interval=${parameter(track,'trailInterval',3)};rf_inst.rf_t_life=${parameter(track,'trailLife',18)};rf_inst.rf_t_alpha=${parameter(track,'trailStartAlpha',.55)};rf_inst.rf_t_scale_decay=${parameter(track,'trailScaleDecay',.035)};rf_inst.rf_t_alpha_decay=${parameter(track,'trailAlphaDecay',.035)};rf_inst.rf_t_speed=${parameter(track,'trailSpeed')};rf_inst.rf_t_direction=${parameter(track,'trailDirection')};rf_inst.rf_t_random=${track.trailRandom?1:0};`);
   if(track.rainbow)pieces.push(`rf_inst.rf_rainbow=1;rf_inst.rf_r_sequence=${sequence}+rf_j;rf_inst.rf_r_density=rf_rainbowDensity;rf_inst.rf_r_offset=rf_rainbowOffset;rf_inst.rf_r_speed=rf_rainbowSpeed;rf_inst.rf_r_start=${gnum(track.start)};rf_inst.rf_r_dynamic=${track.rainbowDynamic?1:0};rf_inst.rf_r_reverse=${track.rainbowReverse?1:0};rf_inst.image_speed=0;rf_inst.image_blend=c_white;rf_inst.image_index=${rainbowCode(track,`${sequence}+rf_j`,'rf_frame')};`);
   pieces.push('} }');if(track.rainbow)pieces.push(`${sequence}+=max(1,min(300,round(rf_count)));`);
   return pieces.join('\n');
@@ -104,7 +104,7 @@ function rodUpdate(t,index) {
 
 function spatialTrails(t) {
   if(trailMode(t)==='off')return '';
-  const interval=Math.max(1,t.trailInterval),life=Math.max(1,Math.min(300,t.trailLife));
+  const interval=parameter(t,'trailInterval',3),life=`min(300,${parameter(t,'trailLife',18)})`;
   const parts=[`if rf_frame>=${gnum(t.start)} && rf_frame<=${gnum(t.end)} {for(rf_sample=floor(rf_frame/${interval})*${interval};rf_sample>=max(${gnum(t.start)},rf_frame-${life}+1);rf_sample-=${interval}) {`,stateAt(t,'rf_sample')];
   if(t.kind==='object')parts.push(trailCall(t,{color:gcolor(t.color),age:'rf_frame-rf_sample',seed:'rf_sample',subimage:rainbowCode(t,'0','rf_sample')}));
   else {
@@ -120,7 +120,7 @@ function makeController(s) {
     `if file_exists(working_directory+'\\Data\\rufmaker_preview.ini') { ini_open(working_directory+'\\Data\\rufmaker_preview.ini'); rf_target=ini_read_real('preview','frame',0); ini_close(); rf_preview=1; }`,
     `rf_frame=max(0,min(${gnum(s.duration)},round(rf_target))); rf_target=rf_frame;`,
     native?'':`FMODInstanceSetPosition(rf_music,(rf_frame/${gnum(s.fps)}*1000)/FMODSoundGetLength(BGM_Ad)); FMODInstanceSetPaused(rf_music,0);`,
-    `var rf_k,rf_i,rf_j,rf_u,rf_dir,rf_inst,rf_len,rf_phase,rf_fraction,rf_px,rf_py,rf_seg,rf_mix,${fields.map(f=>'rf_'+f).join(',')};`, `rf_custom_create();`,fxInitialization(s),cameraUpdate(s),`rf_inst=instance_create(0,0,objRufTrails);rf_inst.rf_owner=id;`];
+    `var rf_k,rf_i,rf_j,rf_u,rf_dir,rf_inst,rf_len,rf_phase,rf_fraction,rf_px,rf_py,rf_seg,rf_mix,${fields.map(f=>'rf_'+f).join(',')};`,randomInitialization(s), `rf_custom_create();`,fxInitialization(s),cameraUpdate(s),`rf_inst=instance_create(0,0,objRufTrails);rf_inst.rf_owner=id;`];
   const step = [`#define Step_0`,action,native&&nativeClock&&safeName(s.nativeProject.controller)?`rf_frame+=1;if instance_exists(${s.nativeProject.controller}) with(${s.nativeProject.controller}) {other.rf_frame=${nativeClock};}`:`rf_frame+=1;`,native?'':`if rf_frame>${gnum(s.duration)} { room_goto(rEnd); exit; }`,
     `var rf_k,rf_i,rf_j,rf_u,rf_dir,rf_inst,rf_len,rf_phase,rf_fraction,rf_px,rf_py,rf_seg,rf_mix,${fields.map(f=>'rf_'+f).join(',')};`, `rf_custom_step();`,cameraUpdate(s)];
   const draw = [`#define Draw_0`,action,`var rf_sample,rf_len,rf_phase,rf_fraction,rf_px,rf_py,rf_seg,rf_mix,rf_i,rf_j,rf_u,rf_dir,rf_inst,${fields.map(f=>'rf_'+f).join(',')};`, `rf_custom_draw();`];
@@ -128,15 +128,15 @@ function makeController(s) {
   for (const t of s.tracks.filter(x=>x.enabled!==false)) {
 
     if (t.kind==='emitter') {
-      const maxLife=Math.max(t.life||120,...t.keyframes.filter(k=>k.property==='life').map(k=>k.value));
-      const sequence=`rf_emitter${emitterIndex++}_sequence`,first=`${gnum(t.start)}+max(0,ceil((rf_frame-${maxLife}+1-${gnum(t.start)})/${gnum(t.interval,1)}))*${gnum(t.interval,1)}`;
+      const lives=[parameter(t,'life',120),...t.keyframes.filter(k=>k.property==='life').map(k=>parameter(t,'life',120,k))],maxLife=lives.length>1?`max(${lives.join(',')})`:lives[0];
+      const sequence=`rf_emitter${emitterIndex++}_sequence`,first=`${gnum(t.start)}+max(0,ceil((rf_frame-${maxLife}+1-${gnum(t.start)})/${parameter(t,'interval',1)}))*${parameter(t,'interval',1)}`;
       if(t.rainbow) {
         create.push(`${sequence}=0;`);
-        if(t.keyframes.some(k=>k.property==='count'))create.push(`for(rf_k=${gnum(t.start)};rf_k<min(${first},${gnum(t.end)}+1);rf_k+=${gnum(t.interval,1)}){${stateAt(t,'rf_k')} ${sequence}+=max(1,min(300,round(rf_count)));}`);
-        else create.push(`${sequence}=max(0,ceil((rf_frame-${maxLife}+1-${gnum(t.start)})/${gnum(t.interval,1)}))*${Math.max(1,Math.min(300,Math.round(t.count)))};`);
+        if(t.keyframes.some(k=>k.property==='count'))create.push(`for(rf_k=${gnum(t.start)};rf_k<min(${first},${gnum(t.end)}+1);rf_k+=${parameter(t,'interval',1)}){${stateAt(t,'rf_k')} ${sequence}+=max(1,min(300,round(rf_count)));}`);
+        else create.push(`${sequence}=max(0,ceil((rf_frame-${maxLife}+1-${gnum(t.start)})/${parameter(t,'interval',1)}))*max(1,min(300,round(${parameter(t,'count',12)})));`);
       }
-      create.push(`// RufMaker emitter\nfor (rf_i=${first};rf_i<=min(${gnum(t.end)},rf_frame);rf_i+=${gnum(t.interval,1)}) { ${bulletSpawn(t,true,sequence)} }`);
-      step.push(`if (rf_frame>=${gnum(t.start)} && rf_frame<=${gnum(t.end)} && (rf_frame-${gnum(t.start)}) mod ${gnum(t.interval,1)}=0) { ${bulletSpawn(t,false,sequence)} }`);
+      create.push(`// RufMaker emitter\nfor (rf_i=${first};rf_i<=min(${gnum(t.end)},rf_frame);rf_i+=${parameter(t,'interval',1)}) { ${bulletSpawn(t,true,sequence)} }`);
+      step.push(`if (rf_frame>=${gnum(t.start)} && rf_frame<=${gnum(t.end)} && (rf_frame-${gnum(t.start)}) mod ${parameter(t,'interval',1)}=0) { ${bulletSpawn(t,false,sequence)} }`);
     } else if(t.kind==='rod') {
       const prefix=`rf_rod${rodIndex}`;
       create.push(`${prefix}_count=0;for(rf_j=0;rf_j<300;rf_j+=1) ${prefix}[rf_j]=noone;`,rodUpdate(t,rodIndex));
@@ -219,7 +219,7 @@ export function syncToGame(s) {
     for(const dir of ['objects','scripts'])for(const file of fs.readdirSync(path.join(project,dir)).filter(f=>f.endsWith('.gml')&&!/^(?:objRuf|rf_)/.test(f))){const target=path.join(project,dir,file);atomicWrite(target,patchNativeSurfaceReset(fs.readFileSync(target,'utf8')));}
     for(const [name,code] of [['rf_native_compose',nativeComposeGml(s)],['rf_native_surface_reset',nativeSurfaceResetGml]]){atomicWrite(path.join(project,'scripts',name+'.gml'),code);appendUnique(path.join(project,'scripts','index.yyd'),name);appendUnique(path.join(project,'scripts','tree.yyd'),'\t|'+name);}
   }
-  for (const [name,code] of [['rf_camera_apply',cameraApplyGml],['rf_camera_composite',cameraCompositeGml],['rf_bullet_trails',bulletTrailGml],['rf_ease',easeGml],['rf_bounce',bounceGml],['rf_fx_reset_target',fxResetGml],['rf_fx_opaque',fxOpaqueGml],['rf_trail_draw',trailGml],['rf_rainbow_index',rainbowGml]]) {atomicWrite(path.join(project,'scripts',`${name}.gml`),code);appendUnique(path.join(project,'scripts','index.yyd'),name);appendUnique(path.join(project,'scripts','tree.yyd'),`	|${name}`);}
+  for (const [name,code] of [['rf_random_next',randomNextGml],['rf_camera_apply',cameraApplyGml],['rf_camera_composite',cameraCompositeGml],['rf_bullet_trails',bulletTrailGml],['rf_ease',easeGml],['rf_bounce',bounceGml],['rf_fx_reset_target',fxResetGml],['rf_fx_opaque',fxOpaqueGml],['rf_trail_draw',trailGml],['rf_rainbow_index',rainbowGml]]) {atomicWrite(path.join(project,'scripts',`${name}.gml`),code);appendUnique(path.join(project,'scripts','index.yyd'),name);appendUnique(path.join(project,'scripts','tree.yyd'),`	|${name}`);}
   if(!native&&(typeof s.music!=='string'||!/^Data\/Music\/[A-Za-z0-9_. -]+\.(ogg|mp3|wav|flac)$/i.test(s.music)||!fs.existsSync(path.join(project,s.music))))throw new Error('工程音乐不存在，请重新导入歌曲');
   const musicInit=path.join(project,'scripts','music_init.gml');
   if(!native)atomicWrite(musicInit,fs.readFileSync(musicInit,'utf8').replace(/^BGM_Ad\s*=.*$/m,`BGM_Ad = FMODSoundAdd('${s.music}',0,0);`).replace(/global\.music_directory\s*\+\s*'([^']+)'/g,(_,file)=>`'Data/Music/${file}'`));

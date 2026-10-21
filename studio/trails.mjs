@@ -1,10 +1,11 @@
+import {parameterCode as parameter} from './random-parameters.mjs';
 import {gmlNumber as num} from './gml.mjs';
 // Trail samples are evaluated from their birth time, so seeking needs no simulation.
 export const trailModes=['off','fade','shrink','shrink-fade','appear','custom'];
 export const trailMode=t=>t.trailMode==='legacy'||t.trailMode===undefined?(t.trail?'fade':'off'):t.trailMode;
-export const trailDirection=(t,seed)=>t.trailRandom?`((sin((${seed}+1)*12.9898)*43758.5453-floor(sin((${seed}+1)*12.9898)*43758.5453))*360)`:num(t.trailDirection);
+export const trailDirection=(t,seed)=>t.trailRandom?`((sin((${seed}+1)*12.9898)*43758.5453-floor(sin((${seed}+1)*12.9898)*43758.5453))*360)`:parameter(t,'trailDirection');
 export function trailCall(t,{sprite=t.sprite,x='rf_x',y='rf_y',scale='rf_scale',angle='rf_angle',alpha='rf_alpha',color,age,seed,subimage='0'}) {
-  return `rf_trail_draw(${sprite},${x},${y},${scale},${angle},${alpha},${color},${age},'${trailMode(t)}',${num(t.trailLife)},${num(t.trailStartAlpha)},${num(t.trailScaleDecay)},${num(t.trailAlphaDecay)},${num(t.trailSpeed)},${trailDirection(t,seed)},${subimage});`;
+  return `rf_trail_draw(${sprite},${x},${y},${scale},${angle},${alpha},${color},${age},'${trailMode(t)}',${parameter(t,'trailLife')},${parameter(t,'trailStartAlpha')},${parameter(t,'trailScaleDecay')},${parameter(t,'trailAlphaDecay')},${parameter(t,'trailSpeed')},${trailDirection(t,seed)},${subimage});`;
 }
 export const trailGml=`// Arguments: sprite, x, y, scale, angle, alpha, color, age, mode,
 // lifetime, initial opacity, scale decay/frame, alpha decay/frame, drift speed, drift angle.

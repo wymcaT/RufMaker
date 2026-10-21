@@ -85,11 +85,12 @@ internal sealed partial class MainForm
             try{using(var film=new NativeFilmReader(NativeFilmPath))nativeFilmInfo=film.Info;nativeRender.Checked=true;ToggleNativeFilm();SetStatus(nativeFilmInfo.views==null?"旧底片未记录原生视野；请点击“重新生成原生底片”一次，以同步物件和拉镜坐标。":"原生底片已载入 · 物件跟随原生视野，RufMaker 拉镜与特效实时叠加。");}
             catch(Exception error){nativeRender.Checked=false;Error(error);}return;
         }
+        if(!EngineSetup.Find(root).Ready){nativeRender.Checked=false;SetStatus("尚未配置 GM8.2；可继续编辑，使用顶栏“引擎设置”完成配置后再试玩或导出。");return;}
         await GenerateNativeFilm();
     }
     private async Task GenerateNativeFilm()
     {
-        if(state==null||state.nativeProject==null||nativeFilmGenerating)return;bool wasBusy=busy;nativeFilmGenerating=true;StopPlaying();SetBusy(true);regenerateNativeFilm.Enabled=false;
+        if(state==null||state.nativeProject==null||nativeFilmGenerating)return;if(!await EnsureEngine())return;bool wasBusy=busy;nativeFilmGenerating=true;StopPlaying();SetBusy(true);regenerateNativeFilm.Enabled=false;
         try{
             properties.CommitPending();if(!await SaveNow(false))return;SetStatus("正在编译原生底片录制副本…");var job=await bridge.Call<NativeFilmJob>("native-film-prepare",new{});
             using(var dialog=new NativeFilmProgressForm(job)){

@@ -114,6 +114,6 @@ internal sealed partial class MainForm
         bar.Controls.Add(new Label{Text="切换语言",AutoSize=true,ForeColor=Theme.Muted,Margin=new Padding(10,10,3,0)});
         languageChoice.DropDownStyle=ComboBoxStyle.DropDownList;languageChoice.Width=125;languageChoice.Margin=new Padding(3,6,5,0);languageChoice.BackColor=Theme.Raised;languageChoice.ForeColor=Theme.Text;
         languageChoice.Items.AddRange(new object[]{"简体中文","English"});languageChoice.SelectedIndex=Language.English?1:0;
-        languageChoice.SelectionChangeCommitted+=(s,e)=>{try{properties.CommitPending();Language.Select(root,languageChoice.SelectedIndex==1?"en":"zh-CN");Language.Apply(this);FillResources();ShowProperties();UpdateTitle();stage.Invalidate();timeline.Invalidate();}catch(Exception error){Error(error);}};bar.Controls.Add(languageChoice);
+        languageChoice.SelectionChangeCommitted+=(s,e)=>{try{properties.CommitPending();Language.Select(root,languageChoice.SelectedIndex==1?"en":"zh-CN");RefreshLanguageUI();}catch(Exception error){Error(error);}};bar.Controls.Add(languageChoice);
     }
 }

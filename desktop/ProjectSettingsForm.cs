@@ -16,6 +16,8 @@ internal sealed partial class MainForm
         if(state.nativeProject==null){bag.Add("直接进入耐久房间","工程",typeof(bool),()=>draft.directStart,v=>draft.directStart=(bool)v);bag.Add("FPS","时间",typeof(int),()=>draft.fps,v=>draft.fps=Math.Max(15,Math.Min(240,(int)v)),null,"更改 FPS 保留帧编号，会改变对应秒数。");}
         else {bag.Add("原引擎 FPS","时间",typeof(int),()=>state.fps,null);bag.Add("原生设置","工程",typeof(string),()=>"玩家逻辑、启动流程和 FPS 请在原 GML / 房间设置中修改后重新读取。",null);}
         bag.Add("总帧数","时间",typeof(int),()=>draft.duration,v=>draft.duration=Math.Max(1,Math.Min(1000000,(int)v)));
+        bag.Add("游玩种子模式","随机",typeof(string),()=>draft.randomizeOnPlay?"每次游玩随机":"固定（与预览一致）",v=>draft.randomizeOnPlay=(string)v=="每次游玩随机",new[]{"固定（与预览一致）","每次游玩随机"});
+        bag.Add("预览 / 固定种子","随机",typeof(int),()=>draft.randomSeed,v=>draft.randomSeed=Math.Max(0,(int)v),null,"固定模式下，F5 和导出游戏使用此种子；重新随机会更换预览种子。随机模式下每次进入耐久重新取样，R 回退仍恢复本次测试状态。");
         bag.Add("BPM","节拍",typeof(double),()=>draft.bpm,v=>draft.bpm=Math.Max(1,Math.Min(1000,(double)v)));
         bag.Add("拍点延迟 / 毫秒","节拍",typeof(double),()=>draft.beatOffsetMs,v=>draft.beatOffsetMs=(double)v);
         bag.Add("歌曲","音乐",typeof(string),()=>String.IsNullOrEmpty(draft.musicTitle)?Path.GetFileName(draft.music):draft.musicTitle,null);
@@ -36,6 +38,6 @@ internal sealed partial class MainForm
             if(Language.ShowDialog(dialog,this)!=DialogResult.OK)return;
         }
         PushUndo();state.name=draft.name;state.fps=draft.fps;state.duration=draft.duration;state.bpm=draft.bpm;state.beatOffsetMs=draft.beatOffsetMs;if(state.nativeProject==null){state.directStart=draft.directStart;state.player=draft.player;}
-        MarkChanged();SetFrame(frame);SetStatus("工程设置已应用并自动保存。");
+        state.randomSeed=draft.randomSeed;state.randomizeOnPlay=draft.randomizeOnPlay;RandomParameters.Resolve(state);MarkChanged();SetFrame(frame);SetStatus("工程设置已应用并自动保存。");
     }
 }

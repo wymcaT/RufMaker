@@ -6,29 +6,49 @@ Place emitters, formations, cameras and effects on a timeline, animate their pro
 
 ## Getting started
 
-1. For a first installation, download the [complete repository ZIP](https://github.com/wymcaT/RufMaker/archive/refs/heads/main.zip), extract everything, then run `RufMaker.exe`.
-2. Choose **English** from **切换语言 / Language** on the top bar. The setting applies immediately and is remembered.
+1. Download **`RufMaker-VERSION-Windows-Portable.zip`** from [Releases](https://github.com/wymcaT/RufMaker/releases/latest). This is the full Windows application. Extract everything, then run `RufMaker.exe`. A starter project is created from the template when needed.
+2. Choose **English** from **切换语言 / Language** in the setup window or top bar. If GM8.2 is missing, click **Download and set up** in the engine setup window.
 3. Create a project, choose a song and starting terrain, then add emitters or formations.
 4. Adjust clips and property keyframes. Press **Space** to preview with music, or **F5** to enter the actual game at the playhead.
 5. Use **Export game** and share its entire output folder, including the EXE, Data and required DLLs.
 
-Compiling, playtesting and exporting require GameMaker 8.2 with the extensions used by the game's engine. RufMaker checks `GameMaker8.2/GameMaker.exe`, then `%APPDATA%/GameMaker8.2/GameMaker.exe`. Set `RUFMAKER_GAMEMAKER` to the full EXE path for another installation.
+### GameMaker 8.2 setup
 
-Existing installations can use **Check for updates** or download the [latest update](https://github.com/wymcaT/RufMaker/releases/latest). Release ZIPs update an existing installation and do not include the demo project.
+The native setup window downloads the **Portable** package through the [GM8.2 project's website](https://gm82.cherry-treehouse.com/), shows download/extraction progress, checks the Core, Sound and DirectX9 extensions, and places the engine in `GameMaker8.2/` next to RufMaker. The engine is downloaded on demand rather than redistributed inside the RufMaker ZIP.
+
+Already have GM8.2? RufMaker detects saved locations, the adjacent `GameMaker8.2/` folder, `%APPDATA%/GameMaker8.2/` and registered installations. You can also **Choose existing folder** or **Import ZIP / 7z**. The selected path is remembered in `user-data/settings.json`. Command-line tools still accept `RUFMAKER_GAMEMAKER`.
+
+Setup checks for the **VC++ x86 and DirectX9 runtimes**. If either is missing, its button downloads the official Microsoft installer and opens it for you. Finish installation, then click **Detect again**. Imported games may require additional extensions, DLLs and assets from their original engines.
+
+You can choose **Skip and continue editing**. F5, game export, native recording generation and opening GameMaker require a configured engine; use **Engine settings** on the top bar when ready. You can retry a failed download or import a local archive. On older Windows versions without 7z extraction support, extract the archive manually and choose its folder.
+
+Replacing a local engine preserves extra extensions and backs up the previous installation in `build/engine-setup/previous-*`. Setup diagnostics are in `build/logs/engine-setup.log`.
+
+Existing RufMaker installations can use **Check for updates**. If current, a dialog says you are up to date. If a newer release exists, it displays the installed and latest version numbers and asks before downloading. Accepting saves your project, verifies the download, installs and restarts RufMaker. Declining continues editing. The `RufMaker-VERSION.zip` asset is the compatible automatic update package. Updates preserve projects, preferences, recordings, presets and your GM8.2 installation.
 
 ## Editing
 
 - **Library:** objects, sprites, scripts, motion/effect/camera presets and shared custom presets.
 - **Canvas:** Ctrl+wheel to zoom, middle-drag to pan, Ctrl+0 to fit the room.
 - **Inspector:** click a number to type or drag vertically to adjust. Ctrl gives fine control; Shift speeds up adjustment.
-- **Timeline:** drag clip centers to move them with their keys; drag edges to change boundaries. Expand a track to edit each keyed property separately.
+- **Timeline:** drag clip centers to move them with their keys; drag edges to change boundaries. Different clip types can share a numbered track. Overlapping clips stack within the track so each remains selectable. Drag vertically or use the inspector/context menu to change tracks; right-click empty space to add or delete an empty track. Click its number to select all its clips; right-click to save them together as a custom preset.
+- **Clip names and keys:** names appear on the clips. Click a clip’s ▸ to expand only its keyed properties. Other clips keep their own expanded state. Expanded clips hide keys on the main bar so you can still trim its edges.
 - **Parameters:** without keyframes a parameter is global; after adding keys, edits affect its value at the playhead.
+- **Animation buttons:** click ◇ beside an animatable parameter to create its first key at the playhead. Click ◆ to remove that property’s keys and keep the current value. Animation is off by default.
 - **Selection:** drag empty space to select clips or keys; Ctrl/Shift adds to selection. Ctrl+C / Ctrl+V duplicates objects with all their keys.
 - **Navigation:** click timeline empty space, then tap Left/Right for one frame. Hold to accelerate reverse/forward playback and release to stop. This ignores snapping.
 - **Preview speed:** choose 0.5x, 0.75x, 1x or enter a custom rate from 0.05 to 8. Music follows the speed, including reverse; pitch changes too. Game FPS and export timing are unchanged.
 - **Snapping:** use the BPM grid or snap to keys on one selected track. Native GM code markers are supported. Hold Alt to bypass snapping.
 
 A project consists of a `.rufmaker` file and its adjacent `GameMaker.gm82/` folder. Keep them together when moving or sharing a project. Music is copied into the project. Project and layout changes are saved automatically.
+
+### Random parameters
+
+Enable **Random** to the left of a numeric field, then enter an expression such as `random(360)`, `random_range(100,700)`, `choose(0,90,180,270)` or `400 + random_range(-60,60)`. Integer functions `irandom` and `irandom_range`, nested calls and arithmetic are supported. Keyframed parameters can have a separate expression at each key.
+
+Each expression is sampled once. Scrubbing, playback, saving and reopening keep the same result. **Resample** on the top bar changes the preview seed and redraws all RufMaker random parameters; this is saved with the project and can be undone. Disabling Random keeps the current numeric value.
+
+Under **Project settings → Random**, choose **Fixed (match preview)** for reproducible F5/export results, or **New seed on each play** for fresh samples when entering the avoidance. You can type a fixed seed manually. R restores the current playtest’s samples. Random visuals already baked into a native recording require regenerating that recording to change.
 
 ## Importing a non-RufMaker game
 

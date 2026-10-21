@@ -49,8 +49,15 @@ internal sealed class ParameterInspector : UserControl
                     Action<object> set=value=>{if(!rebuilding&&!p.IsReadOnly){p.SetValue(component,value);if(!scrubbing)Refresh();}};
                     if(p.PropertyType==typeof(double)||p.PropertyType==typeof(int)||p.PropertyType==typeof(decimal)||p.PropertyType==typeof(float))
                     {
-                        var number=new ScrubNumber(p.Name,p.PropertyType,get,set){ReadOnly=p.IsReadOnly,Dock=DockStyle.Fill,Margin=new Padding(0,3,1,3)};
+                        var actions=(p as ValueProperty)==null?null:((ValueProperty)p).Actions;
+                        var number=new ScrubNumber(p.Name,p.PropertyType,get,set,actions){ReadOnly=p.IsReadOnly,Dock=DockStyle.Fill,Margin=new Padding(0,3,1,3)};
                         number.Enter+=(s,e)=>Select(p);number.MouseDown+=(s,e)=>Select(p);number.BeginScrub=()=>{scrubbing=true;if(BeginScrub!=null)BeginScrub();};number.EndScrub=()=>{scrubbing=false;if(EndScrub!=null)EndScrub();Refresh();};editor=number;refreshers.Add(number.RefreshValue);
+                        if(actions!=null){
+                            var wrap=new TableLayoutPanel{Dock=DockStyle.Fill,ColumnCount=3,RowCount=1,Margin=Padding.Empty};wrap.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute,Math.Max(58,TextRenderer.MeasureText(Language.Text("随机"),Font).Width+14)));wrap.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,100));wrap.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute,actions.ToggleKey==null?0:34));
+                            var random=new CheckBox{Text="随机",Name="random:"+p.Name,Appearance=Appearance.Button,Dock=DockStyle.Fill,TextAlign=ContentAlignment.MiddleCenter,FlatStyle=FlatStyle.Flat,BackColor=Theme.Raised,ForeColor=Theme.Text,Margin=new Padding(0,3,4,3)};random.Checked=actions.Random();random.ForeColor=random.Checked?Theme.Accent:Theme.Muted;random.Click+=(s,e)=>{Select(p);CommitPending();actions.ToggleRandom();Refresh();};wrap.Controls.Add(random,0,0);wrap.Controls.Add(number,1,0);refreshers.Add(()=>{random.Checked=actions.Random();random.ForeColor=random.Checked?Theme.Accent:Theme.Muted;});
+                            if(actions.ToggleKey!=null){var key=new CheckBox{Text="◇",Name="key:"+p.Name,Appearance=Appearance.Button,Dock=DockStyle.Fill,TextAlign=ContentAlignment.MiddleCenter,FlatStyle=FlatStyle.Flat,BackColor=Theme.Raised,ForeColor=Theme.Muted,Margin=new Padding(4,3,0,3)};key.Checked=actions.Keyed();key.Text=key.Checked?"◆":"◇";key.ForeColor=key.Checked?Theme.Accent:Theme.Muted;key.Click+=(s,e)=>{Select(p);CommitPending();actions.ToggleKey();Refresh();};wrap.Controls.Add(key,2,0);refreshers.Add(()=>{key.Checked=actions.Keyed();key.Text=key.Checked?"◆":"◇";key.ForeColor=key.Checked?Theme.Accent:Theme.Muted;});}
+                            editor=wrap;
+                        }
                     }
                     else if(p.PropertyType==typeof(bool))
                     {var check=new CheckBox{AutoSize=false,Dock=DockStyle.Fill,Enabled=!p.IsReadOnly,Margin=new Padding(4,4,0,2)};check.Checked=(bool)get();check.CheckedChanged+=(s,e)=>set(check.Checked);check.Enter+=(s,e)=>Select(p);editor=check;refreshers.Add(()=>{if(!check.ContainsFocus)check.Checked=(bool)get();});}
@@ -81,12 +88,13 @@ internal sealed class ScrubNumber : Control
 {
     private readonly Func<object> get;private readonly Action<object> set;private readonly Type numberType;private readonly string label;
     private readonly TextBox input=new TextBox{BorderStyle=BorderStyle.FixedSingle,Dock=DockStyle.Fill,BackColor=Theme.Raised,ForeColor=Theme.Text,Visible=false};
+    private readonly ParameterActions actions;private readonly ToolTip errorTip=new ToolTip();
     private Point start;private double original,step;private bool down,dragging,committing;
     public bool ReadOnly;public Action BeginScrub,EndScrub;
-    public ScrubNumber(string label,Type numberType,Func<object> get,Action<object> set)
+    public ScrubNumber(string label,Type numberType,Func<object> get,Action<object> set,ParameterActions actions=null)
     {
-        this.label=label;this.numberType=numberType;this.get=get;this.set=set;DoubleBuffered=true;TabStop=true;Cursor=Cursors.SizeNS;BackColor=Theme.Raised;Font=Theme.Font;
-        Controls.Add(input);input.Leave+=(s,e)=>CommitText();input.KeyDown+=(s,e)=>{if(e.KeyCode==Keys.Enter){CommitText();Focus();e.SuppressKeyPress=true;}else if(e.KeyCode==Keys.Escape){input.Visible=false;Focus();e.SuppressKeyPress=true;}};
+        this.actions=actions;this.label=label;this.numberType=numberType;this.get=get;this.set=set;DoubleBuffered=true;TabStop=true;Cursor=Cursors.SizeNS;BackColor=Theme.Raised;Font=Theme.Font;
+        Controls.Add(input);input.Leave+=(s,e)=>CommitText();input.KeyDown+=(s,e)=>{if(e.KeyCode==Keys.Enter){CommitText();if(!input.Visible)Focus();e.SuppressKeyPress=true;}else if(e.KeyCode==Keys.Escape){input.Visible=false;Focus();e.SuppressKeyPress=true;}};
     }
     public static double StepFor(double value,bool integer,string label)
     {
@@ -99,6 +107,7 @@ internal sealed class ScrubNumber : Control
         if(!input.Visible||committing)return;committing=true;
         try
         {
+            if(actions!=null&&actions.Random()){try{actions.SetExpression(input.Text);input.BackColor=Theme.Raised;input.Visible=false;errorTip.Hide(input);}catch(FormatException error){input.BackColor=Color.FromArgb(88,37,49);Language.ToolTip(errorTip,input,error.Message);errorTip.Show(Language.Text(error.Message),input,0,input.Height,5000);}return;}
             double value;if(!Double.TryParse(input.Text,NumberStyles.Float,CultureInfo.CurrentCulture,out value)&&!Double.TryParse(input.Text,NumberStyles.Float,CultureInfo.InvariantCulture,out value)){input.Text=Convert.ToString(get());return;}
             if(Double.IsNaN(value)||Double.IsInfinity(value))return;input.Visible=false;SetNumber(value);
         }
@@ -112,23 +121,27 @@ internal sealed class ScrubNumber : Control
     protected override void OnPaint(PaintEventArgs e)
     {
         base.OnPaint(e);e.Graphics.Clear(dragging?Color.FromArgb(68,48,68):Theme.Raised);
-        Theme.Label(e.Graphics,Convert.ToDouble(get()).ToString("0.######",CultureInfo.CurrentCulture),new Rectangle(7,0,Math.Max(1,Width-23),Height),ReadOnly?Theme.Muted:Theme.Text);
-        if(!ReadOnly)Theme.Label(e.Graphics,"↕",new Rectangle(Width-17,0,15,Height),Theme.Muted,Theme.Small);
+        string value=Convert.ToDouble(get()).ToString("0.######",CultureInfo.CurrentCulture);bool random=actions!=null&&actions.Random();
+        if(random){Theme.Label(e.Graphics,actions.Expression(),new Rectangle(7,0,Math.Max(1,Width-107),Height),Theme.Text,localize:false);Theme.Label(e.Graphics,"= "+value,new Rectangle(Math.Max(7,Width-95),0,90,Height),Theme.Accent,Theme.Small,localize:false);}
+        else Theme.Label(e.Graphics,value,new Rectangle(7,0,Math.Max(1,Width-23),Height),ReadOnly?Theme.Muted:Theme.Text,localize:false);
+        if(!ReadOnly&&!random)Theme.Label(e.Graphics,"↕",new Rectangle(Width-17,0,15,Height),Theme.Muted,Theme.Small);
     }
     protected override void OnMouseDown(MouseEventArgs e)
     {base.OnMouseDown(e);if(ReadOnly||e.Button!=MouseButtons.Left)return;CommitText();Focus();start=e.Location;original=Convert.ToDouble(get());step=StepFor(original,numberType==typeof(int),label);down=true;dragging=false;Capture=true;}
     protected override void OnMouseMove(MouseEventArgs e)
     {
-        base.OnMouseMove(e);if(!down)return;int delta=start.Y-e.Y;if(!dragging&&Math.Abs(delta)<4)return;
+        base.OnMouseMove(e);if(!down||actions!=null&&actions.Random())return;int delta=start.Y-e.Y;if(!dragging&&Math.Abs(delta)<4)return;
         if(!dragging){dragging=true;if(BeginScrub!=null)BeginScrub();}double factor=(ModifierKeys&Keys.Control)!=0?.1:(ModifierKeys&Keys.Shift)!=0?10:1;
         double value=original+delta*step*factor;int precision=numberType==typeof(int)?0:Math.Max(0,Math.Min(6,(int)Math.Ceiling(-Math.Log10(step*factor))));SetNumber(Math.Round(value,precision));Invalidate();
     }
     protected override void OnMouseUp(MouseEventArgs e)
     {
         base.OnMouseUp(e);if(!down)return;bool wasDragging=dragging;FinishDrag();Capture=false;
-        if(!wasDragging&&!ReadOnly&&e.Button==MouseButtons.Left){input.Text=Convert.ToString(get(),CultureInfo.CurrentCulture);input.Visible=true;input.Focus();input.SelectAll();}
+        if(!wasDragging&&!ReadOnly&&e.Button==MouseButtons.Left)EditText();
     }
     private void FinishDrag(){down=false;if(dragging){dragging=false;if(EndScrub!=null)EndScrub();}Invalidate();}
     protected override void OnMouseCaptureChanged(EventArgs e){base.OnMouseCaptureChanged(e);if(!Capture&&down)FinishDrag();}
-    protected override void OnKeyDown(KeyEventArgs e){base.OnKeyDown(e);if(!ReadOnly&&(e.KeyCode==Keys.Enter||e.KeyCode==Keys.F2)){input.Text=Convert.ToString(get());input.Visible=true;input.Focus();input.SelectAll();e.Handled=true;}}
+    private void EditText(){input.Text=actions!=null&&actions.Random()?actions.Expression():Convert.ToString(get(),CultureInfo.CurrentCulture);input.BackColor=Theme.Raised;input.Visible=true;input.Focus();input.SelectAll();}
+    protected override void OnKeyDown(KeyEventArgs e){base.OnKeyDown(e);if(!ReadOnly&&(e.KeyCode==Keys.Enter||e.KeyCode==Keys.F2)){EditText();e.Handled=true;e.SuppressKeyPress=true;}}
+    protected override void Dispose(bool disposing){if(disposing)errorTip.Dispose();base.Dispose(disposing);}
 }

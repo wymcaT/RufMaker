@@ -17,6 +17,7 @@ internal sealed class EditorState
     public string name="",musicTitle="";public PlayerSettings player;public object terrain;
     public string room="rAvoidance", music="Data/Music/BGM.ogg";
     public bool timelineInitialized;
+    public int randomSeed=12345,laneCount;public bool randomizeOnPlay;
     public string[] plainRooms=new string[0];
     public NativeProject nativeProject;
     public NativeTestPosition nativeTest=new NativeTestPosition();
@@ -26,6 +27,7 @@ internal sealed class NativeTestPosition {public double x=400,y=304;}
 internal sealed class PlayerSettings {public double gravity=.4,moveSpeed=3,jumpSpeed=8.5,doubleJumpSpeed=7;public int maxJumps=2;public bool infiniteJump;}
 internal sealed class Track
 {
+    public int lane=-1;public string randomId="";public Dictionary<string,string> expressions=new Dictionary<string,string>();
     public string id, name, kind, sprite="sprBullet", easing="linear", color="#ff6d91", effect="flash", code="", rodMode="center", motion="keyframes";
     public bool enabled=true, trail, rolling, rotateSprite, trailRandom;
     public string shape="rod";
@@ -44,7 +46,7 @@ internal sealed class Track
     public double fxOpacity=1,fxAngle,fxRetention=.5,fxFrequency=1;
     public int fxSamples=6;
     public List<Keyframe> keyframes=new List<Keyframe>();
-    public Track Snapshot(){var copy=(Track)MemberwiseClone();copy.keyframes=keyframes.Select(k=>k.Snapshot()).ToList();return copy;}
+    public Track Snapshot(){var copy=(Track)MemberwiseClone();copy.keyframes=keyframes.Select(k=>k.Snapshot()).ToList();copy.expressions=new Dictionary<string,string>(expressions??new Dictionary<string,string>());return copy;}
 }
 internal sealed class Keyframe
 {
@@ -52,6 +54,7 @@ internal sealed class Keyframe
     public double x=400,y=304,angle,scale=1,alpha=1;
     public string property,easing="";
     public double value;
+    public string expression="",randomId="";
     public Keyframe Snapshot(){return (Keyframe)MemberwiseClone();}
 }
 internal sealed class RoomData
@@ -111,6 +114,7 @@ internal static class Json
 
 internal sealed class NativeBridge : IDisposable
 {
+    public string GameMakerPath {get;private set;}
     private readonly Process process;
     private readonly object sync=new object();
     private readonly Dictionary<int,TaskCompletionSource<string>> pending=new Dictionary<int,TaskCompletionSource<string>>();
@@ -127,6 +131,7 @@ internal sealed class NativeBridge : IDisposable
         info.RedirectStandardInput=true;info.RedirectStandardOutput=true;info.RedirectStandardError=true;
         info.StandardOutputEncoding=System.Text.Encoding.UTF8;info.StandardErrorEncoding=System.Text.Encoding.UTF8;
         info.EnvironmentVariables["RUFMAKER_ROOT"]=root;
+        var engine=EngineSetup.Find(root);GameMakerPath=engine.Ready?engine.Exe:"";if(engine.Ready)info.EnvironmentVariables["RUFMAKER_GAMEMAKER"]=engine.Exe;else info.EnvironmentVariables.Remove("RUFMAKER_GAMEMAKER");
         if(!String.IsNullOrEmpty(projectPath))info.EnvironmentVariables["RUFMAKER_PROJECT"]=projectPath;else info.EnvironmentVariables.Remove("RUFMAKER_PROJECT");
         process=new Process{StartInfo=info,EnableRaisingEvents=true};
         process.OutputDataReceived+=Receive;
@@ -178,14 +183,15 @@ internal sealed class NativeBridge : IDisposable
 internal sealed class NativeProperties : CustomTypeDescriptor
 {
     private readonly List<PropertyDescriptor> items=new List<PropertyDescriptor>();
-    public void Add(string name,string category,Type type,Func<object> get,Action<object> set,string[] choices=null,string description="")
-    {items.Add(new ValueProperty(name,category,type,get,set,choices,description));}
+    public void Add(string name,string category,Type type,Func<object> get,Action<object> set,string[] choices=null,string description="",ParameterActions actions=null)
+    {items.Add(new ValueProperty(name,category,type,get,set,choices,description){Actions=actions});}
     public override PropertyDescriptorCollection GetProperties(){return new PropertyDescriptorCollection(items.ToArray());}
     public override PropertyDescriptorCollection GetProperties(Attribute[] attributes){return GetProperties();}
     public override object GetPropertyOwner(PropertyDescriptor pd){return this;}
 }
 internal sealed class ValueProperty : PropertyDescriptor
 {
+    public ParameterActions Actions;
     private readonly Type type;private readonly Func<object> getter;private readonly Action<object> setter;private readonly string[] choices;
     public ValueProperty(string name,string category,Type type,Func<object> get,Action<object> set,string[] choices,string description)
         :base(name,new Attribute[]{new CategoryAttribute(category),new DescriptionAttribute(description)})

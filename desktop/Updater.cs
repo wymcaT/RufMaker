@@ -11,10 +11,10 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 
-[assembly:System.Reflection.AssemblyVersion("1.7.0.0")]
-[assembly:System.Reflection.AssemblyFileVersion("1.7.0.0")]
-[assembly:System.Reflection.AssemblyInformationalVersion("1.7.0")]
-internal static class AppVersion {public const string Current="1.7.0";}
+[assembly:System.Reflection.AssemblyVersion("1.9.1.0")]
+[assembly:System.Reflection.AssemblyFileVersion("1.9.1.0")]
+[assembly:System.Reflection.AssemblyInformationalVersion("1.9.1")]
+internal static class AppVersion {public const string Current="1.9.1";}
 #pragma warning disable 0649
 internal sealed class ReleaseAsset {public string name,browser_download_url;}
 internal sealed class GitRelease {public string tag_name;public ReleaseAsset[] assets;}
@@ -22,13 +22,14 @@ internal sealed class UpdateFile {public string path,sha256;}
 internal sealed class UpdateManifest {public string version;public UpdateFile[] files;}
 #pragma warning restore 0649
 internal sealed class UpdatePlan {public string root,payload,helper;}
+internal sealed class UpdateNotice {public bool Available;public string Current,Latest,Message;}
 internal static class Updater
 {
     public const string Repository="https://api.github.com/repos/wymcaT/RufMaker";
     public static WebClient Client()
     {
         ServicePointManager.SecurityProtocol|=(SecurityProtocolType)3072;
-        var client=new TimeoutWebClient();client.Headers[HttpRequestHeader.UserAgent]="RufMaker/"+AppVersion.Current;client.Headers[HttpRequestHeader.Accept]="application/vnd.github+json";client.Encoding=Encoding.UTF8;return client;
+        var client=new TimeoutWebClient();client.Headers[HttpRequestHeader.UserAgent]="RufMaker/"+AppVersion.Current;client.Headers[HttpRequestHeader.Accept]="application/vnd.github+json";client.Headers[HttpRequestHeader.CacheControl]="no-cache";client.CachePolicy=new System.Net.Cache.RequestCachePolicy(System.Net.Cache.RequestCacheLevel.NoCacheNoStore);client.Encoding=Encoding.UTF8;return client;
     }
     private sealed class TimeoutWebClient:WebClient
     {protected override WebRequest GetWebRequest(Uri address){var request=base.GetWebRequest(address);request.Timeout=60000;var http=request as HttpWebRequest;if(http!=null)http.ReadWriteTimeout=60000;return request;}}
@@ -36,6 +37,18 @@ internal static class Updater
     {Version result;if(!Version.TryParse((text??"").Trim().TrimStart('v','V'),out result))throw new InvalidDataException("发布版本号格式不正确。");return result;}
     public static GitRelease Latest()
     {using(var client=Client()){try{return Json.Read<GitRelease>(client.DownloadString(Repository+"/releases/latest"));}catch(WebException e){var response=e.Response as HttpWebResponse;if(response!=null&&response.StatusCode==HttpStatusCode.NotFound)return null;throw;}}}
+    public static UpdateNotice Notice(GitRelease release,string current)
+    {
+        if(release==null)return new UpdateNotice{Current=current,Message="GitHub 暂无正式发布版。\r\n本机版本：v"+current};
+        string latest=ParseVersion(release.tag_name).ToString();bool available=ParseVersion(latest)>ParseVersion(current);
+        string versions="本机版本：v"+current+"\r\nGitHub 最新版本：v"+latest;
+        return new UpdateNotice{Available=available,Current=current,Latest=latest,Message=available?"发现可用更新。\r\n\r\n"+versions+"\r\n\r\n是否现在下载并更新？\r\n确认后会保存工程，更新完成后自动重启。":"已是最新版本，无需更新。\r\n\r\n"+versions};
+    }
+    public static ReleaseAsset[] UpdateAssets(GitRelease release,string version)
+    {
+        var assets=release.assets??new ReleaseAsset[0];var package=assets.FirstOrDefault(a=>a.name=="RufMaker-"+version+".zip");var checksum=assets.FirstOrDefault(a=>a.name=="RufMaker-"+version+".zip.sha256");
+        if(package==null||checksum==null)throw new InvalidDataException("此 Release 尚未提供完整更新包。");return new[]{package,checksum};
+    }
     public static string Hash(string file)
     {using(var stream=File.OpenRead(file))using(var hash=SHA256.Create())return BitConverter.ToString(hash.ComputeHash(stream)).Replace("-","").ToLowerInvariant();}
     public static bool Allowed(string path)
@@ -91,14 +104,14 @@ internal sealed partial class MainForm
     private bool checkingUpdate;private UpdatePlan pendingUpdate;
     private async Task CheckUpdates()
     {
-        if(checkingUpdate||busy||state==null)return;checkingUpdate=true;
+        if(checkingUpdate||busy)return;checkingUpdate=true;
         try
         {
             SetStatus("正在检测 GitHub 更新 · 当前 v"+AppVersion.Current);var release=await Task.Run(()=>Updater.Latest());
-            if(release==null){SetStatus("GitHub 暂无正式发布版 · 当前 v"+AppVersion.Current);return;}
-            if(Updater.ParseVersion(release.tag_name)<=Updater.ParseVersion(AppVersion.Current)){SetStatus("当前 v"+AppVersion.Current+" 已是最新版本。");return;}
-            string version=Updater.ParseVersion(release.tag_name).ToString();var asset=release.assets.FirstOrDefault(a=>a.name=="RufMaker-"+version+".zip");var checksum=release.assets.FirstOrDefault(a=>a.name=="RufMaker-"+version+".zip.sha256");
-            if(asset==null||checksum==null)throw new InvalidDataException("此 Release 尚未提供完整更新包。");
+            var notice=Updater.Notice(release,AppVersion.Current);
+            if(!notice.Available){SetStatus(release==null?"GitHub 暂无正式发布版 · 当前 v"+AppVersion.Current:"当前 v"+AppVersion.Current+" 已是最新版本。");Language.Message(this,notice.Message,"检测更新",MessageBoxButtons.OK,MessageBoxIcon.Information);return;}
+            string version=notice.Latest;var assets=Updater.UpdateAssets(release,version);var asset=assets[0];var checksum=assets[1];
+            if(Language.Message(this,notice.Message,"检测更新",MessageBoxButtons.YesNo,MessageBoxIcon.Question)!=DialogResult.Yes){SetStatus("已取消更新 · 本机 v"+notice.Current+" · 最新 v"+version);return;}
             string stage=Path.Combine(root,"build","updates",version+"-"+Guid.NewGuid().ToString("N").Substring(0,8));Directory.CreateDirectory(stage);string archive=Path.Combine(stage,asset.name),payload=Path.Combine(stage,"payload");
             using(var client=Updater.Client()){
                 client.DownloadProgressChanged+=(s,e)=>SetStatus("正在下载 v"+version+" · "+e.ProgressPercentage+"%");await client.DownloadFileTaskAsync(new Uri(asset.browser_download_url),archive);

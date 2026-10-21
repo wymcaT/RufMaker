@@ -9,7 +9,7 @@ internal static class MotionPresets
     public static void Apply(Track t,string name,int frame)
     {
         if(!Names.Contains(name))throw new ArgumentException("未知动作预设");
-        var p=Motion.At(t,frame);t.keyframes.RemoveAll(k=>k.property=="x"||k.property=="y"||k.property=="orbitPhase"||k.property=="orbitRadius"||PathFields.Contains(k.property));
+        var p=Motion.At(t,frame);foreach(string field in new[]{"x","y","orbitPhase","orbitRadius","velocityX","velocityY","accelerationX","accelerationY","orbitSpeed"}.Concat(PathFields))t.expressions.Remove(field);t.keyframes.RemoveAll(k=>k.property=="x"||k.property=="y"||k.property=="orbitPhase"||k.property=="orbitRadius"||PathFields.Contains(k.property));
         int middle=(t.start+t.end)/2;t.motion="keyframes";t.x=p.x;t.y=p.y;
         t.velocityX=t.velocityY=t.accelerationX=t.accelerationY=0;
         if(t.kind=="rod"&&t.shape=="rod")t.rodMode="center";

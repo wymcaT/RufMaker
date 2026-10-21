@@ -39,4 +39,26 @@ try {
 }finally{$zip.Dispose()}
 $hash=(Get-FileHash -LiteralPath $zipPath -Algorithm SHA256).Hash.ToLowerInvariant()
 [System.IO.File]::WriteAllText($zipPath+'.sha256',"$hash  $([System.IO.Path]::GetFileName($zipPath))`n",[System.Text.Encoding]::ASCII)
-Get-Item -LiteralPath $zipPath,($zipPath+'.sha256') | Select-Object FullName,Length
+
+# A separate, organized package is the first-download Windows application.
+# Keep the original ZIP name/layout for installed versions of the updater.
+$portablePath=Join-Path $OutputDirectory "RufMaker-$Version-Windows-Portable.zip"
+if(Test-Path -LiteralPath $portablePath){throw "Package already exists: $portablePath"}
+$portableFiles=New-Object 'System.Collections.Generic.List[object]'
+$portableFiles.Add(@{path='RufMaker.exe';source=$executable})
+foreach($relative in @('README.md','LICENSE','runtime/node.exe','runtime/fmodex.dll')){$portableFiles.Add(@{path=$relative;source=(Join-Path $taskRoot $relative)})}
+foreach($file in Get-ChildItem -LiteralPath (Join-Path $taskRoot 'studio') -File | Where-Object {$_.Extension -eq '.mjs' -or $_.Name -eq 'waveform.json'}){$portableFiles.Add(@{path=('studio/'+$file.Name);source=$file.FullName})}
+foreach($folder in @('assets','templates/avoidance.gm82','docs')){
+    foreach($file in Get-ChildItem -LiteralPath (Join-Path $taskRoot $folder) -File -Recurse){
+        $relative=$file.FullName.Substring($taskRoot.Length+1).Replace('\','/')
+        if($relative -match '/(cache|build)/|/Data/Save/(?!\.gitkeep$)|rufmaker_preview|game_errors\.log|/options\.ini$|\.tmp$'){continue}
+        $portableFiles.Add(@{path=$relative;source=$file.FullName})
+    }
+}
+$portable=[System.IO.Compression.ZipArchive]::new([System.IO.File]::Create($portablePath),[System.IO.Compression.ZipArchiveMode]::Create)
+try {
+    foreach($item in $portableFiles){$entry=$portable.CreateEntry($item.path,[System.IO.Compression.CompressionLevel]::Optimal);$inputStream=[System.IO.File]::OpenRead($item.source);$outputStream=$entry.Open();try{$inputStream.CopyTo($outputStream)}finally{$outputStream.Dispose();$inputStream.Dispose()}}
+}finally{$portable.Dispose()}
+$portableHash=(Get-FileHash -LiteralPath $portablePath -Algorithm SHA256).Hash.ToLowerInvariant()
+[System.IO.File]::WriteAllText($portablePath+'.sha256',"$portableHash  $([System.IO.Path]::GetFileName($portablePath))`n",[System.Text.Encoding]::ASCII)
+Get-Item -LiteralPath $portablePath,($portablePath+'.sha256'),$zipPath,($zipPath+'.sha256') | Select-Object FullName,Length

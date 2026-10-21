@@ -8,6 +8,7 @@ internal static class CameraPresets
     {
         if(t.kind!="camera"||!Names.Contains(name))throw new ArgumentException("请选择拉镜预设和拉镜轨道。");
         var p=Motion.At(t,frame);double z=Motion.Value(t,"cameraZoom",frame);
+        foreach(string field in new[]{"x","y","angle","cameraZoom","angularSpeed","orbitPhase","orbitRadius"}.Concat(MotionPresets.PathFields))t.expressions.Remove(field);
         t.keyframes.RemoveAll(k=>new[]{"x","y","angle","cameraZoom","orbitPhase","orbitRadius"}.Contains(k.property)||MotionPresets.PathFields.Contains(k.property));
         t.motion="keyframes";t.x=p.x;t.y=p.y;t.angle=p.angle;t.cameraZoom=z;t.angularSpeed=0;
         Action<string,double,double,string> key=(field,u,value,ease)=>MotionPresets.Key(t,field,u,value,ease);
@@ -43,6 +44,7 @@ internal static class EffectPresets
     public static void Apply(Track t,string name)
     {
         int index=Array.IndexOf(Names,name);if(t.kind!="effect"||index<0)throw new ArgumentException("请选择特效预设和特效轨道。");
+        foreach(string field in new[]{"strength","fxOpacity","fxAngle","fxRetention","fxFrequency","fxSamples"})t.expressions.Remove(field);
         t.effect=Values[index];t.name=name;t.color=index==2?"#FFFFFF":"#000000";t.strength=index==8?65:index==5?5:8;t.fxOpacity=1;t.fxAngle=0;t.fxRetention=.55;t.fxFrequency=.3;t.fxSamples=6;t.easing="sin-inout";
         t.keyframes.RemoveAll(k=>new[]{"strength","fxOpacity","fxAngle","fxRetention"}.Contains(k.property));
         if(index==4||index==5||index==6||index==7){MotionPresets.Key(t,"fxOpacity",0,0,"sin-inout");MotionPresets.Key(t,"fxOpacity",.25,1,"sin-inout");MotionPresets.Key(t,"fxOpacity",1,0);}
