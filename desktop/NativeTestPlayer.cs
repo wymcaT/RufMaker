@@ -10,14 +10,14 @@ internal sealed partial class MainForm
     private readonly System.Windows.Forms.Timer nativeWatch=new System.Windows.Forms.Timer{Interval=500};private bool nativePolling;private string nativePhase="";
     private void BuildNativeTestTools(Control tools)
     {
-        tools.Controls.Add(editNativeTest);Language.ToolTip(tips,editNativeTest,"左键点击或拖动设置试玩玩家位置，Shift 按 16 像素吸附；右栏可输入 X/Y。F5 从播放头进入试玩，游戏内 R 直接恢复本次测试快照。");
+        tools.Controls.Add(editNativeTest);Language.ToolTip(tips,editNativeTest,"左键点击或拖动设置表达式预览的参考玩家位置，Shift 按 16 像素吸附；工程设置可输入 X/Y。原生工程中同时用作 F5 试玩位置；底片保持录制时的玩家位置。");
         editNativeTest.CheckedChanged+=(s,e)=>{stage.EditNativeTest=editNativeTest.Checked;if(editNativeTest.Checked&&state!=null){var track=state.tracks.FirstOrDefault(t=>t.kind=="native");if(track!=null)SelectTrack(track,null);}stage.Invalidate();};
-        stage.NativeTestPreview=()=>{inspectorTimer.Stop();inspectorTimer.Start();};stage.NativeTestChanged=()=>{MarkChanged();ShowProperties();};
+        stage.NativeTestPreview=()=>{RandomParameters.Attach(state);inspectorTimer.Stop();inspectorTimer.Start();};stage.NativeTestChanged=()=>{MarkChanged();ShowProperties();};
         nativeWatch.Tick+=async(s,e)=>await WatchNativePlay();
     }
     private void RefreshNativeTestPlayer()
     {
-        editNativeTest.Enabled=state!=null&&state.nativeProject!=null;if(!editNativeTest.Enabled)editNativeTest.Checked=false;stage.EditNativeTest=editNativeTest.Checked;
+        editNativeTest.Enabled=state!=null;if(!editNativeTest.Enabled)editNativeTest.Checked=false;stage.EditNativeTest=editNativeTest.Checked;
         string player=document.inventory.objects.FirstOrDefault(n=>System.Text.RegularExpressions.Regex.IsMatch(n,@"^(?:(?:obj_?|o)?player[12]?)$",System.Text.RegularExpressions.RegexOptions.IgnoreCase));
         string sprite;stage.NativeTestSprite=player!=null&&document.inventory.objectSprites.TryGetValue(player,out sprite)?sprite:null;
     }

@@ -87,3 +87,25 @@ If recording fails despite detected events, check that the original game runs, v
 The rainbow Cherry source is in `assets/sprites/sprrainbowcherry.gmspr`. The app icon is in `assets/icons/`. Older installations have their shipped assets arranged automatically on startup after updating.
 
 Code is under the [MIT license](../LICENSE). Third-party engines, assets and runtime libraries retain their authors' rights and licenses.
+
+## Player expressions and homing bullets
+
+Type a formula directly into a numeric field, or click **ƒx** to choose a template. The Expression toggle enables or disables formulas; the diamond still controls animation separately.
+
+- `player.x` / `player.y`: real player coordinates in the game.
+- `point_direction(x,y,player.x,player.y)`: aim from this object at the player, in degrees.
+- `point_direction(100,100,400,304)`: direction between two points.
+- `point_distance(x,y,player.x,player.y)`: distance to the player.
+- `lengthdir_x(length,angle)` / `lengthdir_y(length,angle)`: directional components.
+- `sin(time*2*pi)*30`: time-based oscillation; sin/cos use radians.
+- `turn_towards(direction,point_direction(x,y,player.x,player.y),3)`: limit each turn to 3 degrees.
+
+Available variables also include frame, age, speed, direction, fps, pi and x1/y1/x2/y2. Functions include min, max, abs, clamp, lerp, sqrt, floor and ceil, plus existing random functions. Self references in coordinate/endpoint fields use their base values; direction and appearance fields use the animated position and endpoints.
+
+Expressions with player, coordinate or time variables run every frame. Random-only expressions keep a single sample. Add `+0*frame` to a random formula for deterministic per-frame samples.
+
+Preview uses a fixed reference player: enable **Edit test player** and drag it, or enter coordinates under **Project settings → Expression preview**. Exported games read the actual player, falling back to the reference only when no player exists. Native film remains a recording; this reference only affects newly added RufMaker content.
+
+For continuous homing, select an emitter and choose **Bullet flight → Flight mode**. Aim every frame, limit the turn rate, add a delay, or enter a per-frame direction formula. In flight formulas, x/y refer to each bullet and direction is its previous direction. Trails follow the curved path. The emitter’s angle formula controls newly spawned bullets; flight controls steer existing bullets.
+
+In the ƒx dialog, enable **Fill a keyframe on every frame in the range** and enter an inclusive range. The same action is available in a clip’s context menu. It replaces only that property’s keys in the range, preserves live formulas and supports one-step undo. Each object supports up to 10,000 keys.

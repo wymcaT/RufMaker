@@ -47,7 +47,18 @@ internal static class Motion
         state.version=2;
         RandomParameters.Resolve(state);
     }
+    private static ExpressionContext GeometryContext(Track t,double frame)
+    {var raw=ExpressionContext.For(t,frame);var context=ExpressionContext.For(t,frame);context.x1=ValueCore(t,"x1",frame,raw);context.y1=ValueCore(t,"y1",frame,raw);context.x2=ValueCore(t,"x2",frame,raw);context.y2=ValueCore(t,"y2",frame,raw);return context;}
     public static double Value(Track t,string property,double frame)
+    {
+        if(!t.liveExpressions)return ValueCore(t,property,frame,null);
+        var context=new[]{"x1","y1","x2","y2"}.Contains(property)?ExpressionContext.For(t,frame):GeometryContext(t,frame);
+        if(!new[]{"x","y","x1","y1","x2","y2"}.Contains(property)){var position=Position(t,frame,context);context.x=position.x;context.y=position.y;}
+        return ValueCore(t,property,frame,context);
+    }
+    private static double ExpressionValue(Track t,string property,double frame,string expression,string slot,double fallback,ExpressionContext context)
+    {if(String.IsNullOrWhiteSpace(expression)||!RandomExpression.IsDynamic(expression))return fallback;return RandomParameters.Clamp(property,RandomExpression.Evaluate(expression,t.expressionSeed,t.randomId+"|"+property+"|"+slot,context));}
+    private static double ValueCore(Track t,string property,double frame,ExpressionContext context)
     {
         Keyframe before=null,after=null;
         foreach(var key in t.keyframes)
@@ -56,24 +67,28 @@ internal static class Motion
             if(key.frame<=frame&&(before==null||key.frame>=before.frame))before=key;
             if(key.frame>frame&&(after==null||key.frame<after.frame))after=key;
         }
-        if(before==null)return after==null?Base(t,property):after.value;
-        if(after==null)return before.value;
+        string expression;t.expressions.TryGetValue(property,out expression);
+        Func<Keyframe,double> value=k=>ExpressionValue(t,property,frame,k.expression,k.randomId,k.value,context);
+        if(before==null)return after==null?ExpressionValue(t,property,frame,expression,"base",Base(t,property),context):value(after);
+        if(after==null)return value(before);
         double u=(frame-before.frame)/Math.Max(1,after.frame-before.frame);
-        return before.value+(after.value-before.value)*Ease(String.IsNullOrEmpty(before.easing)?t.easing:before.easing,u,t.easePower,t.easePeriod);
+        return value(before)+(value(after)-value(before))*Ease(String.IsNullOrEmpty(before.easing)?t.easing:before.easing,u,t.easePower,t.easePeriod);
+    }
+    private static Keyframe Position(Track t,double frame,ExpressionContext context)
+    {
+        var p=new Keyframe{x=ValueCore(t,"x",frame,context),y=ValueCore(t,"y",frame,context)};
+        double dt=Math.Max(0,frame-t.start);
+        if(t.motion=="velocity"){p.x+=ValueCore(t,"velocityX",frame,context)*dt+ValueCore(t,"accelerationX",frame,context)*dt*dt/2;p.y+=ValueCore(t,"velocityY",frame,context)*dt+ValueCore(t,"accelerationY",frame,context)*dt*dt/2;}
+        if(t.motion=="orbit"){double a=(ValueCore(t,"orbitPhase",frame,context)+ValueCore(t,"orbitSpeed",frame,context)*dt)*Math.PI/180;p.x+=Math.Cos(a)*ValueCore(t,"orbitRadius",frame,context);p.y-=Math.Sin(a)*ValueCore(t,"orbitRadius",frame,context);}
+        if(t.motion=="parabola"){
+            double u=Math.Max(0,Math.Min(1,ValueCore(t,"pathProgress",frame,context))),v=1-u;
+            p.x+=v*v*ValueCore(t,"pathStartX",frame,context)+2*v*u*(2*ValueCore(t,"pathPeakX",frame,context)-(ValueCore(t,"pathStartX",frame,context)+ValueCore(t,"pathEndX",frame,context))/2)+u*u*ValueCore(t,"pathEndX",frame,context);
+            p.y+=v*v*ValueCore(t,"pathStartY",frame,context)+2*v*u*(2*ValueCore(t,"pathPeakY",frame,context)-(ValueCore(t,"pathStartY",frame,context)+ValueCore(t,"pathEndY",frame,context))/2)+u*u*ValueCore(t,"pathEndY",frame,context);
+        }
+        return p;
     }
     public static Keyframe At(Track t,double frame)
-    {
-        var p=new Keyframe{x=Value(t,"x",frame),y=Value(t,"y",frame),angle=Value(t,"angle",frame),scale=Value(t,"scale",frame),alpha=Value(t,"alpha",frame)};
-        double dt=Math.Max(0,frame-t.start);
-        if(t.motion=="velocity"){p.x+=t.velocityX*dt+t.accelerationX*dt*dt/2;p.y+=t.velocityY*dt+t.accelerationY*dt*dt/2;}
-        if(t.motion=="orbit"){double a=(Value(t,"orbitPhase",frame)+t.orbitSpeed*dt)*Math.PI/180;p.x+=Math.Cos(a)*Value(t,"orbitRadius",frame);p.y-=Math.Sin(a)*Value(t,"orbitRadius",frame);}
-        if(t.motion=="parabola"){
-            double u=Math.Max(0,Math.Min(1,Value(t,"pathProgress",frame))),v=1-u;
-            p.x+=v*v*Value(t,"pathStartX",frame)+2*v*u*(2*Value(t,"pathPeakX",frame)-(Value(t,"pathStartX",frame)+Value(t,"pathEndX",frame))/2)+u*u*Value(t,"pathEndX",frame);
-            p.y+=v*v*Value(t,"pathStartY",frame)+2*v*u*(2*Value(t,"pathPeakY",frame)-(Value(t,"pathStartY",frame)+Value(t,"pathEndY",frame))/2)+u*u*Value(t,"pathEndY",frame);
-        }
-        p.angle+=t.angularSpeed*dt;return p;
-    }
+    {var context=GeometryContext(t,frame);var p=Position(t,frame,context);context.x=p.x;context.y=p.y;p.angle=ValueCore(t,"angle",frame,context)+ValueCore(t,"angularSpeed",frame,context)*Math.Max(0,frame-t.start);p.scale=ValueCore(t,"scale",frame,context);p.alpha=ValueCore(t,"alpha",frame,context);return p;}
     public static void SetKey(Track t,string property,int frame,double value)
     {var key=t.keyframes.FirstOrDefault(k=>k.property==property&&k.frame==frame);if(key==null){key=new Keyframe{frame=frame,property=property};t.keyframes.Add(key);}key.expression="";key.value=value;t.start=Math.Min(t.start,frame);t.end=Math.Max(t.end,frame);}
     public static PointF[] Endpoints(Track t,double frame)

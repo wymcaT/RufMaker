@@ -217,6 +217,7 @@ internal sealed partial class MainForm : LocalizedForm
                 {
                     menu.Items.Add("为 "+Motion.Name(property)+" 添加关键帧    K",null,(a,b)=>AddPropertyKey(property));
                     var add=new ToolStripMenuItem("选择属性添加关键帧");foreach(string item in Motion.Fields(t)){string p=item;add.DropDownItems.Add(Motion.Name(p),null,(a,b)=>AddPropertyKey(p));}menu.Items.Add(add);
+                    var formulas=new ToolStripMenuItem("参数公式 / 填充逐帧关键帧…");foreach(string field in Motion.Fields(t)){string p=field;formulas.DropDownItems.Add(Motion.Name(p),null,(a,b)=>EditParameterExpression(timeline.SelectedTracks.Where(item=>Motion.Fields(item).Contains(p)).DefaultIfEmpty(t).ToArray(),p));}menu.Items.Add(formulas);
                     menu.Items.Add("所有属性在播放头加键    Ctrl+K",null,(a,b)=>AddAllKeys());
                     menu.Items.Add("清除此属性的全部关键帧",null,(a,b)=>{PushUndo();double v=Motion.Value(t,property,frame);t.keyframes.RemoveAll(k=>k.property==property);var f=typeof(Track).GetField(property);if(f!=null)f.SetValue(t,f.FieldType==typeof(int)?(object)(int)Math.Round(v):v);SelectTrack(t,null);MarkChanged();});
                     var easing=new ToolStripMenuItem(timeline.SelectedKeys.Count==0?"物件默认缓动":"所选 "+timeline.SelectedKeys.Count+" 个关键帧的缓动");for(int i=0;i<Motion.EaseValues.Length;i++){string value=Motion.EaseValues[i];easing.DropDownItems.Add(Motion.EaseNames[i],null,(a,b)=>{PushUndo();if(timeline.SelectedKeys.Count==0)t.easing=value;else foreach(var key in timeline.SelectedKeys)key.easing=value;MarkChanged();});}menu.Items.Add(easing);
@@ -370,7 +371,7 @@ internal sealed partial class MainForm : LocalizedForm
     private string Snapshot(){return Json.Write(new UndoSnapshot{state=state,room=document.room});}
     private void PushUndo(){if(state==null||parameterScrubbing)return;string snapshot=Snapshot();if(undo.Count==0||undo.Peek()!=snapshot)undo.Push(snapshot);redo.Clear();}
     private void MarkChanged()
-    {if(state==null)return;TimelineLayout.Order(state);foreach(var t in state.tracks.Where(t=>t.kind=="native")){t.start=0;t.end=Math.Min(state.duration,state.nativeProject.duration);t.enabled=true;}dirty=true;revision++;saveTimer.Stop();if(!parameterScrubbing&&!closeInProgress)saveTimer.Start();stage.SceneChanged();RefreshBeatControls();if(!parameterScrubbing){timeline.RefreshLayout();properties.Refresh();UpdateTitle();rightTime.SetView(state.fps,state.duration,frame,selectedTrack);SetStatus("正在同步修改…");}}
+    {if(state==null)return;RandomParameters.Attach(state);TimelineLayout.Order(state);foreach(var t in state.tracks.Where(t=>t.kind=="native")){t.start=0;t.end=Math.Min(state.duration,state.nativeProject.duration);t.enabled=true;}dirty=true;revision++;saveTimer.Stop();if(!parameterScrubbing&&!closeInProgress)saveTimer.Start();stage.SceneChanged();RefreshBeatControls();if(!parameterScrubbing){timeline.RefreshLayout();properties.Refresh();UpdateTitle();rightTime.SetView(state.fps,state.duration,frame,selectedTrack);SetStatus("正在同步修改…");}}
     private int ContentEnd(){int tracks=state.tracks.Where(t=>t.kind!="native").Select(t=>Math.Max(t.end,t.keyframes.Count==0?0:t.keyframes.Max(k=>k.frame))).DefaultIfEmpty(0).Max();int native=state.nativeProject==null?0:state.nativeProject.events.Select(e=>e.frame).DefaultIfEmpty(0).Max();return Math.Max(tracks,native);}
     private async Task<bool> SaveNow(bool notify)
     {
@@ -393,7 +394,7 @@ internal sealed partial class MainForm : LocalizedForm
     {if(IsPresetKind(resourceKind)){SetStatus(resourceKind=="presets"?"拖到物件或拉镜轨道应用动作；双击应用到所选轨道。":resourceKind=="custom-presets"?"双击进入分类或添加预设；拖入时间轴按落点新建，右键管理名称、分类与导入导出。":"拖到同类轨道上应用；拖到空白处或双击新建预设轨道。");return;}if(resourceKind=="sprites"&&selectedTrack!=null&&Theme.Visual(selectedTrack.kind)){ApplySprite(resourceName);return;}timeline.ResetSelection(null,null);selectedTrack=null;selectedKey=null;selectedInstance=null;UpdateSelection();ShowProperties();}
     private void SelectProject(){timeline.ResetSelection(null,null);selectedTrack=null;selectedKey=null;selectedInstance=null;resourceName=null;UpdateSelection();ShowProperties();}
     private void Field<T>(NativeProperties bag,string name,string category,Func<T> get,Action<T> set,string[] choices=null,string description="")
-    {string property=selectedTrack==null?null:NumericProperty(name);var targets=timeline.SelectedTracks.Count>1?timeline.SelectedTracks.ToArray():new[]{selectedTrack};bag.Add(name,category,typeof(T),()=>get(),value=>{PushUndo();set((T)value);MarkChanged();},choices,description,property==null?null:ParameterControls(targets,property));}
+    {string property=selectedTrack==null?null:NumericProperty(name);var targets=timeline.SelectedTracks.Count>1?timeline.SelectedTracks.ToArray():new[]{selectedTrack};bag.Add(name,category,typeof(T),()=>property==null?(object)get():Convert.ChangeType(Motion.Value(selectedTrack,property,frame),typeof(T)),value=>{PushUndo();set((T)value);MarkChanged();},choices,description,property==null?null:ParameterControls(targets,property));}
     private static double ClampValue(string property,double value)
     {if(property=="alpha"||property=="fxOpacity"||property=="fxRetention")return Math.Max(0,Math.Min(1,value));if(property=="count")return Math.Max(1,Math.Min(300,Math.Round(value)));if(property=="life")return Math.Max(1,value);if(property=="sides")return Math.Max(3,Math.Min(64,Math.Round(value)));if(property=="cameraZoom")return Math.Max(.05,Math.Min(20,value));if(property=="radius"||property=="length"||property=="strength")return Math.Max(0,value);return value;}
     private string CurrentProperty(bool inspector=false)
@@ -448,7 +449,7 @@ internal sealed partial class MainForm : LocalizedForm
             }
             if(track.kind=="emitter")
             {
-                Field(bag,"发射间隔","发射器",()=>track.interval,value=>track.interval=Math.Max(1,value));
+                Field(bag,"发射间隔","发射器",()=>track.interval,value=>track.interval=Math.Max(1,value));FlightFields(bag,track);
             }
             if(track.kind=="rod")
             {

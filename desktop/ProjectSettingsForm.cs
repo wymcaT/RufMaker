@@ -23,6 +23,8 @@ internal sealed partial class MainForm
         bag.Add("歌曲","音乐",typeof(string),()=>String.IsNullOrEmpty(draft.musicTitle)?Path.GetFileName(draft.music):draft.musicTitle,null);
         bag.Add("音乐时长 / 秒","音乐",typeof(double),()=>document.waveform.duration,null);
         bag.Add("导入方式","音乐",typeof(string),()=>"使用顶栏“导入歌曲”选择音乐。",null);
+        bag.Add("参考玩家 X","表达式预览",typeof(double),()=>draft.nativeTest.x,v=>draft.nativeTest.x=(double)v,null,"编辑预览中的 player.x/y；也可在画布上勾选“编辑试玩玩家”后拖动。原生工程中同时用作 F5 试玩位置。");
+        bag.Add("参考玩家 Y","表达式预览",typeof(double),()=>draft.nativeTest.y,v=>draft.nativeTest.y=(double)v);
         var p=draft.player;
         if(state.nativeProject==null){
         bag.Add("重力","玩家",typeof(double),()=>p.gravity,v=>p.gravity=Math.Max(0,(double)v));bag.Add("水平速度","玩家",typeof(double),()=>p.moveSpeed,v=>p.moveSpeed=Math.Max(0,(double)v));
@@ -37,7 +39,7 @@ internal sealed partial class MainForm
             foot.Controls.Add(apply);foot.Controls.Add(cancel);dialog.Controls.Add(editor);dialog.Controls.Add(foot);dialog.AcceptButton=apply;dialog.CancelButton=cancel;
             if(Language.ShowDialog(dialog,this)!=DialogResult.OK)return;
         }
-        PushUndo();state.name=draft.name;state.fps=draft.fps;state.duration=draft.duration;state.bpm=draft.bpm;state.beatOffsetMs=draft.beatOffsetMs;if(state.nativeProject==null){state.directStart=draft.directStart;state.player=draft.player;}
+        PushUndo();state.nativeTest=draft.nativeTest;state.name=draft.name;state.fps=draft.fps;state.duration=draft.duration;state.bpm=draft.bpm;state.beatOffsetMs=draft.beatOffsetMs;if(state.nativeProject==null){state.directStart=draft.directStart;state.player=draft.player;}
         state.randomSeed=draft.randomSeed;state.randomizeOnPlay=draft.randomizeOnPlay;RandomParameters.Resolve(state);MarkChanged();SetFrame(frame);SetStatus("工程设置已应用并自动保存。");
     }
 }

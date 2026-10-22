@@ -1,6 +1,6 @@
 import {normalizeRainbow} from './rainbow.mjs';
 import {gmlNumber as num} from './gml.mjs';
-import {resolveRandomState,parameterCode as parameter} from './random-parameters.mjs';
+import {resolveRandomState,parameterCode as parameterBase,evaluateExpression,isDynamic,clampParameter,expressionContext} from './random-parameters.mjs';
 export const basic=['x','y','angle','scale','alpha'];
 export const fields=['x','y','angle','scale','alpha','speed','spread','count','life','x1','y1','x2','y2','length','rollSpeed','rainbowDensity','rainbowOffset','rainbowSpeed','spriteAngle','strength','fxOpacity','fxAngle','fxRetention','radius','orientation','sides','cameraZoom','orbitRadius','orbitPhase','pathStartX','pathStartY','pathEndX','pathEndY','pathPeakX','pathPeakY','pathProgress'];
 export const defaults={radius:120,orientation:0,sides:5,cameraZoom:1,x:400,y:304,angle:0,scale:1,alpha:1,speed:3,spread:30,count:12,life:160,x1:280,y1:304,x2:520,y2:304,length:240,rollSpeed:2,rainbowDensity:1,rainbowOffset:0,rainbowSpeed:.25,spriteAngle:0,strength:6,fxOpacity:1,fxAngle:0,fxRetention:.5};
@@ -9,7 +9,7 @@ export function normalizeState(s) {
     for(const t of s.tracks)t.keyframes=t.keyframes.flatMap(k=>k.property?[k]:basic.map(property=>({frame:k.frame,property,value:(k[property]??defaults[property])+(property==='angle'&&t.kind==='emitter'?(t.angle||0):0),easing:''})));
     s.version=2;
   }
-  for(const t of s.tracks)Object.assign(t,Object.fromEntries(Object.entries({motion:'keyframes',shape:'rod',rodMode:'center',easePower:3,easePeriod:.3,velocityX:0,velocityY:0,accelerationX:0,accelerationY:0,angularSpeed:0,orbitRadius:100,orbitSpeed:1,orbitPhase:0,rolling:false,fxSamples:6,fxFrequency:1,...defaults}).filter(([key])=>t[key]===undefined)));
+  for(const t of s.tracks)Object.assign(t,Object.fromEntries(Object.entries({motion:'keyframes',flightMode:'straight',flightExpression:'point_direction(x,y,player.x,player.y)',turnRate:3,homingDelay:0,shape:'rod',rodMode:'center',easePower:3,easePeriod:.3,velocityX:0,velocityY:0,accelerationX:0,accelerationY:0,angularSpeed:0,orbitRadius:100,orbitSpeed:1,orbitPhase:0,rolling:false,fxSamples:6,fxFrequency:1,...defaults}).filter(([key])=>t[key]===undefined)));
   for(const t of s.tracks) {
     normalizeRainbow(t);
     if(t.trailMode===undefined||t.trailMode==='legacy')t.trailMode=t.trail?'fade':'off';
@@ -35,26 +35,39 @@ export function ease(e,u,p=3,period=.3) {
     case 'back':return 1+2.70158*(u-1)**3+1.70158*(u-1)**2;case 'step':return 0;default:return u;
   }
 }
-export function valueAt(t,property,frame) {
+function valueCore(t,property,frame,context) {
   const keys=t.keyframes.filter(k=>k.property===property).sort((a,b)=>a.frame-b.frame);
-  if(!keys.length)return t[property]??defaults[property]??0;
-  if(frame<=keys[0].frame)return keys[0].value;
-  for(let i=1;i<keys.length;i++)if(frame<keys[i].frame){const a=keys[i-1],b=keys[i];return a.value+(b.value-a.value)*ease(a.easing||t.easing,(frame-a.frame)/(b.frame-a.frame),t.easePower,t.easePeriod);}
-  return keys.at(-1).value;
+  const value=k=>{const expr=k?.expression||!k&&t.expressions?.[property],fallback=k?k.value:t[property]??defaults[property]??0;return expr&&isDynamic(expr)?clampParameter(property,evaluateExpression(expr,t._expressionContext?.seed??12345,(t.randomId||t.id)+'|'+property+'|'+(k?.randomId||'base'),context)):fallback;};
+  if(!keys.length)return value(null);if(frame<=keys[0].frame)return value(keys[0]);
+  for(let i=1;i<keys.length;i++)if(frame<keys[i].frame){const a=keys[i-1],b=keys[i];return value(a)+(value(b)-value(a))*ease(a.easing||t.easing,(frame-a.frame)/(b.frame-a.frame),t.easePower,t.easePeriod);}
+  return value(keys.at(-1));
 }
+function positionAt(t,frame,context){
+  const value=p=>valueCore(t,p,frame,context);let x=value('x'),y=value('y');const dt=Math.max(0,frame-t.start);
+  if(t.motion==='velocity'){x+=value('velocityX')*dt+value('accelerationX')*dt*dt/2;y+=value('velocityY')*dt+value('accelerationY')*dt*dt/2;}
+  if(t.motion==='orbit'){const angle=(value('orbitPhase')+value('orbitSpeed')*dt)*Math.PI/180;x+=Math.cos(angle)*value('orbitRadius');y-=Math.sin(angle)*value('orbitRadius');}
+  if(t.motion==='parabola'){const u=Math.max(0,Math.min(1,value('pathProgress'))),v=1-u;for(const axis of ['X','Y']){const delta=v*v*value('pathStart'+axis)+2*v*u*(2*value('pathPeak'+axis)-(value('pathStart'+axis)+value('pathEnd'+axis))/2)+u*u*value('pathEnd'+axis);if(axis==='X')x+=delta;else y+=delta;}}
+  return {x,y};
+}
+export function valueAt(t,property,frame){const context=expressionContext(t,frame);if(!['x1','y1','x2','y2'].includes(property)){const raw={...context};for(const p of ['x1','y1','x2','y2'])context[p]=valueCore(t,p,frame,raw);}if(!['x','y','x1','y1','x2','y2'].includes(property))Object.assign(context,positionAt(t,frame,context));return valueCore(t,property,frame,context);}
 export function stateCode(t,time) {
-  const out=[];
+  const out=[],blocks=new Map();let positioned=false;
+  const parameter=(track,property,fallback=0,key=null)=>parameterBase(track,property,fallback,key,{frame:time,x:positioned?'rf_x':num(t.x,400),y:positioned?'rf_y':num(t.y,304),...Object.fromEntries(['x1','y1','x2','y2'].map(p=>[p,['x1','y1','x2','y2'].includes(property)?num(t[p],defaults[p]):'rf_'+p]))});
   for(const field of fields) {
+    positioned=!['x1','y1','x2','y2','x','y','orbitRadius','orbitPhase','pathStartX','pathStartY','pathEndX','pathEndY','pathPeakX','pathPeakY','pathProgress'].includes(field);
+    const code=[];blocks.set(field,code);
     const keys=t.keyframes.filter(k=>k.property===field).sort((a,b)=>a.frame-b.frame),base=t[field]??defaults[field];
-    if(!keys.length){out.push(`rf_${field}=${parameter(t,field,base)};`);continue;}
-    out.push(`if (${time}<=${num(keys[0].frame)}) {rf_${field}=${parameter(t,field,0,keys[0])};}`);
-    for(let i=1;i<keys.length;i++){const a=keys[i-1],b=keys[i];out.push(`else if (${time}<${num(b.frame)}) {rf_u=rf_ease('${a.easing||t.easing||'linear'}',(${time}-${num(a.frame)})/${num(Math.max(1,b.frame-a.frame))},${parameter(t,'easePower',3)},${parameter(t,'easePeriod',.3)});rf_${field}=${parameter(t,field,0,a)}+(${parameter(t,field,0,b)}-${parameter(t,field,0,a)})*rf_u;}`);}
-    out.push(`else {rf_${field}=${parameter(t,field,0,keys.at(-1))};}`);
+    if(!keys.length){code.push(`rf_${field}=${parameter(t,field,base)};`);continue;}
+    code.push(`if (${time}<=${num(keys[0].frame)}) {rf_${field}=${parameter(t,field,0,keys[0])};}`);
+    for(let i=1;i<keys.length;i++){const a=keys[i-1],b=keys[i];code.push(`else if (${time}<${num(b.frame)}) {rf_u=rf_ease('${a.easing||t.easing||'linear'}',(${time}-${num(a.frame)})/${num(Math.max(1,b.frame-a.frame))},${parameter(t,'easePower',3)},${parameter(t,'easePeriod',.3)});rf_${field}=${parameter(t,field,0,a)}+(${parameter(t,field,0,b)}-${parameter(t,field,0,a)})*rf_u;}`);}
+    code.push(`else {rf_${field}=${parameter(t,field,0,keys.at(-1))};}`);
   }
+  const geometry=['x1','y1','x2','y2','x','y','orbitRadius','orbitPhase','pathStartX','pathStartY','pathEndX','pathEndY','pathPeakX','pathPeakY','pathProgress'];for(const field of geometry)out.push(...blocks.get(field));positioned=false;
   const dt=`max(0,${time}-${num(t.start)})`;
   if(t.motion==='velocity')out.push(`rf_x+=${parameter(t,'velocityX')}*${dt}+${parameter(t,'accelerationX')}*sqr(${dt})/2;rf_y+=${parameter(t,'velocityY')}*${dt}+${parameter(t,'accelerationY')}*sqr(${dt})/2;`);
   if(t.motion==='orbit')out.push(`rf_x+=lengthdir_x(rf_orbitRadius,rf_orbitPhase+${parameter(t,'orbitSpeed',1)}*${dt});rf_y+=lengthdir_y(rf_orbitRadius,rf_orbitPhase+${parameter(t,'orbitSpeed',1)}*${dt});`);
   if(t.motion==='parabola')out.push(`rf_u=max(0,min(1,rf_pathProgress));rf_x+=sqr(1-rf_u)*rf_pathStartX+2*(1-rf_u)*rf_u*(2*rf_pathPeakX-(rf_pathStartX+rf_pathEndX)/2)+sqr(rf_u)*rf_pathEndX;rf_y+=sqr(1-rf_u)*rf_pathStartY+2*(1-rf_u)*rf_u*(2*rf_pathPeakY-(rf_pathStartY+rf_pathEndY)/2)+sqr(rf_u)*rf_pathEndY;`);
+  positioned=true;for(const field of fields.filter(f=>!geometry.includes(f)))out.push(...blocks.get(field));
   out.push(`rf_angle+=${parameter(t,'angularSpeed')}*${dt};`);return out.join('\n');
 }
 export const easeGml=`// Shared with the native editor: normalized outgoing segment easing.

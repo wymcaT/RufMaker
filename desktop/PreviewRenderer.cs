@@ -28,7 +28,9 @@ internal static class PreviewRenderer
             using(var g=Graphics.FromImage(bitmap))
             {
                 Theme.Workspace(g,new Rectangle(0,0,bitmap.Width,bitmap.Height));if(displayClip.HasValue)g.SetClip(displayClip.Value);if(transform!=null)g.Transform=transform;
-                g.DrawImage(film??cache.roomLayer,0,0,room.width,room.height);
+                g.InterpolationMode=InterpolationMode.NearestNeighbor;g.PixelOffsetMode=PixelOffsetMode.Half;
+                var background=film??cache.roomLayer;
+                using(var edge=new System.Drawing.Imaging.ImageAttributes()){edge.SetWrapMode(WrapMode.TileFlipXY);g.DrawImage(background,new Rectangle(0,0,room.width,room.height),0,0,background.Width,background.Height,GraphicsUnit.Pixel,edge);}
                 var nativeView=film==null||cache.FilmInfo==null?null:cache.FilmInfo.View((int)Math.Round(frame*cache.FilmInfo.fps/(double)Math.Max(1,state.fps)));
                 if(nativeView!=null&&displayClip.HasValue)g.SetClip(nativeView.Viewport(room.width,room.height),CombineMode.Intersect);
                 if(nativeView!=null)using(var matrix=nativeView.WorldToRoom(room.width,room.height))g.MultiplyTransform(matrix,MatrixOrder.Prepend);
@@ -58,6 +60,7 @@ internal static class PreviewRenderer
                     // Interval is track-level; speed/spread/count/lifetime are sampled independently at birth.
                     int interval=Math.Max(1,track.interval),maxLife=(int)Math.Max(track.life,1);
                     foreach(var key in track.keyframes)if(key.property=="life")maxLife=Math.Max(maxLife,(int)key.value);
+                    if(track.expressions.ContainsKey("life")&&RandomExpression.IsDynamic(track.expressions["life"])||track.keyframes.Exists(k=>k.property=="life"&&!String.IsNullOrWhiteSpace(k.expression)&&RandomExpression.IsDynamic(k.expression)))maxLife=state.duration+1;
                     int first=track.start+Math.Max(0,(int)Math.Ceiling((frame-maxLife+1-track.start)/(double)interval))*interval,drawn=0;
                     double ordinal=0;
                     if(track.rainbow)
@@ -70,11 +73,11 @@ internal static class PreviewRenderer
                         for(int j=0;j<count&&drawn<20000;j++,drawn++)
                         {
                             double angle=p.angle+(j-(count-1)/2.0)*spread,rad=angle*Math.PI/180,dx=Math.Cos(rad)*speed,dy=-Math.Sin(rad)*speed;
-                            double x=p.x+dx*age,y=p.y+dy*age;
+                            var path=BulletFlight.Curved(track)?BulletFlight.Path(track,birth,age,p.x,p.y,angle,speed,j):null;double x=path==null?p.x+dx*age:path[age].x,y=path==null?p.y+dy*age:path[age].y;
                             double sequence=birthOrdinal+j;
-                            double imageAngle=Motion.Value(track,"spriteAngle",birth)+(track.rotateSprite?angle:0);
+                            double imageAngle=Motion.Value(track,"spriteAngle",birth)+(track.rotateSprite?(path==null?angle:path[age].angle):0);
                             if(pass==0&&Trails.Mode(track)!="off")for(int sample=(age/Trails.Interval(track))*Trails.Interval(track);sample>=Math.Max(0,age-Trails.Life(track)+1);sample-=Trails.Interval(track))
-                                Trails.Draw(g,sprites,track,(birth+sample)*301+j,age-sample,p.x+dx*sample,p.y+dy*sample,p.scale,imageAngle,p.alpha,tint,Rainbow.Index(track,sequence,birth+sample,birth));
+                                Trails.Draw(g,sprites,track,(birth+sample)*301+j,age-sample,path==null?p.x+dx*sample:path[sample].x,path==null?p.y+dy*sample:path[sample].y,p.scale,Motion.Value(track,"spriteAngle",birth)+(track.rotateSprite?(path==null?angle:path[sample].angle):0),p.alpha,tint,Rainbow.Index(track,sequence,birth+sample,birth));
                             if(pass==1)sprites.Draw(g,track.sprite,x,y,p.scale,imageAngle,p.alpha,tint,Rainbow.Index(track,sequence,frame,birth));
                         }
                     }

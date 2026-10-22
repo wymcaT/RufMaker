@@ -30,6 +30,11 @@ internal sealed class Track
     public int lane=-1;public string randomId="";public Dictionary<string,string> expressions=new Dictionary<string,string>();
     public string id, name, kind, sprite="sprBullet", easing="linear", color="#ff6d91", effect="flash", code="", rodMode="center", motion="keyframes";
     public bool enabled=true, trail, rolling, rotateSprite, trailRandom;
+    [ScriptIgnore] public int expressionSeed=12345,expressionFps=50;
+    [ScriptIgnore] public bool liveExpressions;
+    [ScriptIgnore] public double expressionPlayerX=400,expressionPlayerY=304;
+    public string flightMode="straight",flightExpression="point_direction(x,y,player.x,player.y)";
+    public double turnRate=3;public int homingDelay;
     public string shape="rod";
     public double radius=120,orientation,sides=5,cameraZoom=1;
     public string trailMode="legacy";
@@ -240,14 +245,15 @@ internal sealed class SpriteStore : IDisposable
         if(scale==0||alpha<=0)return;var image=Get(name,frame);if(image==null)return;
         SpriteMeta meta;Metadata.TryGetValue(name,out meta);
         int ox=meta==null?0:meta.originX,oy=meta==null?0:meta.originY;
-        if(scale==1&&Math.Abs(angle%360)<.0001&&alpha>=.999&&tint.ToArgb()==Color.White.ToArgb()){g.DrawImageUnscaled(image,(int)Math.Round(x)-ox,(int)Math.Round(y)-oy);return;}
         int alphaByte=(int)Math.Max(0,Math.Min(255,Math.Round(alpha*255)));int key=Color.FromArgb(alphaByte,tint).ToArgb();ImageAttributes attributes;
         if(!attributesCache.TryGetValue(key,out attributes))
         {attributes=new ImageAttributes();
             var matrix=new ColorMatrix();matrix.Matrix00=tint.R/255f;matrix.Matrix11=tint.G/255f;matrix.Matrix22=tint.B/255f;matrix.Matrix33=(float)Math.Max(0,Math.Min(1,alpha));
-            attributes.SetColorMatrix(matrix);
+            attributes.SetColorMatrix(matrix);attributes.SetWrapMode(System.Drawing.Drawing2D.WrapMode.TileFlipXY);
             if(attributesCache.Count>=1024){foreach(var entry in attributesCache.Values)entry.Dispose();attributesCache.Clear();}attributesCache[key]=attributes;
         }
+        // Clamp sampling at image edges. Transparent samples outside a tile become cracks after rotation.
+        if(scale==1&&Math.Abs(angle%360)<.0001&&x==Math.Floor(x)&&y==Math.Floor(y)){g.DrawImage(image,new Rectangle((int)x-ox,(int)y-oy,image.Width,image.Height),0,0,image.Width,image.Height,GraphicsUnit.Pixel,attributes);return;}
         var state=g.Save();g.TranslateTransform((float)x,(float)y);g.RotateTransform((float)-angle);g.ScaleTransform((float)scale,(float)scale);
         g.DrawImage(image,new Rectangle(-ox,-oy,image.Width,image.Height),0,0,image.Width,image.Height,GraphicsUnit.Pixel,attributes);
         g.Restore(state);
