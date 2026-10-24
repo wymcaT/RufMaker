@@ -7,14 +7,18 @@
 | 项目 | 状态 |
 | --- | --- |
 | 本机仓库 | `D:\rufmaker` |
-| 正式分支 | `main`，开发来源为 `codex/bullet-control-beta`；实际合并/推送结果记在 Codex 任务记录 |
+| 正式分支 | `main`；合并提交 `f554136`，开发来源为 `codex/bullet-control-beta` 的 `4d8b1a2` |
 | 功能版本 | `1.12.0`；历史 Beta 功能基线为 `88853a8` |
 | 本机正式入口 | `RufMaker.exe`，ProductVersion `1.12.0`，由 `desktop/Build-Native.ps1 -Output D:\rufmaker\RufMaker.exe` 构建 |
 | 历史测试入口 | 忽略文件 `RufMaker.Beta.exe` 可能仍是旧 Beta，不作为正式入口 |
-| 远程 | `origin` 为 `git@github.com:wymcaT/RufMaker.git`；用户本轮明确授权合入正式版并推送 |
+| 远程 | `main` 和 `v1.12.0` 已推送；[正式发行版](https://github.com/wymcaT/RufMaker/releases/tag/v1.12.0) 含完整便携包、更新包及 SHA256 |
 | 用户验收 | 自动验证与构建通过；尚无 1.12.0 用户试玩验收结论 |
 
 新文档或后续修复提交会使 HEAD 高于功能基线，请先执行 Git 状态检查。不要把“远程没有此分支”当成需要自动推送的理由。
+
+GitHub Actions [40079194400](https://github.com/wymcaT/RufMaker/actions/runs/40079194400) 的构建、打包与发布均成功。合并前后的 553 个个人工程文件已逐一核对 SHA256，内容未变；这些仍是未提交的用户资料。
+
+发布后 `Test-Updater.ps1 -Online -Version 1.12.0` 通过：实际 latest API、公开更新 ZIP 下载、SHA256 及解包清单均验证成功。旧版 1.11 更新器也已用本地 1.12.0 更新包完成兼容解包和 GML 资产迁移验证。
 
 ## 已实现并合入正式版的范围
 

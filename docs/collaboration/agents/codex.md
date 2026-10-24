@@ -1,10 +1,10 @@
 # Codex 任务记录
 
-- 状态：`in_progress`
+- 状态：`completed`
 - 任务：实现生成模板（独立局部时间、物件/弹幕触发、筛选、生成后销毁），验证后将 Beta 合入 main 并按用户本轮授权推送 GitHub、交付正式 EXE。
 - 开始时基线：`548b82b`，分支 `codex/bullet-control-beta`。
-- 当前占用文件：`desktop/EditorCore.cs`、`BulletSystem.cs`、`BulletBehaviorForm.cs`、`BulletTools.cs`、`PreviewRenderer.cs`、`PresetLibrary.cs`、构建/正式版入口文件、新增模板运行模块及测试；`studio/bullet-schema.mjs`、`bullet-system.mjs`、`project.mjs`、新增模板生成模块及测试；`assets/locales/en.json`、README/发布/开发/协作文档和最终 EXE/发行包。Argon4 已完成的修改保留并一并集成。
-- 发布阶段：实现、自动检查和打包完成，正在按用户本轮授权合入 main、推送并核验正式发布。
+- 当前占用文件：无，已释放。Argon4 已完成的修改已保留并一并集成，未改写其任务记录。
+- 发布结果：功能提交 `4d8b1a2`；合并提交 `f554136` 已进入远程 main，标签 `v1.12.0` 已发布。GitHub Actions `40079194400` 构建、打包、发布成功，完整便携包、更新包与两个 SHA256 文件均上线。
 - 本机产物：根目录 `RufMaker.exe`，ProductVersion `1.12.0`，FileVersion `1.12.0.0`，1,036,288 bytes；完整包与更新包位于 `build/distribution/v1.12.0/`。
 
 ## 本轮实现与集成
@@ -30,6 +30,8 @@
 - 新模板 GM 探针：8 个时间点、125 个完整状态与 C# 一致。旧弹幕 GM 探针：歌曲第 150 帧 120 个状态一致，覆盖分裂/控制/释放。两类测试均在 build 隔离工程运行。
 - 旧公式测试改为修改场景参考玩家，而非仅改派生缓存，避免与新场景上下文不一致。早期模板 GML 分支括号错误已修正，最终真实运行通过。
 - 正式构建与 Package-Release 成功；1.11.0 旧更新器反射解包、校验新包并完成资产迁移通过，heart/star2 的 SHA256 与原文件一致。发行包约为完整便携 58.6 MB、更新包 56.9 MB。
+- 发布后执行 `Test-Updater.ps1 -Online -Version 1.12.0` 通过：实际 latest API 为 v1.12.0，应用更新器下载公开 ZIP，验证 SHA256 并解出全部清单文件。CI 的发行包大小因打包环境有所不同（完整包约 59.6 MB，更新包约 57.9 MB）。
+- 分支切换与合并后，553 个个人工程文件与操作前快照的 SHA256 全部相同；只提交产品代码、说明和正式 EXE，个人工程仍保留在工作区。
 
 - `desktop/Test-RandomTimeline.ps1`：通过，包含单项属性、连续撤销/重做、关键帧、多选、撤销删除、房间实例选中恢复。
 - `desktop/Test-FormationShapes.ps1`：通过，C#/Node 几何与滚动对照、独立关键帧、分组旋转/缩放、属性栏、复制和新形状撤销选中。
