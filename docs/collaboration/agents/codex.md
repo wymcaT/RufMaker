@@ -1,11 +1,24 @@
 # Codex 任务记录
 
 - 状态：`completed`
-- 任务：音频轨右键切换波形/频谱、独立轨道高度、当前帧对象数量与分类统计；完成本地构建后，用户另行授权推送 main。
-- 开始时基线：`5afccbb`，分支 `main`；保留用户 projects 下既有改动。
-- 当前占用文件：无，已完成并释放。实际改动见本轮 Git 提交；未改用户 `projects/`。
-- 本轮推送：1.13.0 功能提交 `7100ed0` 同步至 main，附本次推送交接记录；未创建标签或 Release，正式发行版仍为 v1.12.0。
-- 本机产物：根目录 `RufMaker.exe`，ProductVersion `1.13.0`，FileVersion `1.13.0.0`，1,064,448 bytes。
+- 任务：修复单项属性撤销导致整页重建，并测量编辑/预览路径的重复开销，完成有依据的性能优化；本轮仅本地构建，不推送。
+- 开始时基线：`c58c654`，分支 `main`；保留用户 projects 下既有改动。
+- 当前占用文件：无，已完成并释放；本轮实际修改为 `EditorCore.cs`、`MainForm.cs`、`ParameterInspector.cs`、`Updater.cs`、两项新测试、协作/开发文档及 EXE。
+- 本轮发布：本地 1.13.1 构建与提交，未推送；上轮远程 main 为 `c58c654`（1.13.0），正式 Release 仍为 v1.12.0。
+- 本机产物：根目录 `RufMaker.exe`，ProductVersion `1.13.1`，FileVersion `1.13.1.0`，1,069,056 bytes。正在运行的旧编辑器需保存并重启才能使用新代码。
+
+## 2026-10-25：属性页撤销与编辑性能
+
+- `NativeProperties.TryRebind()` 先核对字段顺序、名称、类别、类型、只读状态、说明、选项和动作布局；相同时更新现有 `ValueProperty` 的 getter/setter 和 `ParameterActions`，复用控件。撤销后闭包绑定恢复后的对象；字段/选项/类别变化时仍重建。保留选中、滚动和原有输入控件。
+- `ParameterInspector.Refresh()` 只更新字段；`ScrubNumber.RefreshValue()` 比较显示值/表达式，只对改变的行发起绘制，不调用整页同步 `base.Refresh()`。提交表达式、取消输入与拖数值均更新显示缓存。
+- 新增 `EditorState.Snapshot()`、`NativeProject.Snapshot()` 等类型化深复制，用于 `UndoEntry` 和保存。复制涵盖嵌套片段、关键帧、行为、表达式、曲线、terrain、玩家/轨迹、原生事件和选中信息；恢复时再复制，历史之间不共享可变数据。terrain 保留 JSON 兼容复制，其余大块模型不再用整工程 JSON 往返。
+- `UndoEntry.SameScene()` 用持久字段比较做去重，跳过 `[ScriptIgnore]` 的 parent/owner 等引用；仍能识别未经过 MarkChanged 的直接属性/房间修改。歌曲未变的撤销不重新加载音频。
+- `SaveNow()` 用独立快照，并通过 `Task.Run` 在后台发送桥接 JSON。`RoomData.SameContent()` / `ReplaceRoom()` 跳过数据相同的保存响应，避免不必要的场景快照、缓存清空及整段历史弹幕重演。没有改 JS/GML 或弹幕运动语义。
+- 性能记录：`build/editor-performance-check/before.json` 和 `after-final.json`；同一合成场景 40 个物件、6400 个关键帧，预热后 7 次中位数。单项编辑 248.81 → 4.17 ms，撤销 746.58 → 12.54 ms；属性页 164 个控件全部保留，原有子控件销毁由 163 降至 0。测试不包含实际游戏渲染/音频播放，不能换算为游戏 FPS。
+- 新入口：`pwsh -NoProfile -File desktop/Test-EditorPerformance.ps1`；可用 `-ProfileOnly -Report NAME` 单独记录数据。用例覆盖值/表达式/关键帧/重做的绑定有效性、滚动、删除恢复、结构变化、历史去重、保存房间比较及全部可变快照隔离；持久 JSON 保持一致。
+- 通过：上述性能/快照测试、`Test-RandomTimeline.ps1`、`Test-AudioStatistics.ps1`、`Test-TemplateSystem.ps1`、`Test-Localization.ps1`、`Test-PreviewRendering.ps1`。预览缝隙回归的未覆盖像素为 0。本轮未运行 GM 运动探针，运动逻辑未修改。
+- 构建：`desktop/Build-Native.ps1 -Output D:\rufmaker\build\editor-performance-check\RufMaker.exe` 通过。根 EXE 被用户运行中的旧编辑器占用，直接覆盖编译失败；Windows Restart Manager 只读确认为 RufMaker（PID 50940）。随后使用 `File.Replace` 安全替换路径成功，未结束用户进程，旧映像备份留在 `build/editor-performance-check/RufMaker.previous-*.exe`。
+- 本地提交随本轮修复保存；不推送，不改用户 `projects/`，不改 Argon4 记录。尚无 1.13.1 用户验收结论。
 
 ## 2026-10-25：频谱、轨道高度与对象统计
 

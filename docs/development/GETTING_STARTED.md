@@ -14,7 +14,7 @@ git diff --stat
 Test-Path -LiteralPath "$env:WINDIR\Microsoft.NET\Framework64\v4.0.30319\csc.exe"
 ```
 
-当前正式功能版本为 `1.12.0`，由 `codex/bullet-control-beta` 合入 `main`；测试版历史功能提交为 `88853a8`。以实际 Git 状态为准，不为了对齐本文擅自 checkout。`projects/` 下已有本地编辑内容，见协作状态。
+当前正式分支为 `main`，已合入 `codex/bullet-control-beta`；测试版历史功能提交为 `88853a8`。具体功能版本和推送状态见 `desktop/Updater.cs` 与协作状态。以实际 Git 状态为准，不为了对齐本文擅自 checkout。`projects/` 下已有本地编辑内容，见协作状态。
 
 弹幕控制、生成模板、整体形状及撤销修复均已进入正式版。接手仍需核对实际分支和版本，不用旧的 Beta EXE 验证新源码。
 
@@ -23,7 +23,7 @@ Test-Path -LiteralPath "$env:WINDIR\Microsoft.NET\Framework64\v4.0.30319\csc.exe
 - C# WinForms/GDI+，目标 x86，系统 .NET Framework 编译器；项目使用显式源码列表，没有必须安装的 .NET SDK/NuGet 工程。
 - Node.js ESM，使用随库 `runtime/node.exe`，当前本机检查为 v20.18.0。后台以进程管道通信；不需要开发网站、端口或 `npm install`。
 - GM8.2 用于原生编译/试玩。只做桌面构建与大部分测试时可以没有它。通过编辑器“引擎设置”配置，或为命令行指定 `RUFMAKER_GAMEMAKER`。
-- 应用版本查 `desktop/Updater.cs`，不是 `studio/package.json`。当前数字版本与 ProductVersion 均为 `1.12.0`。
+- 应用版本查 `desktop/Updater.cs`，不是 `studio/package.json`；本机产物与远程发行版可能处于不同版本，见协作状态。
 - 根目录 `RufMaker.exe` 是正式编辑器；旧的忽略文件 `RufMaker.Beta.exe` 可能仍是历史产物，不作为正式入口。
 
 ## 3. 构建与启动
@@ -66,9 +66,12 @@ powershell -NoProfile -ExecutionPolicy Bypass -File desktop/Test-Localization.ps
 powershell -NoProfile -ExecutionPolicy Bypass -File desktop/Test-RandomTimeline.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File desktop/Test-FormationShapes.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File desktop/Test-TemplateSystem.ps1
+pwsh -NoProfile -File desktop/Test-EditorPerformance.ps1
 ```
 
 不要求每轮全跑：行为/分组改动优先第一项；公式改动优先前两项；复制/预设改动加第三项；UI 文案与布局改动加第四项。`Test-RandomTimeline.ps1` 包含撤销后的物件/关键帧/多选/房间实例选中恢复；`Test-FormationShapes.ps1` 检查形状几何、参数关键帧和预览/GML 参考坐标。其余 `Test-*.ps1` 按模块选择。部分测试会创建离屏原生控件并截图，不等于完整的交互试玩验收。
+
+`Test-EditorPerformance.ps1` 检查属性表控件复用、重绑后的编辑/撤销、历史深复制与去重、保存后的房间比较，并记录合成场景的编辑/撤销耗时。`-ProfileOnly -Report NAME` 可单独记录数据，输出在 `build/editor-performance-check/`；绝对耗时不作为测试断言。此测试不测真实游戏 FPS。
 
 `Test-BulletSystem.ps1` 输出 `build/bullet-system-check/scene.json`、测试 EXE 和截图。数值导出接口属于这个测试 EXE：
 

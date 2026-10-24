@@ -23,10 +23,15 @@ internal sealed class EditorState
     public NativeProject nativeProject;
     public NativeTestPosition nativeTest=new NativeTestPosition();
     public List<Track> tracks=new List<Track>();
+    public EditorState Snapshot()
+    {
+        var copy=(EditorState)MemberwiseClone();copy.tracks=tracks.Select(t=>t.Snapshot()).ToList();copy.playerTrace=playerTrace.Select(p=>new PlayerTracePoint{frame=p.frame,x=p.x,y=p.y}).ToList();copy.plainRooms=plainRooms==null?null:(string[])plainRooms.Clone();
+        copy.nativeTest=nativeTest==null?null:new NativeTestPosition{x=nativeTest.x,y=nativeTest.y};copy.player=player==null?null:player.Snapshot();copy.nativeProject=nativeProject==null?null:nativeProject.Snapshot();copy.terrain=terrain==null?null:Json.Read<object>(Json.Write(terrain));return copy;
+    }
 }
 internal sealed class NativeTestPosition {public double x=400,y=304;}
 internal sealed class PlayerTracePoint {public int frame;public double x,y;}
-internal sealed class PlayerSettings {public double gravity=.4,moveSpeed=3,jumpSpeed=8.5,doubleJumpSpeed=7;public int maxJumps=2;public bool infiniteJump;}
+internal sealed class PlayerSettings {public double gravity=.4,moveSpeed=3,jumpSpeed=8.5,doubleJumpSpeed=7;public int maxJumps=2;public bool infiniteJump;public PlayerSettings Snapshot(){return (PlayerSettings)MemberwiseClone();}}
 internal sealed class Track
 {
     public string tag="",parentId="",emissionShape="point",emissionFacing="fan",randomScope="bullet";
@@ -93,6 +98,12 @@ internal sealed class RoomData
     public int width=800,height=608,fps=50,bgColor=0x202020;
     public List<RoomInstance> instances=new List<RoomInstance>();
     public RoomData Snapshot(){return new RoomData{name=name,width=width,height=height,fps=fps,bgColor=bgColor,instances=instances.Select(i=>i.Snapshot()).ToList()};}
+    public bool SameContent(RoomData other)
+    {
+        if(other==null)return false;if(ReferenceEquals(this,other))return true;
+        if(name!=other.name||width!=other.width||height!=other.height||fps!=other.fps||bgColor!=other.bgColor||instances.Count!=other.instances.Count)return false;
+        for(int n=0;n<instances.Count;n++){var a=instances[n];var b=other.instances[n];if(a.id!=b.id||a.index!=b.index||a.name!=b.name||a.raw!=b.raw||a.x!=b.x||a.y!=b.y)return false;}return true;
+    }
 }
 internal sealed class RoomInstance {public int index;public string id,name,raw;public double x,y;public RoomInstance Snapshot(){return (RoomInstance)MemberwiseClone();}}
 internal sealed class UndoKey {public string trackId,property;public int frame;}
@@ -104,6 +115,33 @@ internal sealed class UndoSnapshot
     public string[] selectedTracks=new string[0];
     public UndoKey selectedKey;
     public UndoKey[] selectedKeys=new UndoKey[0];
+}
+internal sealed class UndoEntry
+{
+    private readonly UndoSnapshot snapshot;
+    public UndoEntry(UndoSnapshot source)
+    {
+        snapshot=Copy(source);
+    }
+    private static UndoSnapshot Copy(UndoSnapshot source)
+    {
+        Func<UndoKey,UndoKey> key=k=>k==null?null:new UndoKey{trackId=k.trackId,property=k.property,frame=k.frame};
+        return new UndoSnapshot{state=source.state==null?null:source.state.Snapshot(),room=source.room==null?null:source.room.Snapshot(),selectedTrack=source.selectedTrack,selectedTracks=(string[])source.selectedTracks.Clone(),selectedProperty=source.selectedProperty,selectedKey=key(source.selectedKey),selectedKeys=source.selectedKeys.Select(key).ToArray(),selectedInstance=source.selectedInstance};
+    }
+    public UndoSnapshot Restore(){return Copy(snapshot);}
+    public bool SameScene(UndoEntry other){return SceneComparison.Same(snapshot.state,other.snapshot.state)&&SceneComparison.Same(snapshot.room,other.snapshot.room);}
+}
+internal static class SceneComparison
+{
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<Type,System.Reflection.FieldInfo[]> fields=new System.Collections.Concurrent.ConcurrentDictionary<Type,System.Reflection.FieldInfo[]>();
+    // Only persisted model fields participate. Parent/owner links and preview caches are excluded.
+    public static bool Same(object a,object b)
+    {
+        if(ReferenceEquals(a,b))return true;if(a==null||b==null||a.GetType()!=b.GetType())return false;Type type=a.GetType();if(type.IsValueType||a is string)return a.Equals(b);
+        var map=a as System.Collections.IDictionary;if(map!=null){var other=(System.Collections.IDictionary)b;if(map.Count!=other.Count)return false;foreach(object key in map.Keys)if(!other.Contains(key)||!Same(map[key],other[key]))return false;return true;}
+        var list=a as System.Collections.IList;if(list!=null){var other=(System.Collections.IList)b;if(list.Count!=other.Count)return false;for(int n=0;n<list.Count;n++)if(!Same(list[n],other[n]))return false;return true;}
+        foreach(var field in fields.GetOrAdd(type,t=>t.GetFields(System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.Public).Where(f=>!f.IsDefined(typeof(ScriptIgnoreAttribute),true)).ToArray()))if(!Same(field.GetValue(a),field.GetValue(b)))return false;return true;
+    }
 }
 internal sealed class KeyClipboardItem {public string trackId;public Keyframe key;public int offset;}
 internal sealed class Inventory
@@ -127,12 +165,13 @@ internal sealed class SourceData {public string content,hash;}
 internal sealed class SaveResult {public RoomData room;}
 internal sealed class BuildResult {public string exe,dir;public long bytes;public bool ready,cached;public int pid;public Dictionary<string,string> status;}
 internal sealed class NativeRunProgress {public string phase,room,error;public int frame,target;}
-internal sealed class NativeEvent {public string id,file,expression,kind,label,snippet,reason;public int frame,line;public double period;}
+internal sealed class NativeEvent {public string id,file,expression,kind,label,snippet,reason;public int frame,line;public double period;public NativeEvent Snapshot(){return (NativeEvent)MemberwiseClone();}}
 internal sealed class NativeProject
 {
     public int version=1,fps=50,width=800,height=608,duration;public bool imported,hasFmod;public double timelineSpeed=1,originalStart,bpm;
     public string entry,source,name,room,controller,clock,timeline,music,bootObject,musicInitializer,confidence,defaultSprite,killerParent;
     public NativeEvent[] events=new NativeEvent[0],unresolved=new NativeEvent[0];public string[] warnings=new string[0];
+    public NativeProject Snapshot(){var copy=(NativeProject)MemberwiseClone();copy.events=events.Select(e=>e.Snapshot()).ToArray();copy.unresolved=unresolved.Select(e=>e.Snapshot()).ToArray();copy.warnings=(string[])warnings.Clone();return copy;}
 }
 internal sealed class NativeRoomCandidate {public string name;public int width,height,fps,score;public NativeControllerCandidate[] controllers;public override string ToString(){return name+Language.Text(score>0?" · 候选":"");}}
 internal sealed class NativeControllerCandidate {public string name;public int score;public bool direct;}
@@ -227,11 +266,17 @@ internal sealed class NativeProperties : CustomTypeDescriptor
     public override PropertyDescriptorCollection GetProperties(){return new PropertyDescriptorCollection(items.ToArray());}
     public override PropertyDescriptorCollection GetProperties(Attribute[] attributes){return GetProperties();}
     public override object GetPropertyOwner(PropertyDescriptor pd){return this;}
+    public bool TryRebind(NativeProperties next)
+    {
+        if(next==null||items.Count!=next.items.Count)return false;
+        for(int i=0;i<items.Count;i++)if(!((ValueProperty)items[i]).CanRebind((ValueProperty)next.items[i]))return false;
+        for(int i=0;i<items.Count;i++)((ValueProperty)items[i]).Rebind((ValueProperty)next.items[i]);return true;
+    }
 }
 internal sealed class ValueProperty : PropertyDescriptor
 {
     public ParameterActions Actions;public bool LocalizeChoices=true;
-    private readonly Type type;private readonly Func<object> getter;private readonly Action<object> setter;private readonly string[] choices;
+    private readonly Type type;private Func<object> getter;private Action<object> setter;private readonly string[] choices;
     public ValueProperty(string name,string category,Type type,Func<object> get,Action<object> set,string[] choices,string description)
         :base(name,new Attribute[]{new CategoryAttribute(category),new DescriptionAttribute(description)})
     {this.type=type;getter=get;setter=set;this.choices=choices;}
@@ -244,6 +289,17 @@ internal sealed class ValueProperty : PropertyDescriptor
     public override void ResetValue(object component){}
     public override bool ShouldSerializeValue(object component){return false;}
     public override TypeConverter Converter{get{return choices==null?base.Converter:new ChoiceConverter(choices);}}
+    internal bool CanRebind(ValueProperty next)
+    {
+        return Name==next.Name&&Category==next.Category&&Description==next.Description&&type==next.type&&IsReadOnly==next.IsReadOnly&&LocalizeChoices==next.LocalizeChoices&&
+            (choices==null?next.choices==null:next.choices!=null&&choices.SequenceEqual(next.choices))&&
+            (Actions==null?next.Actions==null:next.Actions!=null&&(Actions.ToggleKey==null)==(next.Actions.ToggleKey==null)&&(Actions.EditExpression==null)==(next.Actions.EditExpression==null));
+    }
+    internal void Rebind(ValueProperty next)
+    {
+        getter=next.getter;setter=next.setter;
+        if(Actions!=null){Actions.EditExpression=next.Actions.EditExpression;Actions.Keyed=next.Actions.Keyed;Actions.Random=next.Actions.Random;Actions.ToggleKey=next.Actions.ToggleKey;Actions.ToggleRandom=next.Actions.ToggleRandom;Actions.Expression=next.Actions.Expression;Actions.SetExpression=next.Actions.SetExpression;}
+    }
 }
 internal sealed class ChoiceConverter : StringConverter
 {

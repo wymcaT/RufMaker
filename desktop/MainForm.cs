@@ -21,7 +21,7 @@ internal sealed partial class MainForm : LocalizedForm
     private int frame;
     private bool dirty,busy,loading,closing;
     private int revision;
-    private readonly Stack<string> undo=new Stack<string>(),redo=new Stack<string>();
+    private readonly Stack<UndoEntry> undo=new Stack<UndoEntry>(),redo=new Stack<UndoEntry>();
     private readonly StageCanvas stage=new StageCanvas();
     private readonly TimelineCanvas timeline=new TimelineCanvas();
     private readonly ParameterInspector properties=new ParameterInspector();
@@ -384,16 +384,13 @@ internal sealed partial class MainForm : LocalizedForm
             selectedInstance=selectedInstance==null?null:selectedInstance.id
         };
     }
-    private static string SceneSignature(EditorState s,RoomData r){return Json.Write(new UndoSnapshot{state=s,room=r});}
-    private string Snapshot(){return Json.Write(CaptureSnapshot());}
     private void PushUndo()
     {
         if(state==null||parameterScrubbing)return;
-        string snapshot=Snapshot();
+        var snapshot=new UndoEntry(CaptureSnapshot());
         if(undo.Count>0)
         {
-            var top=Json.Read<UndoSnapshot>(undo.Peek());
-            if(SceneSignature(top.state,top.room)==SceneSignature(state,document==null?null:document.room))
+            if(undo.Peek().SameScene(snapshot))
             {
                 undo.Pop();
                 undo.Push(snapshot);
@@ -411,7 +408,7 @@ internal sealed partial class MainForm : LocalizedForm
         if(state==null||bridge==null)return true;await saveGate.WaitAsync();saveTimer.Stop();int current=revision;
         try
         {
-            var snapshot=Json.Read<EditorState>(Json.Write(state));var result=await bridge.Call<SaveResult>("save",snapshot);ReplaceRoom(result.room);
+            var snapshot=state.Snapshot();var result=await Task.Run(()=>bridge.Call<SaveResult>("save",snapshot));ReplaceRoom(result.room);
             if(current==revision)dirty=false;SetStatus("已保存到 GameMaker 工程");if(notify)stage.Focus();return true;
         }
         catch(Exception error){Error(error);return false;}
@@ -610,7 +607,7 @@ internal sealed partial class MainForm : LocalizedForm
     private async void DeleteInstance()
     {if(selectedInstance==null||selectedInstance.name=="objRufController")return;PushUndo();try{var room=await bridge.Call<RoomData>("delete-instance",new{room=state.room,id=selectedInstance.id});selectedInstance=null;ReplaceRoom(room);SelectProject();SetStatus("房间实例已删除 · Ctrl+Z 可撤销");}catch(Exception error){Error(error);}}
     private void ReplaceRoom(RoomData room)
-    {string id=selectedInstance==null?null:selectedInstance.id;document.room=room;stage.Room=room;if(id!=null)selectedInstance=room.instances.FirstOrDefault(x=>x.id==id);stage.SelectedInstance=selectedInstance;stage.SceneChanged();}
+    {if(document.room!=null&&stage.Room==document.room&&document.room.SameContent(room))return;string id=selectedInstance==null?null:selectedInstance.id;document.room=room;stage.Room=room;if(id!=null)selectedInstance=room.instances.FirstOrDefault(x=>x.id==id);stage.SelectedInstance=selectedInstance;stage.SceneChanged();}
     private void ApplySprite(string name){if(selectedTrack==null||!Theme.Visual(selectedTrack.kind))return;PushUndo();foreach(var t in timeline.SelectedTracks.Where(t=>Theme.Visual(t.kind)))Rainbow.SetSprite(t,name);ShowProperties();MarkChanged();}
     private async Task DropResource(string kind,string name,PointF position)
     {
@@ -736,15 +733,15 @@ internal sealed partial class MainForm : LocalizedForm
     private async void Undo(bool forward)
     {
         var from=forward?redo:undo;var to=forward?undo:redo;if(state==null||from.Count==0||busy)return;StopPlaying();saveTimer.Stop();
-        var current=CaptureSnapshot();to.Push(Json.Write(current));var snapshot=Json.Read<UndoSnapshot>(from.Pop());
+        var current=CaptureSnapshot();to.Push(new UndoEntry(current));var snapshot=from.Pop().Restore();
         try
         {
-            string previousMusic=state.music,previousRoom=document==null||document.room==null?"":Json.Write(document.room);
+            string previousMusic=state.music;var previousRoom=document==null?null:document.room;
             state=snapshot.state;Motion.Normalize(state);if(document!=null)document.state=state;stage.State=state;timeline.State=state;
             if(snapshot.room!=null&&document!=null)ReplaceRoom(snapshot.room);
             RefreshBeatControls();SetFrame(frame);RestoreUndoSelection(current,snapshot);MarkChanged();
-            if(document!=null&&(previousMusic!=state.music||audio.Duration<=0))await LoadCurrentMusic();
-            if(bridge!=null&&snapshot.room!=null&&previousRoom!=Json.Write(snapshot.room)){ReplaceRoom(await bridge.Call<RoomData>("restore-room",snapshot.room));RestoreUndoSelection(current,snapshot);}
+            if(document!=null&&previousMusic!=state.music)await LoadCurrentMusic();
+            if(bridge!=null&&snapshot.room!=null&&(previousRoom==null||!previousRoom.SameContent(snapshot.room))){ReplaceRoom(await bridge.Call<RoomData>("restore-room",snapshot.room));RestoreUndoSelection(current,snapshot);}
         }
         catch(Exception error){Error(error);}
     }

@@ -17,7 +17,7 @@ internal sealed class ParameterInspector : UserControl
     private object selectedObject;private bool rebuilding,scrubbing;private bool stacked=true;
     public Action BeginScrub,EndScrub;
     public string SelectedLabel {get;private set;}
-    public object SelectedObject {get{return selectedObject;}set{CommitPending();selectedObject=value;Rebuild();}}
+    public object SelectedObject {get{return selectedObject;}set{CommitPending();var current=selectedObject as NativeProperties;if(current!=null&&current.TryRebind(value as NativeProperties)){Refresh();return;}selectedObject=value;Rebuild();}}
     public bool EditingText {get{return Descendants(this).Any(c=>(c is TextBox&&!((TextBox)c).ReadOnly&&c.Visible&&c.ContainsFocus)||(c is ComboBox&&((ComboBox)c).DroppedDown));}}
     public ParameterInspector()
     {
@@ -97,7 +97,7 @@ internal sealed class ParameterInspector : UserControl
         }
         finally{rows.ResumeLayout(true);if(ContainsFocus)ActiveControl=null;rebuilding=false;scroll.AutoScrollPosition=new Point(-position.X,-position.Y);}
     }
-    public override void Refresh(){if(!rebuilding){rebuilding=true;try{foreach(var update in refreshers.ToArray())update();}finally{rebuilding=false;}}base.Refresh();}
+    public override void Refresh(){if(!rebuilding){rebuilding=true;try{foreach(var update in refreshers)update();}finally{rebuilding=false;}}}
 }
 
 internal sealed class ScrubNumber : Control
@@ -106,24 +106,29 @@ internal sealed class ScrubNumber : Control
     private readonly TextBox input=new TextBox{BorderStyle=BorderStyle.FixedSingle,Dock=DockStyle.Fill,BackColor=Theme.Raised,ForeColor=Theme.Text,Visible=false};
     private readonly ParameterActions actions;private readonly ToolTip errorTip=new ToolTip();
     private Point start;private double original,step;private bool down,dragging,committing;
+    private object displayedValue;private string displayedExpression;private bool displayedRandom,hasDisplay;
     public bool ReadOnly;public Action BeginScrub,EndScrub;
     public ScrubNumber(string label,Type numberType,Func<object> get,Action<object> set,ParameterActions actions=null)
     {
         this.actions=actions;this.label=label;this.numberType=numberType;this.get=get;this.set=set;DoubleBuffered=true;TabStop=true;Cursor=Cursors.SizeNS;BackColor=Theme.Raised;Font=Theme.Font;
-        Controls.Add(input);input.Leave+=(s,e)=>CommitText();input.KeyDown+=(s,e)=>{if(e.KeyCode==Keys.Enter){CommitText();if(!input.Visible)Focus();e.SuppressKeyPress=true;}else if(e.KeyCode==Keys.Escape){input.Visible=false;Focus();e.SuppressKeyPress=true;}};
+        Controls.Add(input);input.Leave+=(s,e)=>CommitText();input.KeyDown+=(s,e)=>{if(e.KeyCode==Keys.Enter){CommitText();if(!input.Visible)Focus();e.SuppressKeyPress=true;}else if(e.KeyCode==Keys.Escape){input.Visible=false;RefreshValue();Focus();e.SuppressKeyPress=true;}};
     }
     public static double StepFor(double value,bool integer,string label)
     {
         double magnitude=Math.Abs(value);double basis=magnitude<1?(label.Contains("透明")||label.Contains("缩放")||label.Contains("周期")?.01:label.Contains("速度")||label.Contains("加速度")?.1:1):Math.Pow(10,Math.Floor(Math.Log10(magnitude)))/50;
         return integer?Math.Max(1,basis):Math.Max(.001,basis);
     }
-    public void RefreshValue(){if(!input.Visible)Invalidate();}
+    public void RefreshValue()
+    {
+        if(input.Visible)return;object value=get();bool random=actions!=null&&actions.Random();string expression=random?actions.Expression():null;
+        if(!hasDisplay||!Equals(value,displayedValue)||random!=displayedRandom||expression!=displayedExpression){displayedValue=value;displayedRandom=random;displayedExpression=expression;hasDisplay=true;Invalidate();}
+    }
     public bool CancelUncommitted()
     {
         if(!input.Visible)return false;
         bool wasModified=input.Modified;committing=true;
         try{input.Modified=false;input.Visible=false;errorTip.Hide(input);Focus();}
-        finally{committing=false;Invalidate();}
+        finally{committing=false;RefreshValue();Invalidate();}
         return wasModified;
     }
     public void CommitText()
@@ -136,18 +141,18 @@ internal sealed class ScrubNumber : Control
             double value;if(!Double.TryParse(input.Text,NumberStyles.Float,CultureInfo.CurrentCulture,out value)&&!Double.TryParse(input.Text,NumberStyles.Float,CultureInfo.InvariantCulture,out value)){input.Text=Convert.ToString(get());return;}
             if(Double.IsNaN(value)||Double.IsInfinity(value))return;input.Visible=false;SetNumber(value);
         }
-        finally{committing=false;Invalidate();}
+        finally{committing=false;RefreshValue();Invalidate();}
     }
     private void SetNumber(double value)
     {
         object converted=numberType==typeof(int)?(object)(int)Math.Max(Int32.MinValue,Math.Min(Int32.MaxValue,Math.Round(value))):numberType==typeof(float)?(object)(float)value:numberType==typeof(decimal)?(object)(decimal)value:(object)value;
-        if(!Equals(converted,get()))set(converted);
+        if(!Equals(converted,get()))set(converted);RefreshValue();
     }
     protected override void OnPaint(PaintEventArgs e)
     {
         base.OnPaint(e);e.Graphics.Clear(dragging?Color.FromArgb(68,48,68):Theme.Raised);
-        string value=Convert.ToDouble(get()).ToString("0.######",CultureInfo.CurrentCulture);bool random=actions!=null&&actions.Random();
-        if(random){Theme.Label(e.Graphics,actions.Expression(),new Rectangle(7,0,Math.Max(1,Width-107),Height),Theme.Text,localize:false);Theme.Label(e.Graphics,"= "+value,new Rectangle(Math.Max(7,Width-95),0,90,Height),Theme.Accent,Theme.Small,localize:false);}
+        if(!hasDisplay)RefreshValue();string value=Convert.ToDouble(displayedValue).ToString("0.######",CultureInfo.CurrentCulture);bool random=displayedRandom;
+        if(random){Theme.Label(e.Graphics,displayedExpression,new Rectangle(7,0,Math.Max(1,Width-107),Height),Theme.Text,localize:false);Theme.Label(e.Graphics,"= "+value,new Rectangle(Math.Max(7,Width-95),0,90,Height),Theme.Accent,Theme.Small,localize:false);}
         else Theme.Label(e.Graphics,value,new Rectangle(7,0,Math.Max(1,Width-23),Height),ReadOnly?Theme.Muted:Theme.Text,localize:false);
         if(!ReadOnly&&!random)Theme.Label(e.Graphics,"↕",new Rectangle(Width-17,0,15,Height),Theme.Muted,Theme.Small);
     }
