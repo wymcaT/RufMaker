@@ -31,6 +31,12 @@ foreach($folder in @('templates/avoidance.gm82','assets/sprite-packs/Ultimate Av
         & $addFile $relative $file.FullName
     }
 }
+# Older installed updaters accept templates/** but do not yet accept assets/gml/**.
+# The new EXE arranges this transport directory at startup, like older sprite assets.
+foreach($file in Get-ChildItem -LiteralPath (Join-Path $taskRoot 'assets/gml') -File -Recurse){
+    $relative=$file.FullName.Substring((Join-Path $taskRoot 'assets/gml').Length+1).Replace('\','/')
+    & $addFile ('templates/avoidance.gm82/rufmaker-assets/gml/'+$relative) $file.FullName
+}
 $manifest=@{version=$Version;files=$manifestFiles.ToArray()} | ConvertTo-Json -Depth 5
 $zip=[System.IO.Compression.ZipArchive]::new([System.IO.File]::Create($zipPath),[System.IO.Compression.ZipArchiveMode]::Create)
 try {

@@ -20,7 +20,7 @@ internal sealed class WorkspaceView
     public string resourceKind="objects",search="",selectedTrack,selectedProperty="x";
     public TimelineView timeline=new TimelineView();
     public static WorkspaceView Load(string root)
-    {string file=Path.Combine(root,".rufmaker-view.json");try{return File.Exists(file)?Json.Read<WorkspaceView>(File.ReadAllText(file)):null;}catch{return null;}}
+    {string file=Path.Combine(root,".rufmaker-view.json"),beta=Path.Combine(root,".rufmaker-beta-view.json");if(File.Exists(beta)&&(!File.Exists(file)||File.GetLastWriteTimeUtc(beta)>File.GetLastWriteTimeUtc(file)))file=beta;try{return File.Exists(file)?Json.Read<WorkspaceView>(File.ReadAllText(file)):null;}catch{return null;}}
     public void Save(string root)
     {
         string file=Path.Combine(root,".rufmaker-view.json"),temp=file+".tmp";File.WriteAllText(temp,Json.Write(this),new System.Text.UTF8Encoding(false));

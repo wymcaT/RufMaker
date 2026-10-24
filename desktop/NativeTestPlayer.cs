@@ -17,7 +17,7 @@ internal sealed partial class MainForm
     }
     private void RefreshNativeTestPlayer()
     {
-        editNativeTest.Enabled=state!=null;if(!editNativeTest.Enabled)editNativeTest.Checked=false;stage.EditNativeTest=editNativeTest.Checked;
+        editNativeTest.Enabled=state!=null;if(!editNativeTest.Enabled)editNativeTest.Checked=false;stage.EditNativeTest=editNativeTest.Checked;tracePreview.Checked=state!=null&&state.usePlayerTrace;
         string player=document.inventory.objects.FirstOrDefault(n=>System.Text.RegularExpressions.Regex.IsMatch(n,@"^(?:(?:obj_?|o)?player[12]?)$",System.Text.RegularExpressions.RegexOptions.IgnoreCase));
         string sprite;stage.NativeTestSprite=player!=null&&document.inventory.objectSprites.TryGetValue(player,out sprite)?sprite:null;
     }

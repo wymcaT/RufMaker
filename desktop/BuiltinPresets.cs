@@ -3,14 +3,15 @@ using System.Linq;
 
 internal static class CameraPresets
 {
-    public static readonly string[] Names={"柔和摇摆","呼吸拉镜","缓慢推进","缓慢拉远","旋转缩放过渡","横向甩镜过渡","冲击回弹","轻微手持"};
+    public static readonly string[] Names={"变速推拉","甩镜过渡","旋转回弹","自然手持漂移","柔和摇摆","呼吸拉镜","缓慢推进","缓慢拉远","旋转缩放过渡","横向甩镜过渡","冲击回弹","轻微手持"};
     public static void Apply(Track t,string name,int frame,int fps)
     {
         if(t.kind!="camera"||!Names.Contains(name))throw new ArgumentException("请选择拉镜预设和拉镜轨道。");
         var p=Motion.At(t,frame);double z=Motion.Value(t,"cameraZoom",frame);
-        foreach(string field in new[]{"x","y","angle","cameraZoom","angularSpeed","orbitPhase","orbitRadius"}.Concat(MotionPresets.PathFields))t.expressions.Remove(field);
-        t.keyframes.RemoveAll(k=>new[]{"x","y","angle","cameraZoom","orbitPhase","orbitRadius"}.Contains(k.property)||MotionPresets.PathFields.Contains(k.property));
-        t.motion="keyframes";t.x=p.x;t.y=p.y;t.angle=p.angle;t.cameraZoom=z;t.angularSpeed=0;
+        foreach(string field in new[]{"x","y","angle","cameraZoom","cameraBlur","cameraBlurAngle","angularSpeed","orbitPhase","orbitRadius"}.Concat(MotionPresets.PathFields))t.expressions.Remove(field);
+        t.keyframes.RemoveAll(k=>new[]{"x","y","angle","cameraZoom","cameraBlur","cameraBlurAngle","orbitPhase","orbitRadius"}.Contains(k.property)||MotionPresets.PathFields.Contains(k.property));
+        t.motion="keyframes";t.x=p.x;t.y=p.y;t.angle=p.angle;t.cameraZoom=z;t.angularSpeed=0;t.cameraStyle="";t.cameraIntensity=1;t.cameraMirror=false;t.cameraBlur=t.cameraBlurAngle=0;
+        if(StylePresets.Cameras.Contains(name)){StylePresets.Camera(t,name,fps,p.x,p.y,z,p.angle);return;}
         Action<string,double,double,string> key=(field,u,value,ease)=>MotionPresets.Key(t,field,u,value,ease);
         if(name=="缓慢推进"||name=="缓慢拉远"){
             bool forward=name=="缓慢推进";key("cameraZoom",0,z*(forward?1:1.25),"sin-inout");key("cameraZoom",1,z*(forward?1.25:1),"linear");
@@ -39,15 +40,16 @@ internal static class CameraPresets
 
 internal static class EffectPresets
 {
-    public static readonly string[] Names={"淡入","淡出","白色闪屏","黑场","轻柔震屏","RGB 冲击","动态模糊","方向模糊","暗角","反色"};
-    private static readonly string[] Values={"fade-in","fade-out","flash","color","shake","rgb","motion-blur","blur","vignette","invert"};
+    public static readonly string[] Names={"淡入","淡出","白色闪屏","黑场","轻柔震屏","RGB 冲击","动态模糊","方向模糊","暗角","反色","故障切换"};
+    private static readonly string[] Values={"fade-in","fade-out","flash","color","shake","rgb","motion-blur","blur","vignette","invert","glitch"};
     public static void Apply(Track t,string name)
     {
         int index=Array.IndexOf(Names,name);if(t.kind!="effect"||index<0)throw new ArgumentException("请选择特效预设和特效轨道。");
-        foreach(string field in new[]{"strength","fxOpacity","fxAngle","fxRetention","fxFrequency","fxSamples"})t.expressions.Remove(field);
+        foreach(string field in new[]{"strength","fxOpacity","fxAngle","fxRetention","fxFrequency","fxSamples","fxZoom","fxFlash","fxSlices","fxStutter"})t.expressions.Remove(field);
         t.effect=Values[index];t.name=name;t.color=index==2?"#FFFFFF":"#000000";t.strength=index==8?65:index==5?5:8;t.fxOpacity=1;t.fxAngle=0;t.fxRetention=.55;t.fxFrequency=.3;t.fxSamples=6;t.easing="sin-inout";
-        t.keyframes.RemoveAll(k=>new[]{"strength","fxOpacity","fxAngle","fxRetention"}.Contains(k.property));
+        t.keyframes.RemoveAll(k=>new[]{"strength","fxOpacity","fxAngle","fxRetention","fxZoom","fxFlash"}.Contains(k.property));
+        if(StylePresets.Effect(t,name))return;
         if(index==4||index==5||index==6||index==7){MotionPresets.Key(t,"fxOpacity",0,0,"sin-inout");MotionPresets.Key(t,"fxOpacity",.25,1,"sin-inout");MotionPresets.Key(t,"fxOpacity",1,0);}
     }
-    public static double Seconds(string name){return name=="白色闪屏"?.2:name=="RGB 冲击"||name=="轻柔震屏"?.6:1.5;}
+    public static double Seconds(string name){return name=="白色闪屏"?.2:name=="故障切换"?.5:name=="RGB 冲击"||name=="轻柔震屏"?.6:1.5;}
 }

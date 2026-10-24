@@ -3,9 +3,13 @@ import {gmlNumber as gnum} from './gml.mjs';
 import {locateProject} from './project-files.mjs';
 import {resolveGameMaker} from './engine-path.mjs';
 import {parameterCode as parameter,randomInitialization,randomNextGml,expressionScripts,isDynamic} from './random-parameters.mjs';
+import {cameraPostGml,styleFxGml} from './style-effects.mjs';
 import {bulletFlightGml,flightSpawn} from './bullet-flight.mjs';
+import {advancedBullets,expandPatterns,activeCode} from './bullet-schema.mjs';
+import {bulletSystemScripts} from './bullet-system.mjs';
+import {templateScripts,templateObject} from './template-system.mjs';
 import {preparePlainRoom} from './plain-room.mjs';
-import {shapeSetup,shapePoint} from './shapes.mjs';
+import {shapeSetup,shapePoint,formationScripts} from './shapes.mjs';
 import {cameraApplyGml,cameraCompositeGml,cameraUpdate} from './camera.mjs';
 import path from 'node:path';
 import {normalizeState,stateCode,easeGml,bounceGml,fields} from "./motion.mjs";
@@ -56,7 +60,7 @@ export function validateState(s) {
   if (!s || ![1,2].includes(s.version) || !Array.isArray(s.tracks) || s.tracks.length > 200 || !Number.isInteger(s.duration) || s.duration < 1 || s.duration > 1000000 || !Number.isInteger(s.fps) || s.fps < 15 || s.fps > 240) throw new Error('Invalid project state');
   if (!safeName(s.room) || !fs.existsSync(path.join(project,'rooms',s.room,'room.txt'))) throw new Error('Invalid room');
   for (const t of s.tracks) {
-    if (!['emitter', 'object', 'rod', 'effect', 'script', 'camera','native'].includes(t.kind) || !Array.isArray(t.keyframes) || t.keyframes.length > 10000 || !Number.isFinite(t.start) || !Number.isFinite(t.end) || t.start < 0 || t.end > s.duration || t.start > t.end) throw new Error('Invalid track');
+    if (!['emitter', 'object', 'rod', 'effect', 'script', 'camera','native','group','control','pattern'].includes(t.kind) || !Array.isArray(t.keyframes) || t.keyframes.length > 10000 || !Number.isFinite(t.start) || !Number.isFinite(t.end) || t.start < 0 || t.end > s.duration || t.start > t.end) throw new Error('Invalid track');
     if(t.kind==='native'&&(!s.nativeProject?.imported||t.id!=='gm-native'))throw new Error('原生轨道必须来自工程导入');
     if (t.kind === 'emitter' && (!safeName(t.sprite) || !Number.isInteger(t.count) || t.count < 1 || t.count > 300 || !Number.isInteger(t.interval) || t.interval < 1 || !Number.isFinite(t.speed) || !Number.isFinite(t.life) || t.life < 1)) throw new Error('Invalid emitter');
     if (t.kind === 'object' && !safeName(t.sprite)) throw new Error('Invalid sprite');
@@ -91,11 +95,11 @@ function bulletSpawn(track, fromHistory, sequence='0',index=-1) {
 }
 
 function rodUpdate(t,index) {
-  const prefix=`rf_rod${index}`,parts=[`if (rf_frame>=${gnum(t.start)} && rf_frame<=${gnum(t.end)}) {`,stateAt(t,'rf_frame')];
+  const source=t._allTracks.indexOf(t);const prefix=`rf_rod${index}`,parts=[`if rf_template_visible(${source},-1,noone) && (${activeCode(t,'rf_frame',t._allTracks)}${t.releaseFrame>=0?' && rf_frame<'+gnum(t.releaseFrame):''}) {`,stateAt(t,'rf_frame')];
   parts.push(shapeSetup(t));
   parts.push(`for(rf_j=0;rf_j<max(rf_count,${prefix}_count);rf_j+=1) {`);
-  parts.push(`if rf_j>=rf_count {if instance_exists(${prefix}[rf_j]) with (${prefix}[rf_j]) instance_destroy();${prefix}[rf_j]=noone;} else {`);
-  parts.push(`if !instance_exists(${prefix}[rf_j]) {${prefix}[rf_j]=instance_create(0,0,objRufBullet);${prefix}[rf_j].rf_fixed=1;}rf_inst=${prefix}[rf_j];`);
+  parts.push(`if rf_j>=rf_count || !rf_template_visible(${source},rf_j,noone) {if instance_exists(${prefix}[rf_j]) with (${prefix}[rf_j]) instance_destroy();${prefix}[rf_j]=noone;} else {`);
+  parts.push(`if !instance_exists(${prefix}[rf_j]) {${prefix}[rf_j]=instance_create(0,0,objRufBullet);${prefix}[rf_j].rf_fixed=1;}rf_inst=${prefix}[rf_j];rf_inst.rf_static_source=${source};rf_inst.rf_index=rf_j;`);
   parts.push(shapePoint(t));
   parts.push(`rf_inst.x=rf_px;rf_inst.y=rf_py;rf_inst.image_angle=rf_spriteAngle+${t.rotateSprite?'rf_angle':'0'};rf_inst.sprite_index=${t.sprite};rf_inst.image_blend=${gcolor(t.color)};rf_inst.image_xscale=rf_scale;rf_inst.image_yscale=rf_scale;rf_inst.image_alpha=rf_alpha;rf_inst.rf_trail=${t.trail?1:0};`);
   if(t.rainbow)parts.push(`rf_inst.image_speed=0;rf_inst.image_blend=c_white;rf_inst.image_index=${rainbowCode(t,rodSequence(t),'rf_frame')};`);
@@ -107,22 +111,23 @@ function rodUpdate(t,index) {
 function spatialTrails(t) {
   if(trailMode(t)==='off')return '';
   const interval=parameter(t,'trailInterval',3),life=`min(300,${parameter(t,'trailLife',18)})`;
-  const parts=[`if rf_frame>=${gnum(t.start)} && rf_frame<=${gnum(t.end)} {for(rf_sample=floor(rf_frame/${interval})*${interval};rf_sample>=max(${gnum(t.start)},rf_frame-${life}+1);rf_sample-=${interval}) {`,stateAt(t,'rf_sample')];
+  const parts=[`if rf_template_visible(${t._allTracks.indexOf(t)},-1,noone) && (${activeCode(t,'rf_frame',t._allTracks)}) {for(rf_sample=floor(rf_frame/${interval})*${interval};rf_sample>=max(${gnum(t.start)},rf_frame-${life}+1);rf_sample-=${interval}) {`,stateAt(t,'rf_sample')];
   if(t.kind==='object')parts.push(trailCall(t,{color:gcolor(t.color),age:'rf_frame-rf_sample',seed:'rf_sample',subimage:rainbowCode(t,'0','rf_sample')}));
   else {
     parts.push(shapeSetup(t,'rf_sample'),'for(rf_j=0;rf_j<rf_count;rf_j+=1){',shapePoint(t));
-    parts.push(trailCall(t,{x:'rf_px',y:'rf_py',angle:`rf_spriteAngle+${t.rotateSprite?'rf_angle':'0'}`,color:gcolor(t.color),age:'rf_frame-rf_sample',seed:'rf_sample*301+rf_j',subimage:rainbowCode(t,rodSequence(t),'rf_sample')}),'}');
+    parts.push(`if rf_template_visible(${t._allTracks.indexOf(t)},rf_j,noone)`,trailCall(t,{x:'rf_px',y:'rf_py',angle:`rf_spriteAngle+${t.rotateSprite?'rf_angle':'0'}`,color:gcolor(t.color),age:'rf_frame-rf_sample',seed:'rf_sample*301+rf_j',subimage:rainbowCode(t,rodSequence(t),'rf_sample')}),'}');
   }
   parts.push('}}');return parts.join('\n');
 }
 
 function makeController(s) {
+  const beta=advancedBullets(s);
   const native=Boolean(s.nativeProject?.imported),nativeClock=s.nativeProject?.timeline?`timeline_position/${gnum(s.nativeProject.timelineSpeed,1)}`:s.nativeProject?.clock;
   const create = [`#define Create_0`,action,native?`rf_frame=0;rf_target=0;rf_preview=0;rf_ready=0;`:`rf_frame=0; rf_target=0; rf_preview=0; rf_ready=0; rf_music=FMODSoundPlay(BGM_Ad,1); global.BGMHandler=rf_music;`,
     `if file_exists(working_directory+'\\Data\\rufmaker_preview.ini') { ini_open(working_directory+'\\Data\\rufmaker_preview.ini'); rf_target=ini_read_real('preview','frame',0); ini_close(); rf_preview=1; }`,
     `rf_frame=max(0,min(${gnum(s.duration)},round(rf_target))); rf_target=rf_frame;`,
     native?'':`FMODInstanceSetPosition(rf_music,(rf_frame/${gnum(s.fps)}*1000)/FMODSoundGetLength(BGM_Ad)); FMODInstanceSetPaused(rf_music,0);`,
-    `var rf_k,rf_i,rf_j,rf_u,rf_dir,rf_inst,rf_len,rf_phase,rf_fraction,rf_px,rf_py,rf_seg,rf_mix,${fields.map(f=>'rf_'+f).join(',')};`,randomInitialization(s), `rf_custom_create();`,fxInitialization(s),cameraUpdate(s),`rf_inst=instance_create(0,0,objRufTrails);rf_inst.rf_owner=id;`];
+    `var rf_k,rf_i,rf_j,rf_u,rf_dir,rf_inst,rf_len,rf_phase,rf_fraction,rf_px,rf_py,rf_seg,rf_mix,${fields.map(f=>'rf_'+f).join(',')};`,randomInitialization(s), `rf_template_init();rf_custom_create();`,fxInitialization(s),cameraUpdate(s),`rf_inst=instance_create(0,0,objRufTrails);rf_inst.rf_owner=id;`];
   const step = [`#define Step_0`,action,native&&nativeClock&&safeName(s.nativeProject.controller)?`rf_frame+=1;if instance_exists(${s.nativeProject.controller}) with(${s.nativeProject.controller}) {other.rf_frame=${nativeClock};}`:`rf_frame+=1;`,native?'':`if rf_frame>${gnum(s.duration)} { room_goto(rEnd); exit; }`,
     `var rf_k,rf_i,rf_j,rf_u,rf_dir,rf_inst,rf_len,rf_phase,rf_fraction,rf_px,rf_py,rf_seg,rf_mix,${fields.map(f=>'rf_'+f).join(',')};`, `rf_custom_step();`,cameraUpdate(s)];
   const draw = [`#define Draw_0`,action,`var rf_sample,rf_len,rf_phase,rf_fraction,rf_px,rf_py,rf_seg,rf_mix,rf_i,rf_j,rf_u,rf_dir,rf_inst,${fields.map(f=>'rf_'+f).join(',')};`, `rf_custom_draw();`];
@@ -130,6 +135,7 @@ function makeController(s) {
   for (const t of s.tracks.filter(x=>x.enabled!==false)) {
 
     if (t.kind==='emitter') {
+      if(beta)continue;
       const lives=[parameter(t,'life',120),...t.keyframes.filter(k=>k.property==='life').map(k=>parameter(t,'life',120,k))],maxLife=(t.expressions?.life&&isDynamic(t.expressions.life)||t.keyframes.some(k=>k.property==='life'&&k.expression&&isDynamic(k.expression)))?gnum(s.duration+1):lives.length>1?`max(${lives.join(',')})`:lives[0];
       const sequence=`rf_emitter${emitterIndex++}_sequence`,first=`${gnum(t.start)}+max(0,ceil((rf_frame-${maxLife}+1-${gnum(t.start)})/${parameter(t,'interval',1)}))*${parameter(t,'interval',1)}`;
       if(t.rainbow) {
@@ -144,7 +150,7 @@ function makeController(s) {
       create.push(`${prefix}_count=0;for(rf_j=0;rf_j<300;rf_j+=1) ${prefix}[rf_j]=noone;`,rodUpdate(t,rodIndex));
       step.push(rodUpdate(t,rodIndex++));
     } else if (t.kind==='object') {
-      draw.push(`if (rf_frame>=${gnum(t.start)} && rf_frame<=${gnum(t.end)}) { ${stateAt(t,'rf_frame')} draw_sprite_ext(${t.sprite},${rainbowCode(t,'0','rf_frame')},rf_x,rf_y,rf_scale,rf_scale,rf_angle,${gcolor(t.color)},rf_alpha); }`);
+      draw.push(`if rf_template_visible(${s.tracks.indexOf(t)},-1,noone) && (${activeCode(t,'rf_frame',s.tracks)}) { ${stateAt(t,'rf_frame')} draw_sprite_ext(${t.sprite},${rainbowCode(t,'0','rf_frame')},rf_x,rf_y,rf_scale,rf_scale,rf_angle,${gcolor(t.color)},rf_alpha); }`);
     } else if (t.kind==='effect') {
       // Screen effects are evaluated every Draw, including native preview started mid-track.
     } else if (t.kind==='script') {
@@ -152,6 +158,9 @@ function makeController(s) {
     }
   }
   step.push(`if rf_preview && !rf_ready { rf_ready=1; ini_open(working_directory+'\\Data\\rufmaker_preview_status.ini'); ini_write_real('preview','frame',rf_target); ini_write_real('preview','current_frame',rf_frame); ini_write_real('preview','fps',room_speed); ini_write_string('preview','room',room_get_name(room)); ini_write_real('preview','bullets',instance_number(objRufBullet)); ini_write_real('preview','players',instance_number(player)); ini_close(); }`);
+  if(beta){create.push('var rf_replay;for(rf_replay=0;rf_replay<=rf_frame;rf_replay+=1) rf_pattern_step(rf_replay);');step.push('rf_pattern_step(rf_frame);');}
+  create.push("if rf_preview {var rf_trace_file;rf_trace_file=file_text_open_write(working_directory+'\\Data\\rufmaker_player_trace.csv');file_text_close(rf_trace_file);}");
+  step.push('rf_record_trace();');
   step.push('FMODUpdate();');
   const destroy=[`#define Destroy_0`,action,native?'':`if FMODInstanceIsPlaying(rf_music) FMODInstanceStop(rf_music);`,fxCleanup(s)];
   const roomStart=[`#define Other_4`,action,`room_speed=${gnum(s.fps)};`];
@@ -162,11 +171,12 @@ function makeController(s) {
 const bulletGml = `#define Create_0
 ${action}
 image_speed=0;image_index=0;rf_rainbow=0;rf_r_sequence=0;rf_r_density=1;rf_r_offset=0;rf_r_speed=.25;rf_r_start=0;rf_r_dynamic=0;rf_r_reverse=0;
+rf_kinematic=0;rf_template_owner=noone;rf_static_source=-1;rf_clock_shift=0;rf_system=0;rf_source=-1;rf_behavior=-1;rf_last_update=-1;rf_spin=0;rf_accel=0;rf_collision=1;rf_dead=0;rf_sprite=sprite_index;
 rf_flight=-1;rf_turn=3;rf_delay=0;rf_age=0;rf_life=120;rf_speed=0;rf_dir=0;rf_trail=0;rf_fixed=0;rf_rotate=0;rf_sprite_angle=0;rf_birth=0;rf_index=0;
 rf_t_mode='off';rf_t_interval=3;rf_t_life=18;rf_t_alpha=.55;rf_t_scale_decay=.035;rf_t_alpha_decay=.035;rf_t_speed=0;rf_t_direction=0;rf_t_random=0;
 #define Step_0
 ${action}
-rf_custom_bullet();if rf_fixed exit;
+rf_custom_bullet();if rf_fixed || rf_system exit;
 rf_bullet_advance();
 if rf_age>=rf_life instance_destroy();
 #define Draw_0
@@ -174,20 +184,20 @@ ${action}
 var rf_sample,rf_tail,rf_drift,rf_seed,rf_world,rf_subimage;
 rf_world=rf_birth+rf_age;if instance_exists(objRufController) rf_world=objRufController.rf_frame;
 if rf_rainbow {image_speed=0;image_blend=c_white;image_index=rf_rainbow_index(rf_r_sequence,rf_world,rf_r_density,rf_r_offset,rf_r_speed,rf_r_start,rf_r_dynamic,rf_r_reverse,32);}
-draw_sprite_ext(sprite_index,image_index,x,y,image_xscale,image_yscale,image_angle,image_blend,image_alpha);
+if !rf_system || rf_world>=rf_birth draw_sprite_ext(rf_system*rf_sprite+(!rf_system)*sprite_index,image_index,x,y,image_xscale,image_yscale,image_angle,image_blend,image_alpha);
 `;
 
 
 const bulletTrailGml=`// The separate trail renderer stays behind every source, including custom GML depth changes.
-var rf_sample,rf_tail,rf_drift,rf_seed,rf_world,rf_subimage,rf_tx,rf_ty,rf_ta,rf_slot;
+var rf_sample,rf_tail,rf_drift,rf_seed,rf_world,rf_subimage,rf_tx,rf_ty,rf_ta,rf_slot,rf_ts,rf_talpha,rf_tsprite;
 rf_world=rf_birth+rf_age;if instance_exists(objRufController) rf_world=objRufController.rf_frame;
-if !rf_fixed && rf_t_mode!='off' {
+if !rf_fixed && rf_t_mode!='off' && (!rf_system || rf_world>=rf_birth) {
 for(rf_sample=floor(rf_age/max(1,rf_t_interval))*max(1,rf_t_interval);rf_sample>=max(0,rf_age-rf_t_life+1);rf_sample-=max(1,rf_t_interval)) {
 rf_tail=rf_age-rf_sample;rf_seed=(rf_birth+rf_sample)*301+rf_index;
 rf_drift=rf_t_direction;if rf_t_random rf_drift=(sin((rf_seed+1)*12.9898)*43758.5453-floor(sin((rf_seed+1)*12.9898)*43758.5453))*360;
 rf_subimage=image_index;if rf_rainbow rf_subimage=rf_rainbow_index(rf_r_sequence,rf_world-rf_tail,rf_r_density,rf_r_offset,rf_r_speed,rf_r_start,rf_r_dynamic,rf_r_reverse,32);
-rf_tx=x-lengthdir_x(rf_speed*rf_tail,rf_dir);rf_ty=y-lengthdir_y(rf_speed*rf_tail,rf_dir);rf_ta=image_angle;if rf_flight>=0 {if rf_tail>300 continue;rf_slot=rf_sample mod 301;rf_tx=rf_hx[rf_slot];rf_ty=rf_hy[rf_slot];rf_ta=rf_ha[rf_slot];}
-rf_trail_draw(sprite_index,rf_tx,rf_ty,image_xscale,rf_ta,image_alpha,image_blend,rf_tail,rf_t_mode,rf_t_life,rf_t_alpha,rf_t_scale_decay,rf_t_alpha_decay,rf_t_speed,rf_drift,rf_subimage);
+rf_tx=x-lengthdir_x(rf_speed*rf_tail,rf_dir);rf_ty=y-lengthdir_y(rf_speed*rf_tail,rf_dir);rf_ta=image_angle;rf_ts=image_xscale;rf_talpha=image_alpha;rf_tsprite=sprite_index;if rf_flight>=0 || rf_system {if rf_tail>300 continue;rf_slot=rf_sample mod 301;rf_tx=rf_hx[rf_slot];rf_ty=rf_hy[rf_slot];rf_ta=rf_ha[rf_slot];if rf_system {rf_ts=rf_hs[rf_slot];rf_talpha=rf_hal[rf_slot];rf_tsprite=rf_sprite;}}
+rf_trail_draw(rf_tsprite,rf_tx,rf_ty,rf_ts,rf_ta,rf_talpha,image_blend,rf_tail,rf_t_mode,rf_t_life,rf_t_alpha,rf_t_scale_decay,rf_t_alpha_decay,rf_t_speed,rf_drift,rf_subimage);
 }}
 
 return 0;
@@ -214,6 +224,7 @@ export function syncToGame(s) {
   if (!fs.existsSync(projectFile) || !fs.readFileSync(projectFile,'utf8').startsWith('gm82_version=')) throw new Error(`GameMaker 工程入口格式不正确：${projectFile}`);
   normalizeState(s);
   validateState(s);
+  const storedState=s;s=normalizeState(expandPatterns(s));for(const t of s.tracks)Object.defineProperty(t,'_allTracks',{value:s.tracks,configurable:true});
   const native=Boolean(s.nativeProject?.imported);
   if(native){for(const t of s.tracks.filter(t=>t.kind==='native')){t.start=0;t.end=Math.min(s.duration,s.nativeProject.duration||s.duration);t.enabled=true;}if(!s.tracks.some(t=>t.kind!=='native')){atomicWrite(makerFile,JSON.stringify(s,null,2)+'\n');return;}}
   if(!native)preparePlainRoom(path.resolve(sourceDir,'..'),project,s,atomicWrite,appendUnique);
@@ -222,8 +233,16 @@ export function syncToGame(s) {
     for(const dir of ['objects','scripts'])for(const file of fs.readdirSync(path.join(project,dir)).filter(f=>f.endsWith('.gml')&&!/^(?:objRuf|rf_)/.test(f))){const target=path.join(project,dir,file);atomicWrite(target,patchNativeSurfaceReset(fs.readFileSync(target,'utf8')));}
     for(const [name,code] of [['rf_native_compose',nativeComposeGml(s)],['rf_native_surface_reset',nativeSurfaceResetGml]]){atomicWrite(path.join(project,'scripts',name+'.gml'),code);appendUnique(path.join(project,'scripts','index.yyd'),name);appendUnique(path.join(project,'scripts','tree.yyd'),'\t|'+name);}
   }
-  for (const [name,code] of [...expressionScripts(s,fs.readdirSync(path.join(project,'objects')).filter(n=>/^(?:(?:obj_?|o)?player[12]?)\.txt$/i.test(n)).map(n=>n.slice(0,-4))),['rf_bullet_advance',bulletFlightGml(s)],['rf_random_next',randomNextGml],['rf_camera_apply',cameraApplyGml],['rf_camera_composite',cameraCompositeGml],['rf_bullet_trails',bulletTrailGml],['rf_ease',easeGml],['rf_bounce',bounceGml],['rf_fx_reset_target',fxResetGml],['rf_fx_opaque',fxOpaqueGml],['rf_trail_draw',trailGml],['rf_rainbow_index',rainbowGml]]) {atomicWrite(path.join(project,'scripts',`${name}.gml`),code);appendUnique(path.join(project,'scripts','index.yyd'),name);appendUnique(path.join(project,'scripts','tree.yyd'),`	|${name}`);}
+  for (const [name,code] of [...templateScripts(s),...formationScripts,...expressionScripts(s,fs.readdirSync(path.join(project,'objects')).filter(n=>/^(?:(?:obj_?|o)?player[12]?)\.txt$/i.test(n)).map(n=>n.slice(0,-4))),['rf_camera_post',cameraPostGml],['rf_style_fx',styleFxGml],['rf_bullet_advance',bulletFlightGml(s)],['rf_random_next',randomNextGml],['rf_camera_apply',cameraApplyGml],['rf_camera_composite',cameraCompositeGml],['rf_bullet_trails',bulletTrailGml],['rf_ease',easeGml],['rf_bounce',bounceGml],['rf_fx_reset_target',fxResetGml],['rf_fx_opaque',fxOpaqueGml],['rf_trail_draw',trailGml],['rf_rainbow_index',rainbowGml]]) {atomicWrite(path.join(project,'scripts',`${name}.gml`),code);appendUnique(path.join(project,'scripts','index.yyd'),name);appendUnique(path.join(project,'scripts','tree.yyd'),`	|${name}`);}
   if(!native&&(typeof s.music!=='string'||!/^Data\/Music\/[A-Za-z0-9_. -]+\.(ogg|mp3|wav|flac)$/i.test(s.music)||!fs.existsSync(path.join(project,s.music))))throw new Error('工程音乐不存在，请重新导入歌曲');
+  for(const [name,code] of bulletSystemScripts(s)){atomicWrite(path.join(project,'scripts',name+'.gml'),code);appendUnique(path.join(project,'scripts','index.yyd'),name);appendUnique(path.join(project,'scripts','tree.yyd'),'\t|'+name);}
+  atomicWrite(path.join(project,'scripts','rf_record_trace.gml'),"if !rf_preview || rf_frame<rf_target return 0;\nvar rf_file;rf_file=file_text_open_append(working_directory+'\\Data\\rufmaker_player_trace.csv');file_text_write_string(rf_file,string(floor(rf_frame))+','+string_format(rf_expression_player(0),0,6)+','+string_format(rf_expression_player(1),0,6));file_text_writeln(rf_file);file_text_close(rf_file);return 0;\n");appendUnique(path.join(project,'scripts','index.yyd'),'rf_record_trace');appendUnique(path.join(project,'scripts','tree.yyd'),'\t|rf_record_trace');
+  // Preserve native or handwritten versions. Only seed missing public helpers.
+  for(const name of ['heart','star2']){
+    const file=path.join(project,'scripts',name+'.gml');
+    if(!fs.existsSync(file))fs.copyFileSync(path.join(root,'assets','gml','formations',name+'.gml'),file);
+    appendUnique(path.join(project,'scripts','index.yyd'),name);appendUnique(path.join(project,'scripts','tree.yyd'),'\t|'+name);
+  }
   const musicInit=path.join(project,'scripts','music_init.gml');
   if(!native)atomicWrite(musicInit,fs.readFileSync(musicInit,'utf8').replace(/^BGM_Ad\s*=.*$/m,`BGM_Ad = FMODSoundAdd('${s.music}',0,0);`).replace(/global\.music_directory\s*\+\s*'([^']+)'/g,(_,file)=>`'Data/Music/${file}'`));
   const objects = path.join(project,'objects');
@@ -248,6 +267,7 @@ export function syncToGame(s) {
   for (const [name,info,code] of [
     ['objRufController','sprite=\nvisible=1\nsolid=0\npersistent=0\ndepth=-7000000\nparent=\nmask=\n',makeController(s)],
     ['objRufBullet',`sprite=${native?s.nativeProject.defaultSprite:'sprBullet'}\nvisible=1\nsolid=0\npersistent=0\ndepth=-100\nparent=${native?s.nativeProject.killerParent:'playerKiller'}\nmask=\n`,bulletGml],
+    ['objRufTemplate','sprite=\nvisible=0\nsolid=0\npersistent=0\ndepth=0\nparent=\nmask=\n',templateObject],
     ['objRufTrails','sprite=\nvisible=1\nsolid=0\npersistent=0\ndepth=-99\nparent=\nmask=\n',makeTrails(s)],
     ...makeFxObjects(s)
   ]) {
@@ -269,7 +289,7 @@ export function syncToGame(s) {
   const settings=fs.readFileSync(roomSettings,'utf8');
   const updated=settings.replace(/^roomspeed=\d+$/m,`roomspeed=${s.fps}`);
   if (updated!==settings) atomicWrite(roomSettings,updated);
-  atomicWrite(makerFile,JSON.stringify(s,null,2)+'\n');
+  atomicWrite(makerFile,JSON.stringify(storedState,null,2)+'\n');
 }
 
 export function roomInfo(room='rAvoidance') {

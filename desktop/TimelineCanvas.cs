@@ -28,7 +28,7 @@ internal sealed class TimelineCanvas : UserControl
     private const int Names=190,Header=76,Row=30;
     private string dragMode;private Point dragStart;private Track dragTrack;private Keyframe dragKey;
     private readonly Dictionary<Keyframe,int> groupFrames=new Dictionary<Keyframe,int>();
-    private sealed class BarState {public int start,end,lane;public Dictionary<Keyframe,int> keys;}
+    private sealed class BarState {public int start,end,lane,release;public Dictionary<Keyframe,int> keys;}
     private readonly Dictionary<Track,BarState> bars=new Dictionary<Track,BarState>();
     private bool boxTracks;private HashSet<Track> boxTrackInitial=new HashSet<Track>();
     private HashSet<Keyframe> boxInitial=new HashSet<Keyframe>();private PointF boxStart,boxEnd;
@@ -47,13 +47,14 @@ internal sealed class TimelineCanvas : UserControl
     public void ResetSelection(Track track,Keyframe key){SelectedTracks.Clear();if(track!=null)SelectedTracks.Add(track);SelectOnly(key);}
     public void SetTrackSelection(IEnumerable<Track> tracks,Track primary=null)
     {SelectedTracks.Clear();SelectedTracks.UnionWith(tracks.Where(t=>State.tracks.Contains(t)&&t.kind!="native"));ClearKeySelection();NotifySelection(primary!=null&&SelectedTracks.Contains(primary)?primary:SelectedTracks.FirstOrDefault(),null);}
+    private HashSet<Track> ExpandedSelection(){var result=new HashSet<Track>(SelectedTracks);bool changed;do{changed=false;foreach(var t in State.tracks)if(result.Any(g=>g.kind=="group"&&g.id==t.parentId))changed|=result.Add(t);}while(changed);return result;}
     public void MoveTracks(int delta)
     {
         if(SelectedTracks.Count==0)return;
         int first=SelectedTracks.Min(t=>Math.Min(t.start,t.keyframes.Count==0?t.start:t.keyframes.Min(k=>k.frame)));
         int last=SelectedTracks.Max(t=>Math.Max(t.end,t.keyframes.Count==0?t.end:t.keyframes.Max(k=>k.frame)));
         delta=Math.Max(-first,Math.Min(State.duration-last,delta));
-        foreach(var t in SelectedTracks){t.start+=delta;t.end+=delta;foreach(var k in t.keyframes)k.frame+=delta;}
+        foreach(var t in ExpandedSelection()){t.start+=delta;t.end+=delta;if(t.releaseFrame>=0)t.releaseFrame+=delta;foreach(var k in t.keyframes)k.frame+=delta;}
     }
     public void TrimTracks(bool left,int delta)
     {
@@ -215,7 +216,7 @@ internal sealed class TimelineCanvas : UserControl
     private void PrepareBar(Track track,string mode)
     {
         dragTrack=track;dragMode=mode;bars.Clear();dragRowLanes=lanes.Select(l=>l.index).ToArray();dragLaneCount=State.laneCount;
-        foreach(var t in SelectedTracks)bars[t]=new BarState{start=t.start,end=t.end,lane=t.lane,keys=t.keyframes.ToDictionary(k=>k,k=>k.frame)};
+        foreach(var t in mode=="bar"?ExpandedSelection():SelectedTracks)bars[t]=new BarState{start=t.start,end=t.end,lane=t.lane,release=t.releaseFrame,keys=t.keyframes.ToDictionary(k=>k,k=>k.frame)};
     }
     private PointF ContentPoint(Point point){return new PointF(point.X-Names+horizontal.Value,point.Y-Header+vertical.Value);}
     private RectangleF BoxRectangle(){return RectangleF.FromLTRB(Math.Min(boxStart.X,boxEnd.X),Math.Min(boxStart.Y,boxEnd.Y),Math.Max(boxStart.X,boxEnd.X),Math.Max(boxStart.Y,boxEnd.Y));}
@@ -266,7 +267,7 @@ internal sealed class TimelineCanvas : UserControl
             else if(dragMode=="left")delta=Math.Max(-bars.Values.Min(v=>v.start),Math.Min(bars.Values.Min(v=>v.end-v.start),delta));
             else delta=Math.Max(bars.Values.Max(v=>v.start-v.end),Math.Min(State.duration-bars.Values.Max(v=>v.end),delta));
             foreach(var pair in bars)
-            {var t=pair.Key;var v=pair.Value;t.start=v.start+(dragMode=="right"?0:delta);t.end=v.end+(dragMode=="left"?0:delta);if(dragMode=="bar")foreach(var k in v.keys)k.Key.frame=k.Value+delta;}
+            {var t=pair.Key;var v=pair.Value;t.start=v.start+(dragMode=="right"?0:delta);t.end=v.end+(dragMode=="left"?0:delta);if(dragMode=="bar"){foreach(var k in v.keys)k.Key.frame=k.Value+delta;if(v.release>=0)t.releaseFrame=v.release+delta;}}
         }
         if(dragMode=="bar"&&bars.Count>0){int row=Math.Max(0,(e.Y-Header+vertical.Value)/Row),target=row<dragRowLanes.Length?dragRowLanes[row]:dragLaneCount+row-dragRowLanes.Length;
             if(target>=0){int laneDelta=target-bars[dragTrack].lane;laneDelta=Math.Max(-bars.Values.Min(v=>v.lane),Math.Min(199-bars.Values.Max(v=>v.lane),laneDelta));foreach(var pair in bars)pair.Key.lane=pair.Value.lane+laneDelta;ActiveLane=dragTrack.lane;State.laneCount=Math.Max(State.laneCount,bars.Keys.Max(t=>t.lane)+1);}RefreshLayout();}

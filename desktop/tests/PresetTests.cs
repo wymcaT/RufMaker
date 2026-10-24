@@ -38,7 +38,7 @@ internal static class PresetTests
             typeof(MainForm).GetField("resourceKind",flags).SetValue(editor,"camera-presets");search.Text=" 摇摆 ";Assert(list.Items.Count==1&&list.Items[0].Text=="柔和摇摆","Preset search must trim surrounding spaces and still filter");
             typeof(MainForm).GetField("resourceKind",flags).SetValue(editor,"scripts");search.Text="   ";Assert(list.Items.Count==2,"Whitespace hid normal resources");search.Text=" beta ";Assert(list.Items.Count==1&&list.Items[0].Text=="beta","Resource filtering must still work");
         }
-        Console.WriteLine("PASS: blank searches show 14 actions, 10 effects, 8 cameras and custom presets; category restore and normal resource filtering work (no application window).");
+        Console.WriteLine("PASS: blank searches show all action/effect/camera presets and custom presets; category restore and normal resource filtering work (no application window).");
     }
     [STAThread] private static int Main(string[] args)
     {
@@ -80,7 +80,7 @@ internal static class PresetTests
             string bundle=Path.Combine(scratch,"动作分类.rufpresets");library.Export("动作分类",bundle);second.Import(bundle,"");Assert(File.Exists(second.Resolve(Path.Combine("动作分类","重命名组合.rufpreset"))),"Folder export lost classification");Assert(Directory.Exists(second.Resolve(Path.Combine("动作分类","组合"))),"Empty category lost on export");
             bool rejected=false;try{library.Resolve("../outside");}catch(InvalidDataException){rejected=true;}Assert(rejected,"Library accepted outside path");
             var payload=new EditorState{duration=500,fps=50,tracks=generated};File.WriteAllText(args[1],Json.Write(payload));File.WriteAllText(args[2],Json.Write(pasted));
-            Console.WriteLine("Preset checks passed: 14 actions, 8 cameras, 10 effects; grouped keys, FPS, sprite conflicts, rainbow, rename, folders and import/export.");return 0;
+            Console.WriteLine("Preset checks passed: all built-in actions/cameras/effects; grouped keys, FPS, sprite conflicts, rainbow, rename, folders and import/export.");return 0;
         }catch(Exception error){Console.Error.WriteLine(error);return 1;}
     }
 }

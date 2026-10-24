@@ -3,6 +3,8 @@
 *.ps1 text eol=crlf
 *.mjs text eol=lf
 *.gml text eol=lf
+# Preserve the supplied original formation scripts byte for byte.
+assets/gml/formations/*.gml -text
 *.json text eol=lf
 *.md text eol=lf
 *.exe binary

@@ -30,8 +30,7 @@ internal static class Program
             try{owner=instance.WaitOne(0);}catch(AbandonedMutexException){owner=true;}
             if(!owner)
             {
-                IntPtr window=FindWindow(null,"RufMaker · 原生耐久制作器");
-                if(window==IntPtr.Zero)window=FindWindow(null,"RufMaker · Avoidance Editor");
+                IntPtr window=FindWindow(null,"RufMaker");
                 if(window!=IntPtr.Zero){ShowWindow(window,9);SetForegroundWindow(window);}return;
             }
             try

@@ -1,10 +1,11 @@
+import {stylePass,postCameraPass} from './style-effects.mjs';
 import {parameterCode as parameter} from './random-parameters.mjs';
 import {stateCode,fields} from './motion.mjs';
 import {gmlNumber as n} from './gml.mjs';
 
 const action=`/*"/*'/**//* YYD ACTION\nlib_id=1\naction_id=603\napplies_to=self\n*/`;
 const color=t=>{const h=/^#[\da-f]{6}$/i.test(t.color||'')?t.color.slice(1):'000000';return `make_color_rgb(${parseInt(h.slice(0,2),16)},${parseInt(h.slice(2,4),16)},${parseInt(h.slice(4,6),16)})`;};
-export const effectTypes=['flash','shake','color','fade-in','fade-out','rgb','motion-blur','blur','invert','vignette'];
+export const effectTypes=['flash','shake','color','fade-in','fade-out','rgb','motion-blur','blur','invert','vignette','rgb-impact','glitch'];
 // A completed scene already contains the RGB blended over its background. Keep
 // those colors and fill alpha to one before sampling it as a full-screen image.
 // Black * (1 - destination alpha) + destination RGB leaves every RGB unchanged.
@@ -49,6 +50,7 @@ if !rf_fx_rendering exit;surface_set_target(rf_fx_scene);rf_fx_opaque();surface_
 var rf_src,rf_dst,rf_swap,rf_u,rf_dx,rf_dy,rf_age,rf_i,rf_offset,rf_samples,rf_band,rf_inset,rf_coverage,${fields.map(f=>'rf_'+f).join(',')};
 rf_src=rf_fx_scene;rf_dst=rf_fx_a;
 `];
+  parts.push(postCameraPass);
   parts.push(fxPassesGml(state));
   parts.push(`draw_set_blend_mode(bm_normal);draw_set_alpha(1);draw_set_color(c_white);draw_surface(rf_src,view_xview[0],view_yview[0]);\n}\n`);
   return [
@@ -64,7 +66,8 @@ export function fxPassesGml(state) {
 rf_u=rf_ease('${t.easing||'linear'}',(rf_frame-${n(t.start)})/${n(Math.max(1,t.end-t.start))},${parameter(t,'easePower',3)},${parameter(t,'easePeriod',.3)});
 surface_set_target(rf_dst);draw_set_blend_mode(bm_normal);draw_set_alpha(1);draw_clear(c_black);`);
     const draw=(c='c_white',a='1',x='0',y='0')=>`draw_surface_ext(rf_src,${x},${y},1,1,0,${c},${a});`;
-    if(t.effect==='shake')parts.push(`rf_age=rf_frame-${n(t.start)};rf_dx=round(sin(rf_age*${parameter(t,'fxFrequency',1)}*2.17)*rf_strength*rf_fxOpacity);rf_dy=round(cos(rf_age*${parameter(t,'fxFrequency',1)}*1.61)*rf_strength*rf_fxOpacity);${draw('c_white','1','rf_dx','rf_dy')}`);
+    if(t.effect==='rgb-impact'||t.effect==='glitch')parts.push(stylePass(t,index));
+    else if(t.effect==='shake')parts.push(`rf_age=rf_frame-${n(t.start)};rf_dx=round(sin(rf_age*${parameter(t,'fxFrequency',1)}*2.17)*rf_strength*rf_fxOpacity);rf_dy=round(cos(rf_age*${parameter(t,'fxFrequency',1)}*1.61)*rf_strength*rf_fxOpacity);${draw('c_white','1','rf_dx','rf_dy')}`);
     else if(t.effect==='rgb')parts.push(`rf_dx=round(lengthdir_x(rf_strength,rf_fxAngle));rf_dy=round(lengthdir_y(rf_strength,rf_fxAngle));draw_set_blend_mode(bm_add);${draw('c_white','1-rf_fxOpacity')}${draw('c_red','rf_fxOpacity','rf_dx','rf_dy')}${draw('c_lime','rf_fxOpacity')}${draw('c_blue','rf_fxOpacity','-rf_dx','-rf_dy')}draw_set_blend_mode(bm_normal);`);
     else if(t.effect==='blur'||t.effect==='motion-blur') {
       parts.push(`rf_samples=${parameter(t,'fxSamples',6)};draw_set_blend_mode(bm_add);${draw('c_white','1-rf_fxOpacity')}

@@ -17,14 +17,7 @@ draw_set_blend_mode_ext(bm_one,bm_zero);draw_set_color(c_white);draw_set_alpha(1
 draw_surface_stretched(application_surface,0,0,room_width,room_height);
 rf_fx_opaque();
 rf_src=rf_fx_scene;rf_dst=rf_fx_a;
-if rf_cam_enabled {
- surface_set_target(rf_fx_a);d3d_set_projection_ortho(0,0,room_width,room_height,0);draw_clear(c_black);
- rf_dx=room_width/2-cos(degtorad(rf_cam_angle))*rf_cam_zoom*rf_cam_x+sin(degtorad(rf_cam_angle))*rf_cam_zoom*rf_cam_y;
- rf_dy=room_height/2-sin(degtorad(rf_cam_angle))*rf_cam_zoom*rf_cam_x-cos(degtorad(rf_cam_angle))*rf_cam_zoom*rf_cam_y;
- draw_surface_ext(rf_fx_scene,rf_dx,rf_dy,rf_cam_zoom,rf_cam_zoom,-rf_cam_angle,c_white,1);
- rf_fx_opaque();
- rf_src=rf_fx_a;rf_dst=rf_fx_b;
-}
+if rf_cam_enabled {rf_src=rf_camera_post(rf_src,rf_dst);rf_dst=rf_fx_a;if rf_src=rf_fx_a rf_dst=rf_fx_b;}
 surface_reset_target();d3d_set_projection_ortho(0,0,room_width,room_height,0);
 ${fxPassesGml(state)}
 surface_reset_target();d3d_set_projection_ortho(0,0,room_width,room_height,0);
