@@ -1,5 +1,7 @@
 # RufMaker
 
+> Bullet-control beta: run `RufMaker.Beta.exe`. See [beta instructions](beta-bullet-control.md).
+
 A native Windows timeline editor for **I Wanna avoidance games**, integrated with GameMaker 8.2.
 
 Place emitters, formations, cameras and effects on a timeline, animate their properties with keyframes, then playtest and export a real game. Native GML, objects and room editing remain available.
@@ -109,3 +111,13 @@ Preview uses a fixed reference player: enable **Edit test player** and drag it, 
 For continuous homing, select an emitter and choose **Bullet flight → Flight mode**. Aim every frame, limit the turn rate, add a delay, or enter a per-frame direction formula. In flight formulas, x/y refer to each bullet and direction is its previous direction. Trails follow the curved path. The emitter’s angle formula controls newly spawned bullets; flight controls steer existing bullets.
 
 In the ƒx dialog, enable **Fill a keyframe on every frame in the range** and enter an inclusive range. The same action is available in a clip’s context menu. It replaces only that property’s keys in the range, preserves live formulas and supports one-step undo. Each object supports up to 10,000 keys.
+
+## Editing-style presets
+
+Camera presets now include Speed zoom, Whip pan transition, Rotation rebound and Natural handheld drift. Drop onto a camera to replace its motion, or onto an empty area to create one. Enable Render camera to see it.
+
+Preset motion intensity scales the motion (0 = original framing, 1 = default); it can be animated. Position, angle, zoom and directional blur retain independent keys. Mirror room edges fills exposed borders.
+
+Effect presets include a combined RGB impact (zoom, chromatic split, echo and flash) and Glitch transition (slice displacement, RGB split and image stutter). Their controls remain editable. Stutter affects the rendered image while game logic continues.
+
+The easing menu adds Edit · Smooth in/out, Fast start soft stop, Overshoot and settle, and Elastic settle. Newly created presets use a suitable duration; applying one to an existing clip fits its current span. Room changes and gameplay sections still come from the timeline or GML. All new presets work in preview and exported games and can be saved to the custom library.

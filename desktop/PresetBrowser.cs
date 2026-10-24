@@ -80,7 +80,7 @@ internal sealed partial class MainForm
     }
     private void SaveSelectionAsPreset()
     {
-        if(state==null||selectedTrack==null)return;StopPlaying();properties.CommitPending();var selected=state.tracks.Where(t=>t.kind!="native"&&(timeline.SelectedTracks.Contains(t)||t==selectedTrack)).ToArray();if(selected.Length==0)return;
+        if(state==null||selectedTrack==null)return;StopPlaying();properties.CommitPending();var selected=WithGroupChildren(state.tracks.Where(t=>t.kind!="native"&&(timeline.SelectedTracks.Contains(t)||t==selectedTrack))).ToArray();if(selected.Length==0)return;
         try{using(var dialog=new PresetNameForm("存为自定义预设",selected.Length==1?selected[0].name:"组合预设",presetFolder,Library.Folders(),"保存全部参数、关键帧及贴图。多选轨道按相对时间一起保存。手写 GML 继续引用目标工程中的脚本和对象。")){
             if(Language.ShowDialog(dialog,this)!=DialogResult.OK)return;Library.Save(dialog.Category,dialog.ResultName,TrackPreset.Capture(dialog.ResultName,selected,state.fps),document.project);resourceKind="custom-presets";presetFolder=dialog.Category;search.Clear();FillResources();SetStatus("已保存到公共预设库，其他工程可直接使用。");
         }}catch(Exception error){Error(error);}
@@ -107,7 +107,7 @@ internal sealed partial class MainForm
             bool camera=kind=="camera-presets";if(!camera&&kind!="effect-presets")return;string type=camera?"camera":"effect";
             Action<Track> apply=t=>{if(camera){CameraPresets.Apply(t,name,Math.Max(t.start,Math.Min(t.end,at)),state.fps);t.name=name;}else EffectPresets.Apply(t,name);};
             if(target!=null&&target.kind==type){if(target.end-target.start<2){SetStatus("时段至少需要 2 帧才能应用预设。");return;}PushUndo();apply(target);SelectTrack(target,null);timeline.Expand(target,true);MarkChanged();}
-            else AddTrack(type,t=>{t.start=Math.Max(0,Math.Min(999998,at));t.end=Math.Min(1000000,t.start+Math.Max(2,(int)Math.Round(state.fps*(camera?4:EffectPresets.Seconds(name)))));state.duration=Math.Max(state.duration,t.end);apply(t);});
+            else AddTrack(type,t=>{t.start=Math.Max(0,Math.Min(999998,at));t.end=Math.Min(1000000,t.start+Math.Max(2,(int)Math.Round(state.fps*(camera?StylePresets.Seconds(name):EffectPresets.Seconds(name)))));state.duration=Math.Max(state.duration,t.end);apply(t);});
             SetStatus("已应用 "+name+"；可调整独立属性关键帧。"+(camera?"勾选“渲染拉镜”查看效果。":""));
         }catch(Exception error){Error(error);}
     }

@@ -6,16 +6,17 @@ using System.Linq;
 internal static class Motion
 {
     public static readonly string[] Basic={"x","y","angle","scale","alpha"};
-    public static readonly string[] EaseValues={"linear","in","out","smooth","sin-in","sin-out","sin-inout","circle-in","circle-out","circle-inout","power-in","power-out","power-inout","expo-in","expo-out","expo-inout","bounce","bounce-in","bounce-inout","expsin","back","step"};
-    public static readonly string[] EaseNames={"线性","二次缓入","二次缓出","平滑","Sin 缓入","Sin 缓出","Sin 缓入缓出","Circle 缓入","Circle 缓出","Circle 缓入缓出","Power 缓入","Power 缓出","Power 缓入缓出","Expo 缓入","Expo 缓出","Expo 缓入缓出","弹跳缓出","弹跳缓入","弹跳缓入缓出","ExpSin 弹性","Back 回退","保持 / 跳变"};
+    public static readonly string[] EaseValues={"linear","in","out","smooth","sin-in","sin-out","sin-inout","circle-in","circle-out","circle-inout","power-in","power-out","power-inout","expo-in","expo-out","expo-inout","bounce","bounce-in","bounce-inout","expsin","back","step","edit-smooth","edit-snap","edit-back","edit-elastic"};
+    public static readonly string[] EaseNames={"线性","二次缓入","二次缓出","平滑","Sin 缓入","Sin 缓出","Sin 缓入缓出","Circle 缓入","Circle 缓出","Circle 缓入缓出","Power 缓入","Power 缓出","Power 缓入缓出","Expo 缓入","Expo 缓出","Expo 缓入缓出","弹跳缓出","弹跳缓入","弹跳缓入缓出","ExpSin 弹性","Back 回退","保持 / 跳变","剪辑 · 柔和进出","剪辑 · 快进慢停","剪辑 · 过冲回弹","剪辑 · 弹性落位"};
     public static string Name(string property)
     {
-        switch(property){case "pathStartX":return "起点 X";case "pathStartY":return "起点 Y";case "pathEndX":return "终点 X";case "pathEndY":return "终点 Y";case "pathPeakX":return "峰 X";case "pathPeakY":return "峰 Y";case "pathProgress":return "路径进度 0–1";case "orbitRadius":return "公转半径";case "orbitPhase":return "公转初相角";}
-        switch(property){case "radius":return "半径";case "orientation":return "多边形朝向";case "sides":return "边数";case "cameraZoom":return "镜头缩放";case "rainbowDensity":return "颜色密度";case "rainbowOffset":return "起始色相 / 帧";case "rainbowSpeed":return "色彩流动速度 / 帧每帧";case "spriteAngle":return "贴图角度";case "x":return "X";case "y":return "Y";case "angle":return "角度";case "scale":return "缩放";case "alpha":return "透明度";case "x1":return "端点1 X";case "y1":return "端点1 Y";case "x2":return "端点2 X";case "y2":return "端点2 Y";case "length":return "棒长";case "rollSpeed":return "滚动速度";case "speed":return "弹速";case "spread":return "角度间隔";case "count":return "弹幕数量";case "interval":return "发射间隔";case "life":return "寿命";case "strength":return "效果强度";case "fxOpacity":return "效果透明度";case "fxAngle":return "效果方向";case "fxRetention":return "帧混合比例";default:return property;}
+        switch(property){case "cameraIntensity":return "预设运动强度";case "cameraBlur":return "拉镜模糊强度";case "cameraBlurAngle":return "拉镜模糊方向";case "fxZoom":return "冲击缩放";case "fxFlash":return "闪光强度";case "pathStartX":return "起点 X";case "pathStartY":return "起点 Y";case "pathEndX":return "终点 X";case "pathEndY":return "终点 Y";case "pathPeakX":return "峰 X";case "pathPeakY":return "峰 Y";case "pathProgress":return "路径进度 0–1";case "orbitRadius":return "公转半径";case "orbitPhase":return "公转初相角";}
+        switch(property){case "emitWidth":return "阵列宽度";case "emitHeight":return "阵列高度";case "emitArc":return "圆弧角度";case "emitPhase":return "阵列相位 / 度";case "emitRotation":return "阵列旋转 / 度";case "emitWaves":return "波形周期数";case "radius":return "半径";case "orientation":return "多边形朝向";case "sides":return "边数";case "cameraZoom":return "镜头缩放";case "rainbowDensity":return "颜色密度";case "rainbowOffset":return "起始色相 / 帧";case "rainbowSpeed":return "色彩流动速度 / 帧每帧";case "spriteAngle":return "贴图角度";case "x":return "X";case "y":return "Y";case "angle":return "角度";case "scale":return "缩放";case "alpha":return "透明度";case "x1":return "端点1 X";case "y1":return "端点1 Y";case "x2":return "端点2 X";case "y2":return "端点2 Y";case "length":return "棒长";case "rollSpeed":return "滚动速度";case "speed":return "弹速";case "spread":return "角度间隔";case "count":return "弹幕数量";case "interval":return "发射间隔";case "life":return "寿命";case "strength":return "效果强度";case "fxOpacity":return "效果透明度";case "fxAngle":return "效果方向";case "fxRetention":return "帧混合比例";default:return property;}
     }
     public static string[] Fields(Track t)
     {
-        var fields=t.kind=="camera"?new[]{"x","y","cameraZoom","angle"}:t.kind=="effect"?new[]{"strength","fxOpacity","fxAngle","fxRetention"}:t.kind=="rod"?Basic.Concat(t.shape=="rod"?new[]{"spriteAngle","x1","y1","x2","y2","length","rollSpeed","count"}:t.shape=="polygon"?new[]{"spriteAngle","radius","orientation","sides","rollSpeed","count"}:new[]{"spriteAngle","radius","rollSpeed","count"}).ToArray():t.kind=="emitter"?Basic.Concat(new[]{"spriteAngle","speed","spread","count","life"}).ToArray():t.kind=="object"?Basic:new string[0];
+        if(t.kind=="group")return Basic;
+        var fields=t.kind=="camera"?new[]{"x","y","cameraZoom","angle","cameraBlur","cameraBlurAngle"}.Concat(String.IsNullOrEmpty(t.cameraStyle)?new string[0]:new[]{"cameraIntensity"}).ToArray():t.kind=="effect"?new[]{"strength","fxOpacity","fxAngle","fxRetention"}.Concat(t.effect=="rgb-impact"?new[]{"fxZoom","fxFlash"}:new string[0]).ToArray():t.kind=="rod"?Basic.Concat(t.shape=="rod"?new[]{"spriteAngle","x1","y1","x2","y2","length","rollSpeed","count"}:t.shape=="polygon"?new[]{"spriteAngle","radius","orientation","sides","rollSpeed","count"}:new[]{"spriteAngle","radius","rollSpeed","count"}).ToArray():t.kind=="emitter"?Basic.Concat(new[]{"spriteAngle","speed","spread","count","life"}).Concat(t.emissionShape!="point"?new[]{"emitWidth","emitHeight","emitArc","emitPhase","emitRotation","emitWaves"}:new string[0]).ToArray():t.kind=="object"?Basic:new string[0];
         if(Theme.Spatial(t.kind)){if(t.motion=="parabola")fields=fields.Concat(MotionPresets.PathFields).ToArray();if(t.motion=="orbit")fields=fields.Concat(new[]{"orbitRadius","orbitPhase"}).ToArray();}
         return t.rainbow?fields.Concat(Rainbow.Parameters).ToArray():fields;
     }
@@ -46,6 +47,7 @@ internal static class Motion
         }
         state.version=2;
         RandomParameters.Resolve(state);
+        BulletSystem.Attach(state);
     }
     private static ExpressionContext GeometryContext(Track t,double frame)
     {var raw=ExpressionContext.For(t,frame);var context=ExpressionContext.For(t,frame);context.x1=ValueCore(t,"x1",frame,raw);context.y1=ValueCore(t,"y1",frame,raw);context.x2=ValueCore(t,"x2",frame,raw);context.y2=ValueCore(t,"y2",frame,raw);return context;}
@@ -57,7 +59,8 @@ internal static class Motion
         return ValueCore(t,property,frame,context);
     }
     private static double ExpressionValue(Track t,string property,double frame,string expression,string slot,double fallback,ExpressionContext context)
-    {if(String.IsNullOrWhiteSpace(expression)||!RandomExpression.IsDynamic(expression))return fallback;return RandomParameters.Clamp(property,RandomExpression.Evaluate(expression,t.expressionSeed,t.randomId+"|"+property+"|"+slot,context));}
+    {if(String.IsNullOrWhiteSpace(expression)||!RandomExpression.IsDynamic(expression)&&(context==null||!context.sampleRandom))return fallback;return RandomParameters.Clamp(property,RandomExpression.Evaluate(expression,t.expressionSeed,t.randomId+"|"+property+"|"+slot,context));}
+    public static double SampleValue(Track t,string property,double frame,ExpressionContext context){return ValueCore(t,property,frame,context);}
     private static double ValueCore(Track t,string property,double frame,ExpressionContext context)
     {
         Keyframe before=null,after=null;
@@ -88,11 +91,14 @@ internal static class Motion
         return p;
     }
     public static Keyframe At(Track t,double frame)
-    {var context=GeometryContext(t,frame);var p=Position(t,frame,context);context.x=p.x;context.y=p.y;p.angle=ValueCore(t,"angle",frame,context)+ValueCore(t,"angularSpeed",frame,context)*Math.Max(0,frame-t.start);p.scale=ValueCore(t,"scale",frame,context);p.alpha=ValueCore(t,"alpha",frame,context);return p;}
+    {var context=GeometryContext(t,frame);var p=Position(t,frame,context);context.x=p.x;context.y=p.y;p.angle=ValueCore(t,"angle",frame,context)+ValueCore(t,"angularSpeed",frame,context)*Math.Max(0,frame-t.start);p.scale=ValueCore(t,"scale",frame,context);p.alpha=ValueCore(t,"alpha",frame,context);return BulletSystem.Transform(t.parent,frame,p);}
+    public static Keyframe SampleAt(Track t,double frame,ExpressionContext context)
+    {var p=Position(t,frame,context);context.x=p.x;context.y=p.y;p.angle=ValueCore(t,"angle",frame,context)+ValueCore(t,"angularSpeed",frame,context)*Math.Max(0,frame-t.start);p.scale=ValueCore(t,"scale",frame,context);p.alpha=ValueCore(t,"alpha",frame,context);return BulletSystem.Transform(t.parent,frame,p);}
     public static void SetKey(Track t,string property,int frame,double value)
     {var key=t.keyframes.FirstOrDefault(k=>k.property==property&&k.frame==frame);if(key==null){key=new Keyframe{frame=frame,property=property};t.keyframes.Add(key);}key.expression="";key.value=value;t.start=Math.Min(t.start,frame);t.end=Math.Max(t.end,frame);}
     public static PointF[] Endpoints(Track t,double frame)
     {
+        if(t.parent!=null){var local=t.Snapshot();local.parent=null;return BulletSystem.TransformPoints(t.parent,frame,Endpoints(local,frame));}
         var p=At(t,frame);double dx=Math.Cos(p.angle*Math.PI/180)*Value(t,"length",frame),dy=-Math.Sin(p.angle*Math.PI/180)*Value(t,"length",frame);
         if(t.rodMode=="center")return new[]{new PointF((float)(p.x-dx/2),(float)(p.y-dy/2)),new PointF((float)(p.x+dx/2),(float)(p.y+dy/2))};
         var b=new PointF((float)Value(t,"x2",frame),(float)Value(t,"y2",frame));
@@ -100,6 +106,7 @@ internal static class Motion
     }
     public static PointF[] RodPoints(Track t,double frame)
     {
+        if(t.parent!=null){var local=t.Snapshot();local.parent=null;return BulletSystem.TransformPoints(t.parent,frame,RodPoints(local,frame));}
         if(t.shape!="rod")
         {
             var p=At(t,frame);double radius=Math.Max(0,Value(t,"radius",frame));int n=Math.Max(1,Math.Min(300,(int)Math.Round(Value(t,"count",frame)))),sides=Math.Max(3,Math.Min(64,(int)Math.Round(Value(t,"sides",frame))));var result=new PointF[n];
@@ -125,7 +132,7 @@ internal static class Motion
     public static double Ease(string easing,double u,double power=3,double period=.3)
     {
         u=Math.Max(0,Math.Min(1,u));if(u==0||u==1)return u;power=Math.Max(.1,power);period=Math.Max(.01,period);
-        switch(easing){case "in":return u*u;case "out":return 1-(1-u)*(1-u);case "smooth":return u*u*(3-2*u);
+        switch(easing){case "edit-smooth":return u*u*(3-2*u);case "edit-snap":return 1-Math.Pow(2,-10*u);case "edit-back":return 1+2.70158*Math.Pow(u-1,3)+1.70158*Math.Pow(u-1,2);case "edit-elastic":return Math.Pow(2,-8*u)*Math.Sin((u-.075)*2*Math.PI/.3)+1;case "in":return u*u;case "out":return 1-(1-u)*(1-u);case "smooth":return u*u*(3-2*u);
         case "sin-in":return 1-Math.Cos(u*Math.PI/2);case "sin-out":return Math.Sin(u*Math.PI/2);case "sin-inout":return (1-Math.Cos(u*Math.PI))/2;
         case "circle-in":return 1-Math.Sqrt(1-u*u);case "circle-out":return Math.Sqrt(1-(u-1)*(u-1));case "circle-inout":return u<.5?(1-Math.Sqrt(1-4*u*u))/2:(Math.Sqrt(1-4*(u-1)*(u-1))+1)/2;
         case "power-in":return Math.Pow(u,power);case "power-out":return 1-Math.Pow(1-u,power);case "power-inout":return u<.5?Math.Pow(2*u,power)/2:1-Math.Pow(2*(1-u),power)/2;

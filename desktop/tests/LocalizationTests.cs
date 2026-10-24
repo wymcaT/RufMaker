@@ -33,7 +33,7 @@ internal static class LocalizationTests
             Language.Select(root,"en");Language.Apply(form);Call(form,"FillResources");Call(form,"ShowProperties");Call(form,"UpdateTitle");
             Check(add.Text=="Add effect"&&snap.Text=="Snap playhead to keyframes","Toolbar or checkbox did not switch");Check(All(form).OfType<Label>().Any(l=>l.Text=="Camera zoom"),"Inspector property did not switch");
             using(var choice=new WheelSafeComboBox{DropDownStyle=ComboBoxStyle.DropDownList}){choice.Items.Add("柔和摇摆");choice.SelectedIndex=0;int changed=0;choice.SelectedIndexChanged+=(s,e)=>changed++;choice.RefreshLanguage();Check(choice.GetItemText(choice.SelectedItem)=="Gentle sway"&&(string)choice.SelectedItem=="柔和摇摆"&&changed==0,"Localized combo changed its value or fired selection edits");}
-            var list=(ListView)Get(form,"resources");Check(list.Items.Count==8&&list.Items[0].Text=="Gentle sway"&&((PresetEntry)list.Items[0].Tag).key=="柔和摇摆","Preset display changed its stored key");
+            var list=(ListView)Get(form,"resources");Check(list.Items.Count==CameraPresets.Names.Length&&list.Items.Cast<ListViewItem>().Any(item=>item.Text=="Gentle sway"&&((PresetEntry)item.Tag).key=="柔和摇摆"),"Preset display changed its stored key");
             var search=(TextBox)Get(form,"search");search.Text="sway";Check(list.Items.Count==1,"English preset search failed");search.Clear();
             using(var menu=new ContextMenuStrip()){menu.Items.Add("添加特效");Language.Attach(menu);Check(menu.Items[0].Text=="Add effect","Menu not localized");menu.Items.Add("转转棒");Check(menu.Items[1].Text=="Rotating rod","Dynamic menu not localized");Language.Select(root,"zh-CN");Language.Attach(menu);Check(menu.Items[0].Text=="添加特效","Cached popup did not switch back");}
             Language.Select(root,"en");Language.Apply(form);Check(before==Json.Write(state),"Language switch modified project data");
@@ -43,7 +43,7 @@ internal static class LocalizationTests
             // Render the content in a parentless panel, so all children are drawn
             // without showing a Form or starting the project's Shown handler.
             ((ComboBox)Get(form,"languageChoice")).SelectedIndex=1;var content=form.Controls[0];form.Controls.Remove(content);using(var surface=new Panel{Size=form.ClientSize,Font=form.Font,BackColor=form.BackColor,ForeColor=form.ForeColor}){surface.Controls.Add(content);surface.PerformLayout();Call(form,"RestorePanelLayout");surface.PerformLayout();using(var bitmap=new Bitmap(surface.Width,surface.Height)){surface.DrawToBitmap(bitmap,new Rectangle(Point.Empty,bitmap.Size));bitmap.Save(image,System.Drawing.Imaging.ImageFormat.Png);}surface.Controls.Remove(content);}form.Controls.Add(content);
-            Language.Initialize(root);Check(Language.English,"Language preference not persisted");Language.Select(root,"zh-CN");Language.Apply(form);Call(form,"FillResources");Call(form,"ShowProperties");Check(add.Text=="添加特效"&&list.Items[0].Text=="柔和摇摆"&&before==Json.Write(state),"Switch back did not restore Chinese or preserve state");
+            Language.Initialize(root);Check(Language.English,"Language preference not persisted");Language.Select(root,"zh-CN");Language.Apply(form);Call(form,"FillResources");Call(form,"ShowProperties");Check(add.Text=="添加特效"&&list.Items.Cast<ListViewItem>().Any(item=>item.Text=="柔和摇摆")&&before==Json.Write(state),"Switch back did not restore Chinese or preserve state");
         }
     }
     [STAThread] public static int Main(string[] args)

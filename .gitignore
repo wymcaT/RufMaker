@@ -26,3 +26,7 @@ Desktop.ini
 /user-presets/
 /references/videos/
 /user-data/
+
+# Local experimental build and its window layout.
+/RufMaker.Beta.exe
+/.rufmaker-beta-view.json*

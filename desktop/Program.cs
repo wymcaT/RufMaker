@@ -24,14 +24,14 @@ internal static class Program
         AppWindow.RefreshFileIcon(Application.ExecutablePath);
         string identity;
         using(var hash=SHA256.Create())identity=BitConverter.ToString(hash.ComputeHash(Encoding.UTF8.GetBytes(root.ToUpperInvariant()))).Replace("-","");
-        using(var instance=new Mutex(false,"Local\\RufMakerNative-"+identity))
+        using(var instance=new Mutex(false,"Local\\RufMakerNative-Beta-"+identity))
         {
             bool owner;
             try{owner=instance.WaitOne(0);}catch(AbandonedMutexException){owner=true;}
             if(!owner)
             {
-                IntPtr window=FindWindow(null,"RufMaker · 原生耐久制作器");
-                if(window==IntPtr.Zero)window=FindWindow(null,"RufMaker · Avoidance Editor");
+                IntPtr window=FindWindow(null,"RufMaker Beta · 弹幕控制测试版");
+                if(window==IntPtr.Zero)window=FindWindow(null,"RufMaker Beta · Bullet Control Preview");
                 if(window!=IntPtr.Zero){ShowWindow(window,9);SetForegroundWindow(window);}return;
             }
             try

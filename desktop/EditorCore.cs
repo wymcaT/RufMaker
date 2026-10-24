@@ -18,15 +18,27 @@ internal sealed class EditorState
     public string room="rAvoidance", music="Data/Music/BGM.ogg";
     public bool timelineInitialized;
     public int randomSeed=12345,laneCount;public bool randomizeOnPlay;
+    public bool usePlayerTrace;public List<PlayerTracePoint> playerTrace=new List<PlayerTracePoint>();
     public string[] plainRooms=new string[0];
     public NativeProject nativeProject;
     public NativeTestPosition nativeTest=new NativeTestPosition();
     public List<Track> tracks=new List<Track>();
 }
 internal sealed class NativeTestPosition {public double x=400,y=304;}
+internal sealed class PlayerTracePoint {public int frame;public double x,y;}
 internal sealed class PlayerSettings {public double gravity=.4,moveSpeed=3,jumpSpeed=8.5,doubleJumpSpeed=7;public int maxJumps=2;public bool infiniteJump;}
 internal sealed class Track
 {
+    public string tag="",parentId="",emissionShape="point",emissionFacing="fan",randomScope="bullet";
+    public bool advancedBullets;
+    public double emitWidth=240,emitHeight=160,emitArc=360,emitPhase,emitRotation,emitWaves=1,indexSpeed,indexAngle,indexScale;
+    public int indexDelay,releaseFrame=-1,repeatCount=1,repeatGap;public double timeScale=1;
+    public string releaseDirection="radial";public List<CurvePoint> curvePoints=new List<CurvePoint>();
+    public List<BulletAction> bulletActions=new List<BulletAction>();public List<Track> children=new List<Track>();
+    public string targetSource="",targetTag="",targetParity="all",controlAction="speed",controlExpression="",controlEasing="linear";
+    public int targetVolley=-1,targetMinAge,targetMaxAge=1000000;public bool includeFuture;
+    public double controlFrom,controlValue;public string controlColor="#FFFFFF";
+    [ScriptIgnore] public Track parent;[ScriptIgnore] public EditorState owner;
     public int lane=-1;public string randomId="";public Dictionary<string,string> expressions=new Dictionary<string,string>();
     public string id, name, kind, sprite="sprBullet", easing="linear", color="#ff6d91", effect="flash", code="", rodMode="center", motion="keyframes";
     public bool enabled=true, trail, rolling, rotateSprite, trailRandom;
@@ -37,6 +49,9 @@ internal sealed class Track
     public double turnRate=3;public int homingDelay;
     public string shape="rod";
     public double radius=120,orientation,sides=5,cameraZoom=1;
+    public string cameraStyle="";public double cameraIntensity=1,cameraOriginX=400,cameraOriginY=304,cameraOriginZoom=1,cameraOriginAngle;
+    public bool cameraMirror;public double cameraBlur,cameraBlurAngle;
+    public double fxZoom=1.13,fxFlash=.18;public int fxSlices=11,fxStutter=2;
     public string trailMode="legacy";
     public int trailInterval=3,trailLife=18;
     public double spriteAngle,trailScaleDecay=.035,trailAlphaDecay=.035,trailStartAlpha=.55,trailSpeed,trailDirection;
@@ -51,7 +66,14 @@ internal sealed class Track
     public double fxOpacity=1,fxAngle,fxRetention=.5,fxFrequency=1;
     public int fxSamples=6;
     public List<Keyframe> keyframes=new List<Keyframe>();
-    public Track Snapshot(){var copy=(Track)MemberwiseClone();copy.keyframes=keyframes.Select(k=>k.Snapshot()).ToList();copy.expressions=new Dictionary<string,string>(expressions??new Dictionary<string,string>());return copy;}
+    public Track Snapshot(){var copy=(Track)MemberwiseClone();copy.keyframes=keyframes.Select(k=>k.Snapshot()).ToList();copy.expressions=new Dictionary<string,string>(expressions??new Dictionary<string,string>());copy.bulletActions=(bulletActions??new List<BulletAction>()).Select(a=>a.Snapshot()).ToList();copy.curvePoints=(curvePoints??new List<CurvePoint>()).Select(p=>new CurvePoint{x=p.x,y=p.y}).ToList();copy.children=(children??new List<Track>()).Select(t=>t.Snapshot()).ToList();copy.parent=null;copy.owner=null;return copy;}
+}
+internal sealed class CurvePoint {public double x,y;}
+internal sealed class BulletAction
+{
+    public string type="speed",easing="linear",expression="",templateId="";public bool enabled=true,relative;
+    public int start,duration=30,stagger,count=5,maxGeneration=1;public double from,to=3,spread=20,childSpeed=3;
+    public BulletAction Snapshot(){return (BulletAction)MemberwiseClone();}
 }
 internal sealed class Keyframe
 {

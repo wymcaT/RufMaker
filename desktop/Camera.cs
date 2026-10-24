@@ -5,7 +5,7 @@ using System.Linq;
 
 internal sealed class CameraPose
 {
-    public double x,y,zoom=1,angle;
+    public double x,y,zoom=1,angle,blur,blurAngle;public bool mirror;public bool Post {get{return mirror||blur>0;}}
     public Matrix WorldToView(int width,int height)
     {
         double a=angle*Math.PI/180,c=Math.Cos(a)*zoom,s=Math.Sin(a)*zoom;
@@ -20,7 +20,11 @@ internal static class Camera
     public static Track Active(EditorState state,int frame)
     {return state.tracks.LastOrDefault(t=>t.enabled&&t.kind=="camera"&&frame>=t.start&&frame<=t.end);}
     public static CameraPose At(Track t,int frame,RoomData room)
-    {if(t==null)return new CameraPose{x=room.width/2.0,y=room.height/2.0};var p=Motion.At(t,frame);return new CameraPose{x=p.x,y=p.y,angle=p.angle,zoom=Math.Max(.05,Math.Min(20,Motion.Value(t,"cameraZoom",frame)))};}
+    {
+        if(t==null)return new CameraPose{x=room.width/2.0,y=room.height/2.0};var p=Motion.At(t,frame);double zoom=Motion.Value(t,"cameraZoom",frame),amount=String.IsNullOrEmpty(t.cameraStyle)?1:Math.Max(0,Math.Min(3,Motion.Value(t,"cameraIntensity",frame)));
+        if(!String.IsNullOrEmpty(t.cameraStyle)){p.x=t.cameraOriginX+(p.x-t.cameraOriginX)*amount;p.y=t.cameraOriginY+(p.y-t.cameraOriginY)*amount;p.angle=t.cameraOriginAngle+(p.angle-t.cameraOriginAngle)*amount;zoom=t.cameraOriginZoom+(zoom-t.cameraOriginZoom)*amount;}
+        return new CameraPose{x=p.x,y=p.y,angle=p.angle,mirror=t.cameraMirror,blur=Math.Max(0,Math.Min(100,Motion.Value(t,"cameraBlur",frame)*amount)),blurAngle=Motion.Value(t,"cameraBlurAngle",frame),zoom=Math.Max(.05,Math.Min(20,zoom))};
+    }
 }
 internal sealed class NativeViewPose
 {

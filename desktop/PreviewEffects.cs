@@ -8,6 +8,7 @@ using System.Runtime.InteropServices;
 internal sealed class PreviewCache : IDisposable
 {
     public Bitmap roomLayer;public string roomKey;
+    public BulletWorld bulletWorld;public EditorState expandedState;
     private NativeFilmReader film;private string filmKey;
     public NativeFilmInfo FilmInfo {get{return film==null?null:film.Info;}}
     public HashSet<string> FilmNativeIds {get{return film==null?null:film.NativeIds;}}
@@ -20,14 +21,15 @@ internal sealed class PreviewCache : IDisposable
     }
     public readonly Dictionary<string,History> history=new Dictionary<string,History>();
     internal sealed class History : IDisposable {public Bitmap image;public int frame;public void Dispose(){if(image!=null)image.Dispose();image=null;}}
-    public void Clear(){if(roomLayer!=null)roomLayer.Dispose();roomLayer=null;roomKey=null;if(film!=null)film.Dispose();film=null;filmKey=null;foreach(var entry in history.Values)entry.Dispose();history.Clear();}
+    public void ClearHistory(){foreach(var entry in history.Values)entry.Dispose();history.Clear();bulletWorld=null;expandedState=null;}
+    public void Clear(){if(roomLayer!=null)roomLayer.Dispose();roomLayer=null;roomKey=null;if(film!=null)film.Dispose();film=null;filmKey=null;ClearHistory();}
     public void Dispose(){Clear();}
 }
 
-internal static class Effects
+internal static partial class Effects
 {
-    public static readonly string[] Values={"flash","shake","color","fade-in","fade-out","rgb","motion-blur","blur","invert","vignette"};
-    public static readonly string[] Names={"闪屏","震屏","黑场 / 纯色遮罩","淡入（从遮罩到画面）","淡出（从画面到遮罩）","全画面 RGB 分离","动态模糊 / 帧混合","方向模糊","反色","暗角"};
+    public static readonly string[] Values={"flash","shake","color","fade-in","fade-out","rgb","motion-blur","blur","invert","vignette","rgb-impact","glitch"};
+    public static readonly string[] Names={"闪屏","震屏","黑场 / 纯色遮罩","淡入（从遮罩到画面）","淡出（从画面到遮罩）","全画面 RGB 分离","动态模糊 / 帧混合","方向模糊","反色","暗角","RGB 冲击（组合）","故障切换"};
     public static string Name(string value){int i=Array.IndexOf(Values,value);return i<0?value:Names[i];}
     public static double Unit(double value){return Math.Max(0,Math.Min(1,value));}
     private static void DrawAlpha(Graphics g,Image source,float x,float y,double alpha)
@@ -49,11 +51,11 @@ internal static class Effects
             pixels[i]=(byte)(original[i]*(1-opacity)+blue*opacity);pixels[i+1]=original[i+1];pixels[i+2]=(byte)(original[i+2]*(1-opacity)+red*opacity);pixels[i+3]=255;}
         var result=new Bitmap(width,height,PixelFormat.Format32bppArgb);data=result.LockBits(bounds,ImageLockMode.WriteOnly,PixelFormat.Format32bppArgb);try{Marshal.Copy(pixels,0,data.Scan0,pixels.Length);}finally{result.UnlockBits(data);}return result;
     }
-    private static Bitmap Blur(Bitmap source,double distance,double angle,int samples,double opacity)
+    internal static Bitmap Blur(Bitmap source,double distance,double angle,int samples,double opacity,bool mirror=false)
     {
         var result=new Bitmap(source.Width,source.Height);double rad=angle*Math.PI/180;int count=Math.Max(2,Math.Min(16,samples));
         using(var g=Graphics.FromImage(result))
-        {g.Clear(Color.Black);for(int i=0;i<count;i++){double offset=(i/(double)(count-1)-.5)*distance;DrawAlpha(g,source,(float)(Math.Cos(rad)*offset),(float)(-Math.Sin(rad)*offset),1.0/(i+1));}
+        {g.Clear(Color.Black);for(int i=0;i<count;i++){double offset=(i/(double)(count-1)-.5)*distance;if(mirror)DrawMirrorAlpha(g,source,(float)(Math.Cos(rad)*offset),(float)(-Math.Sin(rad)*offset),1.0/(i+1));else DrawAlpha(g,source,(float)(Math.Cos(rad)*offset),(float)(-Math.Sin(rad)*offset),1.0/(i+1));}
             if(opacity<1)DrawAlpha(g,source,0,0,1-opacity);}
         return result;
     }
@@ -64,7 +66,8 @@ internal static class Effects
         {
             double u=(frame-t.start)/(double)Math.Max(1,t.end-t.start);u=Motion.Ease(t.easing,u,t.easePower,t.easePeriod);
             double strength=Math.Max(0,Motion.Value(t,"strength",frame)),opacity=Unit(Motion.Value(t,"fxOpacity",frame)),angle=Motion.Value(t,"fxAngle",frame);Bitmap next=null;
-            if(t.effect=="shake")
+            if(t.effect=="rgb-impact"||t.effect=="glitch")next=Style(image,t,state,frame,cache,strength,opacity,angle);
+            else if(t.effect=="shake")
             {double age=frame-t.start;next=Shift(image,(int)Math.Round(Math.Sin(age*t.fxFrequency*2.17)*strength*opacity),(int)Math.Round(Math.Cos(age*t.fxFrequency*1.61)*strength*opacity));}
             else if(t.effect=="rgb")next=Rgb(image,(int)Math.Round(Math.Cos(angle*Math.PI/180)*strength),(int)Math.Round(-Math.Sin(angle*Math.PI/180)*strength),opacity);
             else if(t.effect=="blur"||t.effect=="motion-blur")
