@@ -1,19 +1,25 @@
 # Codex 任务记录
 
-- 状态：`in_progress`
+- 状态：`completed`
 - 任务：用户已授权推送 1.13.1 并更新 Releases；准备说明、校验完整便携包/兼容更新包、推送 main 与版本标签并核对发布和在线更新。
 - 开始时基线：`9884eed`，分支 `main`；保留用户 projects 下既有改动。
-- 当前占用文件：`README.md`、`docs/README.en.md`、`docs/releases/v1.13.1.md`、`docs/development/GETTING_STARTED.md`、本代理记录与协作状态；构建输出 `build/distribution/v1.13.1/`。必要时修复有证据的打包问题。
-- 本轮发布：用户已授权推送并发布 v1.13.1；本地打包和更新兼容验证已通过，等待标签发布流程完成。准备前远程 main 为 `c58c654`，正式 Release 为 v1.12.0。
+- 当前占用文件：无，发布与验证已完成并释放。
+- 本轮发布：`main`、`v1.13.1` 已推送，标签对应 `6ed3764`；GitHub Actions `40114921642` 成功，Release 已公开并设为 latest。完整包、更新包、两个 SHA256 均已上线；真实在线更新测试通过。
 - 本机产物：根目录 `RufMaker.exe`，ProductVersion `1.13.1`，FileVersion `1.13.1.0`，1,069,056 bytes。正在运行的旧编辑器需保存并重启才能使用新代码。
 
-## 2026-10-25：1.13.1 发布准备
+## 2026-10-25：1.13.1 发布与线上验证
 
 - 发布范围为 `9884eed` 的性能修复，以及上次尚未发布 Release 的频谱、轨道高度和对象统计。新增 `docs/releases/v1.13.1.md`，首页双语版本说明更新；修正开发入口中已过时的 Beta 发布描述。
 - `desktop/Package-Release.ps1 -Version 1.13.1 -OutputDirectory D:\rufmaker\build\distribution\v1.13.1` 通过，生成完整便携包、兼容更新包及两个 SHA256。
 - 本地审计：更新包 2612 项/57,949,920 bytes，完整包 2631 项/59,627,708 bytes；两个 EXE 均为 1.13.1，更新清单中全部文件逐项 SHA256 一致，无重复路径、用户工程、设置或缓存。模板中的 objRufController 由建工程时生成，审计核对的是模板入口 `rufmaker-demo.gm82`。
 - `desktop/Test-Updater.ps1` 通过：版本提示、包选择、等待退出、替换/备份、保留个人资料和重启隔离程序。1.12.0 原版更新器成功解包/校验 1.13.1 包，并完成资产目录迁移。
 - 发布方式为现有 `.github/workflows/release.yml` 的 `v1.13.1` 标签触发。发布前已确认远程不存在该标签。后续记录应补充 Actions 和线上 latest/下载校验的真实结果。
+- 发布准备提交 `6ed3764`，功能修复 `9884eed`；main 和注释标签通过一次 atomic push 同步。Actions [40114921642](https://github.com/wymcaT/RufMaker/actions/runs/40114921642) 构建、打包、上传与发布成功，未重试或改写标签。
+- [v1.13.1 正式发行版](https://github.com/wymcaT/RufMaker/releases/tag/v1.13.1) 为 latest，`draft=false`、`prerelease=false`，4 个下载资产名称与大小正确。发布说明包含 1.13.0 的频谱/统计功能和 1.13.1 编辑性能修复。
+- 公开完整包实下载验证：59,628,720 bytes，2631 项，EXE 1.13.1，所需运行文件/模板/形状脚本/图标/英文词条/说明齐全，无用户工程或缓存；SHA256 `a98648fae26c177dcd46b6b4ad1075533ff8862423003944a6f32c5c6f2cd8f1` 与公开校验文件、GitHub 资产 digest 一致。
+- `desktop/Test-Updater.ps1 -Online -Version 1.13.1` 通过：软件自己的 latest API、版本识别、公开更新 ZIP 下载、SHA256、全部清单文件解包均验证成功。公开更新包 57,950,554 bytes，SHA256 `ad4be61b878c902b492a5c2f246df1eef604a8b51b450474873e1b2973c008fe`。本地包仅为预检，公开包由 CI 重建，哈希以线上为准。
+- 过程中的匿名 Actions API 一度限流，改用连接的 GitHub 工具读取 Actions/Release；后续软件匿名 latest/下载测试正常。没有改变软件更新策略或注入凭据。
+- 最终交接记录作为文档提交再推送 main，不移动已发布标签。个人工程未提交、未覆盖；本轮授权仅用于这次推送/发布。
 
 ## 2026-10-25：属性页撤销与编辑性能
 
