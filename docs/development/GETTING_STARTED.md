@@ -138,4 +138,4 @@ const project = await import('./studio/project.mjs');
 
 Git 推送以根 `AGENTS.md` 为准。`.github/workflows/release.yml` 在推送 `v*` 标签或手动触发时发布正式 Release。
 
-**当前 Beta 不能直接拿 `Package-Release.ps1` 当正式版发布。** 该脚本目前要求纯数字 Version，且检查 ProductVersion 与它相同；当前 ProductVersion 带 `-beta.1`。若要发 Beta 包，应先单独实现并验证预发布流程，再由用户明确授权发布。不要简单去掉 Beta 标识绕过校验。
+正式版通过 `Package-Release.ps1` 生成完整便携包、兼容更新包和 SHA256；它要求纯数字 Version，并核对 ProductVersion。推送前确认标签 `v版本号` 与 `AppVersion.Current` 一致，发布说明放 `docs/releases/v版本号.md`。若以后制作 Beta 包，需要单独验证预发布流程并取得用户授权，不能去掉 Beta 后缀绕过校验。

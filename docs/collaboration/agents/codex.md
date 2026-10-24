@@ -1,11 +1,19 @@
 # Codex 任务记录
 
-- 状态：`completed`
-- 任务：修复单项属性撤销导致整页重建，并测量编辑/预览路径的重复开销，完成有依据的性能优化；本轮仅本地构建，不推送。
-- 开始时基线：`c58c654`，分支 `main`；保留用户 projects 下既有改动。
-- 当前占用文件：无，已完成并释放；本轮实际修改为 `EditorCore.cs`、`MainForm.cs`、`ParameterInspector.cs`、`Updater.cs`、两项新测试、协作/开发文档及 EXE。
-- 本轮发布：本地 1.13.1 构建与提交，未推送；上轮远程 main 为 `c58c654`（1.13.0），正式 Release 仍为 v1.12.0。
+- 状态：`in_progress`
+- 任务：用户已授权推送 1.13.1 并更新 Releases；准备说明、校验完整便携包/兼容更新包、推送 main 与版本标签并核对发布和在线更新。
+- 开始时基线：`9884eed`，分支 `main`；保留用户 projects 下既有改动。
+- 当前占用文件：`README.md`、`docs/README.en.md`、`docs/releases/v1.13.1.md`、`docs/development/GETTING_STARTED.md`、本代理记录与协作状态；构建输出 `build/distribution/v1.13.1/`。必要时修复有证据的打包问题。
+- 本轮发布：用户已授权推送并发布 v1.13.1；本地打包和更新兼容验证已通过，等待标签发布流程完成。准备前远程 main 为 `c58c654`，正式 Release 为 v1.12.0。
 - 本机产物：根目录 `RufMaker.exe`，ProductVersion `1.13.1`，FileVersion `1.13.1.0`，1,069,056 bytes。正在运行的旧编辑器需保存并重启才能使用新代码。
+
+## 2026-10-25：1.13.1 发布准备
+
+- 发布范围为 `9884eed` 的性能修复，以及上次尚未发布 Release 的频谱、轨道高度和对象统计。新增 `docs/releases/v1.13.1.md`，首页双语版本说明更新；修正开发入口中已过时的 Beta 发布描述。
+- `desktop/Package-Release.ps1 -Version 1.13.1 -OutputDirectory D:\rufmaker\build\distribution\v1.13.1` 通过，生成完整便携包、兼容更新包及两个 SHA256。
+- 本地审计：更新包 2612 项/57,949,920 bytes，完整包 2631 项/59,627,708 bytes；两个 EXE 均为 1.13.1，更新清单中全部文件逐项 SHA256 一致，无重复路径、用户工程、设置或缓存。模板中的 objRufController 由建工程时生成，审计核对的是模板入口 `rufmaker-demo.gm82`。
+- `desktop/Test-Updater.ps1` 通过：版本提示、包选择、等待退出、替换/备份、保留个人资料和重启隔离程序。1.12.0 原版更新器成功解包/校验 1.13.1 包，并完成资产目录迁移。
+- 发布方式为现有 `.github/workflows/release.yml` 的 `v1.13.1` 标签触发。发布前已确认远程不存在该标签。后续记录应补充 Actions 和线上 latest/下载校验的真实结果。
 
 ## 2026-10-25：属性页撤销与编辑性能
 

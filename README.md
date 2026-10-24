@@ -1,6 +1,6 @@
 # RufMaker
 
-弹幕行为、分组、生成模板和新增整体形状已并入 **1.12.0 正式版**，直接运行 `RufMaker.exe`。详细操作见 [弹幕控制说明](docs/beta-bullet-control.md)。
+当前版本 **1.13.1**：新增音频频谱、独立轨道高度和对象统计，并优化单项属性撤销与自动保存的响应。直接运行 `RufMaker.exe`。[本版更新说明](docs/releases/v1.13.1.md) · [弹幕控制说明](docs/beta-bullet-control.md)。
 
 开发协作请从 [AGENTS.md](AGENTS.md) 和 [开发入口](docs/development/GETTING_STARTED.md) 开始；[当前状态](docs/collaboration/STATUS.md) 与 [Argon4 接手提示](docs/collaboration/START_ARGON4.md) 用于跨代理交接。
 

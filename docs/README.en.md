@@ -1,6 +1,6 @@
 # RufMaker
 
-Bullet behaviors, groups, template spawning and additional formations are included in **1.12.0 stable**. Run `RufMaker.exe`; see the [detailed controls](beta-bullet-control.md).
+**1.13.1** adds audio spectrograms, independent timeline row heights and object counts, and improves property undo and saving responsiveness. Run `RufMaker.exe`; see the [release notes](releases/v1.13.1.md) and [detailed controls](beta-bullet-control.md).
 
 A native Windows timeline editor for **I Wanna avoidance games**, integrated with GameMaker 8.2.
 
