@@ -7,12 +7,12 @@
 | 项目 | 状态 |
 | --- | --- |
 | 本机仓库 | `D:\rufmaker` |
-| 正式分支 | `main`；合并提交 `f554136`，开发来源为 `codex/bullet-control-beta` 的 `4d8b1a2` |
-| 功能版本 | 本地 `1.13.0`：音频频谱、独立轨道高度、当前帧对象统计；远程仍为 `1.12.0` |
+| 正式分支 | `main`；当前功能提交 `7100ed0`，此前 Beta 合并基线为 `f554136` |
+| 功能版本 | `1.13.0`：音频频谱、独立轨道高度、当前帧对象统计；main 已同步，正式 Release 仍为 `1.12.0` |
 | 本机正式入口 | `RufMaker.exe`，ProductVersion `1.13.0`，由 `desktop/Build-Native.ps1 -Output D:\rufmaker\RufMaker.exe` 构建 |
 | 历史测试入口 | 忽略文件 `RufMaker.Beta.exe` 可能仍是旧 Beta，不作为正式入口 |
-| 远程 | `main` 和 `v1.12.0` 已推送；[正式发行版](https://github.com/wymcaT/RufMaker/releases/tag/v1.12.0) 含完整便携包、更新包及 SHA256 |
-| 用户验收 | 1.13.0 定向自动验证、GM8.2 计数脚本探针与构建通过，待用户验收；本轮未推送 |
+| 远程 | 用户后续授权推送 main，已同步 `7100ed0` 及推送记录；本轮未创建标签或 Release。[正式发行版 v1.12.0](https://github.com/wymcaT/RufMaker/releases/tag/v1.12.0) 仍保留 |
+| 用户验收 | 1.13.0 定向自动验证、GM8.2 计数脚本探针与构建通过，待用户验收 |
 
 新文档或后续修复提交会使 HEAD 高于功能基线，请先执行 Git 状态检查。不要把“远程没有此分支”当成需要自动推送的理由。
 

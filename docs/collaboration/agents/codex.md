@@ -1,10 +1,10 @@
 # Codex 任务记录
 
 - 状态：`completed`
-- 任务：音频轨右键切换波形/频谱、独立轨道高度、当前帧对象数量与分类统计；本轮只本地构建，不推送。
+- 任务：音频轨右键切换波形/频谱、独立轨道高度、当前帧对象数量与分类统计；完成本地构建后，用户另行授权推送 main。
 - 开始时基线：`5afccbb`，分支 `main`；保留用户 projects 下既有改动。
 - 当前占用文件：无，已完成并释放。实际改动见本轮 Git 提交；未改用户 `projects/`。
-- 本轮发布：仅本地 1.13.0 构建与提交；未推送、未打标签。远程发布仍为 v1.12.0。
+- 本轮推送：1.13.0 功能提交 `7100ed0` 同步至 main，附本次推送交接记录；未创建标签或 Release，正式发行版仍为 v1.12.0。
 - 本机产物：根目录 `RufMaker.exe`，ProductVersion `1.13.0`，FileVersion `1.13.0.0`，1,064,448 bytes。
 
 ## 2026-10-25：频谱、轨道高度与对象统计
@@ -18,7 +18,7 @@
 - 通过：`desktop/Test-AudioStatistics.ps1`（合成 100/1000/5000 Hz、20 dB 差、反相双声道、305 秒尾段、缓存/取消、菜单/独立高度/布局保存/拉伸、简单和高级计数/模板/倒拖/双语）；`Test-RandomTimeline.ps1`；`Test-NativeFilm.ps1`；`Test-Localization.ps1`；`pwsh -NoProfile -File desktop/Test-PreviewPlayback.ps1`；`runtime/node.exe --test studio/native-film.test.mjs`（4/4）。
 - GM8.2 真机脚本探针：`runtime/node.exe desktop/tests/verify-film-counts-gml.mjs` 通过。沙箱内 GM 退出 3221225794；提权运行隔离工程后，生成/销毁数量、排除录制器和原子状态均正确。产物在 `build/audio-statistics-check/Film counts GM 1792858453650/`，未改用户工程。
 - 截图已检查：`build/audio-statistics-check/spectrogram-timeline.png`、`object-statistics.png`、`object-statistics-en.png`。构建：`desktop/Build-Native.ps1 -Output D:\rufmaker\RufMaker.exe` 通过。播放回归脚本在 Windows PowerShell 5.1 的 `[short]` 类型别名失败，改用 PowerShell 7 原脚本通过；无需修改产品。
-- 本地提交：随本轮功能提交保存，未获本轮远程发布授权。尚无 1.13.0 用户验收结论。
+- 功能提交：`7100ed0`。用户于后续消息明确授权推送，已按 main 分支同步；个人工程未提交。尚无 1.13.0 用户验收结论。
 
 ## 上轮发布记录：1.12.0
 
