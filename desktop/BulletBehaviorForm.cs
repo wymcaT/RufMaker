@@ -11,16 +11,17 @@ internal sealed class BulletBehaviorForm : Form
     private readonly ParameterInspector inspector=new ParameterInspector{Dock=DockStyle.Fill};
     private readonly AgeTimeline age=new AgeTimeline();private readonly Track track;private readonly EditorState state;
     private readonly Label summary=new Label{Dock=DockStyle.Fill,ForeColor=Theme.Muted,Padding=new Padding(10),AutoSize=true};
-    public BulletBehaviorForm(Track track,EditorState state)
+    private readonly bool templateMode;private readonly string[] actionTypes,actionNames;
+    public BulletBehaviorForm(Track track,EditorState state,bool templateMode=false)
     {
-        this.track=track;this.state=state;Actions=track.bulletActions.Select(a=>a.Snapshot()).ToList();Text="弹幕行为 · "+track.name;Font=Theme.Font;BackColor=Theme.Back;ForeColor=Theme.Text;Icon=AppWindow.LoadIcon();StartPosition=FormStartPosition.CenterParent;Size=new Size(1040,760);MinimumSize=new Size(850,620);AutoScaleMode=AutoScaleMode.None;
+        this.track=track;this.state=state;this.templateMode=templateMode;actionTypes=templateMode?new[]{"spawn"}:BulletSystem.ActionTypes;actionNames=actionTypes.Select(BulletSystem.ActionName).ToArray();Actions=(templateMode?track.spawnActions:track.bulletActions).Select(a=>a.Snapshot()).ToList();Text=(templateMode?"物件生成行为 · ":"弹幕行为 · ")+track.name;Font=Theme.Font;BackColor=Theme.Back;ForeColor=Theme.Text;Icon=AppWindow.LoadIcon();StartPosition=FormStartPosition.CenterParent;Size=new Size(1040,760);MinimumSize=new Size(850,620);AutoScaleMode=AutoScaleMode.None;
         var layout=new TableLayoutPanel{Dock=DockStyle.Fill,RowCount=5,ColumnCount=1,Padding=new Padding(10)};layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));layout.RowStyles.Add(new RowStyle(SizeType.Absolute,185));layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));layout.RowStyles.Add(new RowStyle(SizeType.Percent,100));layout.RowStyles.Add(new RowStyle(SizeType.Absolute,48));Controls.Add(layout);
-        var tools=new FlowLayoutPanel{Dock=DockStyle.Fill,AutoSize=true,WrapContents=true};var types=new WheelSafeComboBox{Width=165,DropDownStyle=ComboBoxStyle.DropDownList,BackColor=Theme.Raised,ForeColor=Theme.Text};types.Items.AddRange(BulletSystem.ActionNames.Select(Language.Text).Cast<object>().ToArray());types.SelectedIndex=0;tools.Controls.Add(types);
-        AddButton(tools,"添加行为",()=>{var a=new BulletAction{type=BulletSystem.ActionTypes[types.SelectedIndex]};if(new[]{"aim","clear","split","collision"}.Contains(a.type))a.duration=0;if(a.type=="alpha"||a.type=="scale"||a.type=="collision")a.to=1;Actions.Add(a);RefreshList(Actions.Count-1);});
+        var tools=new FlowLayoutPanel{Dock=DockStyle.Fill,AutoSize=true,WrapContents=true};var types=new WheelSafeComboBox{Width=165,DropDownStyle=ComboBoxStyle.DropDownList,BackColor=Theme.Raised,ForeColor=Theme.Text};types.Items.AddRange(actionNames.Select(Language.Text).Cast<object>().ToArray());types.SelectedIndex=0;tools.Controls.Add(types);
+        AddButton(tools,"添加行为",()=>{var a=new BulletAction{type=actionTypes[types.SelectedIndex]};if(new[]{"aim","clear","split","spawn","collision"}.Contains(a.type))a.duration=0;if(a.type=="alpha"||a.type=="scale"||a.type=="collision")a.to=1;Actions.Add(a);RefreshList(Actions.Count-1);});
         AddButton(tools,"复制行为",()=>{if(list.SelectedIndex<0)return;Actions.Insert(list.SelectedIndex+1,Actions[list.SelectedIndex].Snapshot());RefreshList(list.SelectedIndex+1);});AddButton(tools,"删除行为",()=>{if(list.SelectedIndex<0)return;int i=list.SelectedIndex;Actions.RemoveAt(i);RefreshList(Math.Min(i,Actions.Count-1));});
-        AddButton(tools,"上移",()=>MoveAction(-1));AddButton(tools,"下移",()=>MoveAction(1));var presets=new WheelSafeComboBox{Width=180,DropDownStyle=ComboBoxStyle.DropDownList,BackColor=Theme.Raised,ForeColor=Theme.Text};presets.Items.AddRange(new object[]{Language.Text("选择行为预设…"),Language.Text("减速 → 瞄准 → 冲刺"),Language.Text("旋转加速"),Language.Text("淡入淡出"),Language.Text("延迟分裂")});presets.SelectedIndex=0;presets.SelectionChangeCommitted+=(s,e)=>{if(presets.SelectedIndex>0){ApplyPreset(presets.SelectedIndex);presets.SelectedIndex=0;}};tools.Controls.Add(presets);layout.Controls.Add(tools,0,0);
+        AddButton(tools,"上移",()=>MoveAction(-1));AddButton(tools,"下移",()=>MoveAction(1));var presets=new WheelSafeComboBox{Width=180,DropDownStyle=ComboBoxStyle.DropDownList,BackColor=Theme.Raised,ForeColor=Theme.Text};presets.Items.AddRange(new object[]{Language.Text("选择行为预设…"),Language.Text("减速 → 瞄准 → 冲刺"),Language.Text("旋转加速"),Language.Text("淡入淡出"),Language.Text("延迟分裂")});presets.SelectedIndex=0;presets.Visible=!templateMode;presets.SelectionChangeCommitted+=(s,e)=>{if(presets.SelectedIndex>0){ApplyPreset(presets.SelectedIndex);presets.SelectedIndex=0;}};tools.Controls.Add(presets);layout.Controls.Add(tools,0,0);
         age.Dock=DockStyle.Fill;age.Actions=Actions;age.Changed=()=>RefreshList(age.Selected);age.SelectionChanged=i=>{if(i>=0&&i<list.Items.Count)list.SelectedIndex=i;};layout.Controls.Add(age,0,1);
-        summary.Text="时间从每颗弹幕出生的第 0 帧开始。拖动条块移动，拖右边界改时长；同属性重叠时，列表靠后的行为优先。";layout.Controls.Add(summary,0,2);
+        summary.Text=templateMode?"时间从物件开始计算；模板生成后从自己的时间起点运行，关键帧与运动独立。":"时间从每颗弹幕出生的第 0 帧开始。拖动条块移动，拖右边界改时长；同属性重叠时，列表靠后的行为优先。";layout.Controls.Add(summary,0,2);
         var split=new SplitContainer{Dock=DockStyle.Fill,SplitterWidth=6,BackColor=Theme.Back};split.Panel1.Controls.Add(list);split.Panel2.Controls.Add(inspector);layout.Controls.Add(split,0,3);split.SplitterDistance=290;list.SelectedIndexChanged+=(s,e)=>ShowAction();
         var buttons=new FlowLayoutPanel{Dock=DockStyle.Fill,FlowDirection=FlowDirection.RightToLeft};var save=new Button{Text="应用行为",AutoSize=true,Height=35,BackColor=Theme.Accent,ForeColor=Color.Black,FlatStyle=FlatStyle.Flat};save.Click+=(s,e)=>{try{inspector.CommitPending();ValidateActions();DialogResult=DialogResult.OK;}catch(Exception error){Language.Message(this,error.Message,"弹幕行为");}};buttons.Controls.Add(save);buttons.Controls.Add(new Button{Text="取消",AutoSize=true,Height=35,DialogResult=DialogResult.Cancel});layout.Controls.Add(buttons,0,4);RefreshList(Actions.Count>0?0:-1);
     }
@@ -31,9 +32,10 @@ internal sealed class BulletBehaviorForm : Form
     {
         age.Selected=list.SelectedIndex;age.Invalidate();var bag=new NativeProperties();inspector.SelectedObject=bag;if(list.SelectedIndex<0)return;var a=Actions[list.SelectedIndex];
         Action refresh=()=>{age.Invalidate();};Action rebuild=()=>BeginInvoke(new Action(()=>RefreshList(list.SelectedIndex)));
-        bag.Add("启用","行为",typeof(bool),()=>a.enabled,v=>{a.enabled=(bool)v;rebuild();});bag.Add("种类","行为",typeof(string),()=>BulletSystem.ActionName(a.type),v=>{a.type=BulletSystem.ActionTypes[Array.IndexOf(BulletSystem.ActionNames,(string)v)];if(new[]{"aim","clear","split","collision"}.Contains(a.type))a.duration=0;rebuild();},BulletSystem.ActionNames);
+        bag.Add("启用","行为",typeof(bool),()=>a.enabled,v=>{a.enabled=(bool)v;rebuild();});bag.Add("种类","行为",typeof(string),()=>BulletSystem.ActionName(a.type),v=>{a.type=actionTypes[Array.IndexOf(actionNames,(string)v)];if(new[]{"aim","clear","split","spawn","collision"}.Contains(a.type))a.duration=0;rebuild();},actionNames);
         bag.Add("开始年龄 / 帧","时间",typeof(int),()=>a.start,v=>{a.start=Math.Max(0,(int)v);refresh();});bag.Add("持续帧数","时间",typeof(int),()=>a.duration,v=>{a.duration=Math.Max(0,(int)v);refresh();});bag.Add("每颗延迟 / 帧","时间",typeof(int),()=>a.stagger,v=>{a.stagger=Math.Max(0,(int)v);refresh();},null,"实际开始年龄 = 开始年龄 + i × 每颗延迟。");
-        if(a.type=="split"){
+        if(a.type=="spawn"){SpawnFields(bag,a);}
+        else if(a.type=="split"){
             var templates=state.tracks.Where(t=>t.kind=="emitter").ToArray();var names=new[]{"继承本体外观（无后续行为）"}.Concat(templates.Select(t=>t.name+" · "+t.id.Substring(0,Math.Min(8,t.id.Length)))).ToArray();
             bag.Add("子弹模板","分裂",typeof(string),()=>names[Math.Max(0,Array.FindIndex(templates,t=>t.id==a.templateId)+1)],v=>{int i=Array.IndexOf(names,(string)v)-1;a.templateId=i<0?"":templates[i].id;},names);
             bag.Add("子弹数量","分裂",typeof(int),()=>a.count,v=>a.count=Math.Max(1,Math.Min(300,(int)v)));bag.Add("子弹速度","分裂",typeof(double),()=>a.childSpeed,v=>a.childSpeed=(double)v);bag.Add("子弹角度间隔","分裂",typeof(double),()=>a.spread,v=>a.spread=(double)v);bag.Add("最多分裂代数","分裂",typeof(int),()=>a.maxGeneration,v=>a.maxGeneration=Math.Max(1,Math.Min(4,(int)v)));bag.Add("说明","分裂",typeof(string),()=>"母弹保留。子弹从母弹当时的位置发射，以母弹方向为中心；模板可禁用以仅供子发射器使用。",null);
@@ -45,7 +47,20 @@ internal sealed class BulletBehaviorForm : Form
         }
         inspector.SelectedObject=bag;
     }
-    private void ValidateActions(){foreach(var a in Actions)if(!String.IsNullOrWhiteSpace(a.expression))RandomExpression.Evaluate(a.expression,state.randomSeed,track.id,ExpressionContext.For(track,track.start));}
+    private void ValidateActions(){foreach(var a in Actions){if(a.type=="spawn"&&!state.tracks.Any(t=>t.id==a.templateId&&TemplateRuntime.Eligible(t)))throw new FormatException("请选择有效的生成模板。可先在时间轴制作物件或分组，并勾选“仅用作生成模板”。");if(!String.IsNullOrWhiteSpace(a.expression))RandomExpression.Evaluate(a.expression,state.randomSeed,track.id,ExpressionContext.For(track,track.start));}}
+    private void SpawnFields(NativeProperties bag,BulletAction a)
+    {
+        var templates=state.tracks.Where(TemplateRuntime.Eligible).ToArray();var names=new[]{Language.Text("请选择生成模板…")}.Concat(templates.Select(t=>t.name+" · "+t.id.Substring(0,Math.Min(8,t.id.Length)))).ToArray();
+        bag.Add("生成模板","生成",typeof(string),()=>names[Math.Max(0,Array.FindIndex(templates,t=>t.id==a.templateId)+1)],v=>{int i=Array.IndexOf(names,(string)v)-1;a.templateId=i<0?"":templates[i].id;},names,localizeChoices:false);
+        if(templateMode&&track.kind=="rod"){string[] labels={"整体中心","各颗弹幕"},values={"center","each"};bag.Add("生成位置","生成",typeof(string),()=>labels[Math.Max(0,Array.IndexOf(values,a.spawnOrigin))],v=>a.spawnOrigin=values[Array.IndexOf(labels,(string)v)],labels);}
+        bag.Add("重复间隔 / 帧（0 仅一次）","生成",typeof(int),()=>a.spawnRepeat,v=>a.spawnRepeat=Math.Max(0,(int)v),null,"重复时，持续帧数 0 表示直到母体结束；大于 0 表示触发窗口。开始年龄和每颗延迟继续适用。");
+        string[] parities={"全部编号","偶数编号 0,2,4…","奇数编号 1,3,5…"},pvalues={"all","even","odd"};bag.Add("编号筛选","生成",typeof(string),()=>parities[Math.Max(0,Array.IndexOf(pvalues,a.spawnParity))],v=>a.spawnParity=pvalues[Array.IndexOf(parities,(string)v)],parities);
+        bag.Add("最小编号","生成",typeof(int),()=>a.spawnIndexFrom,v=>a.spawnIndexFrom=Math.Max(0,(int)v));bag.Add("最大编号（-1 不限）","生成",typeof(int),()=>a.spawnIndexTo,v=>a.spawnIndexTo=Math.Max(-1,(int)v));
+        bag.Add("生成偏移 X","生成",typeof(double),()=>a.spawnOffsetX,v=>a.spawnOffsetX=(double)v);bag.Add("生成偏移 Y","生成",typeof(double),()=>a.spawnOffsetY,v=>a.spawnOffsetY=(double)v);
+        bag.Add("继承母体方向","生成",typeof(bool),()=>a.inheritAngle,v=>a.inheritAngle=(bool)v);bag.Add("生成后销毁母体","生成",typeof(bool),()=>a.destroyParent,v=>a.destroyParent=(bool)v);
+        bag.Add("最大生成代数","生成",typeof(int),()=>a.maxGeneration,v=>a.maxGeneration=Math.Max(1,Math.Min(4,(int)v)),null,"原物件为第 0 代。生成物可继续生成下一代，最大 4 代。");
+        bag.Add("说明","生成",typeof(string),()=>"生成物以当前位置为起点，从模板自己的开始帧执行关键帧和运动；生成后独立存在。整体中心销毁整件，各颗弹幕模式只销毁符合筛选的成员。",null);
+    }
     private void ApplyPreset(int index)
     {
         int fps=state.fps;if(index==1){Actions.Add(new BulletAction{type="speed",start=0,duration=fps/3,from=track.speed,to=0,easing="sin-out"});Actions.Add(new BulletAction{type="aim",start=fps,duration=0,to=0});Actions.Add(new BulletAction{type="speed",start=fps,duration=fps/2,from=0,to=7,easing="power-in"});}

@@ -34,7 +34,8 @@ internal sealed class Track
     public double emitWidth=240,emitHeight=160,emitArc=360,emitPhase,emitRotation,emitWaves=1,indexSpeed,indexAngle,indexScale;
     public int indexDelay,releaseFrame=-1,repeatCount=1,repeatGap;public double timeScale=1;
     public string releaseDirection="radial";public List<CurvePoint> curvePoints=new List<CurvePoint>();
-    public List<BulletAction> bulletActions=new List<BulletAction>();public List<Track> children=new List<Track>();
+    public List<BulletAction> bulletActions=new List<BulletAction>(),spawnActions=new List<BulletAction>();public List<Track> children=new List<Track>();
+    public bool templateOnly;
     public string targetSource="",targetTag="",targetParity="all",controlAction="speed",controlExpression="",controlEasing="linear";
     public int targetVolley=-1,targetMinAge,targetMaxAge=1000000;public bool includeFuture;
     public double controlFrom,controlValue;public string controlColor="#FFFFFF";
@@ -48,7 +49,7 @@ internal sealed class Track
     public string flightMode="straight",flightExpression="point_direction(x,y,player.x,player.y)";
     public double turnRate=3;public int homingDelay;
     public string shape="rod";
-    public double radius=120,orientation,sides=5,cameraZoom=1;
+    public double radius=120,orientation,sides=5,cameraZoom=1,shapeAspect=1,shapeInner=.45;
     public string cameraStyle="";public double cameraIntensity=1,cameraOriginX=400,cameraOriginY=304,cameraOriginZoom=1,cameraOriginAngle;
     public bool cameraMirror;public double cameraBlur,cameraBlurAngle;
     public double fxZoom=1.13,fxFlash=.18;public int fxSlices=11,fxStutter=2;
@@ -66,12 +67,14 @@ internal sealed class Track
     public double fxOpacity=1,fxAngle,fxRetention=.5,fxFrequency=1;
     public int fxSamples=6;
     public List<Keyframe> keyframes=new List<Keyframe>();
-    public Track Snapshot(){var copy=(Track)MemberwiseClone();copy.keyframes=keyframes.Select(k=>k.Snapshot()).ToList();copy.expressions=new Dictionary<string,string>(expressions??new Dictionary<string,string>());copy.bulletActions=(bulletActions??new List<BulletAction>()).Select(a=>a.Snapshot()).ToList();copy.curvePoints=(curvePoints??new List<CurvePoint>()).Select(p=>new CurvePoint{x=p.x,y=p.y}).ToList();copy.children=(children??new List<Track>()).Select(t=>t.Snapshot()).ToList();copy.parent=null;copy.owner=null;return copy;}
+    public Track Snapshot(){var copy=(Track)MemberwiseClone();copy.keyframes=keyframes.Select(k=>k.Snapshot()).ToList();copy.expressions=new Dictionary<string,string>(expressions??new Dictionary<string,string>());copy.bulletActions=(bulletActions??new List<BulletAction>()).Select(a=>a.Snapshot()).ToList();copy.spawnActions=(spawnActions??new List<BulletAction>()).Select(a=>a.Snapshot()).ToList();copy.curvePoints=(curvePoints??new List<CurvePoint>()).Select(p=>new CurvePoint{x=p.x,y=p.y}).ToList();copy.children=(children??new List<Track>()).Select(t=>t.Snapshot()).ToList();copy.parent=null;copy.owner=null;return copy;}
 }
 internal sealed class CurvePoint {public double x,y;}
 internal sealed class BulletAction
 {
     public string type="speed",easing="linear",expression="",templateId="";public bool enabled=true,relative;
+    public string spawnOrigin="center",spawnParity="all";public int spawnRepeat,spawnIndexFrom,spawnIndexTo=-1;
+    public double spawnOffsetX,spawnOffsetY;public bool inheritAngle,destroyParent;
     public int start,duration=30,stagger,count=5,maxGeneration=1;public double from,to=3,spread=20,childSpeed=3;
     public BulletAction Snapshot(){return (BulletAction)MemberwiseClone();}
 }
@@ -92,7 +95,16 @@ internal sealed class RoomData
     public RoomData Snapshot(){return new RoomData{name=name,width=width,height=height,fps=fps,bgColor=bgColor,instances=instances.Select(i=>i.Snapshot()).ToList()};}
 }
 internal sealed class RoomInstance {public int index;public string id,name,raw;public double x,y;public RoomInstance Snapshot(){return (RoomInstance)MemberwiseClone();}}
-internal sealed class UndoSnapshot {public EditorState state;public RoomData room;}
+internal sealed class UndoKey {public string trackId,property;public int frame;}
+internal sealed class UndoSnapshot
+{
+    public EditorState state;
+    public RoomData room;
+    public string selectedTrack,selectedProperty,selectedInstance;
+    public string[] selectedTracks=new string[0];
+    public UndoKey selectedKey;
+    public UndoKey[] selectedKeys=new UndoKey[0];
+}
 internal sealed class KeyClipboardItem {public string trackId;public Keyframe key;public int offset;}
 internal sealed class Inventory
 {
@@ -210,15 +222,15 @@ internal sealed class NativeBridge : IDisposable
 internal sealed class NativeProperties : CustomTypeDescriptor
 {
     private readonly List<PropertyDescriptor> items=new List<PropertyDescriptor>();
-    public void Add(string name,string category,Type type,Func<object> get,Action<object> set,string[] choices=null,string description="",ParameterActions actions=null)
-    {items.Add(new ValueProperty(name,category,type,get,set,choices,description){Actions=actions});}
+    public void Add(string name,string category,Type type,Func<object> get,Action<object> set,string[] choices=null,string description="",ParameterActions actions=null,bool localizeChoices=true)
+    {items.Add(new ValueProperty(name,category,type,get,set,choices,description){Actions=actions,LocalizeChoices=localizeChoices});}
     public override PropertyDescriptorCollection GetProperties(){return new PropertyDescriptorCollection(items.ToArray());}
     public override PropertyDescriptorCollection GetProperties(Attribute[] attributes){return GetProperties();}
     public override object GetPropertyOwner(PropertyDescriptor pd){return this;}
 }
 internal sealed class ValueProperty : PropertyDescriptor
 {
-    public ParameterActions Actions;
+    public ParameterActions Actions;public bool LocalizeChoices=true;
     private readonly Type type;private readonly Func<object> getter;private readonly Action<object> setter;private readonly string[] choices;
     public ValueProperty(string name,string category,Type type,Func<object> get,Action<object> set,string[] choices,string description)
         :base(name,new Attribute[]{new CategoryAttribute(category),new DescriptionAttribute(description)})

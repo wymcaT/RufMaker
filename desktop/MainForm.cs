@@ -49,7 +49,7 @@ internal sealed partial class MainForm : LocalizedForm
     public MainForm(string root)
     {
         Language.Initialize(root);
-        this.root=root;Text="RufMaker Beta · 弹幕控制测试版";BackColor=Theme.Back;ForeColor=Theme.Text;Font=Theme.Font;Icon=AppWindow.LoadIcon();
+        this.root=root;Text="RufMaker";BackColor=Theme.Back;ForeColor=Theme.Text;Font=Theme.Font;Icon=AppWindow.LoadIcon();
         StartPosition=FormStartPosition.CenterScreen;Size=new Size(1500,940);MinimumSize=new Size(1100,740);AutoScaleMode=AutoScaleMode.None;KeyPreview=true;
         restoredView=WorkspaceView.Load(root);if(restoredView!=null&&restoredView.positioned){StartPosition=FormStartPosition.Manual;Bounds=restoredView.VisibleBounds();if(restoredView.maximized)WindowState=FormWindowState.Maximized;}
         BuildLayout();
@@ -254,10 +254,10 @@ internal sealed partial class MainForm : LocalizedForm
     private ContextMenuStrip shapeMenu;
     private void ShowShapeMenu(Control anchor)
     {
-        if(state==null)return;if(shapeMenu==null){shapeMenu=new ContextMenuStrip{BackColor=Theme.Panel,ForeColor=Theme.Text};foreach(string kind in new[]{"rod","ring","polygon"}){string shape=kind;shapeMenu.Items.Add(shape=="rod"?"转转棒":shape=="ring"?"圆环":"多边形",null,(s,e)=>AddShape(shape));}}Language.Attach(shapeMenu);shapeMenu.Show(anchor,new Point(0,anchor.Height));
+        if(state==null)return;if(shapeMenu==null){shapeMenu=new ContextMenuStrip{BackColor=Theme.Panel,ForeColor=Theme.Text};foreach(string kind in FormationShapes.Values){string shape=kind;shapeMenu.Items.Add(FormationShapes.Name(shape),null,(s,e)=>AddShape(shape));}}Language.Attach(shapeMenu);shapeMenu.Show(anchor,new Point(0,anchor.Height));
     }
     private void AddShape(string shape)
-    {AddTrack("rod",t=>{t.shape=shape;t.name=shape=="rod"?"转转棒":shape=="ring"?"圆环":"多边形";if(shape!="rod"){t.count=shape=="ring"?24:30;t.orientation=90;}});}
+    {AddTrack("rod",t=>{t.shape=shape;t.name=FormationShapes.Name(shape);if(shape!="rod"){t.count=shape=="ring"?24:shape=="polygon"?30:60;t.orientation=new[]{"polygon","star","star2"}.Contains(shape)?90:0;t.angularSpeed=0;if(shape=="ellipse")t.shapeAspect=.65;}});}
     private void AddEffect(string effect)
     {
         AddTrack("effect",t=>{t.effect=effect;t.name=Effects.Name(effect);t.color=effect=="flash"?"#FFFFFF":"#000000";
@@ -370,8 +370,39 @@ internal sealed partial class MainForm : LocalizedForm
         if(state==null)return;int previous=frame;frame=Math.Max(0,Math.Min(state.duration,value));stage.ShowFrame(frame);timeline.Frame=frame;loading=true;frameInput.Maximum=state.duration;frameInput.Value=frame;loading=false;
         var time=TimeSpan.FromSeconds(frame/(double)state.fps);timeLabel.Text=String.Format("{0:00}:{1:00}.{2:00}",(int)time.TotalMinutes,time.Seconds,time.Milliseconds/10);rightTime.SetFrame(frame);timeline.PlayheadMoved(previous);inspectorTimer.Stop();inspectorTimer.Start();
     }
-    private string Snapshot(){return Json.Write(new UndoSnapshot{state=state,room=document.room});}
-    private void PushUndo(){if(state==null||parameterScrubbing)return;string snapshot=Snapshot();if(undo.Count==0||undo.Peek()!=snapshot)undo.Push(snapshot);redo.Clear();}
+    private UndoSnapshot CaptureSnapshot()
+    {
+        return new UndoSnapshot
+        {
+            state=state,
+            room=document==null?null:document.room,
+            selectedTrack=selectedTrack==null?null:selectedTrack.id,
+            selectedTracks=timeline.SelectedTracks.Select(t=>t.id).ToArray(),
+            selectedProperty=timeline.SelectedProperty,
+            selectedKey=selectedKey==null?null:new UndoKey{trackId=(timeline.Owner(selectedKey)??selectedTrack)==null?null:(timeline.Owner(selectedKey)??selectedTrack).id,property=selectedKey.property,frame=selectedKey.frame},
+            selectedKeys=timeline.SelectedKeys.Select(k=>{var owner=timeline.Owner(k)??selectedTrack;return owner==null?null:new UndoKey{trackId=owner.id,property=k.property,frame=k.frame};}).Where(k=>k!=null).ToArray(),
+            selectedInstance=selectedInstance==null?null:selectedInstance.id
+        };
+    }
+    private static string SceneSignature(EditorState s,RoomData r){return Json.Write(new UndoSnapshot{state=s,room=r});}
+    private string Snapshot(){return Json.Write(CaptureSnapshot());}
+    private void PushUndo()
+    {
+        if(state==null||parameterScrubbing)return;
+        string snapshot=Snapshot();
+        if(undo.Count>0)
+        {
+            var top=Json.Read<UndoSnapshot>(undo.Peek());
+            if(SceneSignature(top.state,top.room)==SceneSignature(state,document==null?null:document.room))
+            {
+                undo.Pop();
+                undo.Push(snapshot);
+                return;
+            }
+        }
+        undo.Push(snapshot);
+        redo.Clear();
+    }
     private void MarkChanged()
     {if(state==null)return;RandomParameters.Attach(state);TimelineLayout.Order(state);foreach(var t in state.tracks.Where(t=>t.kind=="native")){t.start=0;t.end=Math.Min(state.duration,state.nativeProject.duration);t.enabled=true;}dirty=true;revision++;saveTimer.Stop();if(!parameterScrubbing&&!closeInProgress)saveTimer.Start();stage.SceneChanged();RefreshBeatControls();if(!parameterScrubbing){timeline.RefreshLayout();properties.Refresh();UpdateTitle();rightTime.SetView(state.fps,state.duration,frame,selectedTrack);SetStatus("正在同步修改…");}}
     private int ContentEnd(){int tracks=state.tracks.Where(t=>t.kind!="native").Select(t=>Math.Max(t.end,t.keyframes.Count==0?0:t.keyframes.Max(k=>k.frame))).DefaultIfEmpty(0).Max();int native=state.nativeProject==null?0:state.nativeProject.events.Select(e=>e.frame).DefaultIfEmpty(0).Max();return Math.Max(tracks,native);}
@@ -398,7 +429,7 @@ internal sealed partial class MainForm : LocalizedForm
     private void Field<T>(NativeProperties bag,string name,string category,Func<T> get,Action<T> set,string[] choices=null,string description="")
     {string property=selectedTrack==null?null:NumericProperty(name);var targets=timeline.SelectedTracks.Count>1?timeline.SelectedTracks.ToArray():new[]{selectedTrack};bag.Add(name,category,typeof(T),()=>property==null?(object)get():Convert.ChangeType(Motion.Value(selectedTrack,property,frame),typeof(T)),value=>{PushUndo();set((T)value);MarkChanged();},choices,description,property==null?null:ParameterControls(targets,property));}
     private static double ClampValue(string property,double value)
-    {if(property=="alpha"||property=="fxOpacity"||property=="fxRetention")return Math.Max(0,Math.Min(1,value));if(property=="count")return Math.Max(1,Math.Min(300,Math.Round(value)));if(property=="life")return Math.Max(1,value);if(property=="sides")return Math.Max(3,Math.Min(64,Math.Round(value)));if(property=="cameraZoom")return Math.Max(.05,Math.Min(20,value));if(property=="radius"||property=="length"||property=="strength")return Math.Max(0,value);return value;}
+    {if(property=="shapeAspect")return Math.Max(.05,Math.Min(10,value));if(property=="shapeInner")return Math.Max(.01,Math.Min(1,value));if(property=="alpha"||property=="fxOpacity"||property=="fxRetention")return Math.Max(0,Math.Min(1,value));if(property=="count")return Math.Max(1,Math.Min(300,Math.Round(value)));if(property=="life")return Math.Max(1,value);if(property=="sides")return Math.Max(3,Math.Min(64,Math.Round(value)));if(property=="cameraZoom")return Math.Max(.05,Math.Min(20,value));if(property=="radius"||property=="length"||property=="strength")return Math.Max(0,value);return value;}
     private string CurrentProperty(bool inspector=false)
     {if(selectedTrack==null)return "x";if(inspector&&properties.SelectedLabel!=null){string label=properties.SelectedLabel;foreach(string p in Motion.Fields(selectedTrack))if(Motion.Name(p)==label)return p;}return selectedKey!=null?selectedKey.property:timeline.SelectedProperty;}
     private void EaseField(NativeProperties bag,Track t,Keyframe key)
@@ -432,7 +463,7 @@ internal sealed partial class MainForm : LocalizedForm
             Field(bag,"轨道编号","物件",()=>track.lane+1,value=>{track.lane=Math.Max(0,Math.Min(199,value-1));state.laneCount=Math.Max(state.laneCount,track.lane+1);});
             Field(bag,"开始帧","物件",()=>track.start,value=>{track.start=Math.Max(0,Math.Min(track.end,value));if(track.kind=="pattern")UpdatePatternEnd(track);});if(track.kind=="pattern")bag.Add("结束帧（按循环计算）","物件",typeof(int),()=>track.end,null);else Field(bag,"结束帧","物件",()=>track.end,value=>track.end=Math.Max(track.start,Math.Min(state.duration,value)));
             if(track.kind=="rod"){
-                string[] shapes={"转转棒","圆环","多边形"},shapeValues={"rod","ring","polygon"};
+                string[] shapes=FormationShapes.Names,shapeValues=FormationShapes.Values;
                 Field(bag,"种类","整体对象",()=>shapes[Math.Max(0,Array.IndexOf(shapeValues,track.shape))],value=>{bool autoName=shapes.Contains(track.name);track.shape=shapeValues[Array.IndexOf(shapes,value)];if(autoName)track.name=value;BeginInvoke(new Action(ShowProperties));},shapes);
             }
             if(Theme.Visual(track.kind))
@@ -459,7 +490,7 @@ internal sealed partial class MainForm : LocalizedForm
                 string[] names={"中心 + 角度 + 长度","自身为端点1 + 手动端点2","手动端点1 + 手动端点2"},values={"center","anchor","endpoints"};
                 Field(bag,"端点模式","转转棒",()=>names[Math.Max(0,Array.IndexOf(values,track.rodMode))],value=>track.rodMode=values[Array.IndexOf(names,value)],names);
                 Field(bag,"循环滚动","转转棒",()=>track.rolling,value=>track.rolling=value,null,"关闭时含两个端点等距摆放；开启时保持数量，在半开线段内循环移动。滚动速度单位为像素/帧。");
-                }else {Field(bag,"沿轮廓滚动","整体对象",()=>track.rolling,value=>track.rolling=value,null,"按滚动速度沿闭合轮廓移动，可叠加自转。单位为像素/帧。");bag.Add("排列方式","整体对象",typeof(string),()=>"闭合轮廓等距排列；角度控制弹幕沿轮廓旋转。",null);}
+                }else {Field(bag,"沿轮廓滚动","整体对象",()=>track.rolling,value=>track.rolling=value,null,"按滚动速度沿闭合轮廓移动，可叠加自转。单位为像素/帧。");bag.Add("排列方式","整体对象",typeof(string),()=>"沿闭合轮廓参数排列；角度控制沿线相位，轮廓朝向控制整体旋转。星星/花朵使用边数设置尖角/花瓣数。",null);}
             }
             if(track.kind=="camera")
             {
@@ -651,14 +682,81 @@ internal sealed partial class MainForm : LocalizedForm
         try{var result=await bridge.Call<BuildResult>("export",Json.Read<EditorState>(Json.Write(state)));if(current==revision)dirty=false;SetStatus("游戏已导出："+result.exe);Process.Start(new ProcessStartInfo("explorer.exe","\""+result.dir+"\""){UseShellExecute=true});}
         catch(Exception error){Error(error);}finally{SetBusy(false);}
     }
+    private void ResolveUndoTracks(UndoSnapshot source,out Track primary,out List<Track> group)
+    {
+        var ids=(source.selectedTracks??new string[0]).ToList();
+        if(!String.IsNullOrEmpty(source.selectedTrack)&&!ids.Contains(source.selectedTrack))ids.Insert(0,source.selectedTrack);
+        group=ids.Select(id=>state.tracks.FirstOrDefault(t=>t.id==id)).Where(t=>t!=null&&t.kind!="native").Distinct().ToList();
+        primary=String.IsNullOrEmpty(source.selectedTrack)?group.FirstOrDefault():state.tracks.FirstOrDefault(t=>t.id==source.selectedTrack)??group.FirstOrDefault();
+    }
+    private void ResolveUndoKeys(UndoSnapshot source,out Keyframe primaryKey,out List<Keyframe> keys)
+    {
+        Func<UndoKey,Keyframe> find=k=>{if(k==null||String.IsNullOrEmpty(k.trackId))return null;var owner=state.tracks.FirstOrDefault(t=>t.id==k.trackId);return owner==null?null:owner.keyframes.FirstOrDefault(item=>item.property==k.property&&item.frame==k.frame);};
+        keys=(source.selectedKeys??new UndoKey[0]).Select(find).Where(k=>k!=null).Distinct().ToList();
+        primaryKey=find(source.selectedKey)??keys.FirstOrDefault();
+        if(primaryKey!=null&&!keys.Contains(primaryKey))keys.Insert(0,primaryKey);
+    }
+    private void RestoreUndoSelection(UndoSnapshot current,UndoSnapshot restored)
+    {
+        Track primary;List<Track> group;ResolveUndoTracks(current,out primary,out group);
+        bool usedRestoredTracks=false;
+        if(primary==null&&group.Count==0){ResolveUndoTracks(restored,out primary,out group);usedRestoredTracks=true;}
+        string prop=!String.IsNullOrEmpty(current.selectedProperty)&&primary!=null&&Motion.Fields(primary).Contains(current.selectedProperty)?current.selectedProperty:!String.IsNullOrEmpty(restored.selectedProperty)&&primary!=null&&Motion.Fields(primary).Contains(restored.selectedProperty)?restored.selectedProperty:null;
+        if(!String.IsNullOrEmpty(prop))timeline.SelectedProperty=prop;
+        Keyframe primaryKey=null;var keys=new List<Keyframe>();
+        bool hadCurrentKeys=current.selectedKey!=null||(current.selectedKeys!=null&&current.selectedKeys.Length>0);
+        bool hadRestoredKeys=restored.selectedKey!=null||(restored.selectedKeys!=null&&restored.selectedKeys.Length>0);
+        if(hadCurrentKeys||usedRestoredTracks)
+        {
+            ResolveUndoKeys(current,out primaryKey,out keys);
+            if(primaryKey==null&&keys.Count==0)ResolveUndoKeys(restored,out primaryKey,out keys);
+        }
+        else if(hadRestoredKeys&&primary!=null&&restored.selectedTrack==primary.id)
+        {
+            Keyframe restoredPrimaryKey;List<Keyframe> restoredKeys;ResolveUndoKeys(restored,out restoredPrimaryKey,out restoredKeys);
+            if(restoredKeys.Any(rk=>current.state==null||!current.state.tracks.Where(ct=>ct.id==primary.id).SelectMany(ct=>ct.keyframes).Any(ck=>ck.property==rk.property&&ck.frame==rk.frame)))
+            {primaryKey=restoredPrimaryKey;keys=restoredKeys;}
+        }
+        if(primaryKey!=null||keys.Count>0)
+        {
+            var owner=timeline.Owner(primaryKey)??primary;
+            timeline.SetSelection(keys,owner,primaryKey);
+        }
+        else if(group.Count>1)timeline.SetTrackSelection(group,primary);
+        else if(primary!=null)SelectTrack(primary,null);
+        else
+        {
+            string instanceId=!String.IsNullOrEmpty(current.selectedInstance)?current.selectedInstance:restored.selectedInstance;
+            var instance=String.IsNullOrEmpty(instanceId)||document==null||document.room==null?null:document.room.instances.FirstOrDefault(i=>i.id==instanceId);
+            if(instance!=null)SelectInstance(instance);
+            else if(resourceName!=null){UpdateSelection();ShowProperties();}
+            else SelectProject();
+        }
+    }
     private async void Undo(bool forward)
     {
-        var from=forward?redo:undo;var to=forward?undo:redo;if(state==null||from.Count==0||busy)return;StopPlaying();saveTimer.Stop();to.Push(Snapshot());var snapshot=Json.Read<UndoSnapshot>(from.Pop());
-        try{state=snapshot.state;document.state=state;stage.State=state;timeline.State=state;await LoadCurrentMusic();RefreshBeatControls();ReplaceRoom(await bridge.Call<RoomData>("restore-room",snapshot.room));SelectProject();SetFrame(frame);MarkChanged();}catch(Exception error){Error(error);}
+        var from=forward?redo:undo;var to=forward?undo:redo;if(state==null||from.Count==0||busy)return;StopPlaying();saveTimer.Stop();
+        var current=CaptureSnapshot();to.Push(Json.Write(current));var snapshot=Json.Read<UndoSnapshot>(from.Pop());
+        try
+        {
+            string previousMusic=state.music,previousRoom=document==null||document.room==null?"":Json.Write(document.room);
+            state=snapshot.state;Motion.Normalize(state);if(document!=null)document.state=state;stage.State=state;timeline.State=state;
+            if(snapshot.room!=null&&document!=null)ReplaceRoom(snapshot.room);
+            RefreshBeatControls();SetFrame(frame);RestoreUndoSelection(current,snapshot);MarkChanged();
+            if(document!=null&&(previousMusic!=state.music||audio.Duration<=0))await LoadCurrentMusic();
+            if(bridge!=null&&snapshot.room!=null&&previousRoom!=Json.Write(snapshot.room)){ReplaceRoom(await bridge.Call<RoomData>("restore-room",snapshot.room));RestoreUndoSelection(current,snapshot);}
+        }
+        catch(Exception error){Error(error);}
     }
     protected override bool ProcessCmdKey(ref Message msg,Keys keyData)
     {
         bool editing=beatBar!=null&&beatBar.ContainsFocus||search.ContainsFocus||properties.EditingText||rightTime.ContainsFocus||durationInput.ContainsFocus||frameInput.ContainsFocus||previewSpeed.ContainsFocus||languageChoice.ContainsFocus;
+        if((keyData==(Keys.Control|Keys.Z)||keyData==(Keys.Control|Keys.Y))&&(!editing||properties.ContainsFocus))
+        {
+            if(keyData==(Keys.Control|Keys.Z)&&properties.CancelUncommittedEdit())return true;
+            Undo(keyData==(Keys.Control|Keys.Y));
+            return true;
+        }
         if(!editing&&timeline.Focused&&timeline.KeyboardPreviewNavigation&&(keyData==Keys.Left||keyData==Keys.Right)){BeginTimelineArrow(keyData);return true;}
         if(keyData==(Keys.Control|Keys.N)){NewFromKeyboard();return true;}if(keyData==(Keys.Control|Keys.O)){OpenFromKeyboard();return true;}
         if(keyData==(Keys.Control|Keys.S)){stage.Focus();SaveFromKeyboard();return true;}
@@ -669,7 +767,6 @@ internal sealed partial class MainForm : LocalizedForm
             if(keyData==Keys.Space||keyData==Keys.P){TogglePlaying();return true;}if(keyData==Keys.K){AddKey();return true;}if(keyData==(Keys.Control|Keys.K)){AddAllKeys();return true;}if(keyData==Keys.Delete){RemoveSelection();return true;}
             if(keyData==(Keys.Control|Keys.D)){DuplicateTrack();return true;}if(keyData==(Keys.Control|Keys.C)){CopySelection();return true;}if(keyData==(Keys.Control|Keys.V)){PasteFromKeyboard();return true;}
             if(keyData==(Keys.Control|Keys.A)){if(timeline.ContainsFocus&&timeline.SelectedKeys.Count==0)timeline.SetTrackSelection(state.tracks);else timeline.SelectAllKeys(selectedTrack);return true;}
-            if(keyData==(Keys.Control|Keys.Z)){Undo(false);return true;}if(keyData==(Keys.Control|Keys.Y)){Undo(true);return true;}
         }
         return base.ProcessCmdKey(ref msg,keyData);
     }

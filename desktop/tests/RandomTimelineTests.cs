@@ -41,8 +41,45 @@ internal static class RandomTimelineTests
             Call(form,"RerollRandom");Check(state.randomSeed!=12345,"Preview reroll button did not change the seed");
             a.ToggleRandom();a.SetExpression("random_range(100,200)");var y=(ValueProperty)TypeDescriptor.GetProperties(inspector.SelectedObject)["Y"];y.Actions.ToggleKey();Call(form,"ShowProperties");
             var parent=inspector.Parent;parent.Controls.Remove(inspector);using(var surface=new Panel{Size=new Size(420,720),BackColor=Theme.Panel,Font=Theme.Font}){surface.Controls.Add(inspector);surface.PerformLayout();((Panel)Get(inspector,"scroll")).ScrollControlIntoView(All(inspector).OfType<CheckBox>().First(item=>item.Name=="random:X"));using(var bitmap=new Bitmap(surface.Width,surface.Height)){surface.DrawToBitmap(bitmap,new Rectangle(Point.Empty,bitmap.Size));bitmap.Save(Path.Combine(Path.GetDirectoryName(root),"random-inspector.png"),System.Drawing.Imaging.ImageFormat.Png);}surface.Controls.Remove(inspector);}parent.Controls.Add(inspector);
+            var stage=(StageCanvas)Get(form,"stage");
+            Func<Track> currentTrack=()=>((EditorState)Get(form,"state")).tracks.First(item=>item.id=="parameter");
+            TypeDescriptor.GetProperties(inspector.SelectedObject)["透明度"].SetValue(inspector.SelectedObject,0.35);
+            Check(Math.Abs(currentTrack().alpha-0.35)<1e-9,"Inspector did not update alpha");
+            var msg=new Message();Call(form,"ProcessCmdKey",msg,Keys.Control|Keys.Z);
+            var afterUndo=currentTrack();
+            Check(Math.Abs(afterUndo.alpha-1.0)<1e-9,"Ctrl+Z did not revert single property change");
+            Check(Get(form,"selectedTrack")==afterUndo&&timeline.SelectedTrack==afterUndo&&timeline.SelectedTracks.Contains(afterUndo)&&stage.SelectedTrack==afterUndo,"Ctrl+Z lost selection of the edited track");
+            Check(TypeDescriptor.GetProperties(inspector.SelectedObject)["透明度"]!=null&&!inspector.EditingText,"Inspector lost track properties or entered unintended text edit mode after Ctrl+Z");
+            Call(form,"ProcessCmdKey",msg,Keys.Control|Keys.Y);
+            var afterRedo=currentTrack();
+            Check(Math.Abs(afterRedo.alpha-0.35)<1e-9&&Get(form,"selectedTrack")==afterRedo&&timeline.SelectedTracks.Contains(afterRedo),"Ctrl+Y did not preserve track selection");
+            TypeDescriptor.GetProperties(inspector.SelectedObject)["启用"].SetValue(inspector.SelectedObject,false);
+            TypeDescriptor.GetProperties(inspector.SelectedObject)["默认缓动"].SetValue(inspector.SelectedObject,"平滑");
+            TypeDescriptor.GetProperties(inspector.SelectedObject)["名称"].SetValue(inspector.SelectedObject,"改名物件");
+            Call(form,"ProcessCmdKey",msg,Keys.Control|Keys.Z);Check(currentTrack().name=="test"&&Get(form,"selectedTrack")==currentTrack(),"First sequential Ctrl+Z lost track selection");
+            Call(form,"ProcessCmdKey",msg,Keys.Control|Keys.Z);Check(currentTrack().easing=="linear"&&Get(form,"selectedTrack")==currentTrack(),"Second sequential Ctrl+Z lost track selection");
+            Call(form,"ProcessCmdKey",msg,Keys.Control|Keys.Z);Check(currentTrack().enabled&&Get(form,"selectedTrack")==currentTrack(),"Third sequential Ctrl+Z lost track selection");
+            var keyToSelect=currentTrack().keyframes.First(k=>k.property=="y");
+            Call(form,"SelectTrack",currentTrack(),keyToSelect);
+            TypeDescriptor.GetProperties(inspector.SelectedObject)["数值"].SetValue(inspector.SelectedObject,456.0);
+            Call(form,"ProcessCmdKey",msg,Keys.Control|Keys.Z);
+            Check(Get(form,"selectedTrack")==currentTrack()&&Get(form,"selectedKey")!=null&&Math.Abs(((Keyframe)Get(form,"selectedKey")).value-304.0)<1e-9,"Ctrl+Z after editing a keyframe value lost keyframe or track selection");
+            var second=new Track{id="second",kind="object",start=0,end=500,name="second",scale=1};((EditorState)Get(form,"state")).tracks.Add(second);
+            timeline.SetTrackSelection(new[]{currentTrack(),second},currentTrack());
+            TypeDescriptor.GetProperties(inspector.SelectedObject)["统一缩放"].SetValue(inspector.SelectedObject,2.5);
+            Call(form,"ProcessCmdKey",msg,Keys.Control|Keys.Z);
+            Check(timeline.SelectedTracks.Count==2&&Math.Abs(currentTrack().scale-1.0)<1e-9,"Ctrl+Z after group property edit lost multi-track selection");
+            Call(form,"SelectTrack",currentTrack(),null);Call(form,"RemoveSelection");
+            Check(((EditorState)Get(form,"state")).tracks.All(item=>item.id!="parameter"),"Track deletion did not occur");
+            Call(form,"ProcessCmdKey",msg,Keys.Control|Keys.Z);
+            Check(Get(form,"selectedTrack")==currentTrack()&&timeline.SelectedTracks.Contains(currentTrack()),"Undo deletion did not reselect the restored track");
+            var room=((LoadData)Get(form,"document")).room;var instance=new RoomInstance{id="room-item",name="block",x=20,y=30};room.instances.Add(instance);Call(form,"SelectInstance",instance);Call(form,"PushUndo");instance.x=160;
+            Call(form,"ProcessCmdKey",msg,Keys.Control|Keys.Z);
+            var restoredInstance=((LoadData)Get(form,"document")).room.instances.First(item=>item.id==instance.id);
+            Check(restoredInstance.x==20&&Get(form,"selectedInstance")==restoredInstance&&stage.SelectedInstance==restoredInstance,"Undo room edit lost instance selection");
         }
         Console.WriteLine("PASS: native inspector random switch, expression editing and per-property animation on/off.");
+        Console.WriteLine("PASS: undo/redo retains object, keyframe and multi-selection, inspector context and restored room instances.");
     }
     private static void Timeline(string image)
     {

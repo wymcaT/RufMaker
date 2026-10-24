@@ -32,4 +32,4 @@
 
 ## 验证
 
-根目录运行 `desktop/Build-Beta.ps1` 构建当前测试版。按改动选择 `Test-BulletSystem.ps1`、`Test-PlayerExpressions.ps1`、`Test-Presets.ps1`、`Test-Localization.ps1` 等；完整命令见开发入口。不要将测试产物写进用户工程。
+根目录运行 `desktop/Build-Native.ps1 -Output D:\rufmaker\RufMaker.exe` 构建正式入口。按改动选择 `Test-TemplateSystem.ps1`、`Test-BulletSystem.ps1`、`Test-PlayerExpressions.ps1`、`Test-Presets.ps1`、`Test-Localization.ps1` 等；完整命令见开发入口。不要将测试产物写进用户工程。

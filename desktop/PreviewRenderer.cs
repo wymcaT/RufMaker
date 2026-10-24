@@ -54,7 +54,7 @@ internal static class PreviewRenderer
                 {if(baked!=null&&baked.Contains(instance.id))continue;string sprite;if(!objectSprites.TryGetValue(instance.name,out sprite)||String.IsNullOrEmpty(sprite))continue;sprites.Draw(g,sprite,instance.x,instance.y,1,0,1,Color.White);if(hitboxes)using(var pen=new Pen(Color.FromArgb(110,94,212,197))){var r=sprites.Bounds(sprite,instance.x,instance.y);g.DrawRectangle(pen,r.X,r.Y,r.Width,r.Height);}}
                 foreach(var track in state.tracks)
                 {
-                    if(!track.enabled)continue;Color tint=track.rainbow?Color.White:Motion.ColorOf(track.color);
+                    if(!track.enabled||track.templateOnly||advanced&&!cache.bulletWorld.Templates.Visible(track))continue;Color tint=track.rainbow?Color.White:Motion.ColorOf(track.color);
                     if(BulletSystem.Active(track,frame)&&(track.kind=="object"||track.kind=="rod"&&(track.releaseFrame<0||frame<track.releaseFrame)))
                     {
                         var p=Motion.At(track,frame);
@@ -63,10 +63,10 @@ internal static class PreviewRenderer
                         {
                             var q=Motion.At(track,sample);int tail=frame-sample;
                             if(track.kind=="object")Trails.Draw(g,sprites,track,sample,tail,q.x,q.y,q.scale,q.angle,q.alpha,tint,Rainbow.Index(track,0,sample));
-                            else {var points=Motion.RodPoints(track,sample);for(int k=0;k<points.Length;k++)Trails.Draw(g,sprites,track,sample*301+k,tail,points[k].X,points[k].Y,q.scale,Motion.Value(track,"spriteAngle",sample)+(track.rotateSprite?q.angle:0),q.alpha,tint,Rainbow.Index(track,Rainbow.RodSequence(track,k,points.Length,sample),sample));}
+                            else {var points=Motion.RodPoints(track,sample);for(int k=0;k<points.Length;k++)if(!advanced||cache.bulletWorld.Templates.Visible(track,k))Trails.Draw(g,sprites,track,sample*301+k,tail,points[k].X,points[k].Y,q.scale,Motion.Value(track,"spriteAngle",sample)+(track.rotateSprite?q.angle:0),q.alpha,tint,Rainbow.Index(track,Rainbow.RodSequence(track,k,points.Length,sample),sample));}
                         }
                         if(pass==1){if(track.kind=="object")sprites.Draw(g,track.sprite,p.x,p.y,p.scale,p.angle,p.alpha,tint,Rainbow.Index(track,0,frame));
-                        else {var points=Motion.RodPoints(track,frame);for(int k=0;k<points.Length;k++)sprites.Draw(g,track.sprite,points[k].X,points[k].Y,p.scale,Motion.Value(track,"spriteAngle",frame)+(track.rotateSprite?p.angle:0),p.alpha,tint,Rainbow.Index(track,Rainbow.RodSequence(track,k,points.Length,frame),frame));}}
+                        else {var points=Motion.RodPoints(track,frame);for(int k=0;k<points.Length;k++)if(!advanced||cache.bulletWorld.Templates.Visible(track,k))sprites.Draw(g,track.sprite,points[k].X,points[k].Y,p.scale,Motion.Value(track,"spriteAngle",frame)+(track.rotateSprite?p.angle:0),p.alpha,tint,Rainbow.Index(track,Rainbow.RodSequence(track,k,points.Length,frame),frame));}}
                     }
                     if(track.kind!="emitter")continue;
                     if(advanced)continue;

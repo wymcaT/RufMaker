@@ -13,38 +13,52 @@ internal sealed class ParameterInspector : UserControl
     private readonly TableLayoutPanel rows=new TableLayoutPanel{Dock=DockStyle.Top,AutoSize=true,ColumnCount=2,Padding=new Padding(8,0,8,8)};
     private readonly Label help=new Label{Dock=DockStyle.Bottom,Height=52,ForeColor=Theme.Muted,BackColor=Theme.Back,Padding=new Padding(8),Text="数字：按住上下拖动；单击输入。Shift 加速，Ctrl 微调。"};
     private readonly List<Action> refreshers=new List<Action>();
+    private readonly Dictionary<TextBox,Action> textReverters=new Dictionary<TextBox,Action>();
     private object selectedObject;private bool rebuilding,scrubbing;private bool stacked=true;
     public Action BeginScrub,EndScrub;
     public string SelectedLabel {get;private set;}
     public object SelectedObject {get{return selectedObject;}set{CommitPending();selectedObject=value;Rebuild();}}
-    public bool EditingText {get{return Descendants(this).Any(c=>(c is TextBox||c is ComboBox)&&c.ContainsFocus);}}
+    public bool EditingText {get{return Descendants(this).Any(c=>(c is TextBox&&!((TextBox)c).ReadOnly&&c.Visible&&c.ContainsFocus)||(c is ComboBox&&((ComboBox)c).DroppedDown));}}
     public ParameterInspector()
     {
         AutoScaleMode=AutoScaleMode.None;BackColor=Theme.Panel;ForeColor=Theme.Text;Font=Theme.Font;help.Height=Font.Height*3+16;
         rows.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,48));rows.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,52));
         scroll.Controls.Add(rows);Controls.Add(scroll);Controls.Add(help);
+        Action defocus=()=>{CommitPending();ActiveControl=null;};
+        scroll.MouseDown+=(s,e)=>defocus();rows.MouseDown+=(s,e)=>defocus();help.MouseDown+=(s,e)=>defocus();
         scroll.Resize+=(s,e)=>{rows.Width=Math.Max(50,scroll.ClientSize.Width-SystemInformation.VerticalScrollBarWidth);bool next=rows.Width<520;if(next!=stacked){stacked=next;Rebuild();}};
     }
     private static IEnumerable<Control> Descendants(Control root)
     {foreach(Control child in root.Controls){yield return child;foreach(var item in Descendants(child))yield return item;}}
     public void CommitPending()
     {foreach(var number in Descendants(this).OfType<ScrubNumber>().ToArray())number.CommitText();ValidateChildren();}
+    public bool CancelUncommittedEdit()
+    {
+        foreach(var number in Descendants(this).OfType<ScrubNumber>().ToArray())if(number.CancelUncommitted())return true;
+        foreach(var text in Descendants(this).OfType<TextBox>().Where(t=>!t.ReadOnly&&t.Visible&&t.ContainsFocus).ToArray())
+        {
+            if(text.Modified){Action revert;if(textReverters.TryGetValue(text,out revert))revert();text.Modified=false;ActiveControl=null;return true;}
+            ActiveControl=null;
+        }
+        return false;
+    }
     private void Select(PropertyDescriptor p){SelectedLabel=p.Name;help.Text=String.IsNullOrEmpty(p.Description)?"数字：按住上下拖动；单击输入。Shift 加速，Ctrl 微调。":p.Description;}
     private void Rebuild()
     {
-        if(rebuilding)return;rebuilding=true;Point position=scroll.AutoScrollPosition;rows.SuspendLayout();
+        if(rebuilding)return;rebuilding=true;if(ContainsFocus)ActiveControl=null;Point position=scroll.AutoScrollPosition;rows.SuspendLayout();
         try
         {
-            foreach(Control child in rows.Controls.Cast<Control>().ToArray())child.Dispose();rows.Controls.Clear();rows.RowStyles.Clear();rows.RowCount=0;refreshers.Clear();
+            foreach(Control child in rows.Controls.Cast<Control>().ToArray())child.Dispose();rows.Controls.Clear();rows.RowStyles.Clear();rows.RowCount=0;refreshers.Clear();textReverters.Clear();
             if(selectedObject==null)return;
             foreach(var group in TypeDescriptor.GetProperties(selectedObject).Cast<PropertyDescriptor>().GroupBy(p=>p.Category))
             {
                 var heading=new Label{Text=group.Key,Height=30,Dock=DockStyle.Fill,TextAlign=ContentAlignment.MiddleLeft,ForeColor=Theme.Accent,Font=Theme.Bold,Margin=new Padding(0,7,0,1)};
+                heading.MouseDown+=(s,e)=>{CommitPending();ActiveControl=null;};
                 int header=rows.RowCount++;rows.RowStyles.Add(new RowStyle(SizeType.Absolute,Font.Height+22));rows.Controls.Add(heading,0,header);rows.SetColumnSpan(heading,2);
                 foreach(var property in group)
                 {
                     var p=property;object component=selectedObject;var label=new Label{Text=p.Name,Dock=DockStyle.Fill,TextAlign=ContentAlignment.MiddleLeft,ForeColor=Theme.Text,Margin=new Padding(2,1,4,1),AutoEllipsis=true};
-                    label.MouseDown+=(s,e)=>Select(p);Control editor;
+                    label.MouseDown+=(s,e)=>{CommitPending();ActiveControl=null;Select(p);};Control editor;
                     Func<object> get=()=>p.GetValue(component);
                     Action<object> set=value=>{if(!rebuilding&&!p.IsReadOnly){p.SetValue(component,value);if(!scrubbing)Refresh();}};
                     if(p.PropertyType==typeof(double)||p.PropertyType==typeof(int)||p.PropertyType==typeof(decimal)||p.PropertyType==typeof(float))
@@ -61,18 +75,19 @@ internal sealed class ParameterInspector : UserControl
                         }
                     }
                     else if(p.PropertyType==typeof(bool))
-                    {var check=new CheckBox{AutoSize=false,Dock=DockStyle.Fill,Enabled=!p.IsReadOnly,Margin=new Padding(4,4,0,2)};check.Checked=(bool)get();check.CheckedChanged+=(s,e)=>set(check.Checked);check.Enter+=(s,e)=>Select(p);editor=check;refreshers.Add(()=>{if(!check.ContainsFocus)check.Checked=(bool)get();});}
+                    {var check=new CheckBox{AutoSize=false,Dock=DockStyle.Fill,Enabled=!p.IsReadOnly,Margin=new Padding(4,4,0,2)};check.Checked=(bool)get();check.CheckedChanged+=(s,e)=>set(check.Checked);check.Enter+=(s,e)=>Select(p);editor=check;refreshers.Add(()=>{check.Checked=(bool)get();});}
                     else if(p.PropertyType==typeof(Color))
                     {var button=new Button{Enabled=!p.IsReadOnly,FlatStyle=FlatStyle.Flat,Dock=DockStyle.Fill,Margin=new Padding(0,3,1,3)};Action update=()=>{Color c=(Color)get();button.BackColor=c;button.ForeColor=c.GetBrightness()>.5?Color.Black:Color.White;button.Text=String.Format("#{0:X2}{1:X2}{2:X2}",c.R,c.G,c.B);};button.Click+=(s,e)=>{Select(p);using(var dialog=new ColorDialog{Color=(Color)get(),FullOpen=true})if(Language.ShowDialog(dialog,this)==DialogResult.OK)set(dialog.Color);};editor=button;refreshers.Add(update);update();}
                     else if(p.Converter.GetStandardValuesSupported())
                     {
-                        var combo=new WheelSafeComboBox{Dock=DockStyle.Fill,DropDownStyle=ComboBoxStyle.DropDownList,BackColor=Theme.Raised,ForeColor=Theme.Text,Enabled=!p.IsReadOnly,Margin=new Padding(0,4,1,2)};
+                        var combo=new WheelSafeComboBox{Dock=DockStyle.Fill,DropDownStyle=ComboBoxStyle.DropDownList,BackColor=Theme.Raised,ForeColor=Theme.Text,Enabled=!p.IsReadOnly,TabStop=false,LocalizeItems=!(p is ValueProperty)||((ValueProperty)p).LocalizeChoices,Margin=new Padding(0,4,1,2)};
                         foreach(object item in p.Converter.GetStandardValues())combo.Items.Add(item);combo.DropDownWidth=Math.Max(200,combo.Items.Cast<object>().Max(item=>TextRenderer.MeasureText(Language.Text(Convert.ToString(item)),Font).Width)+32);combo.SelectedItem=get();combo.SelectionChangeCommitted+=(s,e)=>{Select(p);set(combo.SelectedItem);};combo.Enter+=(s,e)=>Select(p);editor=combo;refreshers.Add(()=>{if(!combo.DroppedDown)combo.SelectedItem=get();});
                     }
                     else
                     {
-                        var text=new TextBox{Dock=DockStyle.Fill,ReadOnly=p.IsReadOnly,BorderStyle=BorderStyle.FixedSingle,BackColor=Theme.Raised,ForeColor=p.IsReadOnly?Theme.Muted:Theme.Text,Margin=new Padding(0,4,1,3),Text=Convert.ToString(get())};if(p.IsReadOnly&&new[]{"说明","提示","操作","操作提示","编辑方式","原生设置","导入方式","底片状态","兼容提示与建议","路径说明"}.Contains(p.Name))Language.WatchText(text);
-                        text.Enter+=(s,e)=>Select(p);text.Validated+=(s,e)=>{if(!text.Modified)return;string value=text.Text;text.Modified=false;if(value!=Convert.ToString(get()))set(value);};text.KeyDown+=(s,e)=>{if(e.KeyCode==Keys.Enter){Focus();e.SuppressKeyPress=true;}};editor=text;refreshers.Add(()=>{if(!text.ContainsFocus){text.Text=Convert.ToString(get());text.Modified=false;}});
+                        var text=new TextBox{Dock=DockStyle.Fill,ReadOnly=p.IsReadOnly,TabStop=false,BorderStyle=BorderStyle.FixedSingle,BackColor=Theme.Raised,ForeColor=p.IsReadOnly?Theme.Muted:Theme.Text,Margin=new Padding(0,4,1,3),Text=Convert.ToString(get())};if(p.IsReadOnly&&new[]{"说明","提示","操作","操作提示","编辑方式","原生设置","导入方式","底片状态","兼容提示与建议","路径说明","排列方式"}.Contains(p.Name))Language.WatchText(text);
+                        textReverters[text]=()=>{text.Text=Convert.ToString(get());text.Modified=false;};
+                        text.Enter+=(s,e)=>Select(p);text.Validated+=(s,e)=>{if(!text.Modified)return;string value=text.Text;text.Modified=false;if(value!=Convert.ToString(get()))set(value);};text.KeyDown+=(s,e)=>{if(e.KeyCode==Keys.Enter){if(text.Modified){string value=text.Text;text.Modified=false;if(value!=Convert.ToString(get()))set(value);}ActiveControl=null;e.Handled=true;e.SuppressKeyPress=true;}else if(e.KeyCode==Keys.Escape){text.Text=Convert.ToString(get());text.Modified=false;ActiveControl=null;e.Handled=true;e.SuppressKeyPress=true;}};editor=text;refreshers.Add(()=>{if(!text.ContainsFocus){text.Text=Convert.ToString(get());text.Modified=false;}});
                     }
                     int row=rows.RowCount++;
                     if(stacked){label.AutoSize=true;rows.RowStyles.Add(new RowStyle(SizeType.AutoSize));rows.Controls.Add(label,0,row);rows.SetColumnSpan(label,2);int valueRow=rows.RowCount++;rows.RowStyles.Add(new RowStyle(SizeType.Absolute,Math.Max(34,Font.Height+16)));rows.Controls.Add(editor,0,valueRow);rows.SetColumnSpan(editor,2);}
@@ -80,7 +95,7 @@ internal sealed class ParameterInspector : UserControl
                 }
             }
         }
-        finally{rows.ResumeLayout(true);rebuilding=false;scroll.AutoScrollPosition=new Point(-position.X,-position.Y);}
+        finally{rows.ResumeLayout(true);if(ContainsFocus)ActiveControl=null;rebuilding=false;scroll.AutoScrollPosition=new Point(-position.X,-position.Y);}
     }
     public override void Refresh(){if(!rebuilding){rebuilding=true;try{foreach(var update in refreshers.ToArray())update();}finally{rebuilding=false;}}base.Refresh();}
 }
@@ -103,6 +118,14 @@ internal sealed class ScrubNumber : Control
         return integer?Math.Max(1,basis):Math.Max(.001,basis);
     }
     public void RefreshValue(){if(!input.Visible)Invalidate();}
+    public bool CancelUncommitted()
+    {
+        if(!input.Visible)return false;
+        bool wasModified=input.Modified;committing=true;
+        try{input.Modified=false;input.Visible=false;errorTip.Hide(input);Focus();}
+        finally{committing=false;Invalidate();}
+        return wasModified;
+    }
     public void CommitText()
     {
         if(!input.Visible||committing)return;committing=true;
@@ -143,7 +166,7 @@ internal sealed class ScrubNumber : Control
     }
     private void FinishDrag(){down=false;if(dragging){dragging=false;if(EndScrub!=null)EndScrub();}Invalidate();}
     protected override void OnMouseCaptureChanged(EventArgs e){base.OnMouseCaptureChanged(e);if(!Capture&&down)FinishDrag();}
-    private void EditText(){input.Text=actions!=null&&actions.Random()?actions.Expression():Convert.ToString(get(),CultureInfo.CurrentCulture);input.BackColor=Theme.Raised;input.Visible=true;input.Focus();input.SelectAll();}
+    private void EditText(){input.Text=actions!=null&&actions.Random()?actions.Expression():Convert.ToString(get(),CultureInfo.CurrentCulture);input.Modified=false;input.BackColor=Theme.Raised;input.Visible=true;input.Focus();input.SelectAll();}
     protected override void OnKeyDown(KeyEventArgs e){base.OnKeyDown(e);if(!ReadOnly&&(e.KeyCode==Keys.Enter||e.KeyCode==Keys.F2)){EditText();e.Handled=true;e.SuppressKeyPress=true;}}
     protected override void Dispose(bool disposing){if(disposing)errorTip.Dispose();base.Dispose(disposing);}
 }

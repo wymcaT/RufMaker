@@ -11,12 +11,12 @@ internal static class Motion
     public static string Name(string property)
     {
         switch(property){case "cameraIntensity":return "预设运动强度";case "cameraBlur":return "拉镜模糊强度";case "cameraBlurAngle":return "拉镜模糊方向";case "fxZoom":return "冲击缩放";case "fxFlash":return "闪光强度";case "pathStartX":return "起点 X";case "pathStartY":return "起点 Y";case "pathEndX":return "终点 X";case "pathEndY":return "终点 Y";case "pathPeakX":return "峰 X";case "pathPeakY":return "峰 Y";case "pathProgress":return "路径进度 0–1";case "orbitRadius":return "公转半径";case "orbitPhase":return "公转初相角";}
-        switch(property){case "emitWidth":return "阵列宽度";case "emitHeight":return "阵列高度";case "emitArc":return "圆弧角度";case "emitPhase":return "阵列相位 / 度";case "emitRotation":return "阵列旋转 / 度";case "emitWaves":return "波形周期数";case "radius":return "半径";case "orientation":return "多边形朝向";case "sides":return "边数";case "cameraZoom":return "镜头缩放";case "rainbowDensity":return "颜色密度";case "rainbowOffset":return "起始色相 / 帧";case "rainbowSpeed":return "色彩流动速度 / 帧每帧";case "spriteAngle":return "贴图角度";case "x":return "X";case "y":return "Y";case "angle":return "角度";case "scale":return "缩放";case "alpha":return "透明度";case "x1":return "端点1 X";case "y1":return "端点1 Y";case "x2":return "端点2 X";case "y2":return "端点2 Y";case "length":return "棒长";case "rollSpeed":return "滚动速度";case "speed":return "弹速";case "spread":return "角度间隔";case "count":return "弹幕数量";case "interval":return "发射间隔";case "life":return "寿命";case "strength":return "效果强度";case "fxOpacity":return "效果透明度";case "fxAngle":return "效果方向";case "fxRetention":return "帧混合比例";default:return property;}
+        switch(property){case "emitWidth":return "阵列宽度";case "emitHeight":return "阵列高度";case "emitArc":return "圆弧角度";case "emitPhase":return "阵列相位 / 度";case "emitRotation":return "阵列旋转 / 度";case "emitWaves":return "波形周期数";case "radius":return "半径";case "shapeAspect":return "轮廓高度比例";case "shapeInner":return "内凹比例";case "orientation":return "轮廓朝向";case "sides":return "边数 / 尖角数";case "cameraZoom":return "镜头缩放";case "rainbowDensity":return "颜色密度";case "rainbowOffset":return "起始色相 / 帧";case "rainbowSpeed":return "色彩流动速度 / 帧每帧";case "spriteAngle":return "贴图角度";case "x":return "X";case "y":return "Y";case "angle":return "角度";case "scale":return "缩放";case "alpha":return "透明度";case "x1":return "端点1 X";case "y1":return "端点1 Y";case "x2":return "端点2 X";case "y2":return "端点2 Y";case "length":return "棒长";case "rollSpeed":return "滚动速度";case "speed":return "弹速";case "spread":return "角度间隔";case "count":return "弹幕数量";case "interval":return "发射间隔";case "life":return "寿命";case "strength":return "效果强度";case "fxOpacity":return "效果透明度";case "fxAngle":return "效果方向";case "fxRetention":return "帧混合比例";default:return property;}
     }
     public static string[] Fields(Track t)
     {
         if(t.kind=="group")return Basic;
-        var fields=t.kind=="camera"?new[]{"x","y","cameraZoom","angle","cameraBlur","cameraBlurAngle"}.Concat(String.IsNullOrEmpty(t.cameraStyle)?new string[0]:new[]{"cameraIntensity"}).ToArray():t.kind=="effect"?new[]{"strength","fxOpacity","fxAngle","fxRetention"}.Concat(t.effect=="rgb-impact"?new[]{"fxZoom","fxFlash"}:new string[0]).ToArray():t.kind=="rod"?Basic.Concat(t.shape=="rod"?new[]{"spriteAngle","x1","y1","x2","y2","length","rollSpeed","count"}:t.shape=="polygon"?new[]{"spriteAngle","radius","orientation","sides","rollSpeed","count"}:new[]{"spriteAngle","radius","rollSpeed","count"}).ToArray():t.kind=="emitter"?Basic.Concat(new[]{"spriteAngle","speed","spread","count","life"}).Concat(t.emissionShape!="point"?new[]{"emitWidth","emitHeight","emitArc","emitPhase","emitRotation","emitWaves"}:new string[0]).ToArray():t.kind=="object"?Basic:new string[0];
+        var fields=t.kind=="camera"?new[]{"x","y","cameraZoom","angle","cameraBlur","cameraBlurAngle"}.Concat(String.IsNullOrEmpty(t.cameraStyle)?new string[0]:new[]{"cameraIntensity"}).ToArray():t.kind=="effect"?new[]{"strength","fxOpacity","fxAngle","fxRetention"}.Concat(t.effect=="rgb-impact"?new[]{"fxZoom","fxFlash"}:new string[0]).ToArray():t.kind=="rod"?Basic.Concat(FormationShapes.Fields(t.shape)).ToArray():t.kind=="emitter"?Basic.Concat(new[]{"spriteAngle","speed","spread","count","life"}).Concat(t.emissionShape!="point"?new[]{"emitWidth","emitHeight","emitArc","emitPhase","emitRotation","emitWaves"}:new string[0]).ToArray():t.kind=="object"?Basic:new string[0];
         if(Theme.Spatial(t.kind)){if(t.motion=="parabola")fields=fields.Concat(MotionPresets.PathFields).ToArray();if(t.motion=="orbit")fields=fields.Concat(new[]{"orbitRadius","orbitPhase"}).ToArray();}
         return t.rainbow?fields.Concat(Rainbow.Parameters).ToArray():fields;
     }
@@ -109,15 +109,15 @@ internal static class Motion
         if(t.parent!=null){var local=t.Snapshot();local.parent=null;return BulletSystem.TransformPoints(t.parent,frame,RodPoints(local,frame));}
         if(t.shape!="rod")
         {
-            var p=At(t,frame);double radius=Math.Max(0,Value(t,"radius",frame));int n=Math.Max(1,Math.Min(300,(int)Math.Round(Value(t,"count",frame)))),sides=Math.Max(3,Math.Min(64,(int)Math.Round(Value(t,"sides",frame))));var result=new PointF[n];
-            double perimeter=t.shape=="polygon"?2*sides*radius*Math.Sin(Math.PI/sides):2*Math.PI*radius,phase=p.angle/360;
-            if(t.rolling&&perimeter>.001)phase+=(frame-t.start)*Value(t,"rollSpeed",frame)/perimeter;
+            var p=At(t,frame);double radius=Math.Max(0,Value(t,"radius",frame));int n=Math.Max(1,Math.Min(300,(int)BulletSystem.Round(Value(t,"count",frame)))),sides=Math.Max(3,Math.Min(64,(int)BulletSystem.Round(Value(t,"sides",frame))));var result=new PointF[n];
+            double aspect=Value(t,"shapeAspect",frame),inner=Value(t,"shapeInner",frame),orientation=t.shape=="ring"?0:Value(t,"orientation",frame),phase=p.angle/360;
+            if(t.rolling){double perimeter=FormationShapes.Perimeter(t.shape,radius,sides,aspect,inner);if(perimeter>.001)phase+=(frame-t.start)*Value(t,"rollSpeed",frame)/perimeter;}
             for(int i=0;i<n;i++)
             {
-                double u=i/(double)n+phase;u-=Math.Floor(u);double x,y;
-                if(t.shape=="polygon"){double v=u*sides,seg=Math.Floor(v),f=v-seg,a=(Value(t,"orientation",frame)+seg*360/sides)*Math.PI/180,b=a+2*Math.PI/sides;x=radius*(Math.Cos(a)*(1-f)+Math.Cos(b)*f);y=-radius*(Math.Sin(a)*(1-f)+Math.Sin(b)*f);}
-                else{x=radius*Math.Cos(u*2*Math.PI);y=-radius*Math.Sin(u*2*Math.PI);}
-                result[i]=new PointF((float)(p.x+x),(float)(p.y+y));
+                // heart.gml numbers its instances from 1, star2.gml from 0.
+                double u=(i+(t.shape=="heart"?1:0))/(double)n+phase;
+                var point=FormationShapes.Point(t.shape,u,radius,orientation,sides,t.shape=="ring"?1:aspect,inner);
+                result[i]=new PointF((float)(p.x+point.X),(float)(p.y+point.Y));
             }
             return result;
         }

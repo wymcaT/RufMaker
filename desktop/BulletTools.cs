@@ -10,7 +10,7 @@ internal sealed partial class MainForm
     private void BuildBulletTools(Control bar)
     {
         bar.Controls.Add(Button("弹幕行为…",OpenBulletBehavior,false,100));bar.Controls.Add(Button("添加弹幕控制",()=>AddBulletControl(),false,110));
-        BuildTraceTools(bar);
+        bar.Controls.Add(Button("物件生成…",OpenTemplateBehavior,false,105));BuildTraceTools(bar);
     }
     private void OpenBulletBehavior()
     {
@@ -21,6 +21,7 @@ internal sealed partial class MainForm
     {var source=selectedTrack!=null&&new[]{"emitter","rod"}.Contains(selectedTrack.kind)?selectedTrack.id:"";AddTrack("control",t=>{t.name="弹幕控制 · 停止";t.targetSource=source;t.end=t.start;t.controlAction="speed";t.controlValue=0;});}
     private void BulletFields(NativeProperties bag,Track t)
     {
+        TemplateFields(bag,t);
         if(new[]{"emitter","rod","object","group"}.Contains(t.kind)){
             Field(bag,"弹幕标签","分组与作用范围",()=>t.tag,v=>t.tag=(v??"").Trim());var groups=state.tracks.Where(g=>g.kind=="group"&&g!=t&&!Ancestors(g).Contains(t)).ToArray();var names=new[]{"无父级"}.Concat(groups.Select(g=>g.name+" · "+g.id.Substring(0,Math.Min(6,g.id.Length)))).ToArray();
             Field(bag,"父级分组","分组与作用范围",()=>names[Math.Max(0,Array.FindIndex(groups,g=>g.id==t.parentId)+1)],v=>{int i=Array.IndexOf(names,v)-1;t.parentId=i<0?"":groups[i].id;},names,"有父级时坐标、角度、大小为组内局部值。右键创建分组会保留当前摆放。");
@@ -39,7 +40,7 @@ internal sealed partial class MainForm
         if(t.kind=="control"){
             var sources=state.tracks.Where(s=>new[]{"emitter","rod"}.Contains(s.kind)).ToArray();var names=new[]{"全部来源"}.Concat(sources.Select(s=>s.name+" · "+s.id.Substring(0,Math.Min(6,s.id.Length)))).ToArray();Field(bag,"来源物件","作用范围",()=>names[Math.Max(0,Array.FindIndex(sources,s=>s.id==t.targetSource)+1)],v=>{int i=Array.IndexOf(names,v)-1;t.targetSource=i<0?"":sources[i].id;},names);
             Field(bag,"标签（留空不限）","作用范围",()=>t.targetTag,v=>t.targetTag=(v??"").Trim());Field(bag,"齐射编号（-1 不限）","作用范围",()=>t.targetVolley,v=>t.targetVolley=Math.Max(-1,v));string[] parities={"全部编号","偶数编号 0,2,4…","奇数编号 1,3,5…"},pvalues={"all","even","odd"};Field(bag,"编号筛选","作用范围",()=>parities[Math.Max(0,Array.IndexOf(pvalues,t.targetParity))],v=>t.targetParity=pvalues[Array.IndexOf(parities,v)],parities);Field(bag,"最小年龄 / 帧","作用范围",()=>t.targetMinAge,v=>t.targetMinAge=Math.Max(0,v));Field(bag,"最大年龄 / 帧","作用范围",()=>t.targetMaxAge,v=>t.targetMaxAge=Math.Max(t.targetMinAge,v));Field(bag,"包含期间新生弹幕","作用范围",()=>t.includeFuture,v=>t.includeFuture=v,null,"关闭：仅在事件开始帧选中当时已有弹幕。开启：在整个事件时段接收符合条件的新弹幕。");
-            var types=BulletSystem.ActionTypes.Where(v=>v!="split").Concat(new[]{"color"}).ToArray();var labels=types.Select(v=>v=="color"?"颜色":BulletSystem.ActionName(v)).ToArray();Field(bag,"控制动作","控制参数",()=>labels[Math.Max(0,Array.IndexOf(types,t.controlAction))],v=>{t.controlAction=types[Array.IndexOf(labels,v)];t.name="弹幕控制 · "+v;BeginInvoke(new Action(ShowProperties));},labels);
+            var types=BulletSystem.ActionTypes.Where(v=>v!="split"&&v!="spawn").Concat(new[]{"color"}).ToArray();var labels=types.Select(v=>v=="color"?"颜色":BulletSystem.ActionName(v)).ToArray();Field(bag,"控制动作","控制参数",()=>labels[Math.Max(0,Array.IndexOf(types,t.controlAction))],v=>{t.controlAction=types[Array.IndexOf(labels,v)];t.name="弹幕控制 · "+v;BeginInvoke(new Action(ShowProperties));},labels);
             if(t.controlAction=="color")Field(bag,"目标颜色","控制参数",()=>Motion.ColorOf(t.controlColor),v=>t.controlColor=ColorTranslator.ToHtml(v));else {Field(bag,"起始值","控制参数",()=>t.controlFrom,v=>t.controlFrom=v);Field(bag,"结束值","控制参数",()=>t.controlValue,v=>t.controlValue=v);Field(bag,"逐帧公式（留空用数值）","控制参数",()=>t.controlExpression,v=>{if(!String.IsNullOrWhiteSpace(v))RandomExpression.Evaluate(v,state.randomSeed,t.id);t.controlExpression=(v??"").Trim();});Field(bag,"控制缓动","控制参数",()=>Motion.EaseNames[Math.Max(0,Array.IndexOf(Motion.EaseValues,t.controlEasing))],v=>t.controlEasing=Motion.EaseValues[Array.IndexOf(Motion.EaseNames,v)],Motion.EaseNames);}
         }
         if(t.kind=="pattern"){
@@ -62,10 +63,10 @@ internal sealed partial class MainForm
     private void UpdatePatternEnd(Track t){int span=t.children.Select(c=>c.end).DefaultIfEmpty(0).Max()+1;t.end=t.start+(int)BulletSystem.Round(t.repeatCount*span/t.timeScale+(t.repeatCount-1)*t.repeatGap)-1;state.duration=Math.Max(state.duration,t.end);}
     private void UnpackPattern()
     {
-        var t=selectedTrack;if(t==null||t.kind!="pattern")return;PushUndo();var temporary=new EditorState{fps=state.fps,duration=state.duration,tracks=new List<Track>{t},nativeTest=state.nativeTest,randomSeed=state.randomSeed};var items=BulletSystem.Expand(temporary).tracks;state.tracks.Remove(t);var map=items.ToDictionary(c=>c.id,c=>Guid.NewGuid().ToString("N"));foreach(var c in items){string id=c.id;c.id=map[id];string renamed;if(map.TryGetValue(c.parentId,out renamed))c.parentId=renamed;if(map.TryGetValue(c.targetSource,out renamed))c.targetSource=renamed;foreach(var a in c.bulletActions)if(map.TryGetValue(a.templateId,out renamed))a.templateId=renamed;c.lane=t.lane;state.tracks.Add(c);}MarkChanged();timeline.SetTrackSelection(items,items.FirstOrDefault());
+        var t=selectedTrack;if(t==null||t.kind!="pattern")return;PushUndo();var temporary=new EditorState{fps=state.fps,duration=state.duration,tracks=new List<Track>{t},nativeTest=state.nativeTest,randomSeed=state.randomSeed};var items=BulletSystem.Expand(temporary).tracks;state.tracks.Remove(t);var map=items.ToDictionary(c=>c.id,c=>Guid.NewGuid().ToString("N"));foreach(var c in items){string id=c.id;c.id=map[id];string renamed;if(map.TryGetValue(c.parentId,out renamed))c.parentId=renamed;if(map.TryGetValue(c.targetSource,out renamed))c.targetSource=renamed;foreach(var a in TemplateRuntime.Actions(c))if(map.TryGetValue(a.templateId,out renamed))a.templateId=renamed;c.lane=t.lane;state.tracks.Add(c);}MarkChanged();timeline.SetTrackSelection(items,items.FirstOrDefault());
     }
     private void AddBulletContext(ContextMenuStrip menu)
     {
-        if(selectedTrack!=null&&new[]{"emitter","rod"}.Contains(selectedTrack.kind))menu.Items.Add("编辑弹幕年龄行为…",null,(s,e)=>OpenBulletBehavior());if(timeline.SelectedTracks.Any(t=>Theme.Visual(t.kind)||t.kind=="group"))menu.Items.Add("将所选物件创建为分组",null,(s,e)=>GroupSelection());if(timeline.SelectedTracks.Count>0&&timeline.SelectedTracks.All(t=>t.kind!="native"&&t.kind!="script"))menu.Items.Add("组合为可循环弹幕片段",null,(s,e)=>PackPattern());if(selectedTrack!=null&&selectedTrack.kind=="pattern")menu.Items.Add("拆开片段以编辑内部物件",null,(s,e)=>UnpackPattern());menu.Items.Add("添加弹幕控制事件",null,(s,e)=>AddBulletControl());
+        if(TemplateRuntime.Eligible(selectedTrack))menu.Items.Add("物件生成行为…",null,(s,e)=>OpenTemplateBehavior());if(selectedTrack!=null&&new[]{"emitter","rod"}.Contains(selectedTrack.kind))menu.Items.Add("编辑弹幕年龄行为…",null,(s,e)=>OpenBulletBehavior());if(timeline.SelectedTracks.Any(t=>Theme.Visual(t.kind)||t.kind=="group"))menu.Items.Add("将所选物件创建为分组",null,(s,e)=>GroupSelection());if(timeline.SelectedTracks.Count>0&&timeline.SelectedTracks.All(t=>t.kind!="native"&&t.kind!="script"))menu.Items.Add("组合为可循环弹幕片段",null,(s,e)=>PackPattern());if(selectedTrack!=null&&selectedTrack.kind=="pattern")menu.Items.Add("拆开片段以编辑内部物件",null,(s,e)=>UnpackPattern());menu.Items.Add("添加弹幕控制事件",null,(s,e)=>AddBulletControl());
     }
 }

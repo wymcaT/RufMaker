@@ -82,7 +82,7 @@ internal sealed partial class MainForm
     {
         if(state==null||selectedTrack==null)return;StopPlaying();properties.CommitPending();var selected=WithGroupChildren(state.tracks.Where(t=>t.kind!="native"&&(timeline.SelectedTracks.Contains(t)||t==selectedTrack))).ToArray();if(selected.Length==0)return;
         try{using(var dialog=new PresetNameForm("存为自定义预设",selected.Length==1?selected[0].name:"组合预设",presetFolder,Library.Folders(),"保存全部参数、关键帧及贴图。多选轨道按相对时间一起保存。手写 GML 继续引用目标工程中的脚本和对象。")){
-            if(Language.ShowDialog(dialog,this)!=DialogResult.OK)return;Library.Save(dialog.Category,dialog.ResultName,TrackPreset.Capture(dialog.ResultName,selected,state.fps),document.project);resourceKind="custom-presets";presetFolder=dialog.Category;search.Clear();FillResources();SetStatus("已保存到公共预设库，其他工程可直接使用。");
+            if(Language.ShowDialog(dialog,this)!=DialogResult.OK)return;Library.Save(dialog.Category,dialog.ResultName,TrackPreset.Capture(dialog.ResultName,PresetDependencies(selected),state.fps),document.project);resourceKind="custom-presets";presetFolder=dialog.Category;search.Clear();FillResources();SetStatus("已保存到公共预设库，其他工程可直接使用。");
         }}catch(Exception error){Error(error);}
     }
     private void NewPresetFolder()

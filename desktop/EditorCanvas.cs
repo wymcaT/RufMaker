@@ -151,7 +151,7 @@ internal sealed partial class StageCanvas : Control
         if(EditNativeTest&&e.Button==MouseButtons.Left){if(BeginEdit!=null)BeginEdit();draggingNativeTest=true;Capture=true;PlaceNativeTest(p);return;}
         if(e.Button==MouseButtons.Left&&BeginCurve(p))return;
         if(SelectedTracks.Count<=1&&SelectedTrack!=null&&SelectedTrack.kind=="rod"&&SelectedTrack.shape=="rod")
-        {var ends=Motion.Endpoints(SelectedTrack,Frame);for(int i=0;i<2;i++)if(Near(ends[i],p,14)){draggingTrack=SelectedTrack;handle=i==0?"first":"second";if(e.Button==MouseButtons.Left){if(BeginEdit!=null)BeginEdit();Capture=true;}else draggingTrack=null;return;}}
+        {var ends=Motion.Endpoints(SelectedTrack,Frame);for(int i=0;i<2;i++)if(Near(ends[i],p,14)){draggingTrack=SelectedTrack;handle=i==0?"first":"second";if(e.Button==MouseButtons.Left)Capture=true;else draggingTrack=null;return;}}
         foreach(var t in State.tracks.Where(t=>t.enabled&&Theme.Spatial(t.kind)&&Frame>=t.start&&Frame<=t.end).Reverse())
         {
             var q=Motion.At(t,Frame);bool hit=Near(new PointF((float)q.x,(float)q.y),TrackPoint(t,p),20);
@@ -164,12 +164,12 @@ internal sealed partial class StageCanvas : Control
             {
                 draggingTrack=t;handle="center";
                 foreach(var item in SelectedTracks.Where(item=>Theme.Spatial(item.kind)&&!HasSelectedParent(item)))positions[item]=new[]{"x","y","x1","y1","x2","y2"}.ToDictionary(field=>field,field=>Motion.Value(item,field,Frame));
-                if(BeginEdit!=null)BeginEdit();Capture=true;
+                Capture=true;
             }
             return;
         }
         foreach(var instance in Room.instances.AsEnumerable().Reverse())
-        {if(NativeFilmPath!=null&&NativeFilmIds.Contains(instance.id))continue;string name;if(!ObjectSprites.TryGetValue(instance.name,out name)||String.IsNullOrEmpty(name))continue;if(Sprites.Bounds(name,instance.x,instance.y).Contains(p)){if(SelectInstance!=null)SelectInstance(instance);if(e.Button==MouseButtons.Left){if(BeginEdit!=null)BeginEdit();draggingInstance=instance;Capture=true;}return;}}
+        {if(NativeFilmPath!=null&&NativeFilmIds.Contains(instance.id))continue;string name;if(!ObjectSprites.TryGetValue(instance.name,out name)||String.IsNullOrEmpty(name))continue;if(Sprites.Bounds(name,instance.x,instance.y).Contains(p)){if(SelectInstance!=null)SelectInstance(instance);if(e.Button==MouseButtons.Left){draggingInstance=instance;Capture=true;}return;}}
         if(e.Button==MouseButtons.Left)
         {selectingBox=true;boxFirst=boxLast=p;boxInitial=(ModifierKeys&(Keys.Control|Keys.Shift))!=0?new HashSet<Track>(SelectedTracks):new HashSet<Track>();Capture=true;}
     }
@@ -186,7 +186,7 @@ internal sealed partial class StageCanvas : Control
             Invalidate();return;
         }
         if(draggingTrack==null&&draggingInstance==null)return;
-        if(!moved&&Math.Abs(e.X-down.X)+Math.Abs(e.Y-down.Y)<3)return;moved=true;double x=Math.Round(p.X),y=Math.Round(p.Y);if((ModifierKeys&Keys.Shift)!=0){x=Math.Round(x/16)*16;y=Math.Round(y/16)*16;}
+        if(!moved&&Math.Abs(e.X-down.X)+Math.Abs(e.Y-down.Y)<3)return;if(!moved){if(BeginEdit!=null)BeginEdit();moved=true;}double x=Math.Round(p.X),y=Math.Round(p.Y);if((ModifierKeys&Keys.Shift)!=0){x=Math.Round(x/16)*16;y=Math.Round(y/16)*16;}
         if(draggingTrack!=null)
         {
             var t=draggingTrack;

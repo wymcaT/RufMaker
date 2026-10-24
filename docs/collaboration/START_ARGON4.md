@@ -14,8 +14,8 @@
 4. docs/collaboration/agents/codex.md 与 argon4.md；
 5. 将修改目录下的 AGENTS.md。
 
-先执行只读 Git/环境检查，确认实际分支、HEAD 和既有改动；当前功能基线是
-codex/bullet-control-beta 的 88853a8，HEAD 可能还有之后的文档或修复提交。
+先执行只读 Git/环境检查，确认实际分支、HEAD 和既有改动；当前正式功能版本为
+main 的 1.12.0，弹幕控制与生成模板已经从 Beta 合入。历史测试版基线为 88853a8。
 projects 下的脏文件是已有用户资料，不要还原或作为默认测试夹具。
 
 开始编辑前，把本轮目标、实际基线、占用文件、接口约定和验收方式写入你自己的

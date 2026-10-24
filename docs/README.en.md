@@ -1,12 +1,14 @@
 # RufMaker
 
-> Bullet-control beta: run `RufMaker.Beta.exe`. See [beta instructions](beta-bullet-control.md).
+Bullet behaviors, groups, template spawning and additional formations are included in **1.12.0 stable**. Run `RufMaker.exe`; see the [detailed controls](beta-bullet-control.md).
 
 A native Windows timeline editor for **I Wanna avoidance games**, integrated with GameMaker 8.2.
 
 Place emitters, formations, cameras and effects on a timeline, animate their properties with keyframes, then playtest and export a real game. Native GML, objects and room editing remain available.
 
 ## Getting started
+
+You can animate a reusable object, formation, emitter or group, then enable **Template only**. On a source object, use **Object spawning…**; on flying bullets, add **Spawn template** in the bullet behavior editor. Choose a template, trigger age, repeat interval, index/parity filter, offset and optional inherited direction. **Destroy source after spawning** removes the mother while its children continue their own keyframes and motion. Saving a custom preset carries its referenced templates and sprites too.
 
 1. Download **`RufMaker-VERSION-Windows-Portable.zip`** from [Releases](https://github.com/wymcaT/RufMaker/releases/latest). This is the full Windows application. Extract everything, then run `RufMaker.exe`. A starter project is created from the template when needed.
 2. Choose **English** from **切换语言 / Language** in the setup window or top bar. If GM8.2 is missing, click **Download and set up** in the engine setup window.
