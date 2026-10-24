@@ -24,6 +24,7 @@ internal sealed class TemplateRuntime
     private readonly Dictionary<string,SimBullet> fixedBullets=new Dictionary<string,SimBullet>();
     private readonly List<TemplateInstance> instances=new List<TemplateInstance>();private HashSet<string> hidden=new HashSet<string>();private int serial;
     public TemplateRuntime(BulletWorld world){this.world=world;}
+    public int InstanceCount {get{return instances.Count;}}
     public static bool Eligible(Track t){return t!=null&&new[]{"object","rod","emitter","group"}.Contains(t.kind);}
     public static IEnumerable<BulletAction> Actions(Track t){return t.bulletActions.Concat(t.spawnActions);}
     public static bool Trigger(BulletAction a,int age,int index,int generation)

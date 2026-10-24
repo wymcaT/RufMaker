@@ -29,4 +29,6 @@ test('recording clone keeps native event logic and excludes RufMaker live object
   const state={room:'rAvoidance',fps:50,duration:100,music:'',nativeProject:{controller:'objAd',clock:'clock',bootObject:'init',hasFmod:false,duration:100}};
   assert.deepEqual(writeFilmHarness(fixture,state),['player']);const read=f=>fs.readFileSync(path.join(fixture,f),'utf8');
   assert(read('objects/objAd.gml').includes('phase=irandom(100)'));assert(read('objects/objAd.gml').includes('point_direction(x,y,400,304)'));assert(!read('objects/player.gml').includes('x+=3'));assert(!read('rooms/rAvoidance/instances.txt').includes('objRufController'));assert(read('scripts/rf_film_pin.gml').includes('x=400;y=304'));assert(read('settings/settings.txt').includes('show_error_messages=0'));
+  const counts=read('scripts/rf_film_counts.gml'),status=read('scripts/rf_film_status.gml');assert(counts.includes('with(all)'));assert(counts.includes('object_get_name(object_index)'));assert(counts.includes('object_index!=objRufNativePreview'));assert(counts.includes('ds_map_destroy(rf_counts)'));
+  assert(status.includes("'objects='+rf_film_counts()"));assert(status.indexOf('file_text_close(f)')<status.indexOf('file_rename(rf_temp,rf_path)'));assert(status.includes("rf_temp=rf_path+'.tmp'"));
 });

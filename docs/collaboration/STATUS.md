@@ -1,6 +1,6 @@
 # 当前协作交接
 
-更新日期：2026-10-24。集成者：Codex。此页记录阶段事实；任务占用以 [Codex](agents/codex.md) 与 [Argon4](agents/argon4.md) 各自的记录为准。
+更新日期：2026-10-25。集成者：Codex。此页记录阶段事实；任务占用以 [Codex](agents/codex.md) 与 [Argon4](agents/argon4.md) 各自的记录为准。
 
 ## 当前代码与产物
 
@@ -8,13 +8,15 @@
 | --- | --- |
 | 本机仓库 | `D:\rufmaker` |
 | 正式分支 | `main`；合并提交 `f554136`，开发来源为 `codex/bullet-control-beta` 的 `4d8b1a2` |
-| 功能版本 | `1.12.0`；历史 Beta 功能基线为 `88853a8` |
-| 本机正式入口 | `RufMaker.exe`，ProductVersion `1.12.0`，由 `desktop/Build-Native.ps1 -Output D:\rufmaker\RufMaker.exe` 构建 |
+| 功能版本 | 本地 `1.13.0`：音频频谱、独立轨道高度、当前帧对象统计；远程仍为 `1.12.0` |
+| 本机正式入口 | `RufMaker.exe`，ProductVersion `1.13.0`，由 `desktop/Build-Native.ps1 -Output D:\rufmaker\RufMaker.exe` 构建 |
 | 历史测试入口 | 忽略文件 `RufMaker.Beta.exe` 可能仍是旧 Beta，不作为正式入口 |
 | 远程 | `main` 和 `v1.12.0` 已推送；[正式发行版](https://github.com/wymcaT/RufMaker/releases/tag/v1.12.0) 含完整便携包、更新包及 SHA256 |
-| 用户验收 | 自动验证与构建通过；尚无 1.12.0 用户试玩验收结论 |
+| 用户验收 | 1.13.0 定向自动验证、GM8.2 计数脚本探针与构建通过，待用户验收；本轮未推送 |
 
 新文档或后续修复提交会使 HEAD 高于功能基线，请先执行 Git 状态检查。不要把“远程没有此分支”当成需要自动推送的理由。
+
+1.13.0 操作：音频区右键选波形/频谱，拖底边调高；轨道名区底边可独立改行高。右栏“对象统计”或状态栏 obj 数字打开双分类明细。旧原生底片需要用户主动重新生成，才能补全原生实例计数；普通房间原生额外代码实例标为估算。详细接口和测试见 Codex 记录，本轮无占用文件。
 
 GitHub Actions [40079194400](https://github.com/wymcaT/RufMaker/actions/runs/40079194400) 的构建、打包与发布均成功。合并前后的 553 个个人工程文件已逐一核对 SHA256，内容未变；这些仍是未提交的用户资料。
 

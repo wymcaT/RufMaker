@@ -58,7 +58,7 @@ internal static class BulletSystem
     public static EditorState Expand(EditorState state)
     {
         if(!state.tracks.Any(t=>t.kind=="pattern")){Attach(state);return state;}
-        var result=new EditorState{fps=state.fps,duration=state.duration,randomSeed=state.randomSeed,nativeTest=state.nativeTest,usePlayerTrace=state.usePlayerTrace,playerTrace=state.playerTrace,tracks=new List<Track>()};
+        var result=new EditorState{nativeProject=state.nativeProject,fps=state.fps,duration=state.duration,randomSeed=state.randomSeed,nativeTest=state.nativeTest,usePlayerTrace=state.usePlayerTrace,playerTrace=state.playerTrace,tracks=new List<Track>()};
         foreach(var t in state.tracks){if(t.kind!="pattern"){result.tracks.Add(t.Snapshot());continue;}if(t.enabled)ExpandClip(result,t,0,1,"",0);}
         RandomParameters.Attach(result);Attach(result);return result;
     }

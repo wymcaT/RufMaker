@@ -59,7 +59,7 @@ internal sealed partial class MainForm : LocalizedForm
         inspectorTimer.Interval=100;inspectorTimer.Tick+=(s,e)=>{inspectorTimer.Stop();properties.Refresh();};
         Shown+=async(s,e)=>{try{OfferEngineAtStartup();currentProjectPath=restoredView!=null&&File.Exists(restoredView.projectPath)?restoredView.projectPath:"";bridge=new NativeBridge(root,currentProjectPath);await LoadProject();}catch(Exception error){Error(error);}};
         FormClosing+=OnClosing;
-        FormClosed+=(s,e)=>{saveTimer.Dispose();playTimer.Dispose();inspectorTimer.Dispose();nativeWatch.Dispose();audio.Dispose();if(effectMenu!=null)effectMenu.Dispose();if(bridge!=null)bridge.Dispose();if(sprites!=null)sprites.Dispose();if(pendingUpdate!=null)Updater.Start(pendingUpdate);};
+        FormClosed+=(s,e)=>{saveTimer.Dispose();playTimer.Dispose();inspectorTimer.Dispose();nativeWatch.Dispose();DisposeAudioAnalysis();audio.Dispose();if(effectMenu!=null)effectMenu.Dispose();if(bridge!=null)bridge.Dispose();if(sprites!=null)sprites.Dispose();if(pendingUpdate!=null)Updater.Start(pendingUpdate);};
     }
 
     private Button Button(string text,Action click,bool primary=false,int width=90)
@@ -91,7 +91,7 @@ internal sealed partial class MainForm : LocalizedForm
         var right=rightSplit;right.Dock=DockStyle.Fill;right.SplitterWidth=6;right.FixedPanel=FixedPanel.Panel2;right.BackColor=Theme.Back;left.Panel2.Controls.Add(right);
         BuildResources(left.Panel1);BuildStage(right.Panel1);BuildInspector(right.Panel2);BuildTimeline(vertical.Panel2);
         Shown+=(s,e)=>RestorePanelLayout();
-        var strip=new StatusStrip{Dock=DockStyle.Fill,BackColor=Theme.Panel,ForeColor=Theme.Muted,SizingGrip=true};status.Spring=true;status.TextAlign=ContentAlignment.MiddleLeft;status.Text="正在打开工程…";coordinates.Text="";strip.Items.Add(status);strip.Items.Add(coordinates);layout.Controls.Add(strip,0,2);
+        var strip=new StatusStrip{Dock=DockStyle.Fill,BackColor=Theme.Panel,ForeColor=Theme.Muted,SizingGrip=true};status.Spring=true;status.TextAlign=ContentAlignment.MiddleLeft;status.Text="正在打开工程…";coordinates.Text="";strip.Items.Add(status);strip.Items.Add(objectCount);strip.Items.Add(coordinates);layout.Controls.Add(strip,0,2);
     }
     private void BuildResources(Control parent)
     {
@@ -128,7 +128,7 @@ internal sealed partial class MainForm : LocalizedForm
         selectionTitle.Text=Language.Text("属性检查器");selectionTitle.Dock=DockStyle.Fill;selectionTitle.AutoEllipsis=true;selectionTitle.Padding=new Padding(8,0,0,0);selectionTitle.TextAlign=ContentAlignment.MiddleLeft;selectionTitle.Font=Theme.Bold;table.Controls.Add(selectionTitle,0,0);
         rightTime.Dock=DockStyle.Fill;rightTime.Margin=Padding.Empty;rightTime.SnapFrame=value=>SnapCursor(value,Math.Max(1,state==null?1:10.0*(selectedTrack==null?state.duration:Math.Max(1,selectedTrack.end-selectedTrack.start))/Math.Max(100,rightTime.Width)));rightTime.Seek=value=>{StopPlaying();SetFrame(value);timeline.EnsureFrameVisible();};table.Controls.Add(rightTime,0,1);
         properties.Dock=DockStyle.Fill;properties.BeginScrub=()=>{StopPlaying();PushUndo();parameterScrubbing=true;saveTimer.Stop();};properties.EndScrub=()=>{parameterScrubbing=false;timeline.RefreshLayout();UpdateTitle();if(state!=null)rightTime.SetView(state.fps,state.duration,frame,selectedTrack);if(selectedInstance!=null)SaveInstanceFromProperty(selectedInstance);else if(dirty){saveTimer.Stop();saveTimer.Start();}};
-        table.Controls.Add(properties,0,2);
+        table.Controls.Add(BuildInspectorTabs(),0,2);
         var actions=new FlowLayoutPanel{Dock=DockStyle.Fill,AutoSize=true,WrapContents=true,Padding=new Padding(4),Margin=Padding.Empty};
         codeButton=Button("编辑 GML",async()=>await EditSelection(),false,90);keyButton=Button("＋ 属性关键帧 (K)",AddKey,false,150);deleteButton=Button("删除所选 (Delete)",RemoveSelection,false,150);deleteButton.ForeColor=Theme.Accent;
         properties.ContextMenuStrip=CreateContext(true);
@@ -159,7 +159,7 @@ internal sealed partial class MainForm : LocalizedForm
         zoomBar.Controls.Add(new Label{Text="音量",AutoSize=true,ForeColor=Theme.Muted,Margin=new Padding(10,9,0,0)});var volume=new WheelSafeTrackBar{Minimum=0,Maximum=100,Value=65,Width=95,Height=32,TickStyle=TickStyle.None,Margin=new Padding(0,4,0,0)};volume.ValueChanged+=(s,e)=>audio.SetVolume(volume.Value/100f);zoomBar.Controls.Add(volume);Language.ToolTip(tips,volume,"时间轴音乐音量");
         zoomBar.Controls.Add(new Label{Text="Ctrl+滚轮缩放 · Shift+滚轮横移",AutoSize=true,ForeColor=Theme.Muted,Margin=new Padding(6,9,0,0)});table.Controls.Add(zoomBar,0,1);
         table.Controls.Add(BuildBeatControls(),0,2);
-        timeline.Dock=DockStyle.Fill;timeline.Margin=Padding.Empty;timeline.Seek=value=>{StopPlaying();SetFrame(value);};timeline.PresetDropped=async(kind,name,target,at)=>await UsePreset(kind,name,target,at);timeline.SelectTrack=SelectTrack;timeline.BeginEdit=PushUndo;timeline.Changed=MarkChanged;
+        timeline.SpectrumRequested=EnsureSpectrum;timeline.Dock=DockStyle.Fill;timeline.Margin=Padding.Empty;timeline.Seek=value=>{StopPlaying();SetFrame(value);};timeline.PresetDropped=async(kind,name,target,at)=>await UsePreset(kind,name,target,at);timeline.SelectTrack=SelectTrack;timeline.BeginEdit=PushUndo;timeline.Changed=MarkChanged;
         timeline.SelectNativeEvent=async(item,edit)=>{selectedNativeEvent=item;ShowProperties();if(edit&&item!=null)await EditNativeEvent();};
         timeline.PreviewChanged=()=>{stage.SceneChanged();inspectorTimer.Stop();inspectorTimer.Start();};
         timeline.InsertKey=(t,p,f)=>{SelectTrack(t,null);timeline.SelectedProperty=p;SetFrame(f);AddKey();};
@@ -195,7 +195,7 @@ internal sealed partial class MainForm : LocalizedForm
         new WorkspaceView{positioned=true,x=bounds.X,y=bounds.Y,width=bounds.Width,height=bounds.Height,maximized=WindowState==FormWindowState.Maximized,
             leftWidth=leftSplit.Panel1.Width,rightWidth=rightSplit.Panel2.Width,timelineHeight=verticalSplit.Panel2.Height,
             projectPath=currentProjectPath,frame=frame,resourceKind=resourceKind,search=ResourceFilter,selectedTrack=selectedTrack==null?null:selectedTrack.id,selectedProperty=timeline.SelectedProperty,
-            grid=stage.Grid,hitboxes=stage.Hitboxes,renderCamera=stage.RenderCamera,keySnap=keySnap.Checked,previewRate=previewRate,cameraZoom=stage.ViewZoom,cameraX=stage.ViewX,cameraY=stage.ViewY,timeline=timeline.CaptureView()}.Save(root);
+            objectStatistics=inspectorTabs.SelectedIndex==1,grid=stage.Grid,hitboxes=stage.Hitboxes,renderCamera=stage.RenderCamera,keySnap=keySnap.Checked,previewRate=previewRate,cameraZoom=stage.ViewZoom,cameraX=stage.ViewX,cameraY=stage.ViewY,timeline=timeline.CaptureView()}.Save(root);
     }
 
     private ContextMenuStrip CreateContext(bool inspector)

@@ -20,6 +20,9 @@ internal static class NativeFilmTests
         File.WriteAllText(Path.Combine(folder,"count.txt"),"8");File.WriteAllText(Path.Combine(folder,"color.txt"),"blue");NativeFilmBuilder.Generate(job,CancellationToken.None);string original=Hash(job.output);
         using(var old=new NativeFilmReader(job.output)){
             Check(old.Info.frameCount==8&&old.Info.playerX==400&&old.Info.playerY==304,"Manifest and fixed player metadata");
+            Check(old.Info.objectCounts.Length==2&&old.Info.Counts(2)["objNativeBullet"]==5&&old.Info.Counts(3)["objNativeBullet"]==7&&old.Info.Counts(500)["world"]==1,"Counts must persist as change records and support seeking");
+            var nativeStateCounts=new EditorState{nativeProject=new NativeProject{imported=true},duration=7};var nativeRoomCounts=new RoomData();using(var c=new PreviewCache()){c.FilmFrame(job.output,4,50);var stats=ObjectStatistics.Capture(nativeStateCounts,nativeRoomCounts,4,c);Check(!stats.nativeMissing&&stats.total==9&&stats.types["objNativeBullet"]==7,"Native count data must enter current-frame statistics");}
+            Check(new NativeFilmInfo().Counts(3)==null,"Old movies without count metadata remain readable");
             Check(old.Frame(7).GetPixel(30,30).B>old.Frame(0).GetPixel(30,30).B+40,"Frame random access");Check(old.Frame(100).GetPixel(30,30)==old.Frame(7).GetPixel(30,30),"Clamp last frame");
             var cancelled=new CancellationTokenSource();cancelled.Cancel();try{NativeFilmBuilder.Generate(job,cancelled.Token);throw new Exception("Cancellation failed");}catch(OperationCanceledException){}Check(Hash(job.output)==original,"Cancelled generation must keep saved movie");
             File.WriteAllText(Path.Combine(folder,"color.txt"),"green");NativeFilmBuilder.Generate(job,CancellationToken.None);Check(old.Frame(2).GetPixel(30,30).B>100,"Existing reader keeps its previous snapshot during replacement");

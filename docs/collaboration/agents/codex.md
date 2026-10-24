@@ -1,11 +1,28 @@
 # Codex 任务记录
 
 - 状态：`completed`
-- 任务：实现生成模板（独立局部时间、物件/弹幕触发、筛选、生成后销毁），验证后将 Beta 合入 main 并按用户本轮授权推送 GitHub、交付正式 EXE。
-- 开始时基线：`548b82b`，分支 `codex/bullet-control-beta`。
-- 当前占用文件：无，已释放。Argon4 已完成的修改已保留并一并集成，未改写其任务记录。
-- 发布结果：功能提交 `4d8b1a2`；合并提交 `f554136` 已进入远程 main，标签 `v1.12.0` 已发布。GitHub Actions `40079194400` 构建、打包、发布成功，完整便携包、更新包与两个 SHA256 文件均上线。
-- 本机产物：根目录 `RufMaker.exe`，ProductVersion `1.12.0`，FileVersion `1.12.0.0`，1,036,288 bytes；完整包与更新包位于 `build/distribution/v1.12.0/`。
+- 任务：音频轨右键切换波形/频谱、独立轨道高度、当前帧对象数量与分类统计；本轮只本地构建，不推送。
+- 开始时基线：`5afccbb`，分支 `main`；保留用户 projects 下既有改动。
+- 当前占用文件：无，已完成并释放。实际改动见本轮 Git 提交；未改用户 `projects/`。
+- 本轮发布：仅本地 1.13.0 构建与提交；未推送、未打标签。远程发布仍为 v1.12.0。
+- 本机产物：根目录 `RufMaker.exe`，ProductVersion `1.13.0`，FileVersion `1.13.0.0`，1,064,448 bytes。
+
+## 2026-10-25：频谱、轨道高度与对象统计
+
+- `AudioSpectrogram.cs` 通过同一 FMOD 解码器做完整歌曲 STFT；Hann 窗、声道功率平均、192 个对数频带、-90～0 dB 亮度。反相立体声不会相互抵消。缓存按路径/大小/修改时间/格式版本生成，放在工程 `cache/audio-spectrum/`。
+- `TimelineAudio.cs` 提供原生音频右键菜单和频率轴，显示与时间轴缩放/横移一致。音频区底边、左侧轨道名区底边可拖高度，双击还原；`TimelineCanvas` 的绘制、命中测试、框选、关键帧与跨轨拖动全部使用可变行高。布局新增 `TimelineView.audioDisplay/audioHeight/rowHeights` 和 `WorkspaceView.objectStatistics`。
+- `ObjectStatistics.cs` / `StatisticsTools.cs` 在右栏增加属性/对象统计页，底部 obj 总数可点击。按 GM 类型和 RufMaker 来源名称分组；复用 `PreviewCache.bulletWorld`，覆盖延迟生成、寿命、隐藏成员、整体对象、生成模板和倒拖。纯绘制装饰单列，拖影不计实例。保留用户名称，中英文切换即时更新。
+- `TemplateRuntime.InstanceCount` 只读暴露模板实例数；`BulletSystem.Expand` 和 Stage 场景快照保留 `nativeProject` 元数据。没有改变运动语义或生成游戏的弹幕代码。
+- 原生底片录制器新增 `rf_film_counts`：`with(all)` 按 `object_index` 计数，排除录制器自身，随帧状态原子发布；清理列表补充 `objRufTemplate`。底片 manifest 新增可选 `objectCounts` 变化记录，二分定位。旧底片继续兼容；无记录明确显示仅 RufMaker 部分，由用户重新生成补全。普通房间原生代码的额外实例不可推算，明确标为预览估算。
+- 修改/新增文件还包括 `AudioAnalyzer` 解码复用、`AudioTimelineTools` 后台分析与取消、`MainForm`/`EngineSetupForm` 接线、构建显式清单、`Updater` 版本、双语 README、英文词条及测试。
+- 通过：`desktop/Test-AudioStatistics.ps1`（合成 100/1000/5000 Hz、20 dB 差、反相双声道、305 秒尾段、缓存/取消、菜单/独立高度/布局保存/拉伸、简单和高级计数/模板/倒拖/双语）；`Test-RandomTimeline.ps1`；`Test-NativeFilm.ps1`；`Test-Localization.ps1`；`pwsh -NoProfile -File desktop/Test-PreviewPlayback.ps1`；`runtime/node.exe --test studio/native-film.test.mjs`（4/4）。
+- GM8.2 真机脚本探针：`runtime/node.exe desktop/tests/verify-film-counts-gml.mjs` 通过。沙箱内 GM 退出 3221225794；提权运行隔离工程后，生成/销毁数量、排除录制器和原子状态均正确。产物在 `build/audio-statistics-check/Film counts GM 1792858453650/`，未改用户工程。
+- 截图已检查：`build/audio-statistics-check/spectrogram-timeline.png`、`object-statistics.png`、`object-statistics-en.png`。构建：`desktop/Build-Native.ps1 -Output D:\rufmaker\RufMaker.exe` 通过。播放回归脚本在 Windows PowerShell 5.1 的 `[short]` 类型别名失败，改用 PowerShell 7 原脚本通过；无需修改产品。
+- 本地提交：随本轮功能提交保存，未获本轮远程发布授权。尚无 1.13.0 用户验收结论。
+
+## 上轮发布记录：1.12.0
+
+- 功能提交 `4d8b1a2`；合并提交 `f554136` 已进入远程 main，标签 `v1.12.0` 已发布。GitHub Actions `40079194400` 成功；完整便携包、更新包及 SHA256 位于 Releases 和本地 `build/distribution/v1.12.0/`。
 
 ## 本轮实现与集成
 

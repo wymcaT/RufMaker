@@ -14,8 +14,11 @@ using System.Web.Script.Serialization;
 internal class NativeFilmInfo
 {
     public int version=1,fps=50,width,height,frameCount,playerX=400,playerY=304;public string room,generatedUtc;public string[] nativeIds=new string[0];public NativeViewPose[] views;
+    public NativeObjectCounts[] objectCounts;
+    public Dictionary<string,int> Counts(int frame){if(objectCounts==null||objectCounts.Length==0)return null;int lo=0,hi=objectCounts.Length-1,found=-1;while(lo<=hi){int mid=(lo+hi)/2;if(objectCounts[mid].frame<=frame){found=mid;lo=mid+1;}else hi=mid-1;}return found<0?null:objectCounts[found].counts;}
     public NativeViewPose View(int frame){return views==null||views.Length==0?null:views[Math.Max(0,Math.Min(views.Length-1,frame))];}
 }
+internal sealed class NativeObjectCounts {public int frame;public Dictionary<string,int> counts;}
 internal sealed class NativeFilmJob:NativeFilmInfo {public string exe,dir,statusFile,frameFile,ackDirectory,output;public string[] players;}
 #pragma warning restore 0649
 internal sealed class NativeFilmProgress {public int frame,total;public string phase,path,error;}
@@ -42,6 +45,11 @@ internal sealed class NativeFilmReader:IDisposable
 }
 internal static class NativeFilmBuilder
 {
+    internal static Dictionary<string,int> StatusCounts(string file)
+    {
+        string line=File.ReadLines(file).FirstOrDefault(s=>s.StartsWith("objects=",StringComparison.Ordinal));if(line==null)return null;var result=new Dictionary<string,int>();
+        foreach(string pair in line.Substring(8).Split('|')){int at=pair.LastIndexOf(':');int count;if(at>0&&Int32.TryParse(pair.Substring(at+1),NumberStyles.Integer,CultureInfo.InvariantCulture,out count)&&count>0)result[pair.Substring(0,at)]=count;}return result;
+    }
     private static NativeViewPose StatusView(string file)
     {
         var values=new Dictionary<string,double>();foreach(string line in File.ReadAllLines(file)){int at=line.IndexOf('=');double value;if(at>0&&Double.TryParse(line.Substring(at+1).Trim(),NumberStyles.Float,CultureInfo.InvariantCulture,out value))values[line.Substring(0,at)]=value;}
@@ -69,7 +77,7 @@ internal static class NativeFilmBuilder
             using(var output=new FileStream(temporary,FileMode.CreateNew,FileAccess.ReadWrite,FileShare.Read))using(var archive=new ZipArchive(output,ZipArchiveMode.Create))using(var options=new EncoderParameters(1)){
                 options.Param[0]=new EncoderParameter(System.Drawing.Imaging.Encoder.Quality,92L);var codec=ImageCodecInfo.GetImageEncoders().First(c=>c.FormatID==ImageFormat.Jpeg.Guid);
                 process=Process.Start(new ProcessStartInfo{FileName=job.exe,WorkingDirectory=job.dir,UseShellExecute=false,CreateNoWindow=true,WindowStyle=ProcessWindowStyle.Hidden});
-                int captured=0;var views=new List<NativeViewPose>();
+                int captured=0;var views=new List<NativeViewPose>();var counts=new List<NativeObjectCounts>();Dictionary<string,int> previousCounts=null;
                 for(int frame=0;frame<job.frameCount;frame++){
                     var wait=Stopwatch.StartNew();bool ended=false;
                     for(;;){cancel.ThrowIfCancellationRequested();int actual=StatusFrame(job.statusFile);if(actual==frame)break;if(actual>frame)throw new IOException("底片录制跳过了第 "+frame+" 帧，请重新生成。");if(process.HasExited){if(process.ExitCode==0&&frame>0&&(!File.Exists(errorLog)||new FileInfo(errorLog).Length==0)){ended=true;break;}throw new IOException("原生录制程序提前退出，记录目录："+job.dir);}if(wait.Elapsed.TotalSeconds>30)throw new IOException("等待第 "+frame+" 帧超过 30 秒（最后状态 "+actual+"），记录目录："+job.dir);Thread.Sleep(3);}
@@ -77,9 +85,9 @@ internal static class NativeFilmBuilder
                     using(var memory=new MemoryStream(File.ReadAllBytes(job.frameFile)))using(var bitmap=Image.FromStream(memory))using(var encoded=new MemoryStream())using(var entry=archive.CreateEntry(frame.ToString("D6",CultureInfo.InvariantCulture)+".jpg",CompressionLevel.NoCompression).Open()){
                         if(frame==0){info.width=bitmap.Width;info.height=bitmap.Height;}bitmap.Save(encoded,codec,options);encoded.Position=0;encoded.CopyTo(entry);
                     }
-                    views.Add(StatusView(job.statusFile));captured=frame+1;Ack(job.ackDirectory,frame,cancel);if(progress!=null)progress.Report(new NativeFilmProgress{frame=captured,total=job.frameCount,phase="rendering",path=job.output});
+                    views.Add(StatusView(job.statusFile));var current=StatusCounts(job.statusFile);if(current!=null&&(previousCounts==null||current.Count!=previousCounts.Count||current.Any(p=>!previousCounts.ContainsKey(p.Key)||previousCounts[p.Key]!=p.Value))){counts.Add(new NativeObjectCounts{frame=frame,counts=current});previousCounts=current;}captured=frame+1;Ack(job.ackDirectory,frame,cancel);if(progress!=null)progress.Report(new NativeFilmProgress{frame=captured,total=job.frameCount,phase="rendering",path=job.output});
                 }
-                info.frameCount=captured;info.views=views.ToArray();
+                info.frameCount=captured;info.views=views.ToArray();info.objectCounts=counts.Count>0?counts.ToArray():null;
                 using(var writer=new StreamWriter(archive.CreateEntry("manifest.json",CompressionLevel.NoCompression).Open()))writer.Write(NativeFilmReader.Json(info));
             }
             cancel.ThrowIfCancellationRequested();if(File.Exists(job.output))File.Replace(temporary,job.output,null);else File.Move(temporary,job.output);return info;

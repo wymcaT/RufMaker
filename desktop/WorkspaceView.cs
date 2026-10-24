@@ -10,12 +10,14 @@ internal sealed class TimelineView
     public float pixelsPerSecond=80;
     public int horizontal,vertical;
     public string[] expanded=new string[0];
+    public string audioDisplay="waveform";public int audioHeight=50;
+    public System.Collections.Generic.Dictionary<string,int> rowHeights=new System.Collections.Generic.Dictionary<string,int>();
 }
 internal sealed class WorkspaceView
 {
     public int version=1,x,y,width=1500,height=940,leftWidth=220,rightWidth=300,timelineHeight=285,frame;
     public double cameraZoom=1,cameraX,cameraY,previewRate=1;
-    public bool positioned,maximized,grid=true,hitboxes,renderCamera,keySnap;
+    public bool positioned,maximized,grid=true,hitboxes,renderCamera,keySnap,objectStatistics;
     public string projectPath="";
     public string resourceKind="objects",search="",selectedTrack,selectedProperty="x";
     public TimelineView timeline=new TimelineView();

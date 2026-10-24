@@ -51,6 +51,7 @@ internal sealed partial class StageCanvas : Control
     private Bitmap image;private bool rendering;private int serial,finished=-1;
     private SpriteStore workerSprites;private readonly PreviewCache previewCache=new PreviewCache();
     private SpriteStore assetOwner;private int assetVersion,workerAssetVersion=-1;
+    public Action<ObjectStatisticsSnapshot> StatisticsReady;public Action<int> StatisticsPending;
     public double LastRenderMilliseconds {get;private set;}
     public StageCanvas(){DoubleBuffered=true;ResizeRedraw=true;BackColor=Theme.Back;AllowDrop=true;TabStop=true;}
     public void SceneChanged()
@@ -58,20 +59,21 @@ internal sealed partial class StageCanvas : Control
         if(State==null||Room==null||Sprites==null)return;
         RandomParameters.Attach(State);
         if(assetOwner!=Sprites){assetOwner=Sprites;assetVersion++;}
-        renderState=new EditorState{version=State.version,fps=State.fps,bpm=State.bpm,duration=State.duration,room=State.room,music=State.music,timelineInitialized=State.timelineInitialized,randomSeed=State.randomSeed,usePlayerTrace=State.usePlayerTrace,playerTrace=State.playerTrace.Select(p=>new PlayerTracePoint{frame=p.frame,x=p.x,y=p.y}).ToList(),nativeTest=new NativeTestPosition{x=State.nativeTest.x,y=State.nativeTest.y},tracks=State.tracks.Select(t=>t.Snapshot()).ToList()};renderState=BulletSystem.Expand(renderState);RandomParameters.Attach(renderState);renderRoom=Room.Snapshot();renderObjects=ObjectSprites;renderProject=Sprites.Project;renderMetadata=Sprites.Metadata;serial++;QueueRender();Invalidate();
+        renderState=new EditorState{nativeProject=State.nativeProject,version=State.version,fps=State.fps,bpm=State.bpm,duration=State.duration,room=State.room,music=State.music,timelineInitialized=State.timelineInitialized,randomSeed=State.randomSeed,usePlayerTrace=State.usePlayerTrace,playerTrace=State.playerTrace.Select(p=>new PlayerTracePoint{frame=p.frame,x=p.x,y=p.y}).ToList(),nativeTest=new NativeTestPosition{x=State.nativeTest.x,y=State.nativeTest.y},tracks=State.tracks.Select(t=>t.Snapshot()).ToList()};renderState=BulletSystem.Expand(renderState);RandomParameters.Attach(renderState);renderRoom=Room.Snapshot();renderObjects=ObjectSprites;renderProject=Sprites.Project;renderMetadata=Sprites.Metadata;serial++;QueueRender();Invalidate();
     }
     public void ShowFrame(int frame){if(Frame==frame&&image!=null)return;Frame=frame;serial++;QueueRender();Invalidate();}
     public void DisplayOptionsChanged(){serial++;QueueRender();Invalidate();}
     private async void QueueRender()
     {
         if(rendering||renderState==null||!IsHandleCreated||IsDisposed||finished==serial)return;
+        if(StatisticsPending!=null)StatisticsPending(Frame);ObjectStatisticsSnapshot statistics=null;
         rendering=true;int request=serial,frame=Frame,assets=assetVersion;var state=renderState;var room=renderRoom;var objects=renderObjects;string project=renderProject,film=NativeFilmPath;var metadata=renderMetadata;bool grid=Grid,hitboxes=Hitboxes;var cameraPose=RenderCamera?Camera.At(Camera.Active(state,frame),frame,room):null;Fit();var transform=DisplayMatrix();int width=Math.Max(1,Width),height=Math.Max(1,Height);RectangleF frameBounds=view;RectangleF? clip=RenderCamera?(RectangleF?)view:null;
         var clock=System.Diagnostics.Stopwatch.StartNew();
         try
         {
-            var next=await System.Threading.Tasks.Task.Run(()=>{if(workerSprites==null||workerSprites.Project!=project||workerAssetVersion!=assets){if(workerSprites!=null)workerSprites.Dispose();workerSprites=new SpriteStore{Project=project};workerAssetVersion=assets;previewCache.Clear();}workerSprites.Metadata=metadata;if(workerSceneState!=state){previewCache.ClearHistory();workerSceneState=state;}return PreviewRenderer.Render(state,room,objects,workerSprites,frame,grid,hitboxes,previewCache,transform,width,height,clip,frameBounds,film,cameraPose);});
+            var next=await System.Threading.Tasks.Task.Run(()=>{if(workerSprites==null||workerSprites.Project!=project||workerAssetVersion!=assets){if(workerSprites!=null)workerSprites.Dispose();workerSprites=new SpriteStore{Project=project};workerAssetVersion=assets;previewCache.Clear();}workerSprites.Metadata=metadata;if(workerSceneState!=state){previewCache.ClearHistory();workerSceneState=state;}var bitmap=PreviewRenderer.Render(state,room,objects,workerSprites,frame,grid,hitboxes,previewCache,transform,width,height,clip,frameBounds,film,cameraPose);try{statistics=ObjectStatistics.Capture(state,room,frame,previewCache);return bitmap;}catch{bitmap.Dispose();throw;}});
             LastRenderMilliseconds=clock.Elapsed.TotalMilliseconds;
-            if(IsDisposed){next.Dispose();return;}var previous=image;image=next;if(previous!=null)previous.Dispose();finished=request;Invalidate();
+            if(IsDisposed){next.Dispose();return;}if(state==renderState&&StatisticsReady!=null)StatisticsReady(statistics);var previous=image;image=next;if(previous!=null)previous.Dispose();finished=request;Invalidate();
         }
         catch(Exception error){if(!IsDisposed){System.Diagnostics.Debug.WriteLine(error);finished=request;}}
         finally{transform.Dispose();rendering=false;if(IsDisposed){if(workerSprites!=null){workerSprites.Dispose();workerSprites=null;}previewCache.Dispose();}else if(finished!=serial)QueueRender();}

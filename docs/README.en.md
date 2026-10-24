@@ -46,6 +46,16 @@ Existing RufMaker installations can use **Check for updates**. If current, a dia
 
 A project consists of a `.rufmaker` file and its adjacent `GameMaker.gm82/` folder. Keep them together when moving or sharing a project. Music is copied into the project. Project and layout changes are saved automatically.
 
+### Spectrogram and object counts
+
+Right-click the audio area to choose **Waveform / Spectrogram**. The spectrogram shares the timeline's time axis, uses a logarithmic frequency axis in Hz, and shows stronger energy with greater brightness. The first analysis runs in the background over the entire song and is cached in the project's `cache/audio-spectrum/` folder.
+
+Drag the audio area's bottom edge to enlarge it. Drag a track's bottom edge in the left label area to resize that track or property row independently; double-click to reset. The audio menu also offers common heights. These settings are saved with the workspace layout.
+
+Open **Object counts** in the right sidebar, or click the status bar's `obj` total. It shows counts by GameMaker type and RufMaker source for the rendered preview frame, reusing the existing simulation. Source rows are a breakdown, not extra instances. Trails do not add instances; draw-only decorations are listed separately. Ordinary room instances are estimates because arbitrary native code may create or destroy more objects.
+
+For imported projects, **Regenerate native recording** captures real native instance counts alongside the movie. Existing movies remain usable; without this metadata, the panel explicitly shows only RufMaker counts until you regenerate.
+
 ### Random parameters
 
 Enable **Random** to the left of a numeric field, then enter an expression such as `random(360)`, `random_range(100,700)`, `choose(0,90,180,270)` or `400 + random_range(-60,60)`. Integer functions `irandom` and `irandom_range`, nested calls and arithmetic are supported. Keyframed parameters can have a separate expression at each key.

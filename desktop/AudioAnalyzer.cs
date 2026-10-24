@@ -18,44 +18,40 @@ internal static class AudioAnalyzer
     [DllImport(Dll,CallingConvention=CallingConvention.StdCall)] static extern int FMOD_Sound_GetDefaults(IntPtr sound,out float frequency,out float volume,out float pan,out int priority);
     [DllImport(Dll,CallingConvention=CallingConvention.StdCall)] static extern int FMOD_Sound_ReadData(IntPtr sound,byte[] buffer,uint length,out uint read);
     static void Check(int error){if(error!=0)throw new InvalidOperationException("歌曲解析失败（FMOD "+error+"）");}
-    static double Sample(byte[] data,int p,int format)
+    internal static double Sample(byte[] data,int p,int format)
     {
         switch(format){case 1:return (data[p]-128)/128.0;case 2:return (short)(data[p]|data[p+1]<<8)/32768.0;
         case 3:int v=data[p]|data[p+1]<<8|data[p+2]<<16;if((v&0x800000)!=0)v|=unchecked((int)0xff000000);return v/8388608.0;
         case 4:return BitConverter.ToInt32(data,p)/2147483648.0;case 5:return BitConverter.ToSingle(data,p);default:throw new InvalidOperationException("音乐解码未返回 PCM 数据");}
     }
-    public static WaveData Analyze(string file)
+    internal static void Decode(string file,Action<AudioPcmFormat> begin,Action<AudioPcmFormat,byte[],int> consume,System.Threading.CancellationToken cancel=default(System.Threading.CancellationToken))
     {
         if(!File.Exists(file))throw new FileNotFoundException("找不到歌曲",file);IntPtr system=IntPtr.Zero,sound=IntPtr.Zero;
-        try
-        {
+        try{
             Check(FMOD_System_Create(out system));Check(FMOD_System_SetOutput(system,2));Check(FMOD_System_Init(system,8,0,IntPtr.Zero));
-            // FMOD Ex 4.44 uses UTF-16 with FMOD_UNICODE, unlike newer FMOD versions.
+            // FMOD Ex 4.44 uses UTF-16 with FMOD_UNICODE.
             Check(FMOD_System_CreateSound(system,System.Text.Encoding.Unicode.GetBytes(Path.GetFullPath(file)+"\0"),0x01000000|0x1|0x8|0x40|0x80|0x2000|0x4000,IntPtr.Zero,out sound));
-            uint ms;Check(FMOD_Sound_GetLength(sound,out ms,1));int type,format,channels,bits,priority;float frequency,volume,pan;
-            Check(FMOD_Sound_GetFormat(sound,out type,out format,out channels,out bits));Check(FMOD_Sound_GetDefaults(sound,out frequency,out volume,out pan,out priority));
-            if(channels<1||frequency<=0||bits<8||format<1||format>5)throw new InvalidOperationException("不支持这首歌曲的解码格式");
-            double duration=ms/1000.0;if(duration<=0)throw new InvalidOperationException("歌曲没有有效音频");
-            var result=new WaveData{duration=duration,peaks=new double[Math.Min(24000,Math.Max(2000,(int)(duration*100)))]};
-            var samples=new List<float>((int)(Math.Min(300,duration)*11025)+1024);int bytes=bits/8,frameBytes=bytes*channels;
-            var buffer=new byte[(65536/frameBytes)*frameBytes];long frame=0;double sum=0,next=frequency/11025.0;int sumCount=0;
-            while(true)
-            {
-                uint received;int error=FMOD_Sound_ReadData(sound,buffer,(uint)buffer.Length,out received);int count=(int)received/frameBytes;
-                for(int i=0;i<count;i++,frame++)
-                {
-                    double mono=0,peak=0;for(int c=0;c<channels;c++){double value=Sample(buffer,i*frameBytes+c*bytes,format);mono+=value;peak=Math.Max(peak,Math.Abs(value));}mono/=channels;
-                    int bin=Math.Min(result.peaks.Length-1,(int)(frame/frequency/duration*result.peaks.Length));result.peaks[bin]=Math.Max(result.peaks[bin],Math.Min(1,peak));
-                    if(frame/frequency<300){sum+=mono;sumCount++;if(frame+1>=next){samples.Add((float)(sum/Math.Max(1,sumCount)));sum=0;sumCount=0;next+=frequency/11025.0;}}
-                }
-                if(received==0||error!=0)break;
-            }
-            if(frame==0)throw new InvalidOperationException("无法读取歌曲的音频数据");
-            Detect(samples.ToArray(),11025,result);return result;
-        }
-        finally{if(sound!=IntPtr.Zero)FMOD_Sound_Release(sound);if(system!=IntPtr.Zero)FMOD_System_Release(system);}
+            uint ms;int type,format,channels,bits,priority;float frequency,volume,pan;
+            Check(FMOD_Sound_GetLength(sound,out ms,1));Check(FMOD_Sound_GetFormat(sound,out type,out format,out channels,out bits));Check(FMOD_Sound_GetDefaults(sound,out frequency,out volume,out pan,out priority));
+            if(channels<1||frequency<=40||bits<8||format<1||format>5||ms==0)throw new InvalidOperationException("不支持这首歌曲的解码格式");
+            var info=new AudioPcmFormat{channels=channels,bits=bits,format=format,rate=frequency,duration=ms/1000.0};begin(info);var buffer=new byte[(65536/info.FrameBytes)*info.FrameBytes];long frames=0;
+            while(true){cancel.ThrowIfCancellationRequested();uint received;int error=FMOD_Sound_ReadData(sound,buffer,(uint)buffer.Length,out received);int count=(int)received/info.FrameBytes;if(count>0){consume(info,buffer,count);frames+=count;}if(received==0||error!=0)break;}
+            if(frames==0)throw new InvalidOperationException("无法读取歌曲的音频数据");
+        }finally{if(sound!=IntPtr.Zero)FMOD_Sound_Release(sound);if(system!=IntPtr.Zero)FMOD_System_Release(system);}
     }
-    static void Fft(double[] real,double[] imag)
+    public static WaveData Analyze(string file)
+    {
+        WaveData result=null;List<float> samples=null;long frame=0;double sum=0,next=0;int sumCount=0;
+        Decode(file,info=>{result=new WaveData{duration=info.duration,peaks=new double[Math.Min(24000,Math.Max(2000,(int)(info.duration*100)))]};samples=new List<float>((int)(Math.Min(300,info.duration)*11025)+1024);next=info.rate/11025.0;},(info,buffer,count)=>{
+            int bytes=info.bits/8;
+            for(int i=0;i<count;i++,frame++){
+                double mono=0,peak=0;for(int c=0;c<info.channels;c++){double value=Sample(buffer,i*info.FrameBytes+c*bytes,info.format);mono+=value;peak=Math.Max(peak,Math.Abs(value));}mono/=info.channels;
+                int bin=Math.Min(result.peaks.Length-1,(int)(frame/info.rate/info.duration*result.peaks.Length));result.peaks[bin]=Math.Max(result.peaks[bin],Math.Min(1,peak));
+                if(frame/info.rate<300){sum+=mono;sumCount++;if(frame+1>=next){samples.Add((float)(sum/Math.Max(1,sumCount)));sum=0;sumCount=0;next+=info.rate/11025.0;}}
+            }
+        });Detect(samples.ToArray(),11025,result);return result;
+    }
+    internal static void Fft(double[] real,double[] imag)
     {
         int n=real.Length;for(int i=1,j=0;i<n;i++){int bit=n>>1;for(;(j&bit)!=0;bit>>=1)j^=bit;j^=bit;if(i<j){double t=real[i];real[i]=real[j];real[j]=t;}}
         for(int len=2;len<=n;len*=2){double a=-2*Math.PI/len,wr0=Math.Cos(a),wi0=Math.Sin(a);for(int start=0;start<n;start+=len){double wr=1,wi=0;for(int j=0;j<len/2;j++){int p=start+j,q=p+len/2;double r=real[q]*wr-imag[q]*wi,im=real[q]*wi+imag[q]*wr;real[q]=real[p]-r;imag[q]=imag[p]-im;real[p]+=r;imag[p]+=im;double next=wr*wr0-wi*wi0;wi=wr*wi0+wi*wr0;wr=next;}}}
