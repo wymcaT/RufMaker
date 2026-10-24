@@ -2,6 +2,8 @@
 
 > 弹幕控制测试分支：运行 `RufMaker.Beta.exe`，使用方法见 [测试版说明](docs/beta-bullet-control.md)。
 
+开发协作请从 [AGENTS.md](AGENTS.md) 和 [开发入口](docs/development/GETTING_STARTED.md) 开始；[当前状态](docs/collaboration/STATUS.md) 与 [Argon4 接手提示](docs/collaboration/START_ARGON4.md) 用于跨代理交接。
+
 [English guide](https://github.com/wymcaT/RufMaker/blob/main/docs/README.en.md)
 
 用时间轴制作 **I Wanna 耐久**的 Windows 桌面编辑器。
