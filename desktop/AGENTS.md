@@ -24,7 +24,8 @@
 - `Track` 表示物件，`lane` 只是轨道编号。组引用和来源引用使用稳定 ID；复制时处理 `parentId`、`targetSource`、行为 `templateId`。
 - 新数据不能只存在于控件中。同步检查 `Track.Snapshot()`、JSON 字段、`Motion.Normalize()`、预设保存与实例化。
 - 撤销和保存使用 `EditorState.Snapshot()` 的独立副本；新增可变字段要补深复制及快照隔离测试。`SceneComparison` 只比较持久字段，忽略 `[ScriptIgnore]` 的 parent/owner 等预览引用。
-- 同结构属性表经 `NativeProperties.TryRebind()` 更新 getter/setter 和 `ParameterActions`，复用控件与滚动位置；结构/选项变化才重建。数值显示缓存由 `RefreshValue()` 更新，提交表达式或结束输入时也要更新。
+- 同结构属性表经 `NativeProperties.TryRebind()` 更新 getter/setter 和 `ParameterActions`；结构变化经 `Reconcile()` 与 `ParameterInspector.UpdateRows()` 复用兼容行，只增删受影响的行，不清空整页。动画属性始终留在“参数”原位，◆/◇ 只标识状态。异步属性布局请求经 `QueueInspectorUpdate()` 合并。
+- 数值显示缓存由 `RefreshValue()` 更新，提交表达式或结束输入时也要更新。拖动步长经 `ParameterActions.Property` 的稳定字段 ID 决定；复用关键帧“数值”编辑器时也要重绑该 ID。缩放/比例用 0.01，坐标/长度用 1，避免随当前数值大小跳变。
 - `Motion.EditValue()` 保持“无键改基础值、有键改当前键”；不要所有编辑都偷偷插键。
 - 同步语义对应 `studio/`；取整用现有 `BulletSystem.Round` 等约定，注意 C# 默认银行家舍入与 JS/GM 的差异。
 - 渲染在后台工作。修改场景后经 `SceneChanged()` 更新快照/缓存，不从后台线程操作 WinForms 控件，不让旧渲染结果覆盖新场景。

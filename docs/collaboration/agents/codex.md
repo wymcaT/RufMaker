@@ -1,11 +1,23 @@
 # Codex 任务记录
 
 - 状态：`completed`
-- 任务：用户已授权推送 1.13.1 并更新 Releases；准备说明、校验完整便携包/兼容更新包、推送 main 与版本标签并核对发布和在线更新。
-- 开始时基线：`9884eed`，分支 `main`；保留用户 projects 下既有改动。
-- 当前占用文件：无，发布与验证已完成并释放。
-- 本轮发布：`main`、`v1.13.1` 已推送，标签对应 `6ed3764`；GitHub Actions `40114921642` 成功，Release 已公开并设为 latest。完整包、更新包、两个 SHA256 均已上线；真实在线更新测试通过。
-- 本机产物：根目录 `RufMaker.exe`，ProductVersion `1.13.1`，FileVersion `1.13.1.0`，1,069,056 bytes。正在运行的旧编辑器需保存并重启才能使用新代码。
+- 任务：减少加键等操作的右栏强制刷新；按用户最新要求让动画属性原地标识、不重新分栏，结构变化增量更新属性行；拖数值步长按参数类别适配。本轮本地构建，不推送。
+- 开始时基线：`a83e764`，分支 `main`；保留用户 projects 下既有改动。
+- 当前占用文件：无，已完成并释放。实际文件见本轮提交；个人工程未操作。
+- 本轮发布：仅本地 1.13.2 构建/提交，未推送。远程 main 为 `a83e764`，Release/latest 仍为 v1.13.1（Actions `40114921642`）。
+- 本机产物：根目录 `RufMaker.exe`，ProductVersion `1.13.2`，FileVersion `1.13.2.0`，1,073,152 bytes。已安全替换路径，运行中的旧进程需保存并重启。
+
+## 2026-10-25：属性原位标记、局部更新与语义拖动步长
+
+- 按用户新要求，`AnimatedFields` 固定归入“参数”，不再按有无关键帧拆组。◆/◇ 在原参数行标动画状态；数值编辑规则仍为无键改全局、有键改当前键。
+- `NativeProperties.Reconcile()` 按类别/名称及兼容性复用 `ValueProperty` 与动作绑定。`ParameterInspector.UpdateRows()` 只创建/销毁变化行，兼容字段保留 Label、编辑器、事件与滚动；组标题也复用，单/双列切换调整已有控件单元格。K 自动选择关键帧时只追加详情，删键移除详情；常规参数行不再重建。
+- `QueueInspectorUpdate()` 合并同一 UI 轮次的布局请求，接入运动/飞行/发射形状/控制动作/拖影/特效等下拉更新。启用表达式时删除一次多余 MarkChanged，避免同一操作重复制作预览快照。
+- 新增 GUI 元数据 `ParameterActions.Property`（不进入工程保存），供 `ScrubNumber.StepFor()` 按字段 ID 选拖动步长；重绑已有“数值”编辑器时同步更新。缩放、镜头缩放、透明度与比例 0.01；坐标、长度、角度、数量/帧 1；速度 0.1；加速度 0.01；拖影衰减 0.001。步长不随当前数值数量级跳变；Ctrl ×0.1、Shift ×10 保持原行为。无元数据的原生/普通数字按标签和整数类型回退。
+- `Test-EditorPerformance.ps1` 扩展：实际 K/删键/动画开关/关键帧选择及重绑、父控件身份与原行、增删拖影/运动字段、宽窄布局和单元格无重叠；关键帧详情切换 x/scale 时验证步长；比例/坐标在 0～1000 范围验证稳定步长。
+- 与 `a83e764` 的 1.13.1 源码编译基线对照（均为 40 物件/6400 关键帧、7 次中位数，不含游戏渲染）：加键约 59.88 → 18.45 ms，撤销加键 77.29 → 20.59 ms；原页共有控件保留由 false 变为 true。基线在 `build/inspector-incremental-baseline/before.json`，新结果在 `build/editor-performance-check/after.json`。
+- 通过：`Test-EditorPerformance.ps1`、`Test-RandomTimeline.ps1`、`Test-Localization.ps1`、`Test-FormationShapes.ps1`、`Test-Presets.ps1`。本地化用例改为比较持久字段语义，避免 .NET 反射字段顺序改变导致相同 JSON 数据误报；没有改语言切换产品行为。
+- 离屏截图 `build/editor-performance-check/incremental-parameters.png` 已检查。构建 `desktop/Build-Native.ps1 -Output D:\rufmaker\build\inspector-incremental-check\RufMaker.exe` 通过，File.Replace 安全替换根入口，旧映像备份在同一 build 目录；未关闭用户进程。
+- 未改 JS/GML、运动语义或用户 `projects/`；未发布 1.13.2，待用户验收和另行推送授权。README/英文指南及 desktop/AGENTS 同步了新交互约定。
 
 ## 2026-10-25：1.13.1 发布与线上验证
 

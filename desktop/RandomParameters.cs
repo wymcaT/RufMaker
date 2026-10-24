@@ -6,6 +6,7 @@ using System.Collections.Concurrent;
 
 internal sealed class ParameterActions
 {
+    public string Property;
     public Action EditExpression;public Func<bool> Keyed,Random;public Action ToggleKey,ToggleRandom;public Func<string> Expression;public Action<string> SetExpression;
 }
 internal sealed class RandomExpression

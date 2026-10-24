@@ -22,7 +22,7 @@ internal sealed partial class MainForm
     private void FlightFields(NativeProperties bag,Track track)
     {
         string[] names={"直线（发射后方向不变）","每帧朝向玩家","限制转弯速度的跟踪弹","逐帧方向表达式"},values={"straight","aim","turn","expression"};
-        Field(bag,"飞行方式","弹幕飞行",()=>names[Math.Max(0,Array.IndexOf(values,track.flightMode))],value=>{track.flightMode=values[Array.IndexOf(names,value)];if(IsHandleCreated)BeginInvoke(new Action(ShowProperties));},names,"发射角度只影响新弹幕；这里控制已经发射的每颗弹幕。预览追踪参考玩家，游戏中追踪真实玩家。");
+        Field(bag,"飞行方式","弹幕飞行",()=>names[Math.Max(0,Array.IndexOf(values,track.flightMode))],value=>{track.flightMode=values[Array.IndexOf(names,value)];if(IsHandleCreated)QueueInspectorUpdate();},names,"发射角度只影响新弹幕；这里控制已经发射的每颗弹幕。预览追踪参考玩家，游戏中追踪真实玩家。");
         if(track.flightMode=="straight")return;
         Field(bag,"开始跟踪前等待 / 帧","弹幕飞行",()=>track.homingDelay,value=>track.homingDelay=Math.Max(0,value));
         if(track.flightMode=="turn")Field(bag,"最大转弯 / 度每帧","弹幕飞行",()=>track.turnRate,value=>track.turnRate=Math.Max(0,value));

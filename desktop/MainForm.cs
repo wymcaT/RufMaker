@@ -437,8 +437,10 @@ internal sealed partial class MainForm : LocalizedForm
     private void AnimatedFields(NativeProperties bag,Track track)
     {
         foreach(string item in Motion.Fields(track).Where(p=>!Rainbow.Parameters.Contains(p)))
-        {string property=item;bool keyed=Motion.HasKeys(track,property);bag.Add(Motion.Name(property),keyed?"关键帧属性 · 当前播放头":"全局参数 · 整个时段生效",typeof(double),()=>Motion.Value(track,property,frame),value=>{PushUndo();Motion.EditValue(track,property,frame,ClampValue(property,(double)value));timeline.SelectedProperty=property;MarkChanged();},null,"◇ 开启属性关键帧；◆ 关闭并保留当前值。随机开关支持 random、random_range、choose，结果保持到重新随机。",ParameterControls(new[]{track},property));}
+        {string property=item;bag.Add(Motion.Name(property),"参数",typeof(double),()=>Motion.Value(track,property,frame),value=>{PushUndo();Motion.EditValue(track,property,frame,ClampValue(property,(double)value));timeline.SelectedProperty=property;MarkChanged();},null,"◇ 开启属性关键帧；◆ 关闭并保留当前值。随机开关支持 random、random_range、choose，结果保持到重新随机。",ParameterControls(new[]{track},property));}
     }
+    private bool inspectorUpdatePending;
+    private void QueueInspectorUpdate(){if(!IsHandleCreated||IsDisposed||inspectorUpdatePending)return;inspectorUpdatePending=true;BeginInvoke(new Action(()=>{inspectorUpdatePending=false;if(!IsDisposed)ShowProperties();}));}
     private void ShowProperties()
     {
         if(state==null)return;var bag=new NativeProperties();codeButton.Enabled=false;keyButton.Enabled=false;deleteButton.Enabled=false;
@@ -461,11 +463,11 @@ internal sealed partial class MainForm : LocalizedForm
             Field(bag,"开始帧","物件",()=>track.start,value=>{track.start=Math.Max(0,Math.Min(track.end,value));if(track.kind=="pattern")UpdatePatternEnd(track);});if(track.kind=="pattern")bag.Add("结束帧（按循环计算）","物件",typeof(int),()=>track.end,null);else Field(bag,"结束帧","物件",()=>track.end,value=>track.end=Math.Max(track.start,Math.Min(state.duration,value)));
             if(track.kind=="rod"){
                 string[] shapes=FormationShapes.Names,shapeValues=FormationShapes.Values;
-                Field(bag,"种类","整体对象",()=>shapes[Math.Max(0,Array.IndexOf(shapeValues,track.shape))],value=>{bool autoName=shapes.Contains(track.name);track.shape=shapeValues[Array.IndexOf(shapes,value)];if(autoName)track.name=value;BeginInvoke(new Action(ShowProperties));},shapes);
+                Field(bag,"种类","整体对象",()=>shapes[Math.Max(0,Array.IndexOf(shapeValues,track.shape))],value=>{bool autoName=shapes.Contains(track.name);track.shape=shapeValues[Array.IndexOf(shapes,value)];if(autoName)track.name=value;QueueInspectorUpdate();},shapes);
             }
             if(Theme.Visual(track.kind))
             {
-                keyButton.Enabled=true;Field(bag,"贴图","外观",()=>track.sprite,value=>{Rainbow.SetSprite(track,value);BeginInvoke(new Action(ShowProperties));},document.inventory.sprites);
+                keyButton.Enabled=true;Field(bag,"贴图","外观",()=>track.sprite,value=>{Rainbow.SetSprite(track,value);QueueInspectorUpdate();},document.inventory.sprites);
                 if(track.rainbow)bag.Add("颜色（彩虹固定白色）","外观",typeof(Color),()=>Color.White,null);
                 else Field(bag,"颜色","外观",()=>Motion.ColorOf(track.color),value=>track.color=String.Format("#{0:X2}{1:X2}{2:X2}",value.R,value.G,value.B));
                 RainbowFields(bag,new[]{track});
@@ -498,7 +500,7 @@ internal sealed partial class MainForm : LocalizedForm
             if(track.kind=="effect")
             {
                 keyButton.Enabled=true;keyButton.Text="＋ "+Motion.Name(CurrentProperty())+" 关键帧  (K)";
-                Field(bag,"效果","特效",()=>Effects.Name(track.effect),value=>{bool autoName=track.name==Effects.Name(track.effect)||track.name=="闪屏";track.effect=Effects.Values[Array.IndexOf(Effects.Names,value)];if(autoName)track.name=Effects.Name(track.effect);BeginInvoke(new Action(ShowProperties));},Effects.Names);
+                Field(bag,"效果","特效",()=>Effects.Name(track.effect),value=>{bool autoName=track.name==Effects.Name(track.effect)||track.name=="闪屏";track.effect=Effects.Values[Array.IndexOf(Effects.Names,value)];if(autoName)track.name=Effects.Name(track.effect);QueueInspectorUpdate();},Effects.Names);
                 Field(bag,"遮罩 / 闪屏颜色","特效",()=>Motion.ColorOf(track.color),value=>track.color=String.Format("#{0:X2}{1:X2}{2:X2}",value.R,value.G,value.B));
                 if(track.effect=="shake")Field(bag,"震动频率","特效",()=>track.fxFrequency,value=>track.fxFrequency=Math.Max(.01,value));
                 if(track.effect=="blur"||track.effect=="motion-blur")Field(bag,"模糊采样数","特效",()=>track.fxSamples,value=>track.fxSamples=Math.Max(2,Math.Min(16,value)));
@@ -546,7 +548,7 @@ internal sealed partial class MainForm : LocalizedForm
             if(group.All(t=>Theme.Visual(t.kind))){
             foreach(string property in new[]{"scale","alpha"})
             {string p=property;Field(bag,"统一"+Motion.Name(p),"批量外观",()=>Motion.Value(primary,p,frame),value=>{foreach(var t in group)Motion.EditValue(t,p,frame,ClampValue(p,value));});}
-            Field(bag,"统一贴图","批量外观",()=>primary.sprite,value=>{foreach(var t in group)Rainbow.SetSprite(t,value);BeginInvoke(new Action(ShowProperties));},document.inventory.sprites);
+            Field(bag,"统一贴图","批量外观",()=>primary.sprite,value=>{foreach(var t in group)Rainbow.SetSprite(t,value);QueueInspectorUpdate();},document.inventory.sprites);
             RainbowFields(bag,group);TrailFields(bag,group);}
         }
         bag.Add("操作提示","批量编辑",typeof(string),()=>"拖长条平移，拖边缘改长度；Delete 批量删除。",null);
@@ -554,7 +556,7 @@ internal sealed partial class MainForm : LocalizedForm
     private void RainbowFields(NativeProperties bag,Track[] group)
     {
         if(!group.All(Rainbow.IsCherry))return;var t=group[0];
-        Field(bag,"彩虹","彩虹 Cherry",()=>group.All(track=>track.rainbow),value=>{foreach(var track in group)Rainbow.Enable(track,value);BeginInvoke(new Action(ShowProperties));},null,"使用 sprrainbowcherry，固定白色与 image_speed=0。中心转转棒按离中心的距离分配颜色。");
+        Field(bag,"彩虹","彩虹 Cherry",()=>group.All(track=>track.rainbow),value=>{foreach(var track in group)Rainbow.Enable(track,value);QueueInspectorUpdate();},null,"使用 sprrainbowcherry，固定白色与 image_speed=0。中心转转棒按离中心的距离分配颜色。");
         if(!group.All(track=>track.rainbow))return;
         Field(bag,"反转","彩虹 Cherry",()=>t.rainbowReverse,value=>{foreach(var track in group)track.rainbowReverse=value;});
         Field(bag,"动态色彩","彩虹 Cherry",()=>t.rainbowDynamic,value=>{foreach(var track in group)track.rainbowDynamic=value;});
@@ -567,7 +569,7 @@ internal sealed partial class MainForm : LocalizedForm
     private void TrailFields(NativeProperties bag,Track[] group)
     {
         var t=group[0];Action<Action<Track>> apply=change=>{foreach(var track in group)change(track);};
-        Field(bag,"拖影样式","拖影",()=>Trails.Names[Math.Max(0,Array.IndexOf(Trails.Values,Trails.Mode(t)))],value=>{apply(track=>Trails.SetMode(track,Trails.Values[Array.IndexOf(Trails.Names,value)]));BeginInvoke(new Action(ShowProperties));},Trails.Names);
+        Field(bag,"拖影样式","拖影",()=>Trails.Names[Math.Max(0,Array.IndexOf(Trails.Values,Trails.Mode(t)))],value=>{apply(track=>Trails.SetMode(track,Trails.Values[Array.IndexOf(Trails.Names,value)]));QueueInspectorUpdate();},Trails.Names);
         if(Trails.Mode(t)=="off")return;
         Field(bag,"生成间隔 / 帧","拖影",()=>t.trailInterval,value=>apply(track=>track.trailInterval=Math.Max(1,Math.Min(300,value))));
         Field(bag,"拖影寿命 / 帧","拖影",()=>t.trailLife,value=>apply(track=>track.trailLife=Math.Max(1,Math.Min(300,value))));

@@ -17,7 +17,7 @@ internal sealed partial class MainForm
     {
         var t=tracks[0];Func<Keyframe> key=()=>explicitKey??(Motion.HasKeys(t,property)?t.keyframes.FirstOrDefault(k=>k.property==property&&k.frame==frame):null);
         Func<string> expression=()=>{var k=key();if(k!=null)return k.expression??"";if(Motion.HasKeys(t,property))return "";string value;return t.expressions.TryGetValue(property,out value)?value:"";};
-        Action refresh=()=>{MarkChanged();if(IsHandleCreated)BeginInvoke(new Action(ShowProperties));};
+        Action refresh=()=>{MarkChanged();QueueInspectorUpdate();};
         Action<string> assign=text=>{
             var slots=tracks.ToDictionary(track=>track,track=>{var k=explicitKey??track.keyframes.FirstOrDefault(item=>item.property==property&&item.frame==frame);return explicitKey!=null||Motion.HasKeys(track,property)?k!=null&&!String.IsNullOrEmpty(k.randomId)?k.randomId:Guid.NewGuid().ToString("N"):"base";});
             foreach(var track in tracks)RandomExpression.Evaluate(text,state.randomSeed,(String.IsNullOrEmpty(track.randomId)?track.id:track.randomId)+"|"+property+"|"+slots[track],ExpressionContext.For(track,frame));PushUndo();
@@ -29,8 +29,8 @@ internal sealed partial class MainForm
             }
             RandomParameters.Resolve(state);MarkChanged();
         };
-        return new ParameterActions{EditExpression=()=>EditParameterExpression(tracks,property,explicitKey),Random=()=>!String.IsNullOrWhiteSpace(expression()),Expression=expression,SetExpression=assign,Keyed=()=>tracks.All(track=>Motion.HasKeys(track,property)),
-            ToggleRandom=()=>{if(String.IsNullOrWhiteSpace(expression())){double current=explicitKey==null?Motion.Value(t,property,frame):explicitKey.value;string n=current.ToString("R",CultureInfo.InvariantCulture);assign("random_range("+n+", "+n+")");}else{PushUndo();foreach(var track in tracks){var k=explicitKey??track.keyframes.FirstOrDefault(item=>item.property==property&&item.frame==frame);double frozen=Motion.Value(track,property,frame);if(k!=null){k.expression="";k.value=frozen;}else{track.expressions.Remove(property);Motion.SetBase(track,property,frozen);}}}refresh();},
+        return new ParameterActions{Property=property,EditExpression=()=>EditParameterExpression(tracks,property,explicitKey),Random=()=>!String.IsNullOrWhiteSpace(expression()),Expression=expression,SetExpression=assign,Keyed=()=>tracks.All(track=>Motion.HasKeys(track,property)),
+            ToggleRandom=()=>{if(String.IsNullOrWhiteSpace(expression())){double current=explicitKey==null?Motion.Value(t,property,frame):explicitKey.value;string n=current.ToString("R",CultureInfo.InvariantCulture);assign("random_range("+n+", "+n+")");QueueInspectorUpdate();}else{PushUndo();foreach(var track in tracks){var k=explicitKey??track.keyframes.FirstOrDefault(item=>item.property==property&&item.frame==frame);double frozen=Motion.Value(track,property,frame);if(k!=null){k.expression="";k.value=frozen;}else{track.expressions.Remove(property);Motion.SetBase(track,property,frozen);}}refresh();}},
             ToggleKey=animate&&explicitKey==null&&tracks.All(track=>Motion.Fields(track).Contains(property))?(Action)(()=>{
                 PushUndo();bool disable=tracks.All(track=>Motion.HasKeys(track,property));foreach(var track in tracks){double value=Motion.Value(track,property,frame);if(disable){track.keyframes.RemoveAll(item=>item.property==property);Motion.SetBase(track,property,value);track.expressions.Remove(property);}
                 else if(!Motion.HasKeys(track,property)){string formula;track.expressions.TryGetValue(property,out formula);track.expressions.Remove(property);Motion.SetKey(track,property,frame,value);var k=track.keyframes.First(item=>item.property==property&&item.frame==frame);k.expression=formula??"";k.randomId="base";}timeline.Expand(track,true);}timeline.ClearKeySelection();selectedKey=null;timeline.SelectedProperty=property;RandomParameters.Resolve(state);refresh();}):null};

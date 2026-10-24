@@ -40,6 +40,7 @@ Existing RufMaker installations can use **Check for updates**. If current, a dia
 - **Parameters:** without keyframes a parameter is global; after adding keys, edits affect its value at the playhead.
 - **Animation buttons:** click ◇ beside an animatable parameter to create its first key at the playhead. Click ◆ to remove that property’s keys and keep the current value. Animation is off by default.
 - **Selection:** drag empty space to select clips or keys; Ctrl/Shift adds to selection. Ctrl+C / Ctrl+V duplicates objects with all their keys.
+- **Numeric dragging:** scale/opacity use 0.01 steps, positions/lengths use 1, and speeds use 0.1. Ctrl refines and Shift accelerates; the step stays stable as the value grows. Animated properties stay in their original rows with ◆ / ◇ indicators.
 - **Navigation:** click timeline empty space, then tap Left/Right for one frame. Hold to accelerate reverse/forward playback and release to stop. This ignores snapping.
 - **Preview speed:** choose 0.5x, 0.75x, 1x or enter a custom rate from 0.05 to 8. Music follows the speed, including reverse; pitch changes too. Game FPS and export timing are unchanged.
 - **Snapping:** use the BPM grid or snap to keys on one selected track. Native GM code markers are supported. Hold Alt to bypass snapping.

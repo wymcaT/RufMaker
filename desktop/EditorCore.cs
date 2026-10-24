@@ -272,6 +272,12 @@ internal sealed class NativeProperties : CustomTypeDescriptor
         for(int i=0;i<items.Count;i++)if(!((ValueProperty)items[i]).CanRebind((ValueProperty)next.items[i]))return false;
         for(int i=0;i<items.Count;i++)((ValueProperty)items[i]).Rebind((ValueProperty)next.items[i]);return true;
     }
+    public void Reconcile(NativeProperties next)
+    {
+        var available=items.Cast<ValueProperty>().GroupBy(p=>p.Category+"\u001f"+p.Name).ToDictionary(g=>g.Key,g=>new Queue<ValueProperty>(g));var result=new List<PropertyDescriptor>();
+        foreach(ValueProperty property in next.items){Queue<ValueProperty> candidates;ValueProperty previous=null;if(available.TryGetValue(property.Category+"\u001f"+property.Name,out candidates)&&candidates.Count>0)previous=candidates.Dequeue();if(previous!=null&&previous.CanRebind(property)){previous.Rebind(property);result.Add(previous);}else result.Add(property);}
+        items.Clear();items.AddRange(result);
+    }
 }
 internal sealed class ValueProperty : PropertyDescriptor
 {
@@ -298,7 +304,7 @@ internal sealed class ValueProperty : PropertyDescriptor
     internal void Rebind(ValueProperty next)
     {
         getter=next.getter;setter=next.setter;
-        if(Actions!=null){Actions.EditExpression=next.Actions.EditExpression;Actions.Keyed=next.Actions.Keyed;Actions.Random=next.Actions.Random;Actions.ToggleKey=next.Actions.ToggleKey;Actions.ToggleRandom=next.Actions.ToggleRandom;Actions.Expression=next.Actions.Expression;Actions.SetExpression=next.Actions.SetExpression;}
+        if(Actions!=null){Actions.Property=next.Actions.Property;Actions.EditExpression=next.Actions.EditExpression;Actions.Keyed=next.Actions.Keyed;Actions.Random=next.Actions.Random;Actions.ToggleKey=next.Actions.ToggleKey;Actions.ToggleRandom=next.Actions.ToggleRandom;Actions.Expression=next.Actions.Expression;Actions.SetExpression=next.Actions.SetExpression;}
     }
 }
 internal sealed class ChoiceConverter : StringConverter

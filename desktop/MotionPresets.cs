@@ -59,7 +59,7 @@ internal sealed partial class MainForm
     private void MotionControls(NativeProperties bag,Track track)
     {
         string[] names={"关键帧","速度 / 加速度","圆周运动","抛物线（起点 / 终点 / 峰）"},values={"keyframes","velocity","orbit","parabola"};
-        Field(bag,"运动逻辑","运动",()=>names[Math.Max(0,Array.IndexOf(values,track.motion))],value=>{track.motion=values[Array.IndexOf(names,value)];BeginInvoke(new Action(ShowProperties));},names,"动作预设支持拉镜及物件。运动叠加在关键帧位置上，时间单位为帧。");
+        Field(bag,"运动逻辑","运动",()=>names[Math.Max(0,Array.IndexOf(values,track.motion))],value=>{track.motion=values[Array.IndexOf(names,value)];QueueInspectorUpdate();},names,"动作预设支持拉镜及物件。运动叠加在关键帧位置上，时间单位为帧。");
         Field(bag,track.kind=="camera"?"镜头旋转速度 °/帧":"自转速度 °/帧","运动",()=>track.angularSpeed,value=>track.angularSpeed=value);
         if(track.motion=="velocity"){Field(bag,"X 速度","运动",()=>track.velocityX,value=>track.velocityX=value);Field(bag,"Y 速度","运动",()=>track.velocityY,value=>track.velocityY=value);Field(bag,"X 加速度","运动",()=>track.accelerationX,value=>track.accelerationX=value);Field(bag,"Y 加速度","运动",()=>track.accelerationY,value=>track.accelerationY=value);}
         if(track.motion=="orbit")Field(bag,"公转速度 °/帧","运动",()=>track.orbitSpeed,value=>track.orbitSpeed=value);
