@@ -129,6 +129,29 @@ internal static class RandomTimelineTests
         }
         Console.WriteLine("PASS: collapsed/expanded key drags and move-to-playhead stay within each clip; multi-selection preserves offsets, boundaries, collisions and one undo step per gesture.");
     }
+    private static void PasteAtPlayhead(string folder)
+    {
+        var a=new Track{id="paste-a",name="source",kind="rod",shape="ellipse",start=100,end=160,releaseFrame=140,x=120,y=210,rainbowMode="angle"};Motion.SetKey(a,"x",100,120);Motion.SetKey(a,"x",160,220);a.bulletActions.Add(new BulletAction{type="speed",start=5,to=4});
+        var b=new Track{id="paste-b",name="effect",kind="effect",start=140,end=180};Motion.SetKey(b,"fxOpacity",140,0);Motion.SetKey(b,"fxOpacity",180,1);
+        var group=new Track{id="paste-group",name="group",kind="group",start=50,end=160};var child=new Track{id="paste-child",name="child",parentId=group.id,kind="object",start=60,end=100};Motion.SetKey(child,"alpha",80,.5);
+        var pattern=new Track{id="paste-pattern",name="pattern",kind="pattern",start=20,end=100,children=new List<Track>{new Track{id="local",kind="object",start=10,end=30}}};Motion.SetKey(pattern.children[0],"x",15,40);
+        var state=new EditorState{duration=500,tracks=new List<Track>{a,b,group,child,pattern}};Motion.Normalize(state);
+        using(var form=new MainForm(folder))
+        {
+            Set(form,"state",state);Set(form,"document",new LoadData{state=state,project=folder,projectName="paste test",room=new RoomData(),waveform=new WaveData(),inventory=new Inventory{objects=new string[0],sprites=new[]{"sprCherry"},scripts=new string[0]}});
+            var timeline=(TimelineCanvas)Get(form,"timeline");timeline.State=state;Func<EditorState> scene=()=>((EditorState)Get(form,"state"));Func<string,Track> original=id=>scene().tracks.Single(t=>t.id==id);
+            Action paste=()=>((System.Threading.Tasks.Task)Call(form,"PasteSelection")).GetAwaiter().GetResult();
+            Call(form,"SelectTrack",a,null);Call(form,"CopySelection");Call(form,"SetFrame",300);paste();var copy=timeline.SelectedTracks.Single();
+            Check(copy.id!=a.id&&copy.start==300&&copy.end==360&&copy.releaseFrame==340,"Single clip or release did not align to playhead");Check(copy.keyframes.Select(k=>k.frame).SequenceEqual(new[]{300,360})&&copy.x==120&&copy.y==210&&copy.rainbowMode=="angle"&&copy.bulletActions[0].start==5,"Paste changed positions, keys, appearance or bullet-age timing");
+            Call(form,"SetFrame",380);paste();var repeated=timeline.SelectedTracks.Single();Check(repeated.start==380&&repeated.end==440&&original(a.id).start==100&&original(a.id).keyframes[0].frame==100,"Repeated paste moved source or clipboard origin");
+            int count=scene().tracks.Count;string repeatedId=repeated.id;Call(form,"Undo",false);Check(scene().tracks.Count==count-1&&!scene().tracks.Any(t=>t.id==repeatedId),"Undo paste did not remove one copy");Call(form,"Undo",true);var redone=scene().tracks.Single(t=>t.id==repeatedId);Check(redone.start==380&&redone.end==440&&redone.releaseFrame==420&&redone.keyframes[1].frame==440&&timeline.SelectedTracks.All(t=>scene().tracks.Contains(t)),"Redo paste lost timing or retained stale selection references");
+            Call(form,"SetFrame",490);paste();Check(timeline.SelectedTracks.Single().start==490&&timeline.SelectedTracks.Single().end==550&&scene().duration==550,"Paste near project end was clipped or shifted away from playhead");
+            timeline.SetTrackSelection(new[]{original(a.id),original(b.id)},original(a.id));Call(form,"CopySelection");Call(form,"SetFrame",0);paste();var mixed=timeline.SelectedTracks.ToArray();var rod=mixed.Single(t=>t.kind=="rod");var effect=mixed.Single(t=>t.kind=="effect");Check(rod.start==0&&rod.end==60&&rod.releaseFrame==40&&effect.start==40&&effect.end==80&&effect.keyframes[1].frame==80,"Multi-kind paste lost relative times at frame zero");
+            Call(form,"SelectTrack",original(group.id),null);Call(form,"CopySelection");Call(form,"SetFrame",200);paste();var children=timeline.SelectedTracks.ToArray();var pastedGroup=children.Single(t=>t.kind=="group");var pastedChild=children.Single(t=>t.kind=="object");Check(pastedGroup.start==200&&pastedChild.start==210&&pastedChild.keyframes.Single().frame==230&&pastedChild.parentId==pastedGroup.id,"Group paste lost child timing or remapped parent");
+            Call(form,"SelectTrack",original(pattern.id),null);Call(form,"CopySelection");Call(form,"SetFrame",90);paste();var pastedPattern=timeline.SelectedTracks.Single();Check(pastedPattern.start==90&&pastedPattern.end==170&&pastedPattern.children[0].start==10&&pastedPattern.children[0].keyframes[0].frame==15,"Paste shifted pattern-local clocks");
+        }
+        Console.WriteLine("PASS: paste aligns clips to current playhead, retains keys/releases and multi/group offsets, extends duration, preserves local clocks and supports repeated paste/undo/redo.");
+    }
     [STAThread] public static int Main(string[] args)
-    {try{Expressions(args[0]);Inspector(args[1]);Timeline(args[2]);KeyBounds();return 0;}catch(Exception error){Console.Error.WriteLine(error);return 1;}}
+    {try{Expressions(args[0]);Inspector(args[1]);Timeline(args[2]);KeyBounds();PasteAtPlayhead(args[1]);return 0;}catch(Exception error){Console.Error.WriteLine(error);return 1;}}
 }

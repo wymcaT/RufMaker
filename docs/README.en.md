@@ -49,6 +49,8 @@ A project consists of a `.rufmaker` file and its adjacent `GameMaker.gm82/` fold
 
 Dragging keys or moving them to the playhead keeps each key within its own clip. Multiple selected keys retain their spacing and stop together when any key reaches a clip boundary; clip duration stays unchanged.
 
+Ctrl+C / Ctrl+V pastes clips at the current playhead. For multiple clips, the earliest start aligns with the playhead while the other clips, keys and release times retain their offsets. The project duration extends if needed. Spatial positions and parameter values are preserved.
+
 Rainbow formations offer **Original order**, **Distance from center** and **Angle around center**, using the formation X/Y as the center. In distance mode, density sets color frames per pixel; in angle mode, density 1 maps a full turn to one rainbow cycle. Reverse, animation and keyed density/offset/speed remain available. Existing projects keep their previous color order.
 
 Ellipse and other outline height ratios accept -10 to 10. Negative values flip the local height direction, and 0 flattens the outline into a line. Keys and expressions can animate through zero in both preview and exported games.

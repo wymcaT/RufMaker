@@ -1,11 +1,21 @@
 # Codex 任务记录
 
 - 状态：`completed`
-- 任务：限制关键帧拖动边界、允许负的轮廓高度比例；按用户追加要求增加整体对象距离/角度彩虹。已本地实现、验证和构建，未推送。
-- 开始时基线：`1de325b`，分支 `main`；保留用户 projects 下既有改动。
-- 当前占用文件：无，完成并释放。实际改动文件见下文及本轮修复提交；未改用户工程或 Argon4 记录。
-- 本轮发布：仅本地 1.13.3 构建/提交，未推送。远程 main 为 `a83e764`，Release/latest 仍为 v1.13.1（Actions `40114921642`）。
-- 本机产物：根目录 `RufMaker.exe`，ProductVersion `1.13.3`，FileVersion `1.13.3.0`，1,075,200 bytes。已安全替换路径，运行中的旧进程需保存并重启。
+- 任务：物件复制粘贴改为将起始时间对齐当前播放头，平移关键帧和释放时刻，多选保留相对时间；已验证和本地构建，未推送。
+- 开始时基线：`4d4a97c`，分支 `main`；保留用户 projects 下既有改动。
+- 当前占用文件：无，完成并释放；未改用户工程或 Argon4 记录。
+- 本轮发布：仅本地 1.13.4 构建/提交，未推送。远程 main 为 `a83e764`，Release/latest 仍为 v1.13.1（Actions `40114921642`）。
+- 本机产物：根目录 `RufMaker.exe`，ProductVersion `1.13.4`，FileVersion `1.13.4.0`，1,075,712 bytes。已安全替换路径，运行中的旧进程需保存并重启。
+
+## 2026-10-25：物件粘贴到播放头
+
+- `MainForm.PasteSelection()` 对复制的物件统一加 `当前帧 - 最早起始帧` 偏移：开始、结束、属性关键帧和 releaseFrame 一起平移；多选及分组子项保持时间间隔，已有 ID/分组引用复制机制沿用。超过工程结尾自动延长时长，空间坐标、属性值、弹幕年龄行为和片段 children 的局部时间保持原样。连续粘贴重新读取当前帧，不修改剪贴板或原件。
+- 同步复制/粘贴状态提示、中英 README 与英文词条；版本 1.13.4。未改关键帧剪贴板、房间实例粘贴、JS/GML、数据字段或运动公式。
+- 实际文件：desktop/MainForm.cs、desktop/Updater.cs、desktop/tests/RandomTimelineTests.cs、assets/locales/en.json、README.md、docs/README.en.md、RufMaker.exe 及本交接文档和 STATUS。
+- `pwsh -NoProfile -File desktop/Test-RandomTimeline.ps1` 通过：新用例覆盖单物件、混合物件多选、组/子项、属性键/释放时刻、连续粘贴、帧 0、工程末尾、片段局部时钟、撤销/重做；原参数/撤销/关键帧边界回归也通过。日志 `build/paste-playhead-check/random-timeline.log`。
+- 首次新用例误把“重做应强制切换到恢复的副本”当作约束，与已有“优先保留仍存在的选中对象”冲突。已改为核对恢复后的副本时间数据及有效选中引用，未改撤销策略；初次失败记录保存在 `build/paste-playhead-check/first-test-failure.txt`。
+- 构建 `desktop/Build-Native.ps1 -Output D:\rufmaker\build\paste-playhead-check\RufMaker.exe` 通过，根入口通过 File.Replace 替换并比对 SHA256；未结束用户进程，旧映像备份在同一目录。
+- 本地提交随本节所属修复提交保存；未推送/发布，无剩余必做事项，待用户交互验收。
 
 ## 2026-10-25：关键帧边界、负高度比例与空间彩虹
 

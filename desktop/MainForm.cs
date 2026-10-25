@@ -282,7 +282,7 @@ internal sealed partial class MainForm : LocalizedForm
         if(selectedTrack!=null)
         {
             copiedTracks.Clear();foreach(var t in WithGroupChildren(state.tracks.Where(t=>t.kind!="native"&&(timeline.SelectedTracks.Contains(t)||t==selectedTrack))))copiedTracks.Add(t.Snapshot());
-            copiedKind="tracks";SetStatus("已复制 "+copiedTracks.Count+" 个物件及全部关键帧；Ctrl+V 原位粘贴");
+            copiedKind="tracks";SetStatus("已复制 "+copiedTracks.Count+" 个物件及全部关键帧；Ctrl+V 粘贴到播放头");
         }
         else if(selectedInstance!=null&&selectedInstance.name!="objRufController")
         {copiedInstance=selectedInstance.Snapshot();copiedKind="instance";SetStatus("已复制房间实例；Ctrl+V 原位粘贴");}
@@ -293,10 +293,10 @@ internal sealed partial class MainForm : LocalizedForm
         if(copiedKind=="keys"){PasteKey();return;}
         if(copiedKind=="tracks"&&copiedTracks.Count>0)
         {
-            PushUndo();var pasted=new List<Track>();
+            PushUndo();var pasted=new List<Track>();int delta=frame-copiedTracks.Min(t=>t.start);
             foreach(var t in CloneBulletTracks(copiedTracks))
-            {state.duration=Math.Max(state.duration,Math.Max(t.end,t.keyframes.Count==0?t.end:t.keyframes.Max(k=>k.frame)));state.tracks.Add(t);pasted.Add(t);timeline.Expand(t,true);}
-            frameInput.Maximum=state.duration;timeline.SetTrackSelection(pasted,pasted.First());MarkChanged();SetStatus("已原位粘贴 "+pasted.Count+" 个物件；位置、时段及关键帧与原件一致");
+            {t.start+=delta;t.end+=delta;if(t.releaseFrame>=0)t.releaseFrame+=delta;foreach(var key in t.keyframes)key.frame+=delta;state.duration=Math.Max(state.duration,Math.Max(t.end,t.keyframes.Count==0?t.end:t.keyframes.Max(k=>k.frame)));state.tracks.Add(t);pasted.Add(t);timeline.Expand(t,true);}
+            frameInput.Maximum=state.duration;timeline.SetTrackSelection(pasted,pasted.First());MarkChanged();SetStatus("已粘贴 "+pasted.Count+" 个物件到播放头；保留相对时间和全部关键帧");
         }
         else if(copiedKind=="instance"&&copiedInstance!=null)
         {
