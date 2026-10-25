@@ -1,11 +1,26 @@
 # Codex 任务记录
 
 - 状态：`completed`
-- 任务：物件复制粘贴改为将起始时间对齐当前播放头，平移关键帧和释放时刻，多选保留相对时间；已验证和本地构建，未推送。
-- 开始时基线：`4d4a97c`，分支 `main`；保留用户 projects 下既有改动。
-- 当前占用文件：无，完成并释放；未改用户工程或 Argon4 记录。
-- 本轮发布：仅本地 1.13.4 构建/提交，未推送。远程 main 为 `a83e764`，Release/latest 仍为 v1.13.1（Actions `40114921642`）。
-- 本机产物：根目录 `RufMaker.exe`，ProductVersion `1.13.4`，FileVersion `1.13.4.0`，1,075,712 bytes。已安全替换路径，运行中的旧进程需保存并重启。
+- 任务：已添加 source.x/source.y（生成时直接来源中心的世界坐标快照），创建可编辑、可导出的星星复制扩散示例。已本地验证、构建，未推送。
+- 开始时基线：`6c31b3f`，分支 `main`；保留用户 projects 下既有改动。
+- 当前占用文件：无，完成并释放；原有用户工程及 Argon4 记录未改。
+- 本轮发布：仅本地 1.13.5 构建/提交，未推送。远程 main 为 `a83e764`，Release/latest 仍为 v1.13.1（Actions `40114921642`）。
+- 本机产物：根目录 `RufMaker.exe`，ProductVersion `1.13.5`，FileVersion `1.13.5.0`，1,078,272 bytes。已安全替换路径，运行中的旧进程需保存并重启。
+
+## 2026-10-25：生成来源中心与星星复制扩散示例
+
+- 新表达式变量 `source.x / source.y`：对生成模板发出的弹幕，表示触发生成时直接来源中心的世界坐标快照；逐成员生成时传整体中心，而非成员坐标。包含父分组/生成实例的旋转和平移。飞行弹幕生成下一代时，下一代记录母弹当时位置；普通弹幕/释放/分裂也记录对应出生来源。母体继续移动或消失不改变已捕获的值。
+- C# `TemplateInstance` 和 `SimBullet` 增加运行时 sourceX/sourceY；捕获、倒拖、检查点通过现有成员快照保留。`ExpressionContext`/解析变量表和出生/行为/控制/飞行的弹幕上下文读取此值。模板尚未生成时，参数公式参考预览使用其基础 X/Y；没有增加工程持久字段或改写用户已有表达式。
+- GML `rf_template_spawn` 内部调用从 6 扩至 8 参数，`rf_pattern_spawn` 从 14 扩至 16 参数，统一传递冻结来源中心；全部生成调用已一起更新。为满足 GM8.2 的 16 参数限制，内部 `rf_expr_*` 调用重排：argument10 改传原算法计算好的 RNG 状态，FPS 编入脚本常量，腾出 argument11/15 传来源坐标；随机种子/取样时钟公式不变。没有使用共享全局来源变量，多个生成实例不会互相串中心。旧项目保存/加载同步时整体重建这些内部脚本。
+- UI 公式选择增加来源 X/Y、从来源中心向外、按来源距离设置弹速（弹幕行为）；行为公式说明与中英词条同步。带来源变量的发射器表达式进入历史模拟。README/英文指南解释来源快照和用法。
+- 实际源码文件：desktop/{ExpressionContext,RandomParameters,ExpressionEditor,BulletBehaviorForm,BulletSystem,TemplateRuntime,Updater}.cs；studio/{random-parameters,bullet-system,template-system,bullet-schema,project}.mjs；assets/locales/en.json。测试为 PlayerExpressionTests、TemplateSystemTests、LocalizationTests、expression/template-fixtures、verify-template-gml 和 studio/player-expressions.test；另有示例脚本/说明与交接文档。
+- 可重复创建入口：`runtime/node.exe tools/examples/create-star-echo.mjs`。新建目录 `projects/examples/Star Echo/`，已有同名目录时递增后缀，不覆盖。完整可编辑入口 `Star Echo.rufmaker`，GM 文本工程在相邻 `GameMaker.gm82/`；说明在同目录 `示例说明.md`。这份用户要求的新示例留本地，不提交 projects；生成配方及 docs/examples/star-echo.md 入库。
+- 示例使用原 `star2` 轮廓、60 颗彩虹弹，中心 `(230,190)` 通过关键帧移动；第 100 帧中心 `(287.5,215)`，逐成员生成单发模板，继承径向但不销毁母体。新弹幕年龄 0、持续 0 的弹速公式为 `point_distance(x,y,source.x,source.y)*0.02`。50 帧后副本相对出生中心放大两倍，原星星继续移动和旋转。
+- 通过：`Test-TemplateSystem.ps1`（含母体保留、一次生成/出生位置、源中心冻结、等比例扩散、多来源与分组、倒拖）；`Test-PlayerExpressions.ps1`；`Test-Localization.ps1`；`Test-RandomTimeline.ps1`；Node player-expressions/random-parameters/template-system/bullet-system 共 15 项。
+- 真实 GM8.2：`runtime/node.exe desktop/tests/verify-template-gml.mjs` 通过，11 个时刻 647 个完整弹幕/模板状态一致，包含来源 X/Y 和新扩散示例；隔离目录 `build/template-system-check/Template GM 1792898918114/`，无运行错误。既有随机表达式与行为一并对照。
+- 示例独立游戏编译、打包通过，`projects/examples/Star Echo/build/release/rufmaker-game.exe` 4,738,923 bytes，保留旁边 Data；编译日志 `projects/examples/Star Echo/build/compiler/latest.log`。这是编译和同配方数值验证，没有宣称用户交互试玩验收。
+- 第 150 帧真实预览渲染已检查：`build/source-center-check/star-echo-150.png`，彩虹原星星与青色扩散副本可区分。测试截图入口 `TemplateSystem.tests.exe --render STATE FRAME PROJECT OUTPUT` 读取贴图元数据；最初辅助器缺少帧数、重编时发生 lambda 变量遮蔽，均仅为测试辅助器并已修复，记录在 `render-helper-fix.log`。
+- 正式构建 `desktop/Build-Native.ps1 -Output D:\rufmaker\build\source-center-check\RufMaker.exe` 通过，File.Replace 安全替换根入口且 SHA256 相同；未关闭用户进程。源码、测试、说明、EXE 随本节修复本地提交保存，未推送/发布；无剩余必做项，待用户验收。
 
 ## 2026-10-25：物件粘贴到播放头
 

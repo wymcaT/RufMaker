@@ -15,7 +15,7 @@ export function normalizeBulletState(s,depth=0){
   for(const t of s.tracks){let p=s.tracks.find(p=>p.id===t.parentId&&p.kind==='group'),seen=new Set([t.id]);while(p){if(seen.has(p.id))throw new Error('分组不能循环引用');seen.add(p.id);p=s.tracks.find(g=>g.id===p.parentId&&g.kind==='group');}Object.defineProperty(t,'_parentIndex',{value:s.tracks.findIndex(p=>p.id===t.parentId&&p.kind==='group'),writable:true,configurable:true});}
   return s;
 }
-export function advancedBullets(s){return s.usePlayerTrace||s.tracks.some(t=>t.spawnActions.length||t.bulletActions.some(a=>a.type==='spawn')||['control','group','pattern'].includes(t.kind)||t.kind==='rod'&&t.releaseFrame>=0||t.kind==='emitter'&&(t.advancedBullets||t.bulletActions.length||t.emissionShape!=='point'||t.indexDelay||t.indexSpeed||t.indexAngle||t.indexScale||Object.values(t.expressions||{}).some(v=>/\b(i|n|u|volley)\b/.test(v))));}
+export function advancedBullets(s){return s.usePlayerTrace||s.tracks.some(t=>t.spawnActions.length||t.bulletActions.some(a=>a.type==='spawn')||['control','group','pattern'].includes(t.kind)||t.kind==='rod'&&t.releaseFrame>=0||t.kind==='emitter'&&(t.advancedBullets||t.bulletActions.length||t.emissionShape!=='point'||t.indexDelay||t.indexSpeed||t.indexAngle||t.indexScale||(t.flightMode==='expression'&&t.flightExpression.includes('source.'))||Object.values(t.expressions||{}).some(v=>/\b(i|n|u|volley)\b|\bsource\.[xy]\b/.test(v))));}
 export function expandPatterns(state){
   const s={...state,tracks:[]};
   const add=(clip,offset=0,rate=1,prefix='',depth=0)=>{

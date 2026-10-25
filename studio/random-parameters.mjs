@@ -2,10 +2,10 @@ import {gmlNumber as num} from './gml.mjs';
 import crypto from 'node:crypto';
 
 const cache=new Map();
-export const expressionVariables=['player.x','player.y','x','y','x1','y1','x2','y2','frame','time','age','direction','speed','fps','pi','i','n','u','volley'];
+export const expressionVariables=['player.x','player.y','source.x','source.y','x','y','x1','y1','x2','y2','frame','time','age','direction','speed','fps','pi','i','n','u','volley'];
 const functions={random:1,random_range:2,choose:-1,irandom:1,irandom_range:2,point_direction:4,point_distance:4,lengthdir_x:2,lengthdir_y:2,sin:1,cos:1,abs:1,sqrt:1,floor:1,ceil:1,min:-1,max:-1,clamp:3,lerp:3,turn_towards:3};
 export function isDynamic(expression){const visit=n=>expressionVariables.includes(n.op)&&n.op!=='pi'||n.args.some(visit);return visit(parseExpression(expression));}
-export function expressionContext(track,frame,state={}){return {'player.x':state.nativeTest?.x??track._expressionContext?.['player.x']??400,'player.y':state.nativeTest?.y??track._expressionContext?.['player.y']??304,x:track.x??400,y:track.y??304,x1:track.x1??280,y1:track.y1??304,x2:track.x2??520,y2:track.y2??304,frame,age:Math.max(0,frame-track.start),direction:track.angle??0,speed:track.speed??3,fps:state.fps??track._expressionContext?.fps??50};}
+export function expressionContext(track,frame,state={}){return {'player.x':state.nativeTest?.x??track._expressionContext?.['player.x']??400,'player.y':state.nativeTest?.y??track._expressionContext?.['player.y']??304,x:track.x??400,y:track.y??304,'source.x':track.x??400,'source.y':track.y??304,x1:track.x1??280,y1:track.y1??304,x2:track.x2??520,y2:track.y2??304,frame,age:Math.max(0,frame-track.start),direction:track.angle??0,speed:track.speed??3,fps:state.fps??track._expressionContext?.fps??50};}
 export function turnTowards(current,target,limit){const delta=((target-current)%360+540)%360-180;return current+Math.max(-Math.abs(limit),Math.min(Math.abs(limit),delta));}
 export function parseExpression(text) {
   if(cache.has(text))return cache.get(text);
@@ -96,13 +96,14 @@ export function randomInitialization(state) {
   return (compiler.variables.length?`var ${compiler.variables.join(',')};\n`:'')+lines.join('\n');
 }
 
-function createCompiler(lines){
+function createCompiler(lines,{fps=50}={}){
   let index=0;const variables=[];
   function emit(node){const a=node.args.map(emit),v='rf_random_arg'+index++;variables.push(v);let value;
     switch(node.op){case 'number':value=num(node.number);break;
       case 'pi':value='pi';break;
       case 'player.x':value='rf_expression_player(0)';break;case 'player.y':value='rf_expression_player(1)';break;
-      case 'time':value='(argument2/argument11)';break;case 'fps':value='argument11';break;
+      case 'time':value='(argument2/'+num(fps,50)+')';break;case 'fps':value=num(fps,50);break;
+      case 'source.x':value='argument11';break;case 'source.y':value='argument15';break;
       case 'i':value='argument12';break;case 'n':value='argument13';break;case 'volley':value='argument14';break;case 'u':value='(argument12/max(1,argument13-1))';break;
       case 'x':case 'y':case 'frame':case 'age':case 'direction':case 'speed':case 'x1':case 'y1':case 'x2':case 'y2':value='argument'+['x','y','frame','age','direction','speed','x1','y1','x2','y2'].indexOf(node.op);break;
       case 'point_direction':case 'point_distance':case 'lengthdir_x':case 'lengthdir_y':case 'sin':case 'cos':case 'abs':case 'sqrt':case 'floor':case 'ceil':case 'min':case 'max':value=node.op+'('+a.join(',')+')';break;
@@ -117,11 +118,14 @@ export function expressionScriptName(expression){return 'rf_expr_'+crypto.create
 export function expressionCall(expression,t,property='flight',key=null,context={}){
   const time=context.frame||'rf_frame',position=property==='x'||property==='y';
   const slot=num(hashSlot((t.randomId||t.id)+'|'+property+'|'+(key?.randomId||'base')));
-  const args=[context.x||num(t.x,400),context.y||num(t.y,304),time,context.age||('max(0,'+time+'-'+num(t.start)+')'),context.direction||num(t.angle),context.speed||num(t.speed,3),context.x1||num(t.x1,280),context.y1||num(t.y1,304),context.x2||num(t.x2,520),context.y2||num(t.y2,304),context.randomOffset?`(${slot}+${context.randomOffset})`:slot,num(t._expressionContext?.fps,50),context.i||'0',context.n||'1',context.volley||'0',context.randomFrame??(isDynamic(expression)?time:'0')];
+  const randomSlot=context.randomOffset?`(${slot}+${context.randomOffset})`:slot,randomFrame=context.randomFrame??(isDynamic(expression)?time:'0');
+  // Keep the GM8.2 16-argument limit: precompute the same RNG state and compile FPS as a constant.
+  const seed=`(1+((objRufController.rf_random_seed+${randomSlot}+floor(${randomFrame})*104729) mod 2147483646))`;
+  const args=[context.x||num(t.x,400),context.y||num(t.y,304),time,context.age||('max(0,'+time+'-'+num(t.start)+')'),context.direction||num(t.angle),context.speed||num(t.speed,3),context.x1||num(t.x1,280),context.y1||num(t.y1,304),context.x2||num(t.x2,520),context.y2||num(t.y2,304),seed,context.sourceX??num(t.x,400),context.i||'0',context.n||'1',context.volley||'0',context.sourceY??num(t.y,304)];
   return expressionScriptName(expression)+'('+args.join(',')+')';
 }
 export function expressionScripts(state,players){
   const scripts=[];const seen=new Set();for(const t of state.tracks){const expressions=randomBindings(t).map(b=>b.expression);if(t.kind==='emitter'&&t.flightMode==='expression')expressions.push('('+t.flightExpression+')+0*frame');for(const a of t.bulletActions||[])if(a.expression)expressions.push(a.expression);if(t.kind==='control'&&t.controlExpression)expressions.push(t.controlExpression);
-    for(const expression of expressions){if(seen.has(expression))continue;seen.add(expression);const lines=['rf_rng_state=1+((objRufController.rf_random_seed+argument10+floor(argument15)*104729) mod 2147483646);'];const compiler=createCompiler(lines);const result=compiler.emit(parseExpression(expression));scripts.push([expressionScriptName(expression),'var '+compiler.variables.join(',')+';\n'+lines.join('\n')+'\nreturn '+result+';\n']);}}
+    for(const expression of expressions){if(seen.has(expression))continue;seen.add(expression);const lines=['rf_rng_state=argument10;'];const compiler=createCompiler(lines,{fps:state.fps});const result=compiler.emit(parseExpression(expression));scripts.push([expressionScriptName(expression),'var '+compiler.variables.join(',')+';\n'+lines.join('\n')+'\nreturn '+result+';\n']);}}
   scripts.push(['rf_expression_player',"var rf_p;rf_p=noone;\n"+players.map(p=>'if rf_p=noone && instance_exists('+p+') rf_p=instance_find('+p+',0);').join('\n')+'\nif rf_p!=noone {if argument0=0 return rf_p.x;return rf_p.y;}\nif argument0=0 return '+num(state.nativeTest?.x,400)+';return '+num(state.nativeTest?.y,304)+';\n']);return scripts;
 }

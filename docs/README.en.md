@@ -10,6 +10,8 @@ Place emitters, formations, cameras and effects on a timeline, animate their pro
 
 You can animate a reusable object, formation, emitter or group, then enable **Template only**. On a source object, use **Object spawning…**; on flying bullets, add **Spawn template** in the bullet behavior editor. Choose a template, trigger age, repeat interval, index/parity filter, offset and optional inherited direction. **Destroy source after spawning** removes the mother while its children continue their own keyframes and motion. Saving a custom preset carries its referenced templates and sprites too.
 
+Generated bullets can read `source.x / source.y`, a snapshot of the source center in world coordinates when generation was triggered. The snapshot includes movement and group transforms and stays fixed afterward. To keep a star while spawning an expanding copy, generate a one-shot template at every member, inherit direction, and use `point_distance(x,y,source.x,source.y)*0.02` in a speed behavior at bullet age 0 with duration 0. See the [star echo example](examples/star-echo.md). Before generation, parameter formula previews use the object's base X/Y as a reference source.
+
 1. Download **`RufMaker-VERSION-Windows-Portable.zip`** from [Releases](https://github.com/wymcaT/RufMaker/releases/latest). This is the full Windows application. Extract everything, then run `RufMaker.exe`. A starter project is created from the template when needed.
 2. Choose **English** from **切换语言 / Language** in the setup window or top bar. If GM8.2 is missing, click **Download and set up** in the engine setup window.
 3. Create a project, choose a song and starting terrain, then add emitters or formations.

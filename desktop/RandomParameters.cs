@@ -13,7 +13,7 @@ internal sealed class RandomExpression
 {
     internal sealed class Node {public string op;public double number;public readonly List<Node> args=new List<Node>();}
     private static readonly ConcurrentDictionary<string,Node> cache=new ConcurrentDictionary<string,Node>();
-    internal static readonly string[] Variables={"player.x","player.y","x","y","x1","y1","x2","y2","frame","time","age","direction","speed","fps","pi","i","n","u","volley"};
+    internal static readonly string[] Variables={"player.x","player.y","source.x","source.y","x","y","x1","y1","x2","y2","frame","time","age","direction","speed","fps","pi","i","n","u","volley"};
     private static readonly Dictionary<string,int> Functions=new Dictionary<string,int>{{"random",1},{"random_range",2},{"choose",-1},{"irandom",1},{"irandom_range",2},{"point_direction",4},{"point_distance",4},{"lengthdir_x",2},{"lengthdir_y",2},{"sin",1},{"cos",1},{"abs",1},{"sqrt",1},{"floor",1},{"ceil",1},{"min",-1},{"max",-1},{"clamp",3},{"lerp",3},{"turn_towards",3}};
     private readonly string source;private int at;
     private RandomExpression(string text){source=(text??"").Replace('（','(').Replace('）',')').Replace('，',',');}

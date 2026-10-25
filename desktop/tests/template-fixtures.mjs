@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import {normalizeState} from '../../studio/motion.mjs';
+import {starEchoTracks} from '../../tools/examples/create-star-echo.mjs';
 const tracks=[];
 const add=t=>(tracks.push({name:t.id,sprite:'sprCherry',start:0,end:30,interval:25,keyframes:[],...t}),tracks.at(-1));
 const spawn=(templateId,more={})=>({type:'spawn',templateId,start:0,duration:0,...more});
@@ -21,5 +22,8 @@ add({id:'recursive-template',kind:'object',templateOnly:true,start:0,end:50,x:0,
 add({id:'recursive-host',kind:'object',start:0,end:0,x:650,y:100,spawnActions:[spawn('recursive-template')]});
 add({id:'group-rainbow',kind:'rod',parentId:'group-template',start:200,end:240,shape:'ellipse',x:12,y:18,count:7,radius:23.5,shapeAspect:-.6,rainbow:true,rainbowMode:'angle',rainbowDynamic:true,rainbowSpeed:.13,rainbowDensity:.67,trailMode:'fade'});
 add({id:'release-rainbow',kind:'rod',start:0,end:30,shape:'ellipse',x:610,y:230,count:7,radius:73.7,orientation:21,shapeAspect:-.6,rainbow:true,rainbowMode:'angle',rainbowDynamic:true,rainbowSpeed:.13,rainbowDensity:.67,releaseFrame:12,speed:2,life:40});
+tracks.push(...starEchoTracks());
+add({id:'echo-star-other',kind:'rod',shape:'star2',start:0,end:300,x:540,y:230,count:15,radius:55,orientation:15,spawnActions:[spawn('echo-shot',{start:100,spawnOrigin:'each',inheritAngle:true})]});
+add({id:'nested-echo',kind:'rod',parentId:'group-template',start:200,end:240,x:25,y:10,shape:'star2',count:5,radius:12,spawnActions:[spawn('echo-shot',{start:7,spawnOrigin:'each',inheritAngle:true,maxGeneration:2})]});
 const scene=normalizeState({version:2,name:'Template runtime check',room:'rAvoidance',duration:1500,fps:50,randomSeed:781,nativeTest:{x:400,y:500},tracks});
 fs.mkdirSync(process.argv[2],{recursive:true});fs.writeFileSync(path.join(process.argv[2],'scene.json'),JSON.stringify(scene));

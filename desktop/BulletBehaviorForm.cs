@@ -42,7 +42,7 @@ internal sealed class BulletBehaviorForm : Form
         }else if(a.type!="clear"){
             if(a.type!="aim"){bag.Add("起始值","参数",typeof(double),()=>a.from,v=>a.from=(double)v);bag.Add("结束值","参数",typeof(double),()=>a.to,v=>a.to=(double)v);}else bag.Add("瞄准方向偏移 / 度","参数",typeof(double),()=>a.to,v=>{a.to=(double)v;a.from=a.to;});
             bag.Add("相对出生值","参数",typeof(bool),()=>a.relative,v=>a.relative=(bool)v,null,"方向、弹速为相加；大小、不透明度为相乘。");bag.Add("缓动","参数",typeof(string),()=>Motion.EaseNames[Math.Max(0,Array.IndexOf(Motion.EaseValues,a.easing))],v=>a.easing=Motion.EaseValues[Array.IndexOf(Motion.EaseNames,(string)v)],Motion.EaseNames);
-            bag.Add("公式（留空使用数值）","参数",typeof(string),()=>a.expression,v=>{string text=((string)v??"").Trim();if(text.Length>0)RandomExpression.Evaluate(text,state.randomSeed,track.id,ExpressionContext.For(track,track.start));a.expression=text;},null,"公式每帧执行，可用 i、n、u、volley、age、player.x/y、x/y、speed、direction。sin/cos 使用弧度。");
+            bag.Add("公式（留空使用数值）","参数",typeof(string),()=>a.expression,v=>{string text=((string)v??"").Trim();if(text.Length>0)RandomExpression.Evaluate(text,state.randomSeed,track.id,ExpressionContext.For(track,track.start));a.expression=text;},null,"在行为生效期间执行。x/y 是本弹幕位置；source.x/y 是生成时来源中心的世界坐标快照。可用 i、n、u、volley、age、player.x/y、speed、direction。sin/cos 使用弧度。");
             if(a.type=="collision")bag.Add("说明","参数",typeof(string),()=>"0 关闭碰撞；1 开启碰撞。外观与碰撞独立。",null);
         }
         inspector.SelectedObject=bag;

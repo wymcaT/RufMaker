@@ -34,7 +34,7 @@ function tangentGml(t){
   return code+'rf_heading=rf_angle+point_direction(0,0,rf_tdx,rf_tdy)+rf_emitRotation;';
 }
 function spawnCase(t,index,eventCount,s){
-  const context={birthSampling:true,i:'rf_idx',n:'rf_n',volley:'rf_wave',randomFrame:'0',randomOffset:t.randomScope==='group'?'0':`(rf_wave*1009${t.randomScope==='bullet'?'+rf_idx*9176':''})`};
+  const context={birthSampling:true,sourceX:'rf_birth_source_x',sourceY:'rf_birth_source_y',i:'rf_idx',n:'rf_n',volley:'rf_wave',randomFrame:'0',randomOffset:t.randomScope==='group'?'0':`(rf_wave*1009${t.randomScope==='bullet'?'+rf_idx*9176':''})`};
   const get=(field,fallback=0)=>parameterCode(t,field,fallback,null,{...context,frame:'rf_sample_time'});
   const pose=(track,template=false)=>`${template?templateStateCode(track,'rf_sample_time',context,'rf_spawn_owner.rf_template_source'):stateCode(track,'rf_sample_time',context)}${emissionPointGml(track)}
 rf_heading=rf_angle+(rf_idx-(rf_n-1)/2)*rf_spread+rf_idx*${num(t.indexAngle)};
@@ -44,10 +44,11 @@ rf_x+=rf_epx;rf_y+=rf_epy;
 ${template?`if !argument5 {rf_oldx=rf_x-rf_spawn_owner.rf_anchor_x;rf_oldy=rf_y-rf_spawn_owner.rf_anchor_y;rf_x=rf_spawn_owner.rf_origin_x+lengthdir_x(rf_oldx,rf_spawn_owner.rf_rotation)+lengthdir_x(rf_oldy,rf_spawn_owner.rf_rotation-90);rf_y=rf_spawn_owner.rf_origin_y+lengthdir_y(rf_oldx,rf_spawn_owner.rf_rotation)+lengthdir_y(rf_oldy,rf_spawn_owner.rf_rotation-90);rf_heading+=rf_spawn_owner.rf_rotation;}`:''}
 ${track.emissionFacing==='aim'?`rf_heading=point_direction(rf_x,rf_y,rf_expression_player(0),rf_expression_player(1))+rf_angle${track._parentIndex>=0?'-global.rf_ga':''}${template?'+rf_spawn_owner.rf_rotation':''};`:''}`;
   const variants=templateBundles(s).filter(b=>b.tracks.some(x=>x.id===t.id)).map(b=>`case ${b.rootIndex}:${pose(b.tracks.find(x=>x.id===t.id),true)}break;`).join('\n');
-  return `case ${index}:if instance_exists(rf_spawn_owner) {switch(rf_spawn_owner.rf_template_source){${variants}}}else {${pose(t)}}
+  return `case ${index}:rf_birth_source_x=${num(t.x,400)};rf_birth_source_y=${num(t.y,304)};if instance_exists(rf_spawn_owner) || argument5 {rf_birth_source_x=argument14;rf_birth_source_y=argument15;}if instance_exists(rf_spawn_owner) {switch(rf_spawn_owner.rf_template_source){${variants}}}else {${pose(t)}}
+rf_center_x=rf_x-rf_epx;rf_center_y=rf_y-rf_epy;
 if argument5 {rf_x=argument6;rf_y=argument7;rf_heading=argument8;rf_speed=argument9;}else rf_speed+=rf_idx*${num(t.indexSpeed)};
 rf_result=instance_create(rf_x,rf_y,objRufBullet);rf_result.rf_system=1;rf_result.rf_source=${index};rf_result.rf_behavior=${index};if argument11 rf_result.rf_behavior=-1;
-rf_result.rf_birth=rf_born;rf_result.rf_clock_shift=argument12;rf_result.rf_index=rf_idx;rf_result.rf_n=rf_n;rf_result.rf_volley=rf_wave;rf_result.rf_generation=argument10;rf_result.rf_life=rf_life;rf_result.rf_age=0;
+rf_result.rf_birth=rf_born;rf_result.rf_clock_shift=argument12;rf_result.rf_index=rf_idx;rf_result.rf_n=rf_n;rf_result.rf_volley=rf_wave;rf_result.rf_generation=argument10;rf_result.rf_life=rf_life;rf_result.rf_age=0;rf_result.rf_source_x=rf_center_x;rf_result.rf_source_y=rf_center_y;if instance_exists(rf_spawn_owner) || argument5 {rf_result.rf_source_x=argument14;rf_result.rf_source_y=argument15;}
 rf_result.rf_dir=rf_heading;rf_result.rf_speed=rf_speed;rf_result.rf_base_dir=rf_heading;rf_result.rf_base_speed=rf_speed;rf_result.rf_base_scale=rf_scale*(1+rf_idx*${num(t.indexScale)});rf_result.rf_base_alpha=rf_alpha;
 rf_result.rf_sprite=${t.sprite};rf_result.sprite_index=${t.sprite};rf_result.image_xscale=rf_result.rf_base_scale;rf_result.image_yscale=rf_result.rf_base_scale;rf_result.image_alpha=rf_alpha;rf_result.image_blend=${t.rainbow?'c_white':color(t.color)};
 rf_result.rf_rotate=${t.rotateSprite?1:0};rf_result.rf_sprite_angle=rf_spriteAngle;rf_result.image_angle=rf_spriteAngle+${t.rotateSprite?'rf_heading':'0'};rf_result.rf_turn=${get('turnRate',3)};rf_result.rf_delay=${get('homingDelay')};
@@ -57,7 +58,7 @@ for(rf_e=0;rf_e<${eventCount};rf_e+=1)rf_result.rf_cmd[rf_e]=0;
 rf_result.rf_hx[0]=rf_x;rf_result.rf_hy[0]=rf_y;rf_result.rf_ha[0]=rf_result.image_angle;rf_result.rf_hs[0]=rf_result.image_xscale;rf_result.rf_hal[0]=rf_alpha;
 return rf_result;`;
 }
-const expressionContext={x:'x',y:'y',frame:'(rf_world-rf_clock_shift)',age:'rf_age',direction:'rf_dir',speed:'rf_speed',i:'rf_index',n:'rf_n',volley:'rf_volley'};
+const expressionContext={x:'x',y:'y',sourceX:'rf_source_x',sourceY:'rf_source_y',frame:'(rf_world-rf_clock_shift)',age:'rf_age',direction:'rf_dir',speed:'rf_speed',i:'rf_index',n:'rf_n',volley:'rf_volley'};
 function applyCode(type,value){switch(type){
   case 'speed':return `rf_speed=${value};`;case 'direction':return `rf_dir=${value};`;case 'scale':return `image_xscale=max(0,${value});image_yscale=image_xscale;`;case 'alpha':return `image_alpha=max(0,min(1,${value}));`;
   case 'turn':return `rf_spin=${value};`;case 'acceleration':return `rf_accel=${value};`;case 'aim':return `rf_dir=point_direction(x,y,rf_expression_player(0),rf_expression_player(1))+${value};`;
@@ -84,7 +85,7 @@ if rf_cmd[${index}] {rf_u=1;${e.end>e.start?`rf_u=rf_ease('${e.controlEasing}',(
 }
 export function bulletSystemScripts(s){
   const events=s.tracks.filter(t=>t.enabled!==false&&t.kind==='control');
-  const spawn=`var ${locals},rf_born,rf_sample_time,rf_spawn_owner,rf_idx,rf_n,rf_wave,rf_heading,rf_result,rf_e,rf_epu,rf_epx,rf_epy,rf_epa,rf_oldx,rf_oldy,rf_tdx,rf_tdy;
+  const spawn=`var ${locals},rf_born,rf_sample_time,rf_spawn_owner,rf_idx,rf_n,rf_wave,rf_heading,rf_result,rf_e,rf_epu,rf_epx,rf_epy,rf_epa,rf_oldx,rf_oldy,rf_tdx,rf_tdy,rf_birth_source_x,rf_birth_source_y,rf_center_x,rf_center_y;
 rf_born=argument1;rf_sample_time=rf_born-argument12;rf_spawn_owner=argument13;rf_idx=argument2;rf_n=argument3;rf_wave=argument4;switch(argument0){${s.tracks.map((t,i)=>['emitter','rod'].includes(t.kind)?spawnCase(t,i,events.length,s):'').join('\n')}}return noone;`;
   const tick=`var rf_world,rf_at,rf_value,rf_u,rf_target,rf_delta,rf_slot,rf_split,rf_split_template,rf_split_plain,rf_split_count,rf_split_speed,rf_split_spread,rf_j,rf_child,rf_split_i;
 rf_world=argument0;if rf_kinematic return 0;if rf_last_update=rf_world return 0;rf_last_update=rf_world;rf_age=rf_world-rf_birth;if rf_age<0 {sprite_index=-1;return 0;}if rf_age>=rf_life {instance_destroy();return 0;}
@@ -93,12 +94,12 @@ ${events.map((e,i)=>eventCode(e,i,s)).join('\n')}
 if rf_dead {instance_destroy();return 0;}if rf_age>0 {rf_speed+=rf_accel;rf_dir+=rf_spin;x+=lengthdir_x(rf_speed,rf_dir);y+=lengthdir_y(rf_speed,rf_dir);}if rf_rotate image_angle=rf_sprite_angle+rf_dir;
 sprite_index=-1;if rf_collision sprite_index=rf_sprite;rf_slot=rf_age mod 301;rf_hx[rf_slot]=x;rf_hy[rf_slot]=y;rf_ha[rf_slot]=image_angle;rf_hs[rf_slot]=image_xscale;rf_hal[rf_slot]=image_alpha;
 rf_template_bullet_actions(rf_world);if rf_dead {instance_destroy();return 0;}
-for(rf_split_i=0;rf_split_i<rf_split;rf_split_i+=1){for(rf_j=0;rf_j<rf_split_count[rf_split_i];rf_j+=1){rf_child=rf_pattern_spawn(rf_split_template[rf_split_i],rf_world,rf_j,rf_split_count[rf_split_i],rf_volley,1,x,y,rf_dir+(rf_j-(rf_split_count[rf_split_i]-1)/2)*rf_split_spread[rf_split_i],rf_split_speed[rf_split_i],rf_generation+1,rf_split_plain[rf_split_i],rf_clock_shift,noone);if instance_exists(rf_child) {if rf_split_plain[rf_split_i] {rf_child.image_blend=image_blend;rf_child.image_xscale=image_xscale;rf_child.image_yscale=image_yscale;rf_child.rf_base_scale=image_xscale;rf_child.image_alpha=image_alpha;rf_child.rf_base_alpha=image_alpha;}with(rf_child) rf_pattern_tick(global.rf_tick_world);}}}
+for(rf_split_i=0;rf_split_i<rf_split;rf_split_i+=1){for(rf_j=0;rf_j<rf_split_count[rf_split_i];rf_j+=1){rf_child=rf_pattern_spawn(rf_split_template[rf_split_i],rf_world,rf_j,rf_split_count[rf_split_i],rf_volley,1,x,y,rf_dir+(rf_j-(rf_split_count[rf_split_i]-1)/2)*rf_split_spread[rf_split_i],rf_split_speed[rf_split_i],rf_generation+1,rf_split_plain[rf_split_i],rf_clock_shift,noone,x,y);if instance_exists(rf_child) {if rf_split_plain[rf_split_i] {rf_child.image_blend=image_blend;rf_child.image_xscale=image_xscale;rf_child.image_yscale=image_yscale;rf_child.rf_base_scale=image_xscale;rf_child.image_alpha=image_alpha;rf_child.rf_base_alpha=image_alpha;}with(rf_child) rf_pattern_tick(global.rf_tick_world);}}}
 return 0;`;
   const update=`var ${locals},rf_now,rf_j,rf_n,rf_i,rf_instance,rf_heading;rf_now=argument0;rf_template_step(rf_now);
 ${s.tracks.map((t,index)=>{
-    if(t.enabled===false)return '';if(t.kind==='emitter')return `if rf_template_visible(${index},-1,noone) && (${activeCode(t,'rf_now',s.tracks)}) && (rf_now-${num(t.start)}) mod ${parameterCode(t,'interval',1)}=0 {${stateCode(t,'rf_now')}rf_n=max(1,min(300,round(rf_count)));for(rf_j=0;rf_j<rf_n;rf_j+=1)rf_pattern_spawn(${index},rf_now+rf_j*${num(t.indexDelay)},rf_j,rf_n,(rf_now-${num(t.start)}) div ${parameterCode(t,'interval',1)},0,0,0,0,0,0,0,0,noone);}`;
-    if(t.kind==='rod'&&t.releaseFrame>=0)return `if rf_now=${num(t.releaseFrame)} && rf_template_visible(${index},-1,noone) && (${activeCode(t,'rf_now',s.tracks)}) {${stateCode(t,'rf_now')}${shapeSetup(t,'rf_now')}rf_n=rf_count;for(rf_j=0;rf_j<rf_n;rf_j+=1){if !rf_template_visible(${index},rf_j,noone) continue;${shapePoint(t)}rf_color_sequence=${rodSequence(t)};rf_heading=${t.releaseDirection==='fixed'?'rf_angle':t.releaseDirection==='aim'?'point_direction(rf_px,rf_py,rf_expression_player(0),rf_expression_player(1))':'point_direction(rf_x,rf_y,rf_px,rf_py)'+(t.releaseDirection==='tangent'?'+90':'')};rf_instance=rf_pattern_spawn(${index},rf_now,rf_j,rf_n,0,1,rf_px,rf_py,rf_heading,rf_speed,0,0,0,noone);${releasedRainbow(t,'rf_now','rf_instance')}}}`;return '';
+    if(t.enabled===false)return '';if(t.kind==='emitter')return `if rf_template_visible(${index},-1,noone) && (${activeCode(t,'rf_now',s.tracks)}) && (rf_now-${num(t.start)}) mod ${parameterCode(t,'interval',1)}=0 {${stateCode(t,'rf_now')}rf_n=max(1,min(300,round(rf_count)));for(rf_j=0;rf_j<rf_n;rf_j+=1)rf_pattern_spawn(${index},rf_now+rf_j*${num(t.indexDelay)},rf_j,rf_n,(rf_now-${num(t.start)}) div ${parameterCode(t,'interval',1)},0,0,0,0,0,0,0,0,noone,rf_x,rf_y);}`;
+    if(t.kind==='rod'&&t.releaseFrame>=0)return `if rf_now=${num(t.releaseFrame)} && rf_template_visible(${index},-1,noone) && (${activeCode(t,'rf_now',s.tracks)}) {${stateCode(t,'rf_now')}${shapeSetup(t,'rf_now')}rf_n=rf_count;for(rf_j=0;rf_j<rf_n;rf_j+=1){if !rf_template_visible(${index},rf_j,noone) continue;${shapePoint(t)}rf_color_sequence=${rodSequence(t)};rf_heading=${t.releaseDirection==='fixed'?'rf_angle':t.releaseDirection==='aim'?'point_direction(rf_px,rf_py,rf_expression_player(0),rf_expression_player(1))':'point_direction(rf_x,rf_y,rf_px,rf_py)'+(t.releaseDirection==='tangent'?'+90':'')};rf_instance=rf_pattern_spawn(${index},rf_now,rf_j,rf_n,0,1,rf_px,rf_py,rf_heading,rf_speed,0,0,0,noone,rf_x,rf_y);${releasedRainbow(t,'rf_now','rf_instance')}}}`;return '';
   }).join('\n')}
 global.rf_tick_world=rf_now;with(objRufBullet) if rf_system rf_pattern_tick(global.rf_tick_world);return 0;`;
   return [['rf_group_pose',groupPoseGml(s)],['rf_pattern_spawn',spawn],['rf_pattern_tick',tick],['rf_pattern_step',update]];

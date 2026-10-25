@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {evaluateExpression,isDynamic,expressionScripts,parameterCode,randomInitialization} from './random-parameters.mjs';
+import {evaluateExpression,isDynamic,expressionScripts,expressionCall,parameterCode,randomInitialization} from './random-parameters.mjs';
 import {normalizeState,valueAt,stateCode} from './motion.mjs';
 import {bulletFlightGml,flightSpawn} from './bullet-flight.mjs';
 
@@ -24,4 +24,12 @@ test('generated runtime scripts use safe player lookup and bullet history',()=>{
   const t={id:'homing',kind:'emitter',start:0,end:100,flightMode:'expression',flightExpression:'turn_towards(direction,point_direction(x,y,player.x,player.y),3)',keyframes:[],expressions:{angle:'point_direction(x,y,player.x,player.y)'}};
   const state=normalizeState({version:2,duration:100,fps:50,tracks:[t]});const scripts=expressionScripts(state,['objPlayer']);assert.equal(scripts.length,3);assert.match(scripts.at(-1)[1],/instance_exists\(objPlayer\)/);assert.match(scripts.at(-1)[1],/return 400;return 304/);
   assert.match(bulletFlightGml(state),/rf_expr_.*\(x,y,\(rf_birth\+rf_age\),rf_age,rf_dir,rf_speed/);assert.match(bulletFlightGml(state),/rf_hx\[rf_slot\]=x/);assert.match(flightSpawn(t,0,true),/repeat\(other.rf_frame-rf_birth\)/);assert.ok(isDynamic('player.x'));assert.ok(!isDynamic('choose(1,2)'));assert.match(parameterCode(t,'angle'),/rf_expr_/);
+});
+
+test('source center variables compile without exceeding the GM8.2 argument limit',()=>{
+  const expression='point_distance(x,y,source.x,source.y)*0.02+0*time+0*fps',context={x:130,y:240,'source.x':100,'source.y':200,frame:50,fps:50};
+  assert.equal(evaluateExpression(expression,42,'source',context),1);assert.ok(isDynamic('source.x'));assert.throws(()=>evaluateExpression('source.z',1,'x'));
+  const t={id:'source',kind:'emitter',start:0,end:0,expressions:{speed:expression},keyframes:[]},s=normalizeState({version:2,fps:50,tracks:[t]});
+  const body=expressionScripts(s,[])[0][1];assert.match(body,/argument11/);assert.match(body,/argument15/);assert.match(body,/argument2\/50/);assert.doesNotMatch(body,/argument16|argument17/);
+  const call=expressionCall(expression,t,'speed',null,{x:'x',y:'y',sourceX:'rf_source_x',sourceY:'rf_source_y'});assert.match(call,/rf_source_x,0,1,0,rf_source_y\)/);assert.match(call,/rf_random_seed.*104729/);
 });

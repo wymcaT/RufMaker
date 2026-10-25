@@ -1119,5 +1119,11 @@
   "房间实例按编辑数据估算；原生代码数量来自底片记录。": "Room instances are estimated from editor data; native counts come from the recording.",
   "纯绘制物件：{0} 项；拖影不额外产生 obj。": "Draw-only items: {0}; trails do not add instances.",
   "{0:N0} 个": "{0:N0} instances",
-  "统计当前预览帧的实例数量；来源物件是分类明细，不重复计入总数。": "Instance counts for the rendered frame. Source rows are a breakdown and are not added to the total twice."
+  "统计当前预览帧的实例数量；来源物件是分类明细，不重复计入总数。": "Instance counts for the rendered frame. Source rows are a breakdown and are not added to the total twice.",
+  "来源中心 X": "Source center X",
+  "来源中心 Y": "Source center Y",
+  "从来源中心向外": "Outward from source center",
+  "按来源距离设置弹速（弹幕行为）": "Speed by source distance (bullet behavior)",
+  "变量：source.x / source.y（生成时来源中心世界坐标）、player.x / player.y、x / y（当前物件）、x1 / y1 / x2 / y2（端点当前值）、frame（绝对帧）、time（秒）、age（已存在帧）、direction、speed、fps、pi、i（编号从0开始）、n（总数）、u（0–1位置）、volley（齐射编号）。方向单位为度，sin / cos 使用弧度。": "Variables: source.x / source.y (source center in world coordinates at generation), player.x / player.y, x / y (current object), x1 / y1 / x2 / y2, frame, time, age, direction, speed, fps, pi, i (zero-based index), n (count), u (0–1 position), volley. Directions use degrees; sin / cos use radians.",
+  "在行为生效期间执行。x/y 是本弹幕位置；source.x/y 是生成时来源中心的世界坐标快照。可用 i、n、u、volley、age、player.x/y、speed、direction。sin/cos 使用弧度。": "Runs while this behavior is active. x/y is this bullet position; source.x/y is a snapshot of the source center in world coordinates at generation. Also supports i, n, u, volley, age, player.x/y, speed and direction. sin/cos use radians."
 }

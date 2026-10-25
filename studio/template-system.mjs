@@ -16,7 +16,7 @@ export function templateBundles(s){
     bundles.push({rootIndex,root:tracks.find(t=>t.id===root.id),tracks});
   }return bundles;
 }
-const locals=fields.map(f=>'rf_'+f).concat(['rf_u','rf_px','rf_py','rf_len','rf_phase','rf_fraction','rf_seg','rf_mix','rf_j','rf_n','rf_inst','rf_dx','rf_dy','rf_heading','rf_now','rf_clock','rf_angle_outer','rf_color_sequence']).join(',');
+const locals=fields.map(f=>'rf_'+f).concat(['rf_u','rf_px','rf_py','rf_len','rf_phase','rf_fraction','rf_seg','rf_mix','rf_j','rf_n','rf_inst','rf_dx','rf_dy','rf_heading','rf_now','rf_clock','rf_angle_outer','rf_color_sequence','rf_center_x','rf_center_y']).join(',');
 export function templateStateCode(t,time,context={},root='rf_template_source'){
   return stateCode(t,time,context).replaceAll('rf_group_pose(',`rf_template_group_pose(${root},`);
 }
@@ -27,21 +27,21 @@ export function spawnCondition(a,age,index,generation){
   if(a.spawnParity!=='all')value+=` && ${index} mod 2=${a.spawnParity==='even'?0:1}`;
   return value+(a.spawnRepeat>0?`${a.duration>0?` && ${at}<=${num(a.duration)}`:''} && ${at} mod ${num(a.spawnRepeat)}=0`:` && ${at}=0`);
 }
-function generateAction(a,s,{age,index,generation,x,y,heading,after=''}){
+function generateAction(a,s,{age,index,generation,x,y,heading,sourceX=x,sourceY=y,after=''}){
   const target=s.tracks.findIndex(t=>t.id===a.templateId&&templateKinds.includes(t.kind));if(target<0)return '';
   const angle=a.inheritAngle?heading:'0';
-  return `if (${spawnCondition(a,age,index,generation)}) {rf_inst=rf_template_spawn(${target},rf_now,${x}+lengthdir_x(${num(a.spawnOffsetX)},${angle})+lengthdir_x(${num(a.spawnOffsetY)},${angle}-90),${y}+lengthdir_y(${num(a.spawnOffsetX)},${angle})+lengthdir_y(${num(a.spawnOffsetY)},${angle}-90),${angle},${generation}+1);if instance_exists(rf_inst) {${after}}}`;
+  return `if (${spawnCondition(a,age,index,generation)}) {rf_inst=rf_template_spawn(${target},rf_now,${x}+lengthdir_x(${num(a.spawnOffsetX)},${angle})+lengthdir_x(${num(a.spawnOffsetY)},${angle}-90),${y}+lengthdir_y(${num(a.spawnOffsetX)},${angle})+lengthdir_y(${num(a.spawnOffsetY)},${angle}-90),${angle},${generation}+1,${sourceX},${sourceY});if instance_exists(rf_inst) {${after}}}`;
 }
-function warp(){return `rf_dx=rf_px-rf_anchor_x;rf_dy=rf_py-rf_anchor_y;rf_px=rf_origin_x+lengthdir_x(rf_dx,rf_rotation)+lengthdir_x(rf_dy,rf_rotation-90);rf_py=rf_origin_y+lengthdir_y(rf_dx,rf_rotation)+lengthdir_y(rf_dy,rf_rotation-90);`;}
+function warp(x='rf_px',y='rf_py'){return `rf_dx=${x}-rf_anchor_x;rf_dy=${y}-rf_anchor_y;${x}=rf_origin_x+lengthdir_x(rf_dx,rf_rotation)+lengthdir_x(rf_dy,rf_rotation-90);${y}=rf_origin_y+lengthdir_y(rf_dx,rf_rotation)+lengthdir_y(rf_dy,rf_rotation-90);`;}
 function trackActions(t,s,owner='noone',activeTracks=s.tracks){
   const source=s.tracks.findIndex(x=>x.id===t.id),inside=owner!=='noone',time=inside?'rf_clock':'rf_now',generation=inside?'rf_generation':'0';
   return t.spawnActions.map(a=>{
     const each=a.spawnOrigin==='each'&&t.kind==='rod',member=each?'rf_j':'-1';
     return `if (${activeCode(t,time,activeTracks)}) && rf_template_visible(${source},-1,${owner}) {
-${inside?templateStateCode(t,time):stateCode(t,time)}${each?shapeSetup(t,time):''}
+${inside?templateStateCode(t,time):stateCode(t,time)}${each?shapeSetup(t,time):''}rf_center_x=rf_x;rf_center_y=rf_y;${inside?warp('rf_center_x','rf_center_y'):''}
 ${each?'rf_n=rf_count;':'rf_n=1;'}for(rf_j=0;rf_j<rf_n;rf_j+=1) {if !rf_template_visible(${source},${member},${owner}) continue;
 ${each?shapePoint(t):'rf_px=rf_x;rf_py=rf_y;'}rf_heading=${each?'point_direction(rf_x,rf_y,rf_px,rf_py)':'rf_angle'};${inside?warp()+'rf_heading+=rf_rotation;':''}
-${generateAction(a,s,{age:`(${time}-${num(t.start)})`,index:'rf_j',generation,x:'rf_px',y:'rf_py',heading:'rf_heading',after:a.destroyParent?`rf_template_hide(${source},${member},${owner});`:''})}}}`;
+${generateAction(a,s,{age:`(${time}-${num(t.start)})`,index:'rf_j',generation,x:'rf_px',y:'rf_py',heading:'rf_heading',sourceX:'rf_center_x',sourceY:'rf_center_y',after:a.destroyParent?`rf_template_hide(${source},${member},${owner});`:''})}}}`;
   }).join('\n');
 }
 function appearance(t){
@@ -52,9 +52,9 @@ rf_inst.rf_t_mode='${trailMode(t)}';rf_inst.rf_t_interval=${parameter(t,'trailIn
 function instanceMember(t,s,bundle){
   const source=s.tracks.findIndex(x=>x.id===t.id),active=activeCode(t,'rf_clock',bundle.tracks),clear=`for(rf_j=0;rf_j<rf_tc[${source}];rf_j+=1) if instance_exists(rf_tf[${source},rf_j]) with(rf_tf[${source},rf_j]) instance_destroy();rf_tc[${source}]=0;`;
   if(t.kind==='emitter')return `if (${active}) && rf_template_visible(${source},-1,id) && (rf_clock-${num(t.start)}) mod ${parameter(t,'interval',1)}=0 {
-${templateStateCode(t,'rf_clock')}rf_n=clamp(round(rf_count),1,300);for(rf_j=0;rf_j<rf_n;rf_j+=1){rf_inst=rf_pattern_spawn(${source},rf_now+rf_j*${num(t.indexDelay)},rf_j,rf_n,(rf_clock-${num(t.start)}) div ${parameter(t,'interval',1)},0,0,0,0,0,rf_generation,0,rf_shift,id);if instance_exists(rf_inst) with(rf_inst) rf_pattern_tick(global.rf_template_world);}}`;
+${templateStateCode(t,'rf_clock')}rf_n=clamp(round(rf_count),1,300);for(rf_j=0;rf_j<rf_n;rf_j+=1){rf_inst=rf_pattern_spawn(${source},rf_now+rf_j*${num(t.indexDelay)},rf_j,rf_n,(rf_clock-${num(t.start)}) div ${parameter(t,'interval',1)},0,0,0,0,0,rf_generation,0,rf_shift,id,rf_source_x,rf_source_y);if instance_exists(rf_inst) with(rf_inst) rf_pattern_tick(global.rf_template_world);}}`;
   if(!['object','rod'].includes(t.kind))return '';
-  const release=t.kind==='rod'&&t.releaseFrame>=0?`if rf_clock=${num(t.releaseFrame)} {${templateStateCode(t,'rf_clock')}${shapeSetup(t,'rf_clock')}rf_n=rf_count;for(rf_j=0;rf_j<rf_n;rf_j+=1)if rf_template_visible(${source},rf_j,id){${shapePoint(t)}rf_color_sequence=${rodSequence(t,{rotation:'rf_rotation'})};rf_heading=${t.releaseDirection==='fixed'?'rf_angle':t.releaseDirection==='aim'?'0':'point_direction(rf_x,rf_y,rf_px,rf_py)'+(t.releaseDirection==='tangent'?'+90':'')};${warp()}rf_heading+=rf_rotation;${t.releaseDirection==='aim'?'rf_heading=point_direction(rf_px,rf_py,rf_expression_player(0),rf_expression_player(1));':''}rf_inst=rf_pattern_spawn(${source},rf_now,rf_j,rf_n,0,1,rf_px,rf_py,rf_heading,rf_speed,rf_generation,0,rf_shift,id);${releasedRainbow(t,'rf_clock')}if instance_exists(rf_inst) with(rf_inst) rf_pattern_tick(global.rf_template_world);}}`:'';
+  const release=t.kind==='rod'&&t.releaseFrame>=0?`if rf_clock=${num(t.releaseFrame)} {${templateStateCode(t,'rf_clock')}${shapeSetup(t,'rf_clock')}rf_center_x=rf_x;rf_center_y=rf_y;${warp('rf_center_x','rf_center_y')}rf_n=rf_count;for(rf_j=0;rf_j<rf_n;rf_j+=1)if rf_template_visible(${source},rf_j,id){${shapePoint(t)}rf_color_sequence=${rodSequence(t,{rotation:'rf_rotation'})};rf_heading=${t.releaseDirection==='fixed'?'rf_angle':t.releaseDirection==='aim'?'0':'point_direction(rf_x,rf_y,rf_px,rf_py)'+(t.releaseDirection==='tangent'?'+90':'')};${warp()}rf_heading+=rf_rotation;${t.releaseDirection==='aim'?'rf_heading=point_direction(rf_px,rf_py,rf_expression_player(0),rf_expression_player(1));':''}rf_inst=rf_pattern_spawn(${source},rf_now,rf_j,rf_n,0,1,rf_px,rf_py,rf_heading,rf_speed,rf_generation,0,rf_shift,id,rf_center_x,rf_center_y);${releasedRainbow(t,'rf_clock')}if instance_exists(rf_inst) with(rf_inst) rf_pattern_tick(global.rf_template_world);}}`:'';
   return `${release}
 if (${active}) && rf_template_visible(${source},-1,id)${t.kind==='rod'&&t.releaseFrame>=0?' && rf_clock<'+num(t.releaseFrame):''} {
 ${templateStateCode(t,'rf_clock')}${t.kind==='rod'?shapeSetup(t,'rf_clock'):'rf_count=1;'}rf_n=rf_count;
@@ -82,7 +82,7 @@ with(objRufBullet){if rf_static_source>=0 {if !rf_template_visible(rf_static_sou
   const prepare=`var ${locals},rf_i;switch(rf_template_source){${bundles.map(b=>`case ${b.rootIndex}:rf_shift=rf_birth-${num(b.root.start)};rf_end=${num(b.root.end)}+rf_shift;${templateStateCode(b.root,num(b.root.start))}rf_anchor_x=rf_x;rf_anchor_y=rf_y;${b.tracks.map(t=>{const i=s.tracks.findIndex(x=>x.id===t.id);return `rf_tc[${i}]=0;for(rf_i=0;rf_i<=300;rf_i+=1){rf_thidden[${i},rf_i]=0;rf_tf[${i},rf_i]=noone;}`;}).join('\n')}return 1;`).join('\n')}}return 0;`;
   const instance=`var ${locals};rf_now=argument0;if rf_last_frame=rf_now return 0;rf_last_frame=rf_now;if rf_now>rf_end {instance_destroy();return 0;}rf_clock=rf_now-rf_shift;global.rf_template_world=rf_now;
 switch(rf_template_source){${bundles.map(b=>`case ${b.rootIndex}:${b.tracks.filter(t=>templateKinds.includes(t.kind)).map(t=>trackActions(t,s,'id',b.tracks)).join('\n')}${b.tracks.filter(t=>templateKinds.includes(t.kind)).map(t=>instanceMember(t,s,b)).join('\n')}break;`).join('\n')}}return 0;`;
-  const spawn=`var rf_created;rf_created=instance_create(0,0,objRufTemplate);rf_created.rf_template_source=argument0;rf_created.rf_birth=argument1;rf_created.rf_origin_x=argument2;rf_created.rf_origin_y=argument3;rf_created.rf_rotation=argument4;rf_created.rf_generation=argument5;global.rf_template_serial+=1;rf_created.rf_template_serial=global.rf_template_serial;
+  const spawn=`var rf_created;rf_created=instance_create(0,0,objRufTemplate);rf_created.rf_template_source=argument0;rf_created.rf_birth=argument1;rf_created.rf_origin_x=argument2;rf_created.rf_origin_y=argument3;rf_created.rf_rotation=argument4;rf_created.rf_generation=argument5;rf_created.rf_source_x=argument6;rf_created.rf_source_y=argument7;global.rf_template_serial+=1;rf_created.rf_template_serial=global.rf_template_serial;
 global.rf_template_world=argument1;with(rf_created){if !rf_template_prepare(){instance_destroy();}else rf_template_instance_step(global.rf_template_world);}return rf_created;`;
   const step=`var ${locals};rf_now=argument0;global.rf_template_world=rf_now;
 ${s.tracks.filter(t=>templateKinds.includes(t.kind)&&t.enabled!==false).map(t=>trackActions(t,s)).join('\n')}
@@ -96,7 +96,7 @@ lib_id=1
 action_id=603
 applies_to=self
 */
-rf_template_source=-1;rf_birth=0;rf_shift=0;rf_origin_x=0;rf_origin_y=0;rf_rotation=0;rf_generation=0;rf_last_frame=-1;rf_end=0;
+rf_template_source=-1;rf_birth=0;rf_shift=0;rf_origin_x=0;rf_origin_y=0;rf_source_x=0;rf_source_y=0;rf_rotation=0;rf_generation=0;rf_last_frame=-1;rf_end=0;
 #define Destroy_0
 /*"/*'/**//* YYD ACTION
 lib_id=1

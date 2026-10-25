@@ -9,7 +9,7 @@ internal sealed class TemplateDefinition
 }
 internal sealed class TemplateInstance
 {
-    public int serial,birth,generation,shift,lastFrame=-1;public double x,y,rotation;public TemplateDefinition definition;
+    public int serial,birth,generation,shift,lastFrame=-1;public double x,y,rotation,sourceX,sourceY;public TemplateDefinition definition;
     public TemplateInstance Clone(){return (TemplateInstance)MemberwiseClone();}
     public PointF Point(double px,double py)
     {double a=rotation*Math.PI/180,dx=px-definition.anchor.x,dy=py-definition.anchor.y;return new PointF((float)(x+dx*Math.Cos(a)+dy*Math.Sin(a)),(float)(y-dx*Math.Sin(a)+dy*Math.Cos(a)));}
@@ -57,11 +57,11 @@ internal sealed class TemplateRuntime
         instances.Clear();hidden=snapshot==null?new HashSet<string>():new HashSet<string>(snapshot.hidden);serial=snapshot==null?0:snapshot.serial;
         if(snapshot!=null)instances.AddRange(snapshot.instances.Select(t=>t.Clone()));fixedBullets.Clear();foreach(var b in world.bullets.Where(b=>b.kinematic))fixedBullets[Key(b.templateOwner,b.source,b.index)]=b;
     }
-    private bool Generate(BulletAction action,int frame,double x,double y,double heading,int generation)
+    private bool Generate(BulletAction action,int frame,double x,double y,double heading,int generation,double sourceX,double sourceY)
     {
         var definition=Definition(action.templateId);if(definition==null)return false;
         double rotation=action.inheritAngle?heading:0,a=rotation*Math.PI/180;
-        var instance=new TemplateInstance{serial=++serial,birth=frame,shift=frame-definition.root.start,generation=generation+1,x=x+action.spawnOffsetX*Math.Cos(a)+action.spawnOffsetY*Math.Sin(a),y=y-action.spawnOffsetX*Math.Sin(a)+action.spawnOffsetY*Math.Cos(a),rotation=rotation,definition=definition};
+        var instance=new TemplateInstance{serial=++serial,birth=frame,shift=frame-definition.root.start,generation=generation+1,x=x+action.spawnOffsetX*Math.Cos(a)+action.spawnOffsetY*Math.Sin(a),y=y-action.spawnOffsetX*Math.Sin(a)+action.spawnOffsetY*Math.Cos(a),rotation=rotation,sourceX=sourceX,sourceY=sourceY,definition=definition};
         instances.Add(instance);StepInstance(instance,frame);return true;
     }
     public void FromBullet(SimBullet bullet,int frame)
@@ -69,13 +69,13 @@ internal sealed class TemplateRuntime
         if(bullet.behavior==null)return;
         bool destroy=false;
         foreach(var a in bullet.behavior.bulletActions.Where(a=>a.type=="spawn"))if(Trigger(a,frame-bullet.birth,bullet.index,bullet.generation))
-            if(Generate(a,frame,bullet.x,bullet.y,bullet.direction,bullet.generation))destroy|=a.destroyParent;
+            if(Generate(a,frame,bullet.x,bullet.y,bullet.direction,bullet.generation,bullet.x,bullet.y))destroy|=a.destroyParent;
         if(destroy)bullet.dead=true;
     }
     private void TrackActions(Track track,int time,int frame,int owner,int generation,TemplateInstance instance)
     {
         if(track.spawnActions.Count==0||!Visible(track,-1,owner))return;
-        var pose=Motion.At(track,time);
+        var pose=Motion.At(track,time);var center=instance==null?new PointF((float)pose.x,(float)pose.y):instance.Point(pose.x,pose.y);
         foreach(var action in track.spawnActions)
         {
             bool each=action.spawnOrigin=="each"&&track.kind=="rod";var points=each?Motion.RodPoints(track,time):new[]{new PointF((float)pose.x,(float)pose.y)};
@@ -84,7 +84,7 @@ internal sealed class TemplateRuntime
                 int member=each?i:-1;if(!Visible(track,member,owner)||!Trigger(action,time-track.start,i,generation))continue;
                 var p=points[i];double heading=each?ExpressionContext.Direction(pose.x,pose.y,p.X,p.Y):pose.angle;
                 if(instance!=null){p=instance.Point(p.X,p.Y);heading+=instance.rotation;}
-                if(Generate(action,frame,p.X,p.Y,heading,generation)&&action.destroyParent)Hide(track,member,owner);
+                if(Generate(action,frame,p.X,p.Y,heading,generation,center.X,center.Y)&&action.destroyParent)Hide(track,member,owner);
             }
         }
     }
@@ -114,7 +114,7 @@ internal sealed class TemplateRuntime
                 {
                     var p=instance.Point(points[i].X,points[i].Y);var center=instance.Point(pose.x,pose.y);
                     double direction=t.releaseDirection=="fixed"?pose.angle+instance.rotation:t.releaseDirection=="aim"?ExpressionContext.Direction(p.X,p.Y,BulletSystem.PlayerAt(world.State,frame).x,BulletSystem.PlayerAt(world.State,frame).y):ExpressionContext.Direction(center.X,center.Y,p.X,p.Y)+(t.releaseDirection=="tangent"?90:0);
-                    var b=world.Spawn(t,frame,i,points.Length,0,p,direction,Motion.Value(t,"speed",time),instance.generation,false,instance.shift);if(t.rainbow&&Rainbow.Mode(t)!="sequence")b.sequence=Rainbow.RodSequence(t,i,points.Length,time,points[i],pose,instance.rotation);world.TickNew(b,frame);
+                    var b=world.Spawn(t,frame,i,points.Length,0,p,direction,Motion.Value(t,"speed",time),instance.generation,false,instance.shift,null,center);if(t.rainbow&&Rainbow.Mode(t)!="sequence")b.sequence=Rainbow.RodSequence(t,i,points.Length,time,points[i],pose,instance.rotation);world.TickNew(b,frame);
                 }continue;
             }
             for(int i=0;i<points.Length;i++)
