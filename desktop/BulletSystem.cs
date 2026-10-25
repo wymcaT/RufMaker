@@ -14,7 +14,7 @@ internal static class BulletSystem
     public static string ActionName(string type){int i=Array.IndexOf(ActionTypes,type);return i<0?type:ActionNames[i];}
     public static List<Track> CloneTracks(IEnumerable<Track> source)
     {var copies=source.Select(t=>t.Snapshot()).ToList();var map=copies.Where(t=>!String.IsNullOrEmpty(t.id)).GroupBy(t=>t.id).ToDictionary(g=>g.Key,g=>Guid.NewGuid().ToString("N"));foreach(var t in copies){string id;t.id=map.TryGetValue(t.id??"",out id)?id:Guid.NewGuid().ToString("N");if(map.TryGetValue(t.parentId??"",out id))t.parentId=id;if(map.TryGetValue(t.targetSource??"",out id))t.targetSource=id;foreach(var a in TemplateRuntime.Actions(t))if(map.TryGetValue(a.templateId??"",out id))a.templateId=id;}return copies;}
-    public static bool Advanced(EditorState state){return state.usePlayerTrace||state.tracks.Any(t=>t.kind=="emitter"&&BulletLifetime.Enabled(t)||t.spawnActions.Count>0||t.bulletActions.Any(a=>a.type=="spawn")||t.kind=="control"||t.kind=="pattern"||t.kind=="group"||t.kind=="rod"&&t.releaseFrame>=0||t.kind=="emitter"&&(t.advancedBullets||t.bulletActions.Count>0||t.emissionShape!="point"||t.indexDelay!=0||t.indexSpeed!=0||t.indexAngle!=0||t.indexScale!=0||t.flightMode=="expression"&&t.flightExpression.Contains("source.")||t.expressions.Values.Any(v=>System.Text.RegularExpressions.Regex.IsMatch(v,@"\b(i|n|u|volley)\b|\bsource\.[xy]\b"))));}
+    public static bool Advanced(EditorState state){return state.usePlayerTrace||state.tracks.Any(t=>t.kind=="emitter"&&(BulletLifetime.Enabled(t)||t.colorMode=="random")||t.spawnActions.Count>0||t.bulletActions.Any(a=>a.type=="spawn")||t.kind=="control"||t.kind=="pattern"||t.kind=="group"||t.kind=="rod"&&t.releaseFrame>=0||t.kind=="emitter"&&(t.advancedBullets||t.bulletActions.Count>0||t.emissionShape!="point"||t.indexDelay!=0||t.indexSpeed!=0||t.indexAngle!=0||t.indexScale!=0||t.flightMode=="expression"&&t.flightExpression.Contains("source.")||t.expressions.Values.Any(v=>System.Text.RegularExpressions.Regex.IsMatch(v,@"\b(i|n|u|volley)\b|\bsource\.[xy]\b"))));}
     public static NativeTestPosition PlayerAt(EditorState state,int frame)
     {
         var fallback=state.nativeTest??new NativeTestPosition();var trace=state.playerTrace;if(!state.usePlayerTrace||trace==null||trace.Count==0||frame<trace[0].frame||frame>trace[trace.Count-1].frame)return fallback;int lo=0,hi=trace.Count-1;while(lo<hi){int mid=(lo+hi+1)/2;if(trace[mid].frame<=frame)lo=mid;else hi=mid-1;}var a=trace[lo];if(lo==trace.Count-1)return new NativeTestPosition{x=a.x,y=a.y};var b=trace[lo+1];double u=(frame-a.frame)/(double)Math.Max(1,b.frame-a.frame);return new NativeTestPosition{x=a.x+(b.x-a.x)*u,y=a.y+(b.y-a.y)*u};
@@ -81,7 +81,7 @@ internal static class BulletSystem
 
 internal sealed class SimBullet
 {
-    public bool kinematic;public int templateOwner,clockShift,seenFrame=-1,lastUpdate=-1,deathStart=-1;public double visualAngle,sourceX,sourceY,deathFactor=1,deathInitial=1;
+    public bool kinematic;public int templateOwner,clockShift,seenFrame=-1,lastUpdate=-1,deathStart=-1,frozenImage=-1;public string sprite;public double visualAngle,sourceX,sourceY,deathFactor=1,deathInitial=1;
     public Track source,behavior;public int birth,index,count,volley,generation;public double x,y,direction,speed,scale,alpha,baseDirection,baseSpeed,baseScale,baseAlpha,turn,acceleration,sequence;public int life;public bool collision=true,dead;
     public Color color;public List<BulletSample> history=new List<BulletSample>();public HashSet<string> commands=new HashSet<string>();
     public BulletSample Sample(int frame){return new BulletSample{frame=frame,x=x,y=y,direction=kinematic?visualAngle:direction,scale=scale*BulletLifetime.Scale(this),alpha=alpha*BulletLifetime.Alpha(this),sequence=sequence};}
@@ -121,6 +121,8 @@ internal sealed class BulletWorld
         if(t.emissionFacing=="aim"){var player=BulletSystem.PlayerAt(State,birth);d=ExpressionContext.Direction(x,y,player.x,player.y)+p.angle+(instance==null?0:instance.rotation)-(t.parent==null?0:Motion.At(t.parent,sampleTime).angle);}
         if(t.emissionFacing=="fixed")d=p.angle+(instance==null?0:instance.rotation)+i*t.indexAngle;
         var b=new SimBullet{clockShift=clockShift,source=t,behavior=plain?null:t,birth=birth,index=i,count=n,volley=volley,generation=generation,x=x,y=y,direction=angle??d,speed=speed??(Motion.SampleValue(t,"speed",sampleTime,context)+i*t.indexSpeed),scale=p.scale*(1+i*t.indexScale),alpha=p.alpha,life=(int)Motion.SampleValue(t,"life",sampleTime,context),color=t.rainbow?Color.White:Motion.ColorOf(t.color),sequence=volley*n+i,sourceX=sourceOrigin.HasValue?sourceOrigin.Value.X:instance==null?p.x:instance.sourceX,sourceY=sourceOrigin.HasValue?sourceOrigin.Value.Y:instance==null?p.y:instance.sourceY};
+        if(t.colorMode=="random")b.color=SpawnColors.Evaluate(t.colorExpression,t,"color",sampleTime,instance==null?volley:birth-(i*Math.Max(0,t.indexDelay)),i,t.colorScope=="bullet");
+        if(instance!=null)b.scale*=instance.scaleMultiplier;TemplateRuntime.Inherit(b,instance);
         b.baseDirection=b.direction;b.baseSpeed=b.speed;b.baseScale=b.scale;b.baseAlpha=b.alpha;bullets.Add(b);return b;
     }
     private ExpressionContext Context(SimBullet b,int frame)
@@ -163,9 +165,9 @@ internal sealed class BulletWorld
     }
     public void Draw(Graphics g,SpriteStore sprites,int pass,bool hitboxes)
     {
-        foreach(var b in bullets){if(Frame<b.birth||b.dead)continue;var t=b.source;int image=Rainbow.Index(t,b.sequence,Frame-b.clockShift,(b.kinematic?Frame:b.birth)-b.clockShift);double angle=b.kinematic?b.visualAngle:Motion.Value(t,"spriteAngle",b.birth-b.clockShift)+(t.rotateSprite?b.direction:0);
-            if(pass==0&&Trails.Mode(t)!="off")foreach(var p in b.history.Where(p=>(p.frame-b.birth)%Trails.Interval(t)==0&&Frame-p.frame<Trails.Life(t)))Trails.Draw(g,sprites,t,p.frame*301+b.index,Frame-p.frame,p.x,p.y,p.scale,b.kinematic?p.direction:Motion.Value(t,"spriteAngle",b.birth-b.clockShift)+(t.rotateSprite?p.direction:0),p.alpha,b.color,Rainbow.Index(t,p.sequence,p.frame-b.clockShift,(b.kinematic?p.frame:b.birth)-b.clockShift));
-            if(pass==1){sprites.Draw(g,t.sprite,b.x,b.y,b.scale*BulletLifetime.Scale(b),angle,b.alpha*BulletLifetime.Alpha(b),b.color,image);if(hitboxes)using(var pen=new Pen(b.collision?Color.Lime:Color.Gray)){var r=sprites.Bounds(t.sprite,b.x,b.y);g.DrawRectangle(pen,r.X,r.Y,r.Width,r.Height);}}
+        foreach(var b in bullets.OrderBy(b=>b.generation).ThenBy(b=>b.birth)){if(Frame<b.birth||b.dead||pass==1&&b.generation>0||pass==2&&b.generation==0)continue;var t=b.source;int image=b.frozenImage>=0?b.frozenImage:Rainbow.Index(t,b.sequence,Frame-b.clockShift,(b.kinematic?Frame:b.birth)-b.clockShift);double angle=b.kinematic?b.visualAngle:Motion.Value(t,"spriteAngle",b.birth-b.clockShift)+(t.rotateSprite?b.direction:0);
+            if(pass==0&&Trails.Mode(t)!="off")foreach(var p in b.history.Where(p=>(p.frame-b.birth)%Trails.Interval(t)==0&&Frame-p.frame<Trails.Life(t)))Trails.Draw(g,sprites,t,p.frame*301+b.index,Frame-p.frame,p.x,p.y,p.scale,b.kinematic?p.direction:Motion.Value(t,"spriteAngle",b.birth-b.clockShift)+(t.rotateSprite?p.direction:0),p.alpha,b.color,b.frozenImage>=0?b.frozenImage:Rainbow.Index(t,p.sequence,p.frame-b.clockShift,(b.kinematic?p.frame:b.birth)-b.clockShift),b.sprite??t.sprite);
+            if(pass>0){sprites.Draw(g,b.sprite??t.sprite,b.x,b.y,b.scale*BulletLifetime.Scale(b),angle,b.alpha*BulletLifetime.Alpha(b),b.color,image);if(hitboxes)using(var pen=new Pen(b.collision?Color.Lime:Color.Gray)){var r=sprites.Bounds(b.sprite??t.sprite,b.x,b.y);g.DrawRectangle(pen,r.X,r.Y,r.Width,r.Height);}}
         }
     }
 }

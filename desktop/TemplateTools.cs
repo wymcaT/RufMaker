@@ -5,11 +5,12 @@ using System.Windows.Forms;
 
 internal sealed partial class MainForm
 {
-    private void OpenTemplateBehavior()
+    private void OpenTemplateBehavior(){OpenTemplateBehavior(-1);}
+    private void OpenTemplateBehavior(int actionIndex)
     {
         if(!TemplateRuntime.Eligible(selectedTrack)){SetStatus("请先选中物件、整体对象、发射器或分组。");return;}
         StopPlaying();properties.CommitPending();var track=selectedTrack;
-        using(var dialog=new BulletBehaviorForm(track,state,true))if(Language.ShowDialog(dialog,this)==DialogResult.OK){PushUndo();track.spawnActions=dialog.Actions;MarkChanged();ShowProperties();SetStatus("已应用物件生成行为；模板从自己的起点独立运行。");}
+        using(var dialog=new BulletBehaviorForm(track,state,true,actionIndex))if(Language.ShowDialog(dialog,this)==DialogResult.OK){PushUndo();track.spawnActions=dialog.Actions;MarkChanged();timeline.RefreshLayout();ShowProperties();SetStatus("已应用物件生成行为；模板从自己的起点独立运行。");}
     }
     private void TemplateFields(NativeProperties bag,Track track)
     {

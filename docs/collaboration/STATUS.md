@@ -7,14 +7,16 @@
 | 项目 | 状态 |
 | --- | --- |
 | 本机仓库 | `D:\rufmaker` |
-| 正式分支 | `main`；本轮基线 `1353b83`，远程仍为 `a83e764` |
-| 功能版本 | 本地 `1.13.7`：右栏白框/下拉框深色修复，11 章弹幕范例及教程；包含 1.13.2～1.13.6 本地改动。远程 main/Release 仍为 `1.13.1` |
-| 本机正式入口 | `RufMaker.exe`，ProductVersion `1.13.7`，已构建并安全替换；正在运行的旧进程需用户保存后重启 |
+| 正式分支 | `main`；本轮基线 `e7fe08d`，远程仍为 `a83e764` |
+| 功能版本 | 本地 `1.13.8`：出生外观/大小继承、彩虹冻结、生成层级、波次随机配色和歌曲时间触发标记；包含 1.13.2～1.13.7 本地改动。远程 main/Release 仍为 `1.13.1` |
+| 本机正式入口 | `RufMaker.exe`，ProductVersion `1.13.8`，已构建并安全替换；正在运行的旧进程需用户保存后重启 |
 | 历史测试入口 | 忽略文件 `RufMaker.Beta.exe` 可能仍是旧 Beta，不作为正式入口 |
 | 远程 | [v1.13.1 正式发行版](https://github.com/wymcaT/RufMaker/releases/tag/v1.13.1) 已设为 latest；完整便携包、更新包及两个 SHA256 已上线，Actions `40114921642` 成功 |
-| 用户验收 | 1.13.7 主题/控件复用/语言与范例测试通过，33 时刻 1,329 个 GM/C# 状态一致，示例游戏编译通过；待用户验收，本轮未推送 |
+| 用户验收 | 1.13.8 定向回归/叠层像素、22 时刻 1,489 状态及范例 33 时刻 1,329 状态的 GM/C# 对照通过；正式与范例游戏已编译，待用户验收，本轮未推送 |
 
 新文档或后续修复提交会使 HEAD 高于功能基线，请先执行 Git 状态检查。不要把“远程没有此分支”当成需要自动推送的理由。
+
+1.13.8：生成规则增加 inheritAppearance/inheritScale/spawnColorExpression，Track 增加 colorMode/colorExpression/colorScope，旧缺省保留原表现。新后代显示于来源上层，可冻结出生贴图/混色/彩虹帧并独立继承大小；内部 rf_template_spawn 现为 14 参数，rf_frozen_image 抵消碰撞贴图重设时的帧丢失。random/choose 支持按波或逐颗颜色，沿用可重现种子。来源展开显示 ↗ 歌曲时间标记，双击编辑准确规则；模板注明局部时间，飞行弹幕行显示计划时刻，实际受销毁影响。新修订示例 `projects/examples/Pattern Gallery 2/Pattern Gallery 2.rufmaker` 包含同尺寸彩虹副本与波次颜色，旧范例保留。详见 Codex 记录，未推送。
 
 1.13.7：右栏改为深色 WinForms 页签容器，属性/统计控件保持挂载；系统 ComboBox 关闭状态补绘深色，颜色编辑器用小色块。普通/经典主题和宽窄布局检查通过。新建 `projects/examples/Pattern Gallery/Pattern Gallery.rufmaker`，每章 8 秒共 11 章，教程/预览/独立游戏在同目录，旧 Star Echo 保留。配方和教程入库，个人工程不提交。GM 取样中的位置误差界限为 0.01 像素，其余数值/时序/数量严格检查。详情和日志见 Codex 记录；未新增弹幕语义，未推送。
 

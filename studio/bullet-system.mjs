@@ -7,6 +7,7 @@ import {shapeSetup,shapePoint} from './shapes.mjs';
 import {rainbowCode,rodSequence,releasedRainbow} from './rainbow.mjs';
 import {templateBundles,templateStateCode} from './template-system.mjs';
 import {lifetimeSpawn} from './bullet-lifetime.mjs';
+import {colorCall} from './spawn-appearance.mjs';
 
 const color=hex=>{const v=/^#[0-9a-f]{6}$/i.test(hex||'')?hex.slice(1):'ffffff';return `make_color_rgb(${parseInt(v.slice(0,2),16)},${parseInt(v.slice(2,4),16)},${parseInt(v.slice(4,6),16)})`;};
 const locals=`rf_u,rf_px,rf_py,rf_len,rf_phase,rf_fraction,rf_seg,rf_mix,rf_color_sequence,${fields.map(f=>'rf_'+f).join(',')}`;
@@ -56,6 +57,8 @@ ${lifetimeSpawn(t)}
 rf_result.rf_rotate=${t.rotateSprite?1:0};rf_result.rf_sprite_angle=rf_spriteAngle;rf_result.image_angle=rf_spriteAngle+${t.rotateSprite?'rf_heading':'0'};rf_result.rf_turn=${get('turnRate',3)};rf_result.rf_delay=${get('homingDelay')};
 rf_result.rf_t_mode='${trailMode(t)}';rf_result.rf_t_interval=${get('trailInterval',3)};rf_result.rf_t_life=${get('trailLife',18)};rf_result.rf_t_alpha=${get('trailStartAlpha',.55)};rf_result.rf_t_scale_decay=${get('trailScaleDecay',.035)};rf_result.rf_t_alpha_decay=${get('trailAlphaDecay',.035)};rf_result.rf_t_speed=${get('trailSpeed')};rf_result.rf_t_direction=${get('trailDirection')};rf_result.rf_t_random=${t.trailRandom?1:0};
 ${t.rainbow?`rf_result.rf_rainbow=1;rf_result.rf_r_sequence=rf_wave*rf_n+rf_idx;rf_result.rf_r_density=rf_rainbowDensity;rf_result.rf_r_offset=rf_rainbowOffset;rf_result.rf_r_speed=rf_rainbowSpeed;rf_result.rf_r_start=${num(t.start)}+argument12;rf_result.rf_r_dynamic=${t.rainbowDynamic?1:0};rf_result.rf_r_reverse=${t.rainbowReverse?1:0};rf_result.image_index=${rainbowCode(t,'rf_wave*rf_n+rf_idx','rf_sample_time')};`:''}
+${t.colorMode==='random'?`rf_result.image_blend=${colorCall(t.colorExpression,t,'color',{...context,frame:'rf_sample_time',randomOffset:`((rf_wave+instance_exists(rf_spawn_owner)*(rf_born-rf_wave-rf_idx*${num(t.indexDelay)}))*1009${t.colorScope==='bullet'?'+rf_idx*9176':''})`})};`:''}
+with(rf_result) rf_spawn_appearance(rf_spawn_owner);
 for(rf_e=0;rf_e<${eventCount};rf_e+=1)rf_result.rf_cmd[rf_e]=0;
 rf_result.rf_hx[0]=rf_x;rf_result.rf_hy[0]=rf_y;rf_result.rf_ha[0]=rf_result.image_angle;rf_result.rf_hs[0]=rf_result.image_xscale;rf_result.rf_hal[0]=rf_alpha;
 return rf_result;`;
@@ -97,7 +100,7 @@ ${events.map((e,i)=>eventCode(e,i,s)).join('\n')}
 }if rf_dead {if !rf_lifetime_request() {instance_destroy();return 0;}}if rf_age>0 {rf_speed+=rf_accel;rf_dir+=rf_spin;x+=lengthdir_x(rf_speed,rf_dir);y+=lengthdir_y(rf_speed,rf_dir);}if rf_rotate image_angle=rf_sprite_angle+rf_dir;
 if rf_die_start<0 rf_template_bullet_actions(rf_world);if rf_dead {if !rf_lifetime_request() {instance_destroy();return 0;}}
 if rf_lifetime_enabled {if !rf_lifetime_tick() return 0;}
-sprite_index=-1;if rf_collision sprite_index=rf_sprite;rf_slot=rf_age mod 301;rf_hx[rf_slot]=x;rf_hy[rf_slot]=y;rf_ha[rf_slot]=image_angle;rf_hs[rf_slot]=image_xscale;rf_hal[rf_slot]=image_alpha;
+sprite_index=-1;if rf_collision sprite_index=rf_sprite;if rf_frozen_image>=0 image_index=rf_frozen_image;rf_slot=rf_age mod 301;rf_hx[rf_slot]=x;rf_hy[rf_slot]=y;rf_ha[rf_slot]=image_angle;rf_hs[rf_slot]=image_xscale;rf_hal[rf_slot]=image_alpha;
 if rf_die_start<0 for(rf_split_i=0;rf_split_i<rf_split;rf_split_i+=1){for(rf_j=0;rf_j<rf_split_count[rf_split_i];rf_j+=1){rf_child=rf_pattern_spawn(rf_split_template[rf_split_i],rf_world,rf_j,rf_split_count[rf_split_i],rf_volley,1,x,y,rf_dir+(rf_j-(rf_split_count[rf_split_i]-1)/2)*rf_split_spread[rf_split_i],rf_split_speed[rf_split_i],rf_generation+1,rf_split_plain[rf_split_i],rf_clock_shift,noone,x,y);if instance_exists(rf_child) {if rf_split_plain[rf_split_i] {rf_child.image_blend=image_blend;rf_child.image_xscale=image_xscale;rf_child.image_yscale=image_yscale;rf_child.rf_base_scale=image_xscale;rf_child.image_alpha=image_alpha;rf_child.rf_base_alpha=image_alpha;rf_child.rf_raw_sx=rf_child.image_xscale;rf_child.rf_raw_sy=rf_child.image_yscale;rf_child.rf_raw_alpha=rf_child.image_alpha;}with(rf_child) rf_pattern_tick(global.rf_tick_world);}}}
 return 0;`;
   const update=`var ${locals},rf_now,rf_j,rf_n,rf_i,rf_instance,rf_heading;rf_now=argument0;rf_template_step(rf_now);

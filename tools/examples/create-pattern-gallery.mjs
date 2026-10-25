@@ -20,13 +20,13 @@ export function patternGalleryTracks() {
 
   tracks.push(rod('periodic-star','01 周期星星扩散 · 原星星保留',0,299,{x:280,y:215,
     keyframes:[key('x',0,280),key('x',299,520),key('orientation',0,0),key('orientation',299,90)],
-    spawnActions:[spawn('echo-shot',{start:50,duration:200,spawnRepeat:50,spawnOrigin:'each',inheritAngle:true})]}));
+    spawnActions:[spawn('echo-shot',{start:50,duration:200,spawnRepeat:50,spawnOrigin:'each',inheritAngle:true,inheritAppearance:true,inheritScale:true})]}));
   tracks.push(shot('echo-shot','01 距来源中心距离 × 0.018',{life:120,color:'#6DE8FF',
     bulletActions:[{type:'speed',start:0,duration:0,expression:'point_distance(x,y,source.x,source.y)*0.018'}]}));
 
   tracks.push(rod('sequential-star','02 星星成员循环发射 · 每轮 70 帧',400,620,{count:30,radius:100,
     keyframes:[key('orientation',400,0),key('orientation',620,90)],
-    spawnActions:[spawn('uniform-shot',{spawnOrigin:'each',stagger:2,spawnRepeat:70,duration:140,spawnAngle:-90,spawnAngleStep:12})]}));
+    spawnActions:[spawn('uniform-shot',{spawnOrigin:'each',stagger:2,spawnRepeat:70,duration:140,spawnAngle:-90,spawnAngleStep:12,inheritAppearance:true,inheritScale:true})]}));
   tracks.push(shot('uniform-shot','02 等速单发 · 速度 3',{color:'#FFC65C',speed:3,life:150}));
 
   tracks.push(emitter('trace-mother','03 移动母弹 · 每 6 帧留一个点',800,800,{x:70,y:240,speed:2.5,life:240,scale:.8,color:'#FF75AD',
@@ -40,7 +40,7 @@ export function patternGalleryTracks() {
   tracks.push(emitter('aimed-fan','05 移动自机狙 · 每次出生瞄准',1600,1820,{x:180,y:105,count:5,spread:14,interval:30,speed:2.8,life:165,emissionFacing:'fan',color:'#FFC65C',
     keyframes:[key('x',1600,180),key('x',1820,620,'sin-inout')],expressions:{angle:'point_direction(x,y,player.x,player.y)'}}));
 
-  tracks.push(emitter('seeded-rain','06 固定种子散雨 · 逐颗取样',2000,2220,{x:400,y:40,count:12,interval:30,life:160,emissionShape:'line',emitWidth:700,color:'#A0E878',
+  tracks.push(emitter('seeded-rain','06 固定种子散雨 · 逐颗取样',2000,2220,{x:400,y:40,count:12,interval:30,life:160,emissionShape:'line',emitWidth:700,color:'#A0E878',colorMode:'random',colorScope:'wave',colorExpression:'choose("#A0E878","#6DE8FF","#FFC65C")',
     expressions:{x:'400+random_range(-12,12)',y:'40+random_range(-15,15)',angle:'random_range(258,282)',speed:'random_range(1.6,2.8)'}}));
 
   tracks.push(emitter('stop-aim-dash','07 减速 → 等待 → 瞄准 → 冲刺',2400,2520,{x:400,y:160,count:12,spread:30,interval:60,speed:3.5,life:210,color:'#B998FF',emissionFacing:'fan',expressions:{angle:'volley*11'},

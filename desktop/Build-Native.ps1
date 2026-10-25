@@ -8,6 +8,7 @@ $names=@('Program','AppWindow','AppPaths','Localization','EngineSetup','EngineSe
 $names+=@('BulletSystem','BulletBehaviorForm','BulletTools','CurveControls','PlayerTrace','FormationShapes','TemplateRuntime','TemplateTools')
 $names+=@('AudioSpectrogram','TimelineAudio','AudioTimelineTools','ObjectStatistics','StatisticsTools')
 $names+=@('BulletLifetime')
+$names+=@('SpawnAppearance','SpawnTimeline')
 $sources=$names | ForEach-Object {Join-Path $PSScriptRoot ($_.ToString()+'.cs')}
 & $compiler /nologo /target:winexe /platform:x86 /optimize+ /codepage:65001 /reference:System.Windows.Forms.dll /reference:System.Drawing.dll /reference:System.Web.Extensions.dll /reference:System.IO.Compression.dll /reference:System.IO.Compression.FileSystem.dll "/win32icon:$(Join-Path $taskRoot 'assets/icons/icon.ico')" "/resource:$(Join-Path $taskRoot 'assets/icons/icon.ico'),RufMaker.App.ico" "/resource:$(Join-Path $taskRoot 'assets/locales/en.json'),RufMaker.en.json" "/out:$Output" @sources
 if($LASTEXITCODE -ne 0){throw 'Native editor compilation failed.'}

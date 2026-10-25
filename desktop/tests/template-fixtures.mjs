@@ -3,7 +3,7 @@ import path from 'node:path';
 import {normalizeState} from '../../studio/motion.mjs';
 import {starEchoTracks} from '../../tools/examples/create-star-echo.mjs';
 const tracks=[];
-const add=t=>(tracks.push({name:t.id,sprite:'sprCherry',start:0,end:30,interval:25,keyframes:[],...t}),tracks.at(-1));
+const add=t=>(tracks.push({name:t.id,sprite:'sprCherry',color:'#FFFFFF',start:0,end:30,interval:25,keyframes:[],...t}),tracks.at(-1));
 const spawn=(templateId,more={})=>({type:'spawn',templateId,start:0,duration:0,...more});
 add({id:'moving-heart',rainbow:true,rainbowMode:'angle',rainbowDynamic:true,rainbowDensity:.81,rainbowSpeed:.13,kind:'rod',shape:'heart',templateOnly:true,start:100,end:130,count:10,x:200,y:200,radius:20,motion:'velocity',velocityY:-1,keyframes:[{frame:100,property:'radius',value:20},{frame:130,property:'radius',value:50},{frame:100,property:'orientation',value:0},{frame:130,property:'orientation',value:120}]});
 add({id:'flying-mother',kind:'emitter',end:0,x:30,y:30,count:3,spread:0,speed:2,life:90,bulletActions:[spawn('moving-heart',{start:5,spawnParity:'odd',destroyParent:true})]});
@@ -39,5 +39,14 @@ add({id:'life-inset',kind:'emitter',end:0,x:790,y:260,count:1,speed:0,life:100,l
 add({id:'life-stagger-shot',kind:'emitter',templateOnly:true,end:0,x:0,y:0,count:1,speed:3,life:60,emissionFacing:'fixed'});
 add({id:'life-stagger-host',kind:'rod',shape:'rod',count:4,start:0,end:50,x:350,y:250,length:60,spawnActions:[spawn('life-stagger-shot',{start:5,duration:20,spawnRepeat:20,stagger:3,spawnOrigin:'each',spawnAngle:10,spawnAngleStep:15,inheritAngle:false})]});
 
+add({id:'look-shot',kind:'emitter',templateOnly:true,start:0,end:0,x:0,y:0,count:1,speed:0,life:100,scale:.4,sprite:'sprCherryWhite'});
+add({id:'look-host',kind:'rod',shape:'star2',start:0,end:80,x:300,y:200,count:5,radius:40,scale:1.3,rainbow:true,rainbowDynamic:true,rainbowSpeed:.3,
+ spawnActions:[spawn('look-shot',{start:5,spawnOrigin:'each',inheritAppearance:true,inheritScale:true})]});
+add({id:'color-host',kind:'rod',shape:'ring',start:0,end:60,x:200,y:200,count:4,radius:30,
+ spawnActions:[spawn('look-shot',{start:5,spawnOrigin:'each',stagger:2,spawnRepeat:20,duration:20,spawnColorExpression:'choose("#FF75AD","#6DE8FF","#FFC65C")'})]});
+add({id:'color-wave',kind:'emitter',start:0,end:30,x:100,y:200,count:4,interval:10,speed:0,life:50,sprite:'sprCherryWhite',colorMode:'random',colorExpression:'random(360)',colorScope:'wave'});
+add({id:'color-bullet',kind:'emitter',start:0,end:30,x:150,y:200,count:4,interval:10,speed:0,life:50,sprite:'sprCherryWhite',colorMode:'random',colorExpression:'choose("#FF75AD","#6DE8FF","#FFC65C")',colorScope:'bullet'});
+add({id:'look-fixed',kind:'object',templateOnly:true,start:0,end:20,x:0,y:0,scale:.4,sprite:'sprCherryWhite',keyframes:[{property:'scale',frame:0,value:.4},{property:'scale',frame:20,value:.8}]});
+add({id:'look-object-host',kind:'object',start:0,end:0,x:400,y:200,scale:1.2,sprite:'sprCherryBlue',spawnActions:[spawn('look-fixed',{inheritAppearance:true,inheritScale:true})]});
 const scene=normalizeState({version:2,name:'Template runtime check',room:'rAvoidance',duration:1500,fps:50,randomSeed:781,nativeTest:{x:400,y:500},tracks});
 fs.mkdirSync(process.argv[2],{recursive:true});fs.writeFileSync(path.join(process.argv[2],'scene.json'),JSON.stringify(scene));

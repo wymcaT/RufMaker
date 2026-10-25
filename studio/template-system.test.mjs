@@ -2,6 +2,13 @@ import test from 'node:test';import assert from 'node:assert/strict';
 import {normalizeState} from './motion.mjs';import {expandPatterns,activeCode} from './bullet-schema.mjs';import {templateBundles,templateScripts,spawnCondition} from './template-system.mjs';
 const track=t=>({id:'x',kind:'object',start:0,end:100,keyframes:[],...t});
 const spawn=(target,more={})=>({type:'spawn',templateId:target,start:5,duration:0,...more});
+
+test('birth appearance and wave colors preserve defaults and generate frozen inherited visuals',()=>{
+ const state=normalizeState({version:2,fps:50,tracks:[track({id:'template',kind:'emitter',templateOnly:true,end:0,colorMode:'random',colorExpression:'choose("#FF0000","#00FF00")'}),track({id:'host',kind:'rod',spawnActions:[spawn('template',{inheritAppearance:true,inheritScale:true,spawnColorExpression:'random(360)'})]})]});
+ const action=state.tracks.find(t=>t.id==='host').spawnActions[0];assert.equal(action.inheritAppearance,true);assert.equal(action.inheritScale,true);
+ const scripts=templateScripts(state).map(pair=>pair[1]).join('\n');assert.match(scripts,/rf_inherit_sprite=argument8/);assert.match(scripts,/rf_inherit_image=argument10/);assert.match(scripts,/rf_scale_multiplier=rf_inherit_size/);assert.match(scripts,/rf_color_hue\(rf_expr_/);
+ const old=normalizeState({version:2,fps:50,tracks:[track({spawnActions:[spawn('template')]})]}).tracks[0];assert.equal(old.spawnActions[0].inheritAppearance,false);assert.equal(old.spawnActions[0].inheritScale,false);assert.equal(old.colorMode,'fixed');
+});
 test('template definitions detach only their root and retain member motion without mutating source',()=>{
  const state=normalizeState({version:2,fps:50,tracks:[track({id:'outer',kind:'group'}),track({id:'parent',kind:'group',parentId:'outer',templateOnly:true}),track({id:'child',kind:'rod',parentId:'parent',shape:'heart'}),track({id:'host',spawnActions:[spawn('parent')]})]});
  const [{root,tracks}]=templateBundles(state);assert.equal(root.parentId,'');assert.equal(root.templateOnly,false);assert.equal(tracks.find(t=>t.id==='child')._parentIndex,1);assert.equal(state.tracks[1].parentId,'outer');assert.equal(state.tracks[1].templateOnly,true);assert.equal(activeCode(state.tracks[1],'f',state.tracks),'0');

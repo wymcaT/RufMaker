@@ -1,12 +1,26 @@
 # Codex 任务记录
 
 - 状态：`completed`
-- 任务：已修复右栏原生控件白底/白框，完成 11 章、88 秒的可编辑弹幕范例及中文逐步教程；已编译独立游戏。仅本地，不推送。
-- 开始时基线：`1353b83`，分支 `main`；保留已有用户工程及 Star Echo 示例。
+- 任务：完成生成层级、出生外观/大小继承和彩虹帧冻结、波次随机配色、歌曲时间生成标记，以及修订范例和双语说明。仅本地构建/提交，不推送。
+- 开始时基线：`e7fe08d`，分支 `main`；保留个人工程已有改动。
 - 当前占用文件：无（已完成并释放）。
-- 验收结果：右栏深色/布局/语言/控件复用测试、示例 C# 行为检查通过；GM8.2 33 个时刻、1,329 个状态对照通过；预览总览已检查，真实游戏与正式 EXE 已构建。待用户交互验收。
-- 本轮发布：仅本地 1.13.7 构建/提交，未推送。远程 main 为 `a83e764`，Release/latest 仍为 v1.13.1（Actions `40114921642`）。
-- 本机产物：根目录 `RufMaker.exe`，ProductVersion `1.13.7`，FileVersion `1.13.7.0`，1,088,512 bytes。已安全替换路径，运行中的旧进程需保存并重启。
+- 验收结果：C#/JS、预设、语言、右栏控件复用、生成标记和叠层像素检查通过；GM8.2 原夹具 22 时刻 1,489 状态及修订范例 33 时刻 1,329 状态对照通过。正式 EXE 与示例游戏已构建，待用户交互验收。
+- 本轮发布：仅本地 1.13.8 构建/提交，未推送。远程 main 为 `a83e764`，Release/latest 仍为 v1.13.1（Actions `40114921642`）。
+- 本机产物：根目录 `RufMaker.exe`，ProductVersion `1.13.8`，FileVersion `1.13.8.0`，1,102,848 bytes。已安全替换路径，运行中的旧进程需保存并重启。
+
+## 2026-10-25：生成外观、波次颜色与歌曲时间定位
+
+- BulletAction 新增 `inheritAppearance=false`、`inheritScale=false`、`spawnColorExpression=""`；Track 新增 `colorMode="fixed"`、`colorExpression="random(360)"`、`colorScope="wave"`。旧字段缺省保留原表现；UI 新建规则默认勾选大小继承。原示例偏小来自模板 scale=.48/.7，修订第 01/02 章明确继承母体大小与外观。
+- C# 新增 BirthAppearance 和运行时冻结 sprite/image、颜色覆盖、scaleMultiplier；生成时保存来源的贴图/混色/实际彩虹帧，之后固定。大小按母体 scale/模板根锚点 scale 换算，保留后续缩放动画。模板固定成员、释放、检查点和下一代生成使用同一快照。预览后代在固定队形之后绘制，按代数/出生顺序排列；GML 后代 depth=controller.depth-generation。拖影始终在本体后方，未增加拖影 obj。
+- GML `rf_template_spawn` 内部 ABI 从 8 扩至 14 参数，末六项为继承 sprite(-1 关闭)、color、image、继承大小开关、来源大小、颜色覆盖(-1 无)。新增 `rf_spawn_appearance` 统一应用；GM 更新碰撞 sprite_index 会清掉 image_index，已用独立 `rf_frozen_image` 在 Tick/Draw 恢复。旧工程同步时需一起重建内部脚本；表达式的 16 参数 ABI 没有变化。
+- 颜色入口把 `choose("#FF75AD","#6DE8FF")` 转为 GM RGB 整数后复用原表达式/RNG；普通数值语法不新增字符串。`random(360)` / `choose(0,120,240)` 按色相映射全饱和/全亮度 RGB。波次 offset=wave*1009，逐颗再加 index*9176；生成规则逐成员错开仍共用同一轮颜色，出生后固定。沿用固定种子、每次游玩随机和重新随机。颜色是贴图混色，任意着色应使用白色底图；保留彩虹则用出生外观继承。
+- 展开来源物件后增加 @spawn:index / @bullet:index 行，显示歌曲时间的重复/逐成员触发标记；单击定位，双击编辑准确规则。弹窗增加“首次触发歌曲帧”，模板条标为“局部时间”。飞行弹幕标记按配置寿命推算计划，提前越界/销毁会取消实际触发；模板内更深层生成使用实例时钟，不把模板第 0 帧伪装成真实歌曲出场。未新增大量持久轨道。
+- 实际源码：desktop/{EditorCore,SpawnAppearance,SpawnTimeline,TemplateRuntime,TemplateTools,BulletSystem,Trails,PreviewRenderer,BulletBehaviorForm,BulletTools,MainForm,TimelineCanvas,Updater}.cs 与 Build-Native.ps1；studio/{spawn-appearance,template-system,bullet-system,bullet-schema,project,random-parameters}.mjs。两个新增 .cs 已进显式构建清单。另改英文词条、TemplateSystemTests/template-fixtures/verify-template-gml/PresetTests/LocalizationTests、studio/template-system.test.mjs、范例配方/教程、双语 README、本交接及根 EXE。
+- 通过：`Test-TemplateSystem.ps1`（冻结外观/大小/动画、同波颜色、标记平移/双击、叠层像素）；`Test-Presets.ps1`（随机颜色保存）；`Test-Localization.ps1`；`Test-EditorPerformance.ps1`（171 基础控件保留）；Node template-system/bullet-system/bullet-lifetime 9/9；范例测试 4/4。日志在 `build/spawn-appearance-check/`，实际截图 `build/template-system-check/spawn-timeline.png`、`spawn-layer.png` 已检查。
+- 真实 GM8.2 对照新增 sprite/color/depth：原夹具 22 时刻 1,489 状态通过，目录 `build/template-system-check/Template GM 1792903822718/`；`--gallery` 33 时刻 1,329 状态通过，目录 `build/gallery-check/Template GM 1792904036882/`。相应 `gm.log` / `gallery-gm.log` 保留。初次外观检查先发现夹具省略 color 时 C#/GML 默认值不同，给夹具显式白色后保持测试含义；随后实际发现 GM 碰撞贴图重置彩虹帧并修复。未留下错误弹窗。
+- 其他过程诊断：时间轴 marker 从 Int32.MinValue 相减溢出导致初次截图无标记，已改像素哨兵并补像素断言；绘图检查补丁一度把 nativeView 引出作用域导致编译失败，已复用原绘图上下文；新语言断言起初在中文状态执行，已移到英文切换后。最终测试/构建全部通过。收尾文档更新曾被自动审批系统因额度限制拒绝执行，用户续接后核实原文件未改，再完成交接。
+- 新范例 `projects/examples/Pattern Gallery 2/Pattern Gallery 2.rufmaker`：第 01/02 章同尺寸彩虹副本，第 06 章按波选择颜色。教程和 actual PreviewRenderer 总览放同目录；独立游戏 `build/release/rufmaker-game.exe` 4,751,501 bytes，保留 Data。旧 Pattern Gallery/Star Echo 保留，projects 不提交。
+- 构建 `desktop/Build-Native.ps1 -Output D:\rufmaker\build\spawn-appearance-check\RufMaker.exe` 通过，根入口 File.Replace 安全替换并比对 SHA256；旧映像备份在同一 build 目录。没有关闭用户进程或覆盖既有用户工程。源码/配方/测试/教程/EXE 随所属修复本地提交，未推送/发布，无剩余必做项，待用户验收。
 
 ## 2026-10-25：深色右栏与 11 章弹幕范例
 

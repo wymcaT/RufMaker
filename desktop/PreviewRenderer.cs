@@ -96,6 +96,8 @@ internal static class PreviewRenderer
                     }
                 }
                 }
+                // Descendants are above the held formations; use the same view transform.
+                if(advanced)cache.bulletWorld.Draw(g,sprites,2,hitboxes);
             }
             Bitmap result=bitmap;
             if(applyEffects&&effectsFrame.HasValue)

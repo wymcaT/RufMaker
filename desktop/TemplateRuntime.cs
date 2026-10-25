@@ -9,7 +9,7 @@ internal sealed class TemplateDefinition
 }
 internal sealed class TemplateInstance
 {
-    public int serial,birth,generation,shift,lastFrame=-1;public double x,y,rotation,sourceX,sourceY;public TemplateDefinition definition;
+    public int serial,birth,generation,shift,lastFrame=-1;public double x,y,rotation,sourceX,sourceY,scaleMultiplier=1;public BirthAppearance appearance;public Color? colorOverride;public TemplateDefinition definition;
     public TemplateInstance Clone(){return (TemplateInstance)MemberwiseClone();}
     public PointF Point(double px,double py)
     {double a=rotation*Math.PI/180,dx=px-definition.anchor.x,dy=py-definition.anchor.y;return new PointF((float)(x+dx*Math.Cos(a)+dy*Math.Sin(a)),(float)(y-dx*Math.Sin(a)+dy*Math.Cos(a)));}
@@ -57,11 +57,14 @@ internal sealed class TemplateRuntime
         instances.Clear();hidden=snapshot==null?new HashSet<string>():new HashSet<string>(snapshot.hidden);serial=snapshot==null?0:snapshot.serial;
         if(snapshot!=null)instances.AddRange(snapshot.instances.Select(t=>t.Clone()));fixedBullets.Clear();foreach(var b in world.bullets.Where(b=>b.kinematic))fixedBullets[Key(b.templateOwner,b.source,b.index)]=b;
     }
-    private bool Generate(BulletAction action,int frame,double x,double y,double heading,int generation,double sourceX,double sourceY,int index)
+    private bool Generate(BulletAction action,int frame,double x,double y,double heading,int generation,double sourceX,double sourceY,int index,Track source,int age,BirthAppearance appearance)
     {
         var definition=Definition(action.templateId);if(definition==null)return false;
         double rotation=(action.inheritAngle?heading:0)+action.spawnAngle+index*action.spawnAngleStep,a=rotation*Math.PI/180;
         var instance=new TemplateInstance{serial=++serial,birth=frame,shift=frame-definition.root.start,generation=generation+1,x=x+action.spawnOffsetX*Math.Cos(a)+action.spawnOffsetY*Math.Sin(a),y=y-action.spawnOffsetX*Math.Sin(a)+action.spawnOffsetY*Math.Cos(a),rotation=rotation,sourceX=sourceX,sourceY=sourceY,definition=definition};
+        if(action.inheritAppearance)instance.appearance=appearance.Clone();
+        if(action.inheritScale)instance.scaleMultiplier=appearance.scale/Math.Max(.000001,definition.anchor.scale);
+        if(!String.IsNullOrWhiteSpace(action.spawnColorExpression)){int at=age-action.start-index*action.stagger,wave=action.spawnRepeat>0?at/action.spawnRepeat:0;instance.colorOverride=SpawnColors.Evaluate(action.spawnColorExpression,source,"spawnColor"+source.spawnActions.Concat(source.bulletActions).ToList().IndexOf(action),frame,wave);}
         instances.Add(instance);StepInstance(instance,frame);return true;
     }
     public void FromBullet(SimBullet bullet,int frame)
@@ -69,7 +72,7 @@ internal sealed class TemplateRuntime
         if(bullet.behavior==null)return;
         bool destroy=false;
         foreach(var a in bullet.behavior.bulletActions.Where(a=>a.type=="spawn"))if(Trigger(a,frame-bullet.birth,bullet.index,bullet.generation))
-            if(Generate(a,frame,bullet.x,bullet.y,bullet.direction,bullet.generation,bullet.x,bullet.y,bullet.index))destroy|=a.destroyParent;
+            if(Generate(a,frame,bullet.x,bullet.y,bullet.direction,bullet.generation,bullet.x,bullet.y,bullet.index,bullet.behavior,frame-bullet.birth,BirthAppearance.BulletAt(bullet,frame)))destroy|=a.destroyParent;
         if(destroy)bullet.dead=true;
     }
     private void TrackActions(Track track,int time,int frame,int owner,int generation,TemplateInstance instance)
@@ -82,9 +85,10 @@ internal sealed class TemplateRuntime
             for(int i=0;i<points.Length;i++)
             {
                 int member=each?i:-1;if(!Visible(track,member,owner)||!Trigger(action,time-track.start,i,generation))continue;
-                var p=points[i];double heading=each?ExpressionContext.Direction(pose.x,pose.y,p.X,p.Y):pose.angle;
+                var p=points[i];double heading=each?ExpressionContext.Direction(pose.x,pose.y,p.X,p.Y):pose.angle;var look=BirthAppearance.TrackAt(track,time,i,p,pose,instance==null?0:instance.rotation,points.Length);
+                if(instance!=null){look.scale*=instance.scaleMultiplier;if(instance.appearance!=null){look.sprite=instance.appearance.sprite;look.image=instance.appearance.image;look.color=instance.appearance.color;}if(instance.colorOverride.HasValue)look.color=instance.colorOverride.Value;}
                 if(instance!=null){p=instance.Point(p.X,p.Y);heading+=instance.rotation;}
-                if(Generate(action,frame,p.X,p.Y,heading,generation,center.X,center.Y,i)&&action.destroyParent)Hide(track,member,owner);
+                if(Generate(action,frame,p.X,p.Y,heading,generation,center.X,center.Y,i,track,time-track.start,look)&&action.destroyParent)Hide(track,member,owner);
             }
         }
     }
@@ -122,10 +126,12 @@ internal sealed class TemplateRuntime
                 if(!Visible(t,t.kind=="rod"?i:-1,instance.serial))continue;string key=Key(instance.serial,t,i);SimBullet b;
                 if(!fixedBullets.TryGetValue(key,out b)||b.dead)
                 {b=new SimBullet{source=t,birth=t.start+instance.shift,index=i,count=points.Length,kinematic=true,templateOwner=instance.serial,generation=instance.generation,clockShift=instance.shift,life=t.end-t.start+1,collision=t.kind=="rod"};fixedBullets[key]=b;world.bullets.Add(b);}
-                var p=instance.Point(points[i].X,points[i].Y);b.x=p.X;b.y=p.Y;b.scale=pose.scale;b.alpha=pose.alpha;b.color=t.rainbow?Color.White:Motion.ColorOf(t.color);b.visualAngle=t.kind=="object"?pose.angle+instance.rotation:Motion.Value(t,"spriteAngle",time)+(t.rotateSprite?pose.angle+instance.rotation:0);b.sequence=t.kind=="rod"?Rainbow.RodSequence(t,i,points.Length,time,points[i],pose,instance.rotation):0;b.count=points.Length;b.seenFrame=frame;world.TickNew(b,frame);
+                var p=instance.Point(points[i].X,points[i].Y);b.x=p.X;b.y=p.Y;b.scale=pose.scale*instance.scaleMultiplier;b.alpha=pose.alpha;b.color=t.rainbow?Color.White:Motion.ColorOf(t.color);b.visualAngle=t.kind=="object"?pose.angle+instance.rotation:Motion.Value(t,"spriteAngle",time)+(t.rotateSprite?pose.angle+instance.rotation:0);b.sequence=t.kind=="rod"?Rainbow.RodSequence(t,i,points.Length,time,points[i],pose,instance.rotation):0;b.count=points.Length;b.seenFrame=frame;Inherit(b,instance);world.TickNew(b,frame);
             }
         }
     }
     public bool FixedAlive(SimBullet b,int frame)
     {return b.seenFrame==frame&&Visible(b.source,b.source.kind=="rod"?b.index:-1,b.templateOwner);}
+    public static void Inherit(SimBullet b,TemplateInstance instance)
+    {if(instance==null)return;if(instance.appearance!=null){b.sprite=instance.appearance.sprite;b.frozenImage=instance.appearance.image;b.color=instance.appearance.color;}if(instance.colorOverride.HasValue)b.color=instance.colorOverride.Value;}
 }

@@ -9,7 +9,7 @@ using System.Windows.Forms;
 internal static class TemplateSystemTests
 {
     private static void Check(bool value,string message){if(!value)throw new Exception(message);}
-    private static object Rows(BulletWorld w){return w.bullets.Where(b=>b.birth<=w.Frame&&!b.dead).OrderBy(b=>b.source.id).ThenBy(b=>b.birth).ThenBy(b=>b.index).ThenBy(b=>b.x).Select(b=>new{source=b.source.id,birth=b.birth,index=b.index,generation=b.generation,x=b.x,y=b.y,direction=b.direction,speed=b.speed,scale=b.scale*BulletLifetime.Scale(b),alpha=b.alpha*BulletLifetime.Alpha(b),kinematic=b.kinematic,clockShift=b.clockShift,sourceX=b.sourceX,sourceY=b.sourceY,collision=b.collision,deathStart=b.deathStart,image=Rainbow.Index(b.source,b.sequence,w.Frame-b.clockShift,(b.kinematic?w.Frame:b.birth)-b.clockShift)}).ToArray();}
+    private static object Rows(BulletWorld w){return w.bullets.Where(b=>b.birth<=w.Frame&&!b.dead).OrderBy(b=>b.source.id).ThenBy(b=>b.birth).ThenBy(b=>b.index).ThenBy(b=>b.x).Select(b=>new{source=b.source.id,birth=b.birth,index=b.index,generation=b.generation,x=b.x,y=b.y,direction=b.direction,speed=b.speed,scale=b.scale*BulletLifetime.Scale(b),alpha=b.alpha*BulletLifetime.Alpha(b),kinematic=b.kinematic,clockShift=b.clockShift,sourceX=b.sourceX,sourceY=b.sourceY,collision=b.collision,deathStart=b.deathStart,sprite=b.sprite??b.source.sprite,color=b.color.R+b.color.G*256+b.color.B*65536,depth=b.generation>0?-7000000-b.generation:-100,image=b.frozenImage>=0?b.frozenImage:Rainbow.Index(b.source,b.sequence,w.Frame-b.clockShift,(b.kinematic?w.Frame:b.birth)-b.clockShift)}).ToArray();}
     private static EditorState Read(string file){var state=Json.Read<EditorState>(File.ReadAllText(file));Motion.Normalize(state);return state;}
     private static void RenderGallery(string stateFile,string project,string folder)
     {
@@ -44,6 +44,33 @@ internal static class TemplateSystemTests
         smallTrack.x=60;smallTrack.y=50;smallTrack.speed=10;smallTrack.lifetimeMode="view";var native=new BulletWorld(s,new RoomData(),f=>new NativeViewPose{enabled=true,x=0,y=0,w=100,h=100});native.Seek(4);Check(native.bullets.Count==1,"Native view edge should be inclusive");native.Seek(5);Check(native.bullets.Count==0,"Native view fallback did not cull at the actual viewport");
         Console.WriteLine("PASS: fixed/room/view life, camera rotation/zoom, room dimensions/native view, shrink/fade, explicit clear, margins, periodic staggered uniform-speed generation and direction increments.");
     }
+    private static void Appearance(BulletWorld w)
+    {
+        w.Seek(5);var source=w.State.tracks.Single(t=>t.id=="look-host");var pose=Motion.At(source,5);var points=Motion.RodPoints(source,5);var shots=w.bullets.Where(b=>b.source.id=="look-shot"&&Math.Abs(b.sourceX-300)<.001).OrderBy(b=>b.x).ToArray();Check(shots.Length==5,"Appearance inheritance lost members");
+        foreach(var b in shots){int member=Array.FindIndex(points,p=>Math.Abs(p.X-b.x)<.001&&Math.Abs(p.Y-b.y)<.001);Check(b.sprite==source.sprite&&b.frozenImage==Rainbow.Index(source,Rainbow.RodSequence(source,member,5,5,points[member],pose),5)&&Math.Abs(b.scale-1.3)<.00001,"Source sprite/rainbow frame/size was not captured at birth");}
+        int[] colors=shots.Select(b=>b.frozenImage).ToArray();w.Seek(20);Check(shots.Select(b=>b.frozenImage).SequenceEqual(colors),"Inherited rainbow kept animating");var animated=w.bullets.Single(b=>b.source.id=="look-fixed");Check(Math.Abs(animated.scale-2.4)<.00001,"Inherited size discarded the template scale animation");
+        foreach(int frame in new[]{11,31}){w.Seek(frame);foreach(var group in w.bullets.Where(b=>b.source.id=="color-wave").GroupBy(b=>b.volley))Check(group.Select(b=>b.color).Distinct().Count()==1,"A wave sampled colors per bullet");var children=w.bullets.Where(b=>b.source.id=="look-shot"&&Math.Abs(b.sourceX-200)<.001).GroupBy(b=>b.birth<20);foreach(var group in children)Check(group.Select(b=>b.color).Distinct().Count()==1,"Staggered members did not share one wave color");}
+        var host=w.State.tracks.Single(t=>t.id=="life-stagger-host");var marks=TimelineCanvas.SpawnFrames(host,host.spawnActions[0],0,50).OrderBy(f=>f).ToArray();Check(marks.SequenceEqual(new[]{5,8,11,14,25,28,31,34}),"Song timeline spawn markers missed repeat/stagger times");
+        var copy=host.Snapshot();copy.start+=100;copy.end+=100;Check(TimelineCanvas.SpawnFrames(copy,copy.spawnActions[0],0,200).OrderBy(f=>f).SequenceEqual(marks.Select(f=>f+100)),"Moving a clip did not move its spawn markers");
+        Console.WriteLine("PASS: source sprite/frozen rainbow/color/scale inheritance, keyed size, shared wave colors and song-time spawn markers");
+    }
+    private static void AppearancePixels(string folder)
+    {
+        string directory=Path.Combine(folder,"sprites","white-test");Directory.CreateDirectory(directory);using(var sprite=new Bitmap(12,12)){using(var g=Graphics.FromImage(sprite))g.Clear(Color.White);sprite.Save(Path.Combine(directory,"0.png"));}
+        var target=new Track{id="front-child",kind="emitter",templateOnly=true,start=0,end=0,x=0,y=0,count=1,speed=0,life=20,sprite="white-test",color="#0000FF"};
+        var source=new Track{id="back-source",kind="rod",start=0,end=20,count=1,x=50,y=50,length=0,sprite="white-test",color="#FF0000"};source.spawnActions.Add(new BulletAction{type="spawn",templateId=target.id,start=0,duration=0});var s=new EditorState{tracks=new List<Track>{source,target}};Motion.Normalize(s);
+        using(var sprites=new SpriteStore{Project=folder})using(var image=PreviewRenderer.Render(s,new RoomData{width=100,height=100},new Dictionary<string,string>(),sprites,0,false,false)){Color pixel=image.GetPixel(55,55);Check(pixel.B>240&&pixel.R<10,"Newly spawned bullets were drawn behind the source formation");image.Save(Path.Combine(folder,"spawn-layer.png"));}
+        Console.WriteLine("PASS: generated bullet pixels render above the original formation");
+    }
+    private static void SpawnTimelineUi(string folder,EditorState state)
+    {
+        var host=state.tracks.Single(t=>t.id=="life-stagger-host");using(var timeline=new TimelineCanvas{State=state,Size=new Size(1000,420)}){
+            timeline.State=new EditorState{fps=50,duration=100,tracks=new List<Track>{host.Snapshot()}};timeline.State.tracks[0].lane=0;timeline.State.laneCount=1;timeline.Expand(timeline.State.tracks[0],true);timeline.CreateControl();
+            var lanes=(System.Collections.IEnumerable)typeof(TimelineCanvas).GetField("lanes",BindingFlags.NonPublic|BindingFlags.Instance).GetValue(timeline);object row=lanes.Cast<object>().Single(l=>(string)l.GetType().GetField("property").GetValue(l)=="@spawn:0");int y=Convert.ToInt32(row.GetType().GetField("top").GetValue(row))+Convert.ToInt32(typeof(TimelineCanvas).GetProperty("Header",BindingFlags.NonPublic|BindingFlags.Instance).GetValue(timeline,null))+15;
+            bool edited=false;timeline.EditSpawnRule=(t,i)=>{edited=t==timeline.State.tracks[0]&&i==0;};typeof(TimelineCanvas).GetMethod("OnMouseDoubleClick",BindingFlags.NonPublic|BindingFlags.Instance).Invoke(timeline,new object[]{new MouseEventArgs(MouseButtons.Left,2,210,y,0)});Check(edited,"Double-clicking a spawn row did not edit its own rule");
+            using(var image=new Bitmap(timeline.Width,timeline.Height)){timeline.DrawToBitmap(image,timeline.ClientRectangle);Check(image.GetPixel(198,y).G>150,"Spawn timeline row did not paint its trigger markers");image.Save(Path.Combine(folder,"spawn-timeline.png"));}
+        }
+    }
     [STAThread] public static int Main(string[] args)
     {
         try
@@ -54,6 +81,9 @@ internal static class TemplateSystemTests
             if(args[0]=="--render"){var s=Read(args[1]);var metadata=Directory.GetDirectories(Path.Combine(args[3],"sprites")).ToDictionary(Path.GetFileName,spriteFolder=>{var file=Path.Combine(spriteFolder,"sprite.txt");var data=(File.Exists(file)?File.ReadAllLines(file):new string[0]).Where(line=>line.Contains("=")).Select(line=>line.Split(new[]{'='},2)).ToDictionary(pair=>pair[0],pair=>pair[1]);return new SpriteMeta{frames=data.ContainsKey("frames")?Int32.Parse(data["frames"]):1,originX=data.ContainsKey("origin_x")?Int32.Parse(data["origin_x"]):0,originY=data.ContainsKey("origin_y")?Int32.Parse(data["origin_y"]):0};});using(var sprites=new SpriteStore{Project=args[3],Metadata=metadata})using(var image=PreviewRenderer.Render(s,new RoomData(),new Dictionary<string,string>(),sprites,Int32.Parse(args[2]),false,false)){image.Save(args[4]);}return 0;}
             string folder=args[0];var state=Read(Path.Combine(folder,"scene.json"));var world=new BulletWorld(state);
             Lifetimes(world);
+            Appearance(world);
+            AppearancePixels(folder);
+            SpawnTimelineUi(folder,state);
             world.Seek(5);Check(world.bullets.Count(b=>b.source.id=="flying-mother")==2,"Spawn/kill should remove only the odd mother");Check(world.bullets.Count(b=>b.source.id=="moving-heart")==10,"Odd mother should create one full heart");
             var rod=state.tracks.First(t=>t.id=="host-rod");Check(!world.Templates.Visible(rod,0)&&world.Templates.Visible(rod,1)&&!world.Templates.Visible(rod,2)&&world.Templates.Visible(rod,3),"Per-member generation/kill ignored index filters");
             var child=state.tracks.First(t=>t.id=="sacrifice-child");Check(!world.Templates.Visible(child),"Destroying a mother group must hide its descendants");

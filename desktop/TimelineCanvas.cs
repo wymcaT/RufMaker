@@ -94,7 +94,7 @@ internal sealed partial class TimelineCanvas : UserControl
             for(int index=0;index<State.laneCount;index++){
                 var items=State.tracks.Where(t=>t.kind!="native"&&t.lane==index).ToList();var stack=TimelineLayout.Stack(items);int count=stack.Values.DefaultIfEmpty(0).Max()+1;
                 for(int row=0;row<count;row++)lanes.Add(new Lane{index=index,stack=row,clips=items.Where(t=>stack[t]==row).ToList()});
-                foreach(var t in items.Where(t=>expanded.Contains(t.id))){var fields=Motion.Fields(t).Where(p=>Motion.HasKeys(t,p)).ToArray();if(fields.Length==0)continue;lanes.Add(new Lane{index=index,track=t,property="@item"});foreach(string p in fields)lanes.Add(new Lane{index=index,track=t,property=p});}
+                foreach(var t in items.Where(t=>expanded.Contains(t.id))){var fields=Motion.Fields(t).Where(p=>Motion.HasKeys(t,p)).ToArray();if(fields.Length==0&&t.spawnActions.Count==0&&!t.bulletActions.Any(a=>a.type=="spawn"))continue;lanes.Add(new Lane{index=index,track=t,property="@item"});foreach(string p in fields)lanes.Add(new Lane{index=index,track=t,property=p});for(int a=0;a<t.spawnActions.Count;a++)lanes.Add(new Lane{index=index,track=t,property="@spawn:"+a});for(int a=0;a<t.bulletActions.Count;a++)if(t.bulletActions[a].type=="spawn")lanes.Add(new Lane{index=index,track=t,property="@bullet:"+a});}
             }
             SelectedKeys.RemoveWhere(k=>Owner(k)==null);SelectedTracks.RemoveWhere(t=>!State.tracks.Contains(t));
         }
@@ -145,9 +145,10 @@ internal sealed partial class TimelineCanvas : UserControl
             bool chosen=t!=null&&(SelectedTracks.Contains(t)||t==SelectedTrack)&&(lane.property==null||lane.property==SelectedProperty||lane.property=="@item");
             using(var bg=new SolidBrush(chosen?Color.FromArgb(47,44,62):lane.property!=null?Color.FromArgb(23,29,39):lane.index%2==0?Theme.Panel:Color.FromArgb(29,35,47)))g.FillRectangle(bg,0,y,width,lane.height);
             if(lane.clips!=null){if(lane.stack==0)Theme.Label(g,Language.Text("轨道")+" "+(lane.index+1),new Rectangle(8,y,Names-16,lane.height),ActiveLane==lane.index?Theme.Accent:Theme.Text,localize:false);}
-            else {string title=lane.property==null?(expanded.Contains(t.id)?"▾ ":"▸ ")+t.name:lane.property=="@item"?"▾ "+t.name:"    ◇ "+(lane.property.StartsWith("@gm:")?System.IO.Path.GetFileNameWithoutExtension(lane.property.Substring(4)):Language.Text(Motion.Name(lane.property)));Theme.Label(g,title,new Rectangle(8,y,Names-14,lane.height),chosen?Theme.Accent:Theme.Muted,lane.property=="@item"?Theme.Font:Theme.Small,localize:false);}
+            else {string title=SpawnLane(lane)?SpawnTitle(lane):lane.property==null?(expanded.Contains(t.id)?"▾ ":"▸ ")+t.name:lane.property=="@item"?"▾ "+t.name:"    ◇ "+(lane.property.StartsWith("@gm:")?System.IO.Path.GetFileNameWithoutExtension(lane.property.Substring(4)):Language.Text(Motion.Name(lane.property)));Theme.Label(g,title,new Rectangle(8,y,Names-14,lane.height),chosen?Theme.Accent:Theme.Muted,lane.property=="@item"?Theme.Font:Theme.Small,localize:false);}
             g.SetClip(new Rectangle(Names,Header,width-Names,height-Header));
             if(lane.clips!=null)foreach(var item in lane.clips)DrawItem(g,item,null,y,width,lane.height);
+            else if(SpawnLane(lane))DrawSpawnRule(g,lane,y,width);
             else if(lane.property!="@item")DrawItem(g,t,lane.property,y,width,lane.height);
             using(var pen=new Pen(Theme.Line))g.DrawLine(pen,0,y+lane.height-1,width,y+lane.height-1);g.Restore(saved);
         }
@@ -164,7 +165,7 @@ internal sealed partial class TimelineCanvas : UserControl
     {
         bool chosen=SelectedTracks.Contains(t)||t==SelectedTrack;Color color=t.enabled?Theme.TrackColor(t.kind):Color.FromArgb(80,87,100);float x=X(t.start),end=X(t.end);
         if(property==null){using(var brush=new SolidBrush(Color.FromArgb(chosen?225:155,color)))g.FillRectangle(brush,x,y+3,Math.Max(5,end-x),rowHeight-6);
-            var saved=g.Save();g.SetClip(new RectangleF(x,y+3,Math.Max(5,end-x),rowHeight-6),CombineMode.Intersect);Theme.Label(g,(expanded.Contains(t.id)?"▾ ":"▸ ")+t.name,new Rectangle((int)x+10,y+(rowHeight-20)/2,Math.Max(20,(int)(end-x)-13),20),Color.White,Theme.Small,localize:false);g.Restore(saved);
+            var saved=g.Save();g.SetClip(new RectangleF(x,y+3,Math.Max(5,end-x),rowHeight-6),CombineMode.Intersect);Theme.Label(g,(expanded.Contains(t.id)?"▾ ":"▸ ")+(t.templateOnly?Language.Text("模板 · 局部时间 · "):"")+t.name,new Rectangle((int)x+10,y+(rowHeight-20)/2,Math.Max(20,(int)(end-x)-13),20),Color.White,Theme.Small,localize:false);g.Restore(saved);
             if(t==hoverTrack&&hoverEdge!=null)using(var pen=new Pen(Color.White,2)){float edge=hoverEdge=="left"?x:end;g.DrawLine(pen,edge,y+2,edge,y+rowHeight-2);g.DrawLine(pen,edge-5,y+rowHeight/2,edge+5,y+rowHeight/2);g.DrawLine(pen,edge-5,y+rowHeight/2,edge-2,y+rowHeight/2-3);g.DrawLine(pen,edge+5,y+rowHeight/2,edge+2,y+rowHeight/2+3);}
         }else using(var pen=new Pen(Color.FromArgb(80,color)))g.DrawLine(pen,x,y+rowHeight/2,end,y+rowHeight/2);
         if(t.kind=="native")foreach(var item in NativeEvents(new Lane{track=t,property=property})){float at=X(item.frame);if(at<Names||at>width)continue;using(var pen=new Pen(Color.FromArgb(255,205,110),2))g.DrawLine(pen,at,y+rowHeight/2-8,at,y+rowHeight/2+8);}
@@ -191,6 +192,7 @@ internal sealed partial class TimelineCanvas : UserControl
         bool additive=(ModifierKeys&(Keys.Control|Keys.Shift))!=0;
         if(e.Button==MouseButtons.Right){if(t!=null){if(key!=null){if(!SelectedKeys.Contains(key))ResetSelection(t,key);NotifySelection(t,key);}else{if(!SelectedTracks.Contains(t))ResetSelection(t,null);NotifySelection(t,null);}}else if(lane!=null&&lane.clips!=null&&e.X<Names)SetTrackSelection(State.tracks.Where(item=>item.kind!="native"&&item.lane==lane.index));else{ResetSelection(null,null);NotifySelection(null,null);}return;}
         if(e.Button!=MouseButtons.Left)return;
+        if(SpawnLane(lane)){PickTrack(t,false);if(e.X>=Names&&Seek!=null)Seek(SpawnAt(lane,e.X));return;}
         if(e.Y<Header){if(e.X>=Names){dragMode="seek";if(Seek!=null)Seek(CursorFrame(e.X));}}
         else if(e.X<Names){
             if(t!=null){if(e.X<27&&(lane.property==null||lane.property=="@item")){Expand(t,!expanded.Contains(t.id));return;}if(lane.property!=null&&!lane.property.StartsWith("@"))SelectedProperty=lane.property;PickTrack(t,additive);}
@@ -248,6 +250,7 @@ internal sealed partial class TimelineCanvas : UserControl
     {
         base.OnMouseDoubleClick(e);if(State==null)return;string boundary=HeightBoundary(e.Location);if(boundary!=null){if(boundary=="@audio")SetAudioHeight(audioDisplay=="spectrogram"?180:50);else SetRowHeight(boundary,Row);return;}if(e.X<Names||e.Y<Header)return;var lane=LaneAt(e.Location);if(lane==null||lane.track==null)return;
         if(lane.track.kind=="native"){var item=NativeAt(lane,e.X);if(item!=null&&SelectNativeEvent!=null)SelectNativeEvent(item,true);return;}
+        if(SpawnLane(lane)){if(lane.property.StartsWith("@spawn:")){if(EditSpawnRule!=null)EditSpawnRule(lane.track,SpawnIndex(lane));}else if(EditBulletSpawnRule!=null)EditBulletSpawnRule(lane.track,SpawnIndex(lane));return;}
         if(lane.property!=null&&!lane.property.StartsWith("@")&&InsertKey!=null)InsertKey(lane.track,lane.property,ToFrame(e.X));
         else if(lane.property==null)Expand(lane.track,!expanded.Contains(lane.track.id));
     }
@@ -256,6 +259,7 @@ internal sealed partial class TimelineCanvas : UserControl
         base.OnMouseMove(e);if(State==null)return;if(dragMode=="height"){int value=resizeHeight+e.Y-dragStart.Y;if(resizeKey=="@audio")SetAudioHeight(value);else SetRowHeight(resizeKey,value);return;}
         if(dragMode==null){if(HeightBoundary(e.Location)!=null){Cursor=Cursors.HSplit;Language.ToolTip(tips,this,"拖动下边缘调整此轨道高度；双击还原");return;}if(e.Y>=Ruler&&e.Y<Header){Cursor=Cursors.Default;Language.ToolTip(tips,this,"右键切换波形图 / 频谱图；拖动下边缘调整音频轨高度");return;}var lane=LaneAt(e.Location);var t=lane==null?null:lane.track;
             if(t!=null&&t.kind=="native"){var item=NativeAt(lane,e.X);Cursor=Cursors.Hand;Language.ToolTip(tips,this,item==null?"GM 原生轨道：只读定位；双击编辑原 GML。":item.file+":"+item.line+" · "+item.expression+"\n"+item.snippet);return;}
+            if(SpawnLane(lane)){Cursor=Cursors.Hand;Language.ToolTip(tips,this,"生成触发位置（歌曲时间）：单击定位；双击编辑此规则。逐成员延迟与重复均已计入。");return;}
             string edge=EdgeAt(lane,e.Location);var key=KeyAt(lane,e.Location);hoverTrack=edge==null?null:t;hoverEdge=edge;Cursor=edge!=null?Cursors.SizeWE:key!=null||t!=null&&lane.property==null?Cursors.SizeAll:Cursors.Default;
             string tip=edge=="left"?"左右拖动：修改开始帧（不移动关键帧）":edge=="right"?"左右拖动：修改结束帧（不移动关键帧）":t!=null&&lane.property==null?t.name+" · 拖动移动时间与轨道；▸ 单独展开关键帧":"空白框选物件或关键帧；Ctrl / Shift 加选";if(tips.GetToolTip(this)!=tip)Language.ToolTip(tips,this,tip);Invalidate();return;
         }

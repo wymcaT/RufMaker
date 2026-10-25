@@ -12,17 +12,18 @@ internal sealed partial class MainForm
         bar.Controls.Add(Button("弹幕行为…",OpenBulletBehavior,false,100));bar.Controls.Add(Button("添加弹幕控制",()=>AddBulletControl(),false,110));
         bar.Controls.Add(Button("物件生成…",OpenTemplateBehavior,false,105));BuildTraceTools(bar);
     }
-    private void OpenBulletBehavior()
+    private void OpenBulletBehavior(){OpenBulletBehavior(-1);}
+    private void OpenBulletBehavior(int actionIndex)
     {
         if(selectedTrack==null||!new[]{"emitter","rod"}.Contains(selectedTrack.kind)){SetStatus("请先选中弹幕发射器或整体对象。");return;}StopPlaying();properties.CommitPending();var t=selectedTrack;
-        using(var dialog=new BulletBehaviorForm(t,state))if(Language.ShowDialog(dialog,this)==DialogResult.OK){PushUndo();t.bulletActions=dialog.Actions;t.advancedBullets=true;MarkChanged();ShowProperties();SetStatus("已应用弹幕出生后的行为；时间单位为弹幕年龄。");}
+        using(var dialog=new BulletBehaviorForm(t,state,false,actionIndex))if(Language.ShowDialog(dialog,this)==DialogResult.OK){PushUndo();t.bulletActions=dialog.Actions;t.advancedBullets=true;MarkChanged();timeline.RefreshLayout();ShowProperties();SetStatus("已应用弹幕出生后的行为；时间单位为弹幕年龄。");}
     }
     private void AddBulletControl()
     {var source=selectedTrack!=null&&new[]{"emitter","rod"}.Contains(selectedTrack.kind)?selectedTrack.id:"";AddTrack("control",t=>{t.name="弹幕控制 · 停止";t.targetSource=source;t.end=t.start;t.controlAction="speed";t.controlValue=0;});}
     private void BulletFields(NativeProperties bag,Track t)
     {
         TemplateFields(bag,t);
-        if(t.kind=="emitter"||t.kind=="rod")LifetimeFields(bag,t);
+        if(t.kind=="emitter"||t.kind=="rod")LifetimeFields(bag,t);ColorFields(bag,t);
         if(new[]{"emitter","rod","object","group"}.Contains(t.kind)){
             Field(bag,"弹幕标签","分组与作用范围",()=>t.tag,v=>t.tag=(v??"").Trim());var groups=state.tracks.Where(g=>g.kind=="group"&&g!=t&&!Ancestors(g).Contains(t)).ToArray();var names=new[]{"无父级"}.Concat(groups.Select(g=>g.name+" · "+g.id.Substring(0,Math.Min(6,g.id.Length)))).ToArray();
             Field(bag,"父级分组","分组与作用范围",()=>names[Math.Max(0,Array.FindIndex(groups,g=>g.id==t.parentId)+1)],v=>{int i=Array.IndexOf(names,v)-1;t.parentId=i<0?"":groups[i].id;},names,"有父级时坐标、角度、大小为组内局部值。右键创建分组会保留当前摆放。");

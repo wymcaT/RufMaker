@@ -1,5 +1,6 @@
 import {gmlNumber as num} from './gml.mjs';
 import crypto from 'node:crypto';
+import {numericColor} from './spawn-appearance.mjs';
 
 const cache=new Map();
 export const expressionVariables=['player.x','player.y','source.x','source.y','x','y','x1','y1','x2','y2','frame','time','age','direction','speed','fps','pi','i','n','u','volley'];
@@ -125,7 +126,7 @@ export function expressionCall(expression,t,property='flight',key=null,context={
   return expressionScriptName(expression)+'('+args.join(',')+')';
 }
 export function expressionScripts(state,players){
-  const scripts=[];const seen=new Set();for(const t of state.tracks){const expressions=randomBindings(t).map(b=>b.expression);if(t.kind==='emitter'&&t.flightMode==='expression')expressions.push('('+t.flightExpression+')+0*frame');for(const a of t.bulletActions||[])if(a.expression)expressions.push(a.expression);if(t.kind==='control'&&t.controlExpression)expressions.push(t.controlExpression);
+  const scripts=[];const seen=new Set();for(const t of state.tracks){const expressions=randomBindings(t).map(b=>b.expression);if(t.colorMode==='random')expressions.push(numericColor(t.colorExpression));for(const a of [...(t.spawnActions||[]),...(t.bulletActions||[])])if(a.spawnColorExpression)expressions.push(numericColor(a.spawnColorExpression));if(t.kind==='emitter'&&t.flightMode==='expression')expressions.push('('+t.flightExpression+')+0*frame');for(const a of t.bulletActions||[])if(a.expression)expressions.push(a.expression);if(t.kind==='control'&&t.controlExpression)expressions.push(t.controlExpression);
     for(const expression of expressions){if(seen.has(expression))continue;seen.add(expression);const lines=['rf_rng_state=argument10;'];const compiler=createCompiler(lines,{fps:state.fps});const result=compiler.emit(parseExpression(expression));scripts.push([expressionScriptName(expression),'var '+compiler.variables.join(',')+';\n'+lines.join('\n')+'\nreturn '+result+';\n']);}}
   scripts.push(['rf_expression_player',"var rf_p;rf_p=noone;\n"+players.map(p=>'if rf_p=noone && instance_exists('+p+') rf_p=instance_find('+p+',0);').join('\n')+'\nif rf_p!=noone {if argument0=0 return rf_p.x;return rf_p.y;}\nif argument0=0 return '+num(state.nativeTest?.x,400)+';return '+num(state.nativeTest?.y,304)+';\n']);return scripts;
 }

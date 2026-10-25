@@ -160,6 +160,7 @@ internal sealed partial class MainForm : LocalizedForm
         zoomBar.Controls.Add(new Label{Text="Ctrl+滚轮缩放 · Shift+滚轮横移",AutoSize=true,ForeColor=Theme.Muted,Margin=new Padding(6,9,0,0)});table.Controls.Add(zoomBar,0,1);
         table.Controls.Add(BuildBeatControls(),0,2);
         timeline.SpectrumRequested=EnsureSpectrum;timeline.Dock=DockStyle.Fill;timeline.Margin=Padding.Empty;timeline.Seek=value=>{StopPlaying();SetFrame(value);};timeline.PresetDropped=async(kind,name,target,at)=>await UsePreset(kind,name,target,at);timeline.SelectTrack=SelectTrack;timeline.BeginEdit=PushUndo;timeline.Changed=MarkChanged;
+        timeline.EditBulletSpawnRule=(track,index)=>{SelectTrack(track,null);OpenBulletBehavior(index);};timeline.EditSpawnRule=(track,index)=>{SelectTrack(track,null);OpenTemplateBehavior(index);};
         timeline.SelectNativeEvent=async(item,edit)=>{selectedNativeEvent=item;ShowProperties();if(edit&&item!=null)await EditNativeEvent();};
         timeline.PreviewChanged=()=>{stage.SceneChanged();inspectorTimer.Stop();inspectorTimer.Start();};
         timeline.InsertKey=(t,p,f)=>{SelectTrack(t,null);timeline.SelectedProperty=p;SetFrame(f);AddKey();};
