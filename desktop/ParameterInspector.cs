@@ -9,7 +9,7 @@ using System.Windows.Forms;
 // Native parameter rows: click to type, or hold a number and drag vertically.
 internal sealed class ParameterInspector : UserControl
 {
-    private readonly Panel scroll=new Panel{Dock=DockStyle.Fill,AutoScroll=true};
+    private readonly InspectorScrollPanel scroll=new InspectorScrollPanel{Dock=DockStyle.Fill,AutoScroll=true};
     private readonly TableLayoutPanel rows=new TableLayoutPanel{Dock=DockStyle.Top,AutoSize=true,ColumnCount=2,Padding=new Padding(8,0,8,8)};
     private readonly Label help=new Label{Dock=DockStyle.Bottom,Height=52,ForeColor=Theme.Muted,BackColor=Theme.Back,Padding=new Padding(8),Text="数字：按住上下拖动；单击输入。Shift 加速，Ctrl 微调。"};
     private readonly List<Action> refreshers=new List<Action>();
@@ -33,6 +33,7 @@ internal sealed class ParameterInspector : UserControl
     {
         DoubleBuffered=true;AutoScaleMode=AutoScaleMode.None;BackColor=Theme.Panel;ForeColor=Theme.Text;Font=Theme.Font;help.Height=Font.Height*3+16;
         rows.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,48));rows.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,52));
+        scroll.HeaderFocused=()=>headings.Values.Any(h=>h.Focused);
         scroll.Controls.Add(rows);Controls.Add(scroll);Controls.Add(help);
         Action defocus=()=>{CommitPending();ActiveControl=null;};
         scroll.MouseDown+=(s,e)=>defocus();rows.MouseDown+=(s,e)=>defocus();help.MouseDown+=(s,e)=>defocus();
@@ -102,6 +103,12 @@ internal sealed class ParameterInspector : UserControl
         if(rows.GetColumnSpan(control)!=span)rows.SetColumnSpan(control,span);
         if(control.TabIndex!=row*2+column)control.TabIndex=row*2+column;
     }
+    private void ToggleSection(string category)
+    {
+        Point position=scroll.AutoScrollPosition;scroll.PreservePosition=true;
+        try{CommitPending();RememberSection(category,!collapsed.Contains(category));UpdateRows();scroll.AutoScrollPosition=new Point(-position.X,-position.Y);}
+        finally{scroll.PreservePosition=false;}
+    }
     private void UpdateRows()
     {
         if(rebuilding){layoutPending=true;return;}rebuilding=true;Point position=scroll.AutoScrollPosition;rows.SuspendLayout();scroll.SuspendLayout();
@@ -114,7 +121,7 @@ internal sealed class ParameterInspector : UserControl
             foreach(var group in descriptors.GroupBy(p=>p.Category).OrderBy(group=>!Compact?0:group.Key=="变换"||group.Key=="位置"?0:group.Key=="物件"?1:group.Key=="整体对象"||group.Key=="形状"?2:group.Key=="外观"?3:4))
             {
                 string category=group.Key;if(!knownSections.Contains(category))RememberSection(category,DefaultFolded(category));
-                Button heading;if(!headings.TryGetValue(category,out heading)){heading=new Button{Text=category,Height=30,Dock=DockStyle.Fill,TextAlign=ContentAlignment.MiddleLeft,ForeColor=Theme.Text,BackColor=Theme.Raised,FlatStyle=FlatStyle.Flat,Font=Theme.Bold,Margin=new Padding(0,6,0,1),AutoEllipsis=true};heading.FlatAppearance.BorderSize=0;heading.Click+=(sender,args)=>{CommitPending();ActiveControl=null;RememberSection(category,!collapsed.Contains(category));UpdateRows();};headings[category]=heading;}
+                Button heading;if(!headings.TryGetValue(category,out heading)){heading=new Button{Text=category,Height=30,Dock=DockStyle.Fill,TextAlign=ContentAlignment.MiddleLeft,ForeColor=Theme.Text,BackColor=Theme.Raised,FlatStyle=FlatStyle.Flat,Font=Theme.Bold,Margin=new Padding(0,6,0,1),AutoEllipsis=true};heading.FlatAppearance.BorderSize=0;heading.Click+=(sender,args)=>ToggleSection(category);headings[category]=heading;}
                 bool folded=collapsed.Contains(category);string summary="";if(folded){var first=group.FirstOrDefault(p=>p.Name=="贴图"||p.Name=="种类"||p.Name=="拖影样式"||p.Name=="运动模式");if(first!=null)summary=" · "+Convert.ToString(first.GetValue(selectedObject));}heading.Text=(folded?"▸ ":"▾ ")+Language.Text(category)+summary;
                 Place(heading,0,row++,2);styles.Add(new RowStyle(SizeType.Absolute,Font.Height+22));
                 foreach(var property in group)
@@ -134,6 +141,13 @@ internal sealed class ParameterInspector : UserControl
         if(layoutPending){layoutPending=false;UpdateRows();}else Refresh();
     }
     public override void Refresh(){if(!rebuilding){rebuilding=true;try{foreach(var update in refreshers)update();}finally{rebuilding=false;}}}
+}
+
+internal sealed class InspectorScrollPanel : Panel
+{
+    public bool PreservePosition;public Func<bool> HeaderFocused;
+    protected override Point ScrollToControl(Control activeControl)
+    {return PreservePosition||HeaderFocused!=null&&HeaderFocused()?DisplayRectangle.Location:base.ScrollToControl(activeControl);}
 }
 
 internal sealed class ColorParameterButton : Button

@@ -1228,5 +1228,7 @@
   "重做": "Redo",
   "变换": "Transform",
   "形状": "Shape",
-  "发射": "Emission"
+  "发射": "Emission",
+  "预览模板局部动画": "Preview template animation",
+  "单击编辑模板参数；双击打开关联规则的完整编辑窗口。右键可预览模板局部动画。共用模板的修改会影响所有引用。": "Click to edit template parameters; double-click to open the full editor for its linked rule. Right-click to preview the local animation. Shared template edits affect every reference."
 }

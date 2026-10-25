@@ -9,6 +9,7 @@ internal sealed partial class TimelineCanvas
     public Action<Track,int> EditSpawnRule;
     public Action<Track,int> EditBulletSpawnRule;
     public Action<Track> EditTemplateDefinition;
+    public Action<Track,bool,int> EditTemplateRule;
     public Track TemplateSource;
     private bool TemplateLane(Lane lane){return lane!=null&&lane.track!=null&&lane.property=="@template";}
     private void AppendTemplateKeys(Track target,int lane,int indent,string key)
@@ -60,7 +61,7 @@ internal sealed partial class TimelineCanvas
     private void SelectTemplateCard(Lane lane,bool edit)
     {
         TemplateSource=lane.generationSource;PickTrack(lane.track,false);ActiveLane=lane.index;
-        if(edit){expanded.Add(lane.track.id);RefreshLayout();if(EditTemplateDefinition!=null)EditTemplateDefinition(lane.track);else if(Seek!=null)Seek(lane.track.start);ActiveLane=lane.index;EnsureFrameVisible();}
+        if(edit){if(lane.generationSource!=null&&EditTemplateRule!=null){EditTemplateRule(lane.generationSource,lane.generationRule.StartsWith("@bullet:"),Int32.Parse(lane.generationRule.Substring(lane.generationRule.IndexOf(':')+1)));return;}expanded.Add(lane.track.id);RefreshLayout();if(EditTemplateDefinition!=null)EditTemplateDefinition(lane.track);else if(Seek!=null)Seek(lane.track.start);ActiveLane=lane.index;EnsureFrameVisible();}
     }
     private BulletAction SpawnAction(Lane lane){return lane.property.StartsWith("@spawn:")?lane.track.spawnActions[SpawnIndex(lane)]:lane.track.bulletActions[SpawnIndex(lane)];}
     internal static IEnumerable<int> SpawnFrames(Track t,BulletAction a,int left,int right)

@@ -13,6 +13,38 @@ internal sealed class ShellColors : ProfessionalColorTable
     public override Color ToolStripDropDownBackground{get{return Theme.Panel;}}public override Color ImageMarginGradientBegin{get{return Theme.Panel;}}public override Color ImageMarginGradientMiddle{get{return Theme.Panel;}}public override Color ImageMarginGradientEnd{get{return Theme.Panel;}}
     public override Color MenuItemSelected{get{return Theme.Raised;}}public override Color MenuItemSelectedGradientBegin{get{return Theme.Raised;}}public override Color MenuItemSelectedGradientEnd{get{return Theme.Raised;}}public override Color MenuItemPressedGradientBegin{get{return Theme.Raised;}}public override Color MenuItemPressedGradientMiddle{get{return Theme.Raised;}}public override Color MenuItemPressedGradientEnd{get{return Theme.Raised;}}
     public override Color ButtonSelectedGradientBegin{get{return Theme.Raised;}}public override Color ButtonSelectedGradientMiddle{get{return Theme.Raised;}}public override Color ButtonSelectedGradientEnd{get{return Theme.Raised;}}public override Color MenuBorder{get{return Theme.Line;}}
+    public override Color ButtonCheckedGradientBegin{get{return Theme.Raised;}}public override Color ButtonCheckedGradientMiddle{get{return Theme.Raised;}}public override Color ButtonCheckedGradientEnd{get{return Theme.Raised;}}
+    public override Color ButtonPressedGradientBegin{get{return Theme.Line;}}public override Color ButtonPressedGradientMiddle{get{return Theme.Line;}}public override Color ButtonPressedGradientEnd{get{return Theme.Line;}}
+    public override Color ButtonSelectedBorder{get{return Theme.Line;}}public override Color ButtonPressedBorder{get{return Theme.Accent;}}public override Color MenuItemBorder{get{return Theme.Line;}}
+    public override Color CheckBackground{get{return Theme.Raised;}}public override Color CheckSelectedBackground{get{return Theme.Line;}}public override Color CheckPressedBackground{get{return Theme.Line;}}
+}
+internal sealed class DarkStripRenderer : ToolStripProfessionalRenderer
+{
+    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<ToolStrip,DarkStripRenderer> installed=new System.Runtime.CompilerServices.ConditionalWeakTable<ToolStrip,DarkStripRenderer>();
+    public DarkStripRenderer():base(new ShellColors()){RoundedEdges=false;}
+    protected override void OnRenderToolStripBorder(ToolStripRenderEventArgs e)
+    {
+        using(var pen=new Pen(Theme.Line)){
+            if(e.ToolStrip is ToolStripDropDown)e.Graphics.DrawRectangle(pen,0,0,Math.Max(0,e.ToolStrip.Width-1),Math.Max(0,e.ToolStrip.Height-1));
+            else e.Graphics.DrawLine(pen,0,e.ToolStrip.Height-1,e.ToolStrip.Width-1,e.ToolStrip.Height-1);
+        }
+    }
+    protected override void OnRenderItemText(ToolStripItemTextRenderEventArgs e)
+    {e.TextColor=!e.Item.Enabled?Theme.Muted:e.TextColor.GetBrightness()<.3f?Theme.Text:e.TextColor;base.OnRenderItemText(e);}
+    protected override void OnRenderArrow(ToolStripArrowRenderEventArgs e)
+    {e.ArrowColor=e.Item.Enabled?Theme.Text:Theme.Muted;base.OnRenderArrow(e);}
+    protected override void OnRenderSeparator(ToolStripSeparatorRenderEventArgs e)
+    {using(var pen=new Pen(Theme.Line)){if(e.Vertical)e.Graphics.DrawLine(pen,e.Item.Width/2,4,e.Item.Width/2,e.Item.Height-5);else e.Graphics.DrawLine(pen,6,e.Item.Height/2,e.Item.Width-7,e.Item.Height/2);}}
+    public static void Apply(ToolStrip strip)
+    {
+        DarkStripRenderer renderer;if(installed.TryGetValue(strip,out renderer))return;renderer=new DarkStripRenderer();installed.Add(strip,renderer);strip.Renderer=renderer;strip.BackColor=Theme.Panel;strip.ForeColor=Theme.Text;
+        foreach(ToolStripItem item in strip.Items)StyleItem(item);strip.ItemAdded+=(s,e)=>StyleItem(e.Item);
+    }
+    private static void StyleItem(ToolStripItem item)
+    {
+        if(!(item is ToolStripControlHost)&&item.ForeColor.GetBrightness()<.3f)item.ForeColor=Theme.Text;
+        var drop=item as ToolStripDropDownItem;if(drop!=null)Apply(drop.DropDown);
+    }
 }
 internal sealed partial class MainForm
 {
@@ -137,7 +169,7 @@ internal sealed partial class MainForm
     private void WireTimeline()
     {
         timeline.SpectrumRequested=EnsureSpectrum;timeline.Dock=DockStyle.Fill;timeline.Margin=Padding.Empty;timeline.Seek=value=>{StopPlaying();SetFrame(value);};timeline.PresetDropped=async(kind,name,target,at)=>await UsePreset(kind,name,target,at);timeline.SelectTrack=SelectTrack;timeline.BeginEdit=PushUndo;timeline.Changed=MarkChanged;
-        timeline.EditTemplateDefinition=EnterTemplateContext;timeline.EditBulletSpawnRule=(track,index)=>{SelectTrack(track,null);FocusBehavior(false,index);};timeline.EditSpawnRule=(track,index)=>{SelectTrack(track,null);FocusBehavior(true,index);};
+        timeline.EditTemplateDefinition=track=>{SelectTrack(track,null);ExpandBehaviorEditor();};timeline.EditTemplateRule=(source,bullet,index)=>{SelectTrack(source,null);FocusBehavior(!bullet,index);ExpandBehaviorEditor();};timeline.EditBulletSpawnRule=(track,index)=>{SelectTrack(track,null);FocusBehavior(false,index);};timeline.EditSpawnRule=(track,index)=>{SelectTrack(track,null);FocusBehavior(true,index);};
         timeline.SelectNativeEvent=async(item,edit)=>{selectedNativeEvent=item;ShowProperties();if(edit&&item!=null)await EditNativeEvent();};timeline.PreviewChanged=()=>{stage.SceneChanged();inspectorTimer.Stop();inspectorTimer.Start();};timeline.InsertKey=(t,p,f)=>{SelectTrack(t,null);timeline.SelectedProperty=p;SetFrame(f);AddKey();};timeline.ContextMenuStrip=CreateContext(false);
     }
     private void EnterTemplateContext(Track track){if(templateEditing==null){templateOrigin=timeline.TemplateSource??selectedTrack;sourceFrame=frame;}templateEditing=track;stage.TemplatePreviewId=track.id;stage.SceneChanged();StopPlaying();SelectTrack(track,null);SetFrame(track.start);RefreshShell();}

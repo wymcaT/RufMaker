@@ -1,12 +1,21 @@
 # Codex 任务记录
 
 - 状态：`completed`
-- 任务：已完成本地 2.0.1：修复属性展开偏好丢失、默认布局重置及吸附面板的文字可读性。
-- 开始时基线：`71a0982`，分支 `main`；保留已有用户工程改动（12 文件，817 增/236 删）。
-- 当前占用文件：无，完成后释放；本轮只精确提交自己的源码、测试、交接文档和 EXE。
-- 验收结果：Test-ShellLayout（build/ui-polish/check）、Test-EditorPerformance（sections-polish）、Test-Localization 与正式构建通过。检查折叠偏好、实际布局重置菜单、控件复用，中英弹出面板 125%/150% 放大字体边界与颜色；不是多显示器实际 DPI 验收。用户 projects 未写入。
+- 任务：已完成本地 2.0.2：右栏展开原地保持、模板双击直达完整规则编辑、暗色工具栏/菜单/输入控件修复。
+- 开始时基线：`92dce66`，分支 `main`；保留已有用户工程改动（12 文件，817 增/236 删）。
+- 当前占用文件：无，已完成释放；实际修改为上述 10 个产品 .cs、ShellLayoutTests、语言资源、双语 README/范例说明、交接和根 EXE。未修改 TemplateTools/StatisticsTools 或既有 EditorPerformanceTests/TemplateSystemTests。
+- 验收结果：ShellLayout、EditorPerformance、Localization、TemplateSystem 与正式 EXE 构建通过；真实标题焦点/展开滚动、正常键盘滚动、模板引用关联模式/规则序号、主题边缘像素及中英截图已检查。测试隔离，不写用户工程；未运行 GM 试玩或更改弹幕/GML 语义。
 - 本轮发布：2.0.0 已正式发布；本轮继续工作默认本地，不自动追加 Git 推送或新 Release。
-- 本机产物：根目录 `RufMaker.exe`，ProductVersion `2.0.1`，FileVersion `2.0.1.0`，1,152,512 bytes；已构建并 File.Replace 安全替换，未结束用户进程。2.0.0 前版本在 build/ui-polish/RufMaker.previous.exe。
+- 本机产物：根目录 `RufMaker.exe`，ProductVersion `2.0.2`，FileVersion `2.0.2.0`，1,157,632 bytes；已构建并 File.Replace 安全替换，未结束用户进程。2.0.1 前版本在 build/ui-interaction/RufMaker.previous.exe。
+
+## 2026-10-25：2.0.2 右栏原地展开、模板完整编辑与暗色 UI（完成，未推送）
+
+- 用户明确要求三项修复。复现发现普通 PerformClick 测试不足：用不激活的屏外原生测试窗取得真实标题焦点，WinForms 滚动从 -626 跳至 -391，点击后又至 -6。ParameterInspector 改用 InspectorScrollPanel，仅在标题焦点/折叠布局期间保持 DisplayRectangle 偏移；ToggleSection 在提交输入前保存偏移，保留标题焦点而非 ActiveControl=null。实际标题视觉锚点及滚动前后保持 -626；普通参数的键盘聚焦仍能自动滚入视野。控件保留，工作区折叠格式不变。
+- 模板引用卡片新增可选回调 TimelineCanvas.EditTemplateRule(source,bullet,index)，双击按绑定来源、@spawn/@bullet 与规则序号调用。MainForm 选择来源、定位对应行为，再调用与右栏“展开编辑”共用的 ExpandBehaviorEditor；直接打开现有 BulletBehaviorForm 完整编辑器，不跳转歌曲时间或进入局部预览。未绑定模板卡片沿用定义编辑回调，主窗接到完整行为入口。局部动画预览移到模板右键“预览模板局部动画”，双语提示/README/范例教程同步。新回调是 UI 接口，无持久工程字段或后台变化。
+- DarkStripRenderer 统一工具栏、菜单及子菜单的边线、分隔线、箭头、选中/按下/勾选背景和文字；Language.Attach 给 ToolStrip 应用并处理后续动态项目。子菜单可继承 renderer 却尚未样式化，故按控件实例弱表登记，保证各自项目实际处理一次。排除 ToolStripControlHost 的自定义前景，保留粉色导出按钮的深色文字。NumericUpDown 原生增减按钮/边框和可输入 ComboBox 箭头补绘深色，保留原生输入与按钮逻辑；行为窗口按钮去除系统浅色边框。系统滚动条未重写。
+- ShellLayout 增加屏外原生焦点/滚动位置/标题锚点、展开控件复用与正常键盘滚动；两种模板引用双击实际打开正确完整窗口、模式与规则序号，取消即关闭，检查右栏同入口、局部预览保留、工程不变；常规/经典工具栏底边像素、递归/动态菜单前景、暗色数字框/增减值、可输入组合框绘制。临时测试对话框自动取消，无遗留错误弹窗。单纯 Panel/PerformClick 的旧探针曾通过，屏外焦点探针确实失败后才修正；日志保留。
+- 通过 Test-ShellLayout.ps1 -OutputDirectory build/ui-interaction/check（shell-keyboard-final.log）、Test-EditorPerformance -Report ui-interaction（performance-final.log）、Test-Localization（localization-final.log）、Test-TemplateSystem（templates-final.log）和 Build-Native（build.log）。中英主界面及暗色控件截图已查看；测试场景、日志在 build/ui-interaction。性能用例确认单值/关键帧撤销保留控件，不将合成耗时当用户工程 FPS。未新增 .cs，无需改构建列表。
+- 根 EXE 已更新 2.0.2；原用户 demo 12 文件/817 增/236 删及其他个人工程保留。本轮仅本地提交，不 push/Release；GitHub latest 仍为 2.0.0，待用户自行重启验收，无剩余必做项。
 
 ## 2026-10-25：2.0.1 本地 UI 细节修复（完成，未推送）
 

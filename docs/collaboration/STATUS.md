@@ -8,13 +8,15 @@
 | --- | --- |
 | 本机仓库 | `D:\rufmaker` |
 | 正式分支 | `main`；2.0.0 功能基线 `1f37928`，已推送远程；标签 `v2.0.0` 同指此提交 |
-| 功能版本 | 本地 `2.0.1`：折叠偏好/默认布局/吸附文字细节修复，未推送；GitHub 正式版仍为 `2.0.0` |
-| 本机正式入口 | `RufMaker.exe`，ProductVersion `2.0.1`，1,152,512 bytes，已构建并安全替换；正在运行的旧进程需用户保存后重启 |
+| 功能版本 | 本地 `2.0.2`：右栏原地展开、模板双击完整编辑、暗色工具栏/菜单/输入修复，未推送；GitHub 正式版仍为 `2.0.0` |
+| 本机正式入口 | `RufMaker.exe`，ProductVersion `2.0.2`，1,157,632 bytes，已构建并安全替换；正在运行的旧进程需用户保存后重启 |
 | 历史测试入口 | 忽略文件 `RufMaker.Beta.exe` 可能仍是旧 Beta，不作为正式入口 |
 | 远程 | [v2.0.0](https://github.com/wymcaT/RufMaker/releases/tag/v2.0.0) 为 latest、非草稿/非预发布；Actions [40175140036](https://github.com/wymcaT/RufMaker/actions/runs/40175140036) 成功，完整便携包、更新包与两个 SHA256 均 uploaded |
 | 用户验收 | ShellLayout、Localization、EditorPerformance、RandomTimeline、TemplateSystem、Presets、PreviewPlayback、Updater 均通过；中英/窄窗口截图已检查。旧 1.13.1 更新器兼容本地最终包、线上 2.0.0 下载/校验/解压通过；尚无用户交互验收 |
 
 新文档或后续修复提交会使 HEAD 高于功能基线，请先执行 Git 状态检查。不要把“远程没有此分支”当成需要自动推送的理由。
+
+2.0.2（本地未推送）：标题焦点与属性折叠期间保留滚动偏移，正常键盘参数聚焦滚动不变。模板引用双击直接打开关联来源/规则的完整行为窗口，与“展开编辑”共用入口；局部预览改用模板右键。统一 ToolStrip/菜单及动态子菜单的暗色边线和文字，数字框、可输入组合框与行为窗口按钮去除系统浅色边框。新增仅 UI 回调，无工程/后台/GML 变化。ShellLayout、EditorPerformance、Localization、TemplateSystem 与构建通过；系统滚动条未重写，待用户交互验收。详见 Codex 记录。
 
 2.0.1（本地未推送）：属性分组展开偏好不再随临时控件/物件类型切换丢失；默认布局恢复紧凑折叠，保留“变换”展开。吸附面板文字统一深色主题亮字，分音框按字体/语言测宽。只变 UI 与相同格式的工作区偏好，不改工程、吸附算法和 GML。ShellLayout、EditorPerformance、Localization 和构建通过，中英 125%/150% 字体截图已检查；未冒充真实多 DPI 屏幕验收。详情见 Codex 记录。
 

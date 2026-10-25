@@ -33,12 +33,11 @@ internal sealed class WheelSafeComboBox : ComboBox
     protected override void OnMouseWheel(MouseEventArgs e){SettingsWheel.Scroll(this,e);}
     private void PaintClosed(Graphics g)
     {
-        using(var brush=new SolidBrush(BackColor))g.FillRectangle(brush,ClientRectangle);
         int arrow=Math.Max(20,SystemInformation.VerticalScrollBarWidth+4),cx=Width-arrow/2,cy=Height/2;
+        using(var brush=new SolidBrush(BackColor))g.FillRectangle(brush,DropDownStyle==ComboBoxStyle.DropDownList?ClientRectangle:new Rectangle(Width-arrow,0,arrow,Height));
         using(var pen=new Pen(Focused?Theme.Accent:Theme.Line))g.DrawRectangle(pen,0,0,Width-1,Height-1);
         using(var brush=new SolidBrush(Enabled?ForeColor:Theme.Muted))g.FillPolygon(brush,new[]{new Point(cx-4,cy-2),new Point(cx+4,cy-2),new Point(cx,cy+2)});
-        string text=SelectedIndex>=0?GetItemText(Items[SelectedIndex]):Text;
-        Theme.Label(g,text,new Rectangle(5,1,Math.Max(0,Width-arrow-7),Height-2),Enabled?ForeColor:Theme.Muted,Font,localize:false);
+        if(DropDownStyle==ComboBoxStyle.DropDownList){string text=SelectedIndex>=0?GetItemText(Items[SelectedIndex]):Text;Theme.Label(g,text,new Rectangle(5,1,Math.Max(0,Width-arrow-7),Height-2),Enabled?ForeColor:Theme.Muted,Font,localize:false);}
     }
     protected override void WndProc(ref Message m)
     {
@@ -46,13 +45,27 @@ internal sealed class WheelSafeComboBox : ComboBox
         base.WndProc(ref m);
         // The native combo frame ignores BackColor on some Windows themes.
         // Paint the closed DropDownList too, including WM_PRINT used during resize/capture.
-        if(DropDownStyle==ComboBoxStyle.DropDownList){
+        if(DropDownStyle!=ComboBoxStyle.Simple){
             if(m.Msg==0x000F){using(var g=Graphics.FromHwnd(Handle))PaintClosed(g);}
             else if((m.Msg==0x0317||m.Msg==0x0318)&&m.WParam!=IntPtr.Zero){using(var g=Graphics.FromHdc(m.WParam))PaintClosed(g);}
         }
     }
 }
 internal sealed class WheelSafeNumericUpDown : NumericUpDown
-{protected override void OnMouseWheel(MouseEventArgs e){SettingsWheel.Scroll(this,e);}protected override void WndProc(ref Message m){if(m.Msg==0x020A){SettingsWheel.Scroll(this,new MouseEventArgs(MouseButtons.None,0,0,0,(short)((long)m.WParam>>16)));return;}base.WndProc(ref m);}}
+{
+    public WheelSafeNumericUpDown()
+    {
+        BorderStyle=BorderStyle.FixedSingle;BackColor=Theme.Raised;ForeColor=Theme.Text;
+        foreach(Control child in Controls)if(!(child is TextBox)){var buttons=child;buttons.Paint+=(s,e)=>PaintButtons(e.Graphics,buttons.ClientRectangle);}
+    }
+    private void PaintButtons(Graphics g,Rectangle bounds)
+    {
+        using(var brush=new SolidBrush(Theme.Raised))g.FillRectangle(brush,bounds);int cx=bounds.Width/2,cy=bounds.Height/2;
+        using(var brush=new SolidBrush(Enabled?Theme.Text:Theme.Muted)){g.FillPolygon(brush,new[]{new Point(cx-3,cy/2+2),new Point(cx+3,cy/2+2),new Point(cx,cy/2-2)});g.FillPolygon(brush,new[]{new Point(cx-3,cy+cy/2-2),new Point(cx+3,cy+cy/2-2),new Point(cx,cy+cy/2+2)});}
+    }
+    protected override void OnPaint(PaintEventArgs e){base.OnPaint(e);using(var pen=new Pen(Focused?Theme.Accent:Theme.Line))e.Graphics.DrawRectangle(pen,0,0,Width-1,Height-1);}
+    protected override void OnMouseWheel(MouseEventArgs e){SettingsWheel.Scroll(this,e);}
+    protected override void WndProc(ref Message m){if(m.Msg==0x020A){SettingsWheel.Scroll(this,new MouseEventArgs(MouseButtons.None,0,0,0,(short)((long)m.WParam>>16)));return;}base.WndProc(ref m);}
+}
 internal sealed class WheelSafeTrackBar : TrackBar
 {protected override void OnMouseWheel(MouseEventArgs e){SettingsWheel.Scroll(this,e);}protected override void WndProc(ref Message m){if(m.Msg==0x020A){SettingsWheel.Scroll(this,new MouseEventArgs(MouseButtons.None,0,0,0,(short)((long)m.WParam>>16)));return;}base.WndProc(ref m);}}

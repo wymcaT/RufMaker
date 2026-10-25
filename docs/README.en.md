@@ -10,7 +10,7 @@ Place emitters, formations, cameras and effects on a timeline, animate their pro
 
 Use File for project and import commands, Add for new clips, and the single transport bar for playback, frames, speed, volume, snapping and zoom. The library has Assets/Presets pages. The inspector has Property/Behaviors/Statistics pages; common rule parameters are editable inline, with Advanced editor for full rules. BPM/subdivision/offset settings are under Snap. Native recording management is under Project; engine and language settings are under Tools; updates and the guide are under Help.
 
-Double-click a template card for local preview. Return to source restores the original song time and selection; local preview is silent, and F5 returns to the source before playtesting. Panel sizes, pages and property folds are saved. View includes sidebar visibility, generation-group focus and default-layout reset.
+Double-click a template card to open its linked rule in the full editor, matching Advanced editor. Use Preview template animation in its context menu for local preview. Return to source restores the original song time and selection; local preview is silent, and F5 returns to the source before playtesting. Panel sizes, pages and property folds are saved. View includes sidebar visibility, generation-group focus and default-layout reset.
 
 ## Getting started
 
@@ -28,7 +28,7 @@ Expand a source clip to see **↗ spawn rows** at scheduled song times, includin
 
 Sources, spawn rules and referenced templates are automatically grouped on the same timeline track, with an option to focus the current group. Folding the source hides its rules and template references; moving it moves their displayed positions. Referenced template-only objects appear inside these groups. Shared templates can appear in several source groups, and edits affect every reference.
 
-Readable template cards show the name, type, local frame range and key count, even for one-shot emissions. Click a card to edit its parameters; double-click to edit and preview on the template’s local clock, then use Return to source to restore the song position. Card width is for readability: the printed frame range defines the animation length. Grouping does not change stored clip times, template identities or runtime behavior.
+Readable template cards show the name, type, local frame range and key count, even for one-shot emissions. Click a card to edit its parameters; double-click to open its linked generation rule in the full editor. Right-click → Preview template animation opens the local clock; Return to source restores the song position. Card width is for readability: the printed frame range defines the animation length. Grouping does not change stored clip times, template identities or runtime behavior.
 
 Enable **Random wave colors** on an emitter. `random(360)` chooses a hue; `choose("#FF75AD","#6DE8FF")` chooses explicit colors. Waves share a color unless per-bullet sampling is enabled. A spawn rule's wave color expression applies one shared tint to its generated batch. Results remain fixed after birth and follow the project seed/resample controls. Use a white sprite for arbitrary tinting; tinting a rainbow sprite retains its underlying colors.
 

@@ -74,7 +74,7 @@ internal static class Language
         else bindings.Add(control,new Binding{Apply=()=>{}});
         control.ControlAdded+=(s,e)=>Attach(e.Control);
         foreach(Control child in control.Controls)Attach(child);
-        var strip=control as ToolStrip;if(strip!=null){foreach(ToolStripItem item in strip.Items)Attach(item);strip.ItemAdded+=(s,e)=>Attach(e.Item);}
+        var strip=control as ToolStrip;if(strip!=null){DarkStripRenderer.Apply(strip);foreach(ToolStripItem item in strip.Items)Attach(item);strip.ItemAdded+=(s,e)=>Attach(e.Item);}
         if(control.ContextMenuStrip!=null)Attach(control.ContextMenuStrip);
     }
     private static void Attach(ToolStripItem item)

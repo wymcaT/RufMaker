@@ -133,6 +133,7 @@ internal sealed partial class MainForm : LocalizedForm
                 var t=selectedTrack;
                 menu.Items.Add("复制所选物件（含全部关键帧）    Ctrl+C",null,(a,b)=>{timeline.ClearKeySelection();CopySelection();});
                 menu.Items.Add("存为自定义预设…",null,(a,b)=>SaveSelectionAsPreset());
+                if(t.templateOnly)menu.Items.Add("预览模板局部动画",null,(a,b)=>EnterTemplateContext(t));
                 menu.Items.Add("展开物件关键帧",null,(a,b)=>timeline.Expand(t,true));menu.Items.Add("收起物件关键帧",null,(a,b)=>timeline.Expand(t,false));
                 if(Motion.Fields(t).Length>0)
                 {
