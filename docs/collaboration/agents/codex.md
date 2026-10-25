@@ -1,14 +1,14 @@
 # Codex 任务记录
 
-- 状态：`in_progress`
-- 任务：按已认可方案实施 2.0.0 原生 UI 整理，完成定向验证、EXE 构建、推送与正式 Release。
+- 状态：`completed`
+- 任务：已按认可方案实施 2.0.0 原生 UI 整理，完成定向验证、EXE、GitHub 推送与正式 Release。
 - 开始时基线：`4848317`，分支 `main`；保留已有用户工程改动。
-- 当前占用文件：desktop/{MainForm,WorkspaceView,SelectionTimeControl,StatisticsTools,ParameterInspector,NativeProperties,BulletTools,TemplateTools,PresetBrowser,Localization,PreviewPlayback,TimelineCanvas,TimelineLayout,SpawnTimeline,TimelineAudio,Updater}.cs；新增 desktop/*Shell*.cs、desktop/*Workspace*.cs；desktop/Build-Native.ps1 与定向 UI 测试；assets/locales/en.json；双语 README、docs/design/、docs/collaboration/{STATUS.md,agents/codex.md}；build/ui-v2/、根 RufMaker.exe；发布脚本/说明按需要登记。
-- 验收计划：固定工具行、命令可达、资源/行为/统计切页、右栏复用、模板时间上下文、关键帧/撤销/复制、中文英文窄窗口与高 DPI；隔离测试工程，用户 projects 不写入。
-- 本轮发布：用户已明确授权完成后推送并发布 v2.0.0；发布前核对版本、完整便携包与更新包，保留用户资料。
+- 当前占用文件：无，已完成并释放；实际文件清单见功能提交 `1f37928`。
+- 验收结果：固定工具行/命令、预设/行为/统计、共享时间、模板隔离/返回、语言/数据不变、关键帧/撤销/复制、控件复用、中英宽窄截图、播放和更新验证通过。隔离工程写 build，用户 projects 未写入；未做实际多显示器高 DPI 或本轮 GM 数值试玩验收。
+- 本轮发布：已按明确授权推送 main/v2.0.0，正式 Release 为 latest；Actions `40175140036` 成功，四个附件上线，线上更新器下载/校验/解压通过。后续默认不自动推送。
 - 本机产物：根目录 `RufMaker.exe`，ProductVersion `2.0.0`，FileVersion `2.0.0.0`，1,152,000 bytes；已构建并 File.Replace 安全替换，未结束用户进程。前版本在 build/ui-v2/RufMaker.previous.exe。
 
-## 2026-10-25：2.0.0 原生界面整理与发布（进行中）
+## 2026-10-25：2.0.0 原生界面整理与发布（完成）
 
 - 已实施六菜单和固定 ToolStrip 主工具/播放工具，使用原生 overflow；左栏素材/预设分类、搜索与管理菜单；预览显示/测试/缩放菜单、条件随机和底片状态；右栏属性/行为/统计、紧凑共享进度条和起止输入、折叠分组及原位参数按钮。保留完整行为编辑器，常用规则参数可在行为页编辑；时间轴双击规则直达对应行。用户已明确授权 v2.0.0 推送/Release。
 - 新增 EditorShell.cs、BehaviorWorkspace.cs，并加入 Build-Native 显式列表。WorkspaceView 版本 2，新增 recentProjects、collapsedSections（! 前缀表示展开）、leftHidden/rightHidden、inspectorPage；TimelineView 新增 focusGenerationGroups。仅工作区字段；工程模型/后台协议/导出 GML 未改。语言绑定补 ToolStripControlHost 控件与用户文本保留，语言菜单替代旧顶栏组合框。
@@ -18,7 +18,8 @@
 - 发布说明、双语 README 与设计状态已更新；根 EXE 版本一致。构建/截图/测试日志在 build/ui-v2/。未修改 projects 用户文件；仍为 12 个已有追踪文件，817 增/236 删，未纳入暂存。
 - Package-Release 产出 final-distribution：完整便携 ZIP 58,785,959 bytes、更新 ZIP 56,954,131 bytes 及各自 SHA256。检查必需入口和 2,639 个便携文件，不含个人工程/设置。初次检查错误假定模板入口为 avoidance.gm82，已核实实际 rufmaker-demo.gm82 存在并修正检查。远程正式 1.13.1 EXE 的旧更新器实际解压/校验最终 2.0.0 更新包通过，AppPaths 新素材整理通过。
 - Test-Updater 通过：最新版/双版本提示、资源选择，以及隔离应用真实替换、保留资料、备份和重启。Test-PreviewPlayback 通过：逐帧/长按/倒放、倍速、GM 标记吸附和静音 FMOD 播放；原测试的 [short] 在 Windows PowerShell 无法解析，改为等价 [int16] 后通过。没有修改音频实现。新测试/测试修正属于本轮占用。
-- 本地构建和包验证完成；待精确提交、push main+v2.0.0 和 Actions 发布结果确认。旧窗口需用户保存并重启，无需重新制作用户工程。
+- 本地功能提交 `1f37928`（31 文件），已精确暂存并检查未混入 projects；main 与 v2.0.0 已原子推送。Actions `40175140036` 构建/打包/发布全部 success；v2.0.0 为 latest、非草稿/非预发布，四附件 uploaded：便携 ZIP 59,901,555 bytes、兼容更新 ZIP 57,991,912 bytes 和两个 SHA256。线上包由 Windows CI 构建，与本地压缩大小不同，版本一致。
+- `Test-Updater.ps1 -Online -Version 2.0.0` 实际从 latest API 读取版本，下载公开更新 ZIP、校验 SHA256、验证并解压全部 manifest 文件通过，记录 build/ui-v2/updater-online.log。本轮高 DPI 仅采用适应字体尺寸/overflow 的设计，实际多 DPI 屏幕未验收；没有将隔离控件截图或构建通过当成用户试玩。发布后仅补交接文档到 main，不移动发布标签。旧窗口需用户保存并重启，无剩余必做项。
 
 ## 2026-10-25：界面整理提案（尚未实施）
 
