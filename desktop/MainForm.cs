@@ -160,7 +160,7 @@ internal sealed partial class MainForm : LocalizedForm
         zoomBar.Controls.Add(new Label{Text="Ctrl+滚轮缩放 · Shift+滚轮横移",AutoSize=true,ForeColor=Theme.Muted,Margin=new Padding(6,9,0,0)});table.Controls.Add(zoomBar,0,1);
         table.Controls.Add(BuildBeatControls(),0,2);
         timeline.SpectrumRequested=EnsureSpectrum;timeline.Dock=DockStyle.Fill;timeline.Margin=Padding.Empty;timeline.Seek=value=>{StopPlaying();SetFrame(value);};timeline.PresetDropped=async(kind,name,target,at)=>await UsePreset(kind,name,target,at);timeline.SelectTrack=SelectTrack;timeline.BeginEdit=PushUndo;timeline.Changed=MarkChanged;
-        timeline.EditBulletSpawnRule=(track,index)=>{SelectTrack(track,null);OpenBulletBehavior(index);};timeline.EditSpawnRule=(track,index)=>{SelectTrack(track,null);OpenTemplateBehavior(index);};
+        timeline.EditTemplateDefinition=track=>{StopPlaying();SelectTrack(track,null);SetFrame(track.start);};timeline.EditBulletSpawnRule=(track,index)=>{SelectTrack(track,null);OpenBulletBehavior(index);};timeline.EditSpawnRule=(track,index)=>{SelectTrack(track,null);OpenTemplateBehavior(index);};
         timeline.SelectNativeEvent=async(item,edit)=>{selectedNativeEvent=item;ShowProperties();if(edit&&item!=null)await EditNativeEvent();};
         timeline.PreviewChanged=()=>{stage.SceneChanged();inspectorTimer.Stop();inspectorTimer.Start();};
         timeline.InsertKey=(t,p,f)=>{SelectTrack(t,null);timeline.SelectedProperty=p;SetFrame(f);AddKey();};
@@ -460,7 +460,9 @@ internal sealed partial class MainForm : LocalizedForm
         {
             var track=selectedTrack;selectionTitle.Text=timeline.SelectedKeys.Count>1?Language.Text("已选择 ")+timeline.SelectedKeys.Count+Language.Text(" 个关键帧"):Language.Text(Theme.KindName(track.kind))+" · "+track.name;
             Field(bag,"名称","物件",()=>track.name,value=>track.name=value);Field(bag,"启用","物件",()=>track.enabled,value=>track.enabled=value);
-            Field(bag,"轨道编号","物件",()=>track.lane+1,value=>{track.lane=Math.Max(0,Math.Min(199,value-1));state.laneCount=Math.Max(state.laneCount,track.lane+1);});
+            var displayLanes=track.templateOnly?TimelineLayout.TemplateDisplayLanes(state,track):new int[0];
+            if(displayLanes.Length>0)bag.Add("所在生成组轨道","物件",typeof(string),()=>String.Join(", ",displayLanes.Select(l=>(l+1).ToString())),null);
+            else Field(bag,"轨道编号","物件",()=>track.lane+1,value=>{track.lane=Math.Max(0,Math.Min(199,value-1));state.laneCount=Math.Max(state.laneCount,track.lane+1);});
             Field(bag,"开始帧","物件",()=>track.start,value=>{track.start=Math.Max(0,Math.Min(track.end,value));if(track.kind=="pattern")UpdatePatternEnd(track);});if(track.kind=="pattern")bag.Add("结束帧（按循环计算）","物件",typeof(int),()=>track.end,null);else Field(bag,"结束帧","物件",()=>track.end,value=>track.end=Math.Max(track.start,Math.Min(state.duration,value)));
             if(track.kind=="rod"){
                 string[] shapes=FormationShapes.Names,shapeValues=FormationShapes.Values;

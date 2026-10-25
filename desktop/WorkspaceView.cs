@@ -10,6 +10,7 @@ internal sealed class TimelineView
     public float pixelsPerSecond=80;
     public int horizontal,vertical;
     public string[] expanded=new string[0];
+    public string[] collapsedGenerationGroups=new string[0];
     public string audioDisplay="waveform";public int audioHeight=50;
     public System.Collections.Generic.Dictionary<string,int> rowHeights=new System.Collections.Generic.Dictionary<string,int>();
 }

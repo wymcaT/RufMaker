@@ -1,12 +1,24 @@
 # Codex 任务记录
 
 - 状态：`completed`
-- 任务：完成生成层级、出生外观/大小继承和彩虹帧冻结、波次随机配色、歌曲时间生成标记，以及修订范例和双语说明。仅本地构建/提交，不推送。
-- 开始时基线：`e7fe08d`，分支 `main`；保留个人工程已有改动。
+- 任务：已完成同轨生成组、可读模板卡片、选择/局部关键帧入口及共享引用显示。本地实现、构建和提交，不推送。
+- 开始时基线：`4292f12`，分支 `main`；保留已有用户工程改动。
 - 当前占用文件：无（已完成并释放）。
-- 验收结果：C#/JS、预设、语言、右栏控件复用、生成标记和叠层像素检查通过；GM8.2 原夹具 22 时刻 1,489 状态及修订范例 33 时刻 1,329 状态对照通过。正式 EXE 与示例游戏已构建，待用户交互验收。
-- 本轮发布：仅本地 1.13.8 构建/提交，未推送。远程 main 为 `a83e764`，Release/latest 仍为 v1.13.1（Actions `40114921642`）。
-- 本机产物：根目录 `RufMaker.exe`，ProductVersion `1.13.8`，FileVersion `1.13.8.0`，1,102,848 bytes。已安全替换路径，运行中的旧进程需保存并重启。
+- 验收结果：同轨分组/模板可读宽度/共享与循环引用/选择和局部关键帧/实际鼠标拖组/折叠保存/工程数据不变检查通过；撤销、复制粘贴、关键帧边界、混合轨道和语言回归通过；截图已检查，正式 EXE 已构建。
+- 本轮发布：仅本地 1.13.9 构建/提交，未推送。远程 main 为 `a83e764`，Release/latest 仍为 v1.13.1（Actions `40114921642`）。
+- 本机产物：根目录 `RufMaker.exe`，ProductVersion `1.13.9`，FileVersion `1.13.9.0`，1,111,040 bytes。已安全替换路径，运行中的旧进程需保存并重启。
+
+## 2026-10-25：同轨生成组与可读模板卡片
+
+- 时间轴按引用关系把来源物件、@spawn / @bullet 规则和 @template 引用卡片组织在来源轨道，生成组默认展开，能从来源箭头整体折叠。展开时来源长条位于自己的组头，只显示一次；它仍支持拖动、裁剪与框选。被普通来源可达的 templateOnly 模板收进组内，原模板独立轨道隐藏；未引用模板保持独立宽卡片。
+- 同一个模板被多源引用时，每个来源组显示同一份定义的引用；新增引用循环的路径停止检查，避免无限展开。模板的 lane、start/end、关键帧、行为和模板 ID 都不因视图重排而改写；原生房间/GML、预览运动和导出公式没有修改。拖动来源实际改变来源时间，触发标记和引用卡片随源显示，模板局部时钟保留。
+- 卡片独立于动作时长，以可读宽度显示名称、类型、单次发射/局部动画、局部帧范围、关键帧数和共用提示；零时长单发也清晰可见。宽度不表示运行时持续时间。单击绑定真实模板的右栏参数；双击展开原模板关键帧并定位局部起点，继续使用原参数/关键帧编辑路径。右栏引用模板显示“所在生成组轨道”，避免原数据 lane 与视觉位置混淆。
+- 新 UI 布局字段 `TimelineView.collapsedGenerationGroups`，旧布局缺省为空；折叠状态随工作区保存。共享模板的展开/修改仍作用于同一个 ID。行高键新增 generation:绑定路径，防止共用模板的不同引用行冲突。主窗接线 `EditTemplateDefinition` 只设置选中/播放头，不改工程数据。没有新增工程持久字段或新的 .cs 文件。
+- 实际文件：desktop/{TimelineCanvas,SpawnTimeline,TimelineLayout,TimelineAudio,WorkspaceView,MainForm,Updater}.cs；TemplateSystemTests、LocalizationTests；assets/locales/en.json、双语 README、范例教程及交接文档、根 EXE。TemplateTools.cs 登记过但最终未修改。
+- 通过 `Test-TemplateSystem.ps1`：自动绑定同轨、宽卡片、两个来源共享、循环引用有界、折叠保存/恢复、选择真实模板、双击原关键帧入口、实际鼠标拖动生成组、不改局部模板数据；原模板/寿命/外观/颜色/像素用例也通过。`Test-RandomTimeline.ps1` 通过：混合轨道、多选、拖动/裁剪、关键帧边界、撤销选中、复制粘贴时钟。`Test-Localization.ps1` 通过，含新增标签。日志均在 `build/generation-groups-check/`。
+- 新分组用例初次用 JSON 文本直接比较出现序列化字段顺序差异；改用已有 SceneComparison 比较持久字段，保存了 generation-before/after.json，数据语义相同。初始测试夹具的 laneCount 也在截图前先走既有 Normalize，与应用实际入口一致。`template-first.log` 保留初次失败。
+- 最终截图 `build/generation-groups-check/generation-groups.png` 已检查：来源、触发标记、完整模板卡片处于同轨；共享模板在两个来源组出现，未引用单发仍为宽卡片。所有用户 projects 原文件未修改，既有 demo 仍为 12 文件/817 增/236 删。范例和游戏不需要重新同步；这轮仅视图/编辑入口变化，未重跑 GM 数值探针。
+- 构建 `desktop/Build-Native.ps1 -Output D:\rufmaker\build\generation-groups-check\RufMaker.exe` 通过；File.Replace 安全替换根入口并比对 SHA256，未结束用户进程，旧映像备份在同一 build 目录。源码/测试/说明/EXE 随所属修复本地提交，未推送/发布；无剩余必做项，待用户交互验收。
 
 ## 2026-10-25：生成外观、波次颜色与歌曲时间定位
 

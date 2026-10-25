@@ -1160,5 +1160,12 @@
   "模板内生成：随实例的局部时钟执行": "Template spawning follows each instance local clock",
   "生成触发位置（歌曲时间）：单击定位；双击编辑此规则。逐成员延迟与重复均已计入。": "Scheduled spawn times: click to seek; double-click to edit this rule. Includes repeats and per-member delays.",
   "random(360) 随机色相；choose(0,120,240) 选择色相；choose(\"#FF75AD\",\"#6DE8FF\") 选择指定颜色。出生时取样，之后固定。请使用白色底图；彩虹贴图会保留自身颜色。": "random(360) selects a hue; choose(0,120,240) selects among hues; choose(\"#FF75AD\",\"#6DE8FF\") selects explicit colors. Sampled at birth and then held. Use a white sprite for arbitrary tinting; rainbow sprites retain their own colors.",
-  "random(360) 或 choose(\"#FF75AD\",\"#6DE8FF\")。同一轮成员共享颜色，出生后固定。会覆盖继承的混色；要显示任意颜色请选白色底图模板。": "Use random(360) or choose(\"#FF75AD\",\"#6DE8FF\"). Members share a color per round, fixed after birth. Overrides inherited tint; use a white template sprite for arbitrary colors."
+  "random(360) 或 choose(\"#FF75AD\",\"#6DE8FF\")。同一轮成员共享颜色，出生后固定。会覆盖继承的混色；要显示任意颜色请选白色底图模板。": "Use random(360) or choose(\"#FF75AD\",\"#6DE8FF\"). Members share a color per round, fixed after birth. Overrides inherited tint; use a white template sprite for arbitrary colors.",
+  "所在生成组轨道": "Source group tracks",
+  "模板": "Template",
+  "单次发射": "One-shot emission",
+  "局部动画": "Local animation",
+  "共用模板": "Shared template",
+  "个关键帧": "keyframes",
+  "单击编辑模板参数；双击展开模板关键帧并切到局部起点。共用模板的修改会影响所有引用。": "Click to edit template parameters; double-click to expand its keys and seek to its local start. Changes to a shared template affect every reference."
 }

@@ -18,7 +18,11 @@ To repeat the expanding copy, set the source's spawn interval to 50 frames, dura
 
 Generated descendants render above their sources. **Inherit birth sprite and color** freezes the source sprite, tint and rainbow frame at emission. **Inherit source size** matches its starting size while retaining proportional template scaling. Existing projects retain their stored/default inheritance settings.
 
-Expand a source clip to see **↗ spawn rows** at scheduled song times, including repeats and member delays. Click to seek, double-click to edit the rule. The dialog also accepts **First trigger song frame**. Template clips are labeled as local time: their position defines an animation rather than an actual song-time appearance. Flying-bullet rows show a schedule; early destruction can cancel later triggers.
+Expand a source clip to see **↗ spawn rows** at scheduled song times, including repeats and member delays. Click to seek, double-click to edit the rule. The dialog also accepts **First trigger song frame**. Template cards describe local animation frames: their position defines an animation rather than an actual song-time appearance. Flying-bullet rows show a schedule; early destruction can cancel later triggers.
+
+Sources, spawn rules and referenced templates are automatically grouped on the same timeline track, expanded by default. Folding the source hides its rules and template references; moving it moves their displayed positions. Referenced template-only objects appear inside these groups. Shared templates can appear in several source groups, and edits affect every reference.
+
+Readable template cards show the name, type, local frame range and key count, even for one-shot emissions. Click a card to edit its parameters; double-click to expose its original keys and seek to the local start. Card width is for readability: the printed frame range defines the animation length. Grouping does not change stored clip times, template identities or runtime behavior.
 
 Enable **Random wave colors** on an emitter. `random(360)` chooses a hue; `choose("#FF75AD","#6DE8FF")` chooses explicit colors. Waves share a color unless per-bullet sampling is enabled. A spawn rule's wave color expression applies one shared tint to its generated batch. Results remain fixed after birth and follow the project seed/resample controls. Use a white sprite for arbitrary tinting; tinting a rainbow sprite retains its underlying colors.
 

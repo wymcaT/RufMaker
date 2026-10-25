@@ -71,6 +71,32 @@ internal static class TemplateSystemTests
             using(var image=new Bitmap(timeline.Width,timeline.Height)){timeline.DrawToBitmap(image,timeline.ClientRectangle);Check(image.GetPixel(198,y).G>150,"Spawn timeline row did not paint its trigger markers");image.Save(Path.Combine(folder,"spawn-timeline.png"));}
         }
     }
+    private static void GenerationGroupsUi(string folder)
+    {
+        var template=new Track{id="linked-template",name="彩虹星星扩散弹模板 · 共享的完整名称",kind="emitter",templateOnly=true,lane=3,start=0,end=20,count=1};Motion.SetKey(template,"scale",0,1);Motion.SetKey(template,"scale",20,2);
+        template.spawnActions.Add(new BulletAction{type="spawn",templateId=template.id,start=10,duration=0,maxGeneration=3});
+        var source=new Track{id="source-a",name="周期星星 · 物件与生成行为组",kind="rod",lane=0,start=400,end=700};source.spawnActions.Add(new BulletAction{type="spawn",templateId=template.id,start=50,duration=100,spawnRepeat=50});
+        var other=new Track{id="source-b",name="移动母弹 · 共用模板",kind="emitter",lane=1,start=800,end=1000};other.bulletActions.Add(new BulletAction{type="spawn",templateId=template.id,start=10,duration=0});
+        var unused=new Track{id="unused",name="尚未引用的单发模板也有完整宽度",kind="emitter",templateOnly=true,lane=5,start=0,end=0};
+        var scene=new EditorState{duration=1500,fps=50,tracks=new List<Track>{source,other,template,unused}};Motion.Normalize(scene);TimelineLayout.Normalize(scene);string before=Json.Write(scene);
+        using(var timeline=new TimelineCanvas{State=scene,Size=new Size(1200,720),PixelsPerSecond=20}){
+            timeline.RefreshLayout();timeline.CreateControl();var flags=BindingFlags.NonPublic|BindingFlags.Instance;
+            Func<object[]> rows=()=>((System.Collections.IEnumerable)typeof(TimelineCanvas).GetField("lanes",flags).GetValue(timeline)).Cast<object>().ToArray();
+            Func<object,string,object> field=(row,name)=>row.GetType().GetField(name).GetValue(row);
+            Func<object,bool> card=row=>(string)field(row,"property")=="@template";var initial=rows();Check(initial.Length<20,"Recursive template references expanded without a stopping point");
+            Check(!initial.Any(r=>Convert.ToInt32(field(r,"index"))==3),"Referenced template remained on a separate track");
+            Check(initial.Any(r=>card(r)&&field(r,"track")==template&&Convert.ToInt32(field(r,"index"))==0)&&initial.Any(r=>card(r)&&field(r,"track")==template&&Convert.ToInt32(field(r,"index"))==1),"Shared template was not bound to both source tracks");
+            Check(TimelineLayout.TemplateDisplayLanes(scene,template).SequenceEqual(new[]{0,1}),"Inspector template lanes do not match source groups");
+            timeline.Expand(source,false);Check(!rows().Any(r=>card(r)&&field(r,"track")==template&&Convert.ToInt32(field(r,"index"))==0),"Collapsing the source left its template cards behind");var view=timeline.CaptureView();timeline.Expand(source,true);timeline.RestoreView(view);Check(!rows().Any(r=>card(r)&&field(r,"track")==template&&Convert.ToInt32(field(r,"index"))==0),"Group collapse state was not restored");timeline.Expand(source,true);
+            var reference=rows().First(r=>card(r)&&field(r,"track")==template&&field(r,"generationSource")==source);int header=Convert.ToInt32(typeof(TimelineCanvas).GetProperty("Header",flags).GetValue(timeline,null)),y=header+Convert.ToInt32(field(reference,"top"))+20;
+            var bounds=(Rectangle)typeof(TimelineCanvas).GetMethod("TemplateCardBounds",flags).Invoke(timeline,new object[]{reference,header+Convert.ToInt32(field(reference,"top")),1183});Check(bounds.Width>=360,"Short template definition still renders as an unreadable sliver");
+            typeof(TimelineCanvas).GetMethod("OnMouseDown",flags).Invoke(timeline,new object[]{new MouseEventArgs(MouseButtons.Left,1,bounds.Left+70,y,0)});Check(timeline.SelectedTrack==template&&timeline.ActiveLane==0,"Template card did not select the real template in the source track");
+            bool edited=false;timeline.EditTemplateDefinition=t=>{edited=t==template;timeline.Frame=t.start;};typeof(TimelineCanvas).GetMethod("OnMouseDoubleClick",flags).Invoke(timeline,new object[]{new MouseEventArgs(MouseButtons.Left,2,bounds.Left+70,y,0)});Check(edited&&rows().Any(r=>field(r,"track")==template&&(string)field(r,"property")=="scale"),"Double-click did not expose the template's original keyframes");
+            File.WriteAllText(Path.Combine(folder,"generation-before.json"),before);File.WriteAllText(Path.Combine(folder,"generation-after.json"),Json.Write(scene));Check(SceneComparison.Same(Json.Read<EditorState>(before),scene),"Visual grouping changed clip times, lanes, references or keyframes");timeline.Expand(template,false);timeline.ResetSelection(source,null);var groupHeader=rows().First(r=>field(r,"track")==source&&(string)field(r,"property")=="@item");int groupY=header+Convert.ToInt32(field(groupHeader,"top"))+15;foreach(var gesture in new[]{new{method="OnMouseDown",x=410},new{method="OnMouseMove",x=430},new{method="OnMouseUp",x=430}})typeof(TimelineCanvas).GetMethod(gesture.method,flags).Invoke(timeline,new object[]{new MouseEventArgs(MouseButtons.Left,1,gesture.x,groupY,0)});timeline.RefreshLayout();Check(source.start==450&&template.start==0&&template.end==20&&template.keyframes[1].frame==20,"Moving the source changed the shared template clock");
+            using(var image=new Bitmap(timeline.Width,timeline.Height)){timeline.DrawToBitmap(image,timeline.ClientRectangle);image.Save(Path.Combine(folder,"generation-groups.png"));}
+        }
+        Console.WriteLine("PASS: same-track generation groups, readable templates, shared/cyclic references, selection/local keys, source movement, saved folding and unchanged project data");
+    }
     [STAThread] public static int Main(string[] args)
     {
         try
@@ -84,6 +110,7 @@ internal static class TemplateSystemTests
             Appearance(world);
             AppearancePixels(folder);
             SpawnTimelineUi(folder,state);
+            GenerationGroupsUi(folder);
             world.Seek(5);Check(world.bullets.Count(b=>b.source.id=="flying-mother")==2,"Spawn/kill should remove only the odd mother");Check(world.bullets.Count(b=>b.source.id=="moving-heart")==10,"Odd mother should create one full heart");
             var rod=state.tracks.First(t=>t.id=="host-rod");Check(!world.Templates.Visible(rod,0)&&world.Templates.Visible(rod,1)&&!world.Templates.Visible(rod,2)&&world.Templates.Visible(rod,3),"Per-member generation/kill ignored index filters");
             var child=state.tracks.First(t=>t.id=="sacrifice-child");Check(!world.Templates.Visible(child),"Destroying a mother group must hide its descendants");

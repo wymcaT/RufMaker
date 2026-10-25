@@ -8,6 +8,59 @@ internal sealed partial class TimelineCanvas
 {
     public Action<Track,int> EditSpawnRule;
     public Action<Track,int> EditBulletSpawnRule;
+    public Action<Track> EditTemplateDefinition;
+    private bool TemplateLane(Lane lane){return lane!=null&&lane.track!=null&&lane.property=="@template";}
+    private void AppendTemplateKeys(Track target,int lane,int indent,string key)
+    {foreach(string property in Motion.Fields(target).Where(p=>Motion.HasKeys(target,p)))lanes.Add(new Lane{index=lane,track=target,property=property,indent=indent+1,bindingKey=key+"/key:"+property});}
+    private void AppendGenerationGroup(Track source,int lane,int indent,HashSet<string> path,string key)
+    {
+        var fields=Motion.Fields(source).Where(p=>Motion.HasKeys(source,p)).ToArray();if(fields.Length==0&&!TimelineLayout.HasGeneration(source))return;
+        lanes.Add(new Lane{index=lane,track=source,property="@item",indent=indent,bindingKey=key});
+        foreach(string property in fields)lanes.Add(new Lane{index=lane,track=source,property=property,indent=indent+1,bindingKey=key});
+        AppendGenerationRows(source,lane,indent,path,key??source.id);
+    }
+    private void AppendGenerationRows(Track source,int lane,int indent,HashSet<string> path,string key)
+    {
+        if(!path.Add(source.id))return;
+        foreach(bool bullet in new[]{false,true}){
+            var actions=bullet?source.bulletActions:source.spawnActions;
+            for(int i=0;i<actions.Count;i++){
+                var action=actions[i];if(action.type!="spawn")continue;string property=(bullet?"@bullet:":"@spawn:")+i,binding=key+"/"+property;
+                lanes.Add(new Lane{index=lane,track=source,property=property,indent=indent+1,generationSource=source,bindingKey=binding});
+                var target=State.tracks.FirstOrDefault(t=>t.id==action.templateId);if(target==null)continue;
+                lanes.Add(new Lane{index=lane,track=target,property="@template",indent=indent+2,generationSource=source,generationRule=property,bindingKey=binding+"/template"});
+                if(!path.Contains(target.id)){
+                    if(expanded.Contains(target.id))AppendTemplateKeys(target,lane,indent+2,binding);
+                    if(IsExpanded(target))AppendGenerationRows(target,lane,indent+2,new HashSet<string>(path),binding);
+                }
+            }
+        }
+    }
+    private Rectangle TemplateCardBounds(Lane lane,int y,int width)
+    {
+        int available=Math.Max(20,width-Names-16),size=Math.Min(560,available);int anchor=lane.track.start;
+        if(lane.generationSource!=null){var source=lane.generationSource;var actions=lane.generationRule.StartsWith("@spawn:")?source.spawnActions:source.bulletActions;anchor=source.start+actions[Int32.Parse(lane.generationRule.Substring(lane.generationRule.IndexOf(':')+1))].start;}
+        int left=Math.Max(Names+8,Math.Min((int)X(anchor),width-size-8));return new Rectangle(left,y+5,size,Math.Max(40,lane.height-10));
+    }
+    private string TemplateSummary(Track target)
+    {
+        int length=Math.Max(0,target.end-target.start),references=State.tracks.Sum(t=>TemplateRuntime.Actions(t).Count(a=>a.type=="spawn"&&a.templateId==target.id));
+        return Language.Text(Theme.KindName(target.kind))+" · "+Language.Text(length==0?"单次发射":"局部动画")+" · "+target.start+"–"+target.end+"f · "+target.keyframes.Count+" "+Language.Text("个关键帧")+(references>1?" · "+Language.Text("共用模板"):"");
+    }
+    private void DrawTemplateCard(Graphics g,Lane lane,int y,int width)
+    {
+        var rect=TemplateCardBounds(lane,y,width);bool chosen=SelectedTrack==lane.track||SelectedTracks.Contains(lane.track);Color accent=Theme.TrackColor(lane.track.kind);
+        using(var brush=new SolidBrush(chosen?Color.FromArgb(57,48,71):Theme.Raised))g.FillRectangle(brush,rect);
+        using(var pen=new Pen(chosen?Theme.Accent:accent))g.DrawRectangle(pen,rect);
+        string arrow=TimelineLayout.HasGeneration(lane.track)||lane.track.keyframes.Count>0?(IsExpanded(lane.track)?"▾ ":"▸ "):"▣ ";
+        Theme.Label(g,arrow+Language.Text("模板")+" · "+lane.track.name,new Rectangle(rect.X+10,rect.Y+3,rect.Width-20,21),Theme.Text,Theme.Bold,localize:false);
+        Theme.Label(g,TemplateSummary(lane.track),new Rectangle(rect.X+10,rect.Y+25,rect.Width-20,18),Theme.Muted,Theme.Small,localize:false);
+    }
+    private void SelectTemplateCard(Lane lane,bool edit)
+    {
+        PickTrack(lane.track,false);ActiveLane=lane.index;
+        if(edit){expanded.Add(lane.track.id);RefreshLayout();if(EditTemplateDefinition!=null)EditTemplateDefinition(lane.track);else if(Seek!=null)Seek(lane.track.start);ActiveLane=lane.index;EnsureFrameVisible();}
+    }
     private BulletAction SpawnAction(Lane lane){return lane.property.StartsWith("@spawn:")?lane.track.spawnActions[SpawnIndex(lane)]:lane.track.bulletActions[SpawnIndex(lane)];}
     internal static IEnumerable<int> SpawnFrames(Track t,BulletAction a,int left,int right)
     {

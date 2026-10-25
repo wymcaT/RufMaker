@@ -25,7 +25,7 @@ internal sealed partial class TimelineCanvas
     public int TrackHeight(Track track){return GetRowHeight(track.kind=="native"?"native:"+track.id+"|":"lane:"+track.lane);}
     private int GetRowHeight(string key){int value;return rowHeights.TryGetValue(key,out value)?value:Row;}
     private void SetRowHeight(string key,int height){rowHeights[key]=Math.Max(Row,Math.Min(600,height));RefreshLayout();}
-    private string RowKey(Lane lane){return lane.clips!=null?"lane:"+lane.index:"native:"+lane.track.id+"|"+(lane.property??"");}
+    private string RowKey(Lane lane){if(lane.bindingKey!=null)return "generation:"+lane.bindingKey+"|"+(lane.property??"");return lane.clips!=null?"lane:"+lane.index:"native:"+lane.track.id+"|"+(lane.property??"");}
     private int RowIndex(int y)
     {int lo=0,hi=lanes.Count-1;while(lo<=hi){int mid=(lo+hi)/2;var row=lanes[mid];if(y<row.top)hi=mid-1;else if(y>=row.top+row.height)lo=mid+1;else return mid;}return -1;}
     private string HeightBoundary(Point p)
