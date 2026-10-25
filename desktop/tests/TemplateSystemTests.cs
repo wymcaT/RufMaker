@@ -11,6 +11,22 @@ internal static class TemplateSystemTests
     private static void Check(bool value,string message){if(!value)throw new Exception(message);}
     private static object Rows(BulletWorld w){return w.bullets.Where(b=>b.birth<=w.Frame&&!b.dead).OrderBy(b=>b.source.id).ThenBy(b=>b.birth).ThenBy(b=>b.index).ThenBy(b=>b.x).Select(b=>new{source=b.source.id,birth=b.birth,index=b.index,generation=b.generation,x=b.x,y=b.y,direction=b.direction,speed=b.speed,scale=b.scale*BulletLifetime.Scale(b),alpha=b.alpha*BulletLifetime.Alpha(b),kinematic=b.kinematic,clockShift=b.clockShift,sourceX=b.sourceX,sourceY=b.sourceY,collision=b.collision,deathStart=b.deathStart,image=Rainbow.Index(b.source,b.sequence,w.Frame-b.clockShift,(b.kinematic?w.Frame:b.birth)-b.clockShift)}).ToArray();}
     private static EditorState Read(string file){var state=Json.Read<EditorState>(File.ReadAllText(file));Motion.Normalize(state);return state;}
+    private static void RenderGallery(string stateFile,string project,string folder)
+    {
+        Directory.CreateDirectory(folder);var s=Read(stateFile);var metadata=Directory.GetDirectories(Path.Combine(project,"sprites")).ToDictionary(Path.GetFileName,dir=>{
+            var values=File.ReadAllLines(Path.Combine(dir,"sprite.txt")).Where(line=>line.Contains("=")).Select(line=>line.Split(new[]{'='},2)).ToDictionary(pair=>pair[0],pair=>pair[1]);return new SpriteMeta{frames=Int32.Parse(values["frames"]),originX=Int32.Parse(values["origin_x"]),originY=Int32.Parse(values["origin_y"])};});
+        var objects=Directory.GetFiles(Path.Combine(project,"objects"),"*.txt").ToDictionary(Path.GetFileNameWithoutExtension,file=>File.ReadAllLines(file).Where(line=>line.StartsWith("sprite=")).Select(line=>line.Substring(7)).FirstOrDefault()??"");
+        var room=new RoomData();var roomFolder=Path.Combine(project,"rooms",s.room);foreach(var line in File.ReadAllLines(Path.Combine(roomFolder,"instances.txt"))){var c=line.Split(',');if(c.Length>=3)room.instances.Add(new RoomInstance{name=c[0],x=Double.Parse(c[1],System.Globalization.CultureInfo.InvariantCulture),y=Double.Parse(c[2],System.Globalization.CultureInfo.InvariantCulture)});}
+        var chapters=Json.Read<List<Dictionary<string,object>>>(File.ReadAllText(Path.Combine(Path.GetDirectoryName(project),"章节索引.json")));
+        using(var sprites=new SpriteStore{Project=project,Metadata=metadata})using(var cache=new PreviewCache())using(var sheet=new Bitmap(900,1040))using(var g=Graphics.FromImage(sheet)){
+            g.Clear(Theme.Back);for(int i=0;i<chapters.Count;i++){
+                int frame=Convert.ToInt32(chapters[i]["preview"]),column=i%3,row=i/3;string name=Convert.ToString(chapters[i]["name"]);
+                using(var image=PreviewRenderer.Render(s,room,objects,sprites,frame,false,false,cache)){image.Save(Path.Combine(folder,(i+1).ToString("00")+".png"));g.DrawImage(image,new Rectangle(column*300,row*260,300,228));}
+                Theme.Label(g,(i+1).ToString("00")+" · "+name+"  "+(i*8)+"–"+(i*8+8)+"s",new Rectangle(column*300+5,row*260+228,290,32),Theme.Text,Theme.Small,localize:false);
+            }
+            Theme.Label(g,"11 章 · 88 秒 · 50 FPS\n参数、关键帧、行为均可编辑",new Rectangle(610,850,280,100),Theme.Muted,Theme.Font,TextFormatFlags.Left|TextFormatFlags.WordBreak,localize:false);sheet.Save(Path.Combine(folder,"gallery-overview.png"));
+        }
+    }
     private static void Lifetimes(BulletWorld w)
     {
         Func<string,SimBullet> one=id=>w.bullets.Single(b=>b.source.id==id);Func<string,bool> alive=id=>w.bullets.Any(b=>b.source.id==id);
@@ -32,7 +48,9 @@ internal static class TemplateSystemTests
     {
         try
         {
+            if(args[0]=="--render-gallery"){RenderGallery(args[1],args[2],args[3]);return 0;}
             if(args[0]=="--sample"){var w=new BulletWorld(Read(args[1]));w.Seek(Int32.Parse(args[2]));File.WriteAllText(args[3],Json.Write(Rows(w)));return 0;}
+            if(args[0]=="--samples"){var w=new BulletWorld(Read(args[1]));var results=new Dictionary<string,object>();foreach(int at in args[2].Split(',').Select(Int32.Parse).Distinct().OrderBy(f=>f)){w.Seek(at);results[at.ToString()]=Rows(w);}File.WriteAllText(args[3],Json.Write(results));return 0;}
             if(args[0]=="--render"){var s=Read(args[1]);var metadata=Directory.GetDirectories(Path.Combine(args[3],"sprites")).ToDictionary(Path.GetFileName,spriteFolder=>{var file=Path.Combine(spriteFolder,"sprite.txt");var data=(File.Exists(file)?File.ReadAllLines(file):new string[0]).Where(line=>line.Contains("=")).Select(line=>line.Split(new[]{'='},2)).ToDictionary(pair=>pair[0],pair=>pair[1]);return new SpriteMeta{frames=data.ContainsKey("frames")?Int32.Parse(data["frames"]):1,originX=data.ContainsKey("origin_x")?Int32.Parse(data["origin_x"]):0,originY=data.ContainsKey("origin_y")?Int32.Parse(data["origin_y"]):0};});using(var sprites=new SpriteStore{Project=args[3],Metadata=metadata})using(var image=PreviewRenderer.Render(s,new RoomData(),new Dictionary<string,string>(),sprites,Int32.Parse(args[2]),false,false)){image.Save(args[4]);}return 0;}
             string folder=args[0];var state=Read(Path.Combine(folder,"scene.json"));var world=new BulletWorld(state);
             Lifetimes(world);

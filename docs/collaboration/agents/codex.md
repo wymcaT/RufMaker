@@ -1,12 +1,26 @@
 # Codex 任务记录
 
 - 状态：`completed`
-- 任务：已完成飞行弹幕寿命模式（固定/房间外/当前视野外）、缩小/淡出销毁过渡，以及模板生成的初始方向和逐成员方向递增；补充周期扩散与逐颗等速发射说明。仅本地实现、构建，不推送。
-- 开始时基线：`d278c0b`，分支 `main`；保留已有用户工程及示例。
+- 任务：已修复右栏原生控件白底/白框，完成 11 章、88 秒的可编辑弹幕范例及中文逐步教程；已编译独立游戏。仅本地，不推送。
+- 开始时基线：`1353b83`，分支 `main`；保留已有用户工程及 Star Echo 示例。
 - 当前占用文件：无（已完成并释放）。
-- 验收结果：C#/JS 定向测试、复制预设与 FPS、右栏控件复用和中英切换通过；隔离 GM8.2 22 时刻 1,130 个完整状态对照通过。待用户交互验收。
-- 本轮发布：仅本地 1.13.6 构建/提交，未推送。远程 main 为 `a83e764`，Release/latest 仍为 v1.13.1（Actions `40114921642`）。
-- 本机产物：根目录 `RufMaker.exe`，ProductVersion `1.13.6`，FileVersion `1.13.6.0`，1,085,952 bytes。已安全替换路径，运行中的旧进程需保存并重启。
+- 验收结果：右栏深色/布局/语言/控件复用测试、示例 C# 行为检查通过；GM8.2 33 个时刻、1,329 个状态对照通过；预览总览已检查，真实游戏与正式 EXE 已构建。待用户交互验收。
+- 本轮发布：仅本地 1.13.7 构建/提交，未推送。远程 main 为 `a83e764`，Release/latest 仍为 v1.13.1（Actions `40114921642`）。
+- 本机产物：根目录 `RufMaker.exe`，ProductVersion `1.13.7`，FileVersion `1.13.7.0`，1,088,512 bytes。已安全替换路径，运行中的旧进程需保存并重启。
+
+## 2026-10-25：深色右栏与 11 章弹幕范例
+
+- 截图中的白框来源可复现为 Windows 原生 TabControl 框架和 DropDownList 默认绘制。`StatisticsTools.cs` 新增原生 WinForms `InspectorTabs`（仍使用原属性/统计控件，仅切换可见性），用深色按钮/Panel 替代系统页签框。主窗口的 SelectedIndex/布局保存接口保持不变，没有重建属性页或改为网页。
+- `WheelSafeComboBox` 保留 ComboBox 的选择、键盘、滚轮保护和本地化；下拉项 owner-draw，关闭状态在 WM_PAINT/WM_PRINT/WM_PRINTCLIENT 补绘深色背景、文字和箭头，解决部分 Windows 主题忽略 BackColor。`ParameterInspector.cs` 新增 ColorParameterButton，白色参数仅显示为小色块，按钮背景保持深色；颜色值、对话框及现有绑定不变。新类放在已构建的源文件中，不需要更改显式清单。
+- `EditorPerformanceTests` 增加普通/经典 Windows 主题、420/720 宽度、页签切换、色块/下拉框像素检查与截图，仍执行撤销、加键、布局和控件复用检查。第一次检查确实抓到白色 ComboBox，随后补绘关闭状态修复；日志 `build/gallery-check/inspector-first.log`，最终 `inspector.log` 全通过。最终加键中位约 46 ms、单项编辑/撤销约 1.27/3.84 ms；基础 168 控件全部保留，这些是本轮合成场景数值，不作为跨版本速度提升结论。
+- 新增配方 `tools/examples/create-pattern-gallery.mjs`，运行时创建唯一新目录，不覆盖既有 Star Echo/用户工程。`projects/examples/Pattern Gallery/Pattern Gallery.rufmaker` 已在本机创建，包含 11×8 秒、50 FPS 的真实工程：周期星星扩散、逐成员循环等速射击、移动母弹每 6 帧留点、双向螺旋、移动自机狙、固定种子散雨、停顿瞄准冲刺、延迟开花、圆环切线释放、移动缺口弹墙、原 heart 脚本心形波纹。既有 star2/heart 引擎脚本继续使用，未新增运动或表达式语义。
+- 单色弹使用 sprCherryWhite 再着色，彩虹使用原 sprrainbowcherry；最初截图使用红色 Cherry 底图导致颜色相乘偏红，已改正并重新同步本轮新工程、渲染和编译。没有修改用户之前的 Star Echo 或 demo 工程。
+- 教程 `docs/examples/pattern-gallery.md` 及本机 `示例教程.md` 包含章节秒/帧索引、右键入口、每项具体参数、关键帧、年龄/歌曲时钟、循环发射公式和扩展练习。来源链接为 Sparen 自述的发射密度、角度与环/扇形/弹墙教程；未宣称完整观看无法访问的 Bilibili 视频。中文/英文 README 增加创建入口，并注明教程目前为中文；用户工程名称不翻译。
+- 新增 `tools/examples/pattern-gallery.test.mjs`，调用真实 C# BulletWorld 的批量取样：11 章均有可见输出且下一章前清空；星星多批各 60 颗/来源中心冻结；成员三轮各 30 颗/等速和方向递增；留点间隔、速度 0 和原地存活均通过。首次留点坐标严格相等断言遇到 PointF 约 0.000002 像素舍入差异，已改为 0.0001 像素误差边界；没有改产品运动。
+- `TemplateSystemTests` 新增 `--samples`（一次世界演算、多帧输出）与 `--render-gallery`（真实 PreviewRenderer、贴图、房间实例与总览）。`verify-template-gml.mjs --gallery` 使用 build/gallery-check 下隔离工程；正常模式仍用原有夹具。首次 0.002 像素检查发现长飞行最大 X 差 0.004827，其他数值/数量/时序一致；诊断 `build/gallery-check/compare.mjs` 及首份 GM CSV 保留。gallery 的 x/y 允许 0.01 世界像素，其余数值仍为 0.002、离散状态严格相同。
+- 通过：`Test-EditorPerformance.ps1`、`Test-Localization.ps1`、`Test-TemplateSystem.ps1`；Node `--test tools/examples/pattern-gallery.test.mjs`（4/4）。真实 GM 最终 33 时刻 1,329 状态通过，目录 `build/gallery-check/Template GM 1792902940992/`，日志 `build/gallery-check/gm-check.log`；随后只有单色底图替换，未改运动参数。无残留故障弹窗。
+- 总览 `build/gallery-check/previews/gallery-overview.png` 已目视检查，并复制到新示例 `预览/`。该图来自实际编辑器预览。示例独立游戏 `projects/examples/Pattern Gallery/build/release/rufmaker-game.exe`，4,750,086 bytes，保留旁边 Data；编译日志在示例 build/compiler/latest.log，任务结果 `build/gallery-check/export.log`。这是编译与数值验证，未声称完整玩家通关验收。
+- 正式构建 `desktop/Build-Native.ps1 -Output D:\rufmaker\build\gallery-check\RufMaker.exe` 通过；File.Replace 安全替换根入口、SHA256 相同，旧映像备份留在该 build 目录。未终止用户进程。源码、配方、测试、教程、EXE 随所属修复本地提交；projects 示例及用户工程不提交，未推送/发布，当前无剩余必做项。
 
 ## 2026-10-25：弹幕寿命、销毁过渡与顺序发射
 

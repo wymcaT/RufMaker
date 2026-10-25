@@ -98,5 +98,25 @@ internal static class EditorPerformanceTests
         foreach(double value in new[]{0.0,.5,1,10,1000}){Check(ScrubNumber.StepFor(value,false,"缩放","scale")==.01,"Scale drag unit changed with its value");Check(ScrubNumber.StepFor(value,false,"X","x")==1&&ScrubNumber.StepFor(value,false,"Y","y")==1,"Coordinate drag unit changed with magnitude");}
         Check(ScrubNumber.StepFor(1,false,"镜头缩放","cameraZoom")==.01&&ScrubNumber.StepFor(.5,false,"透明度","alpha")==.01,"Normalized parameter drag unit");Check(ScrubNumber.StepFor(1000,true,"寿命")==1&&ScrubNumber.StepFor(3,false,"X 速度","velocityX")==.1&&ScrubNumber.StepFor(.4,false,"X 加速度","accelerationX")==.01,"Count/speed/acceleration drag units");Check(ScrubNumber.StepFor(1,false,"统一缩放")==.01&&ScrubNumber.StepFor(400,false,"参考玩家 X")==1,"Unanimated/native field drag units");Console.WriteLine("PASS: stable semantic drag units for scale/opacity/positions/frames/speed/acceleration and selected-key bindings");
     }
-    [STAThread] public static int Main(string[] args){try{Application.EnableVisualStyles();Application.SetCompatibleTextRenderingDefault(false);Language.Initialize(args[0]);if(args[2]=="key-profile"){File.WriteAllText(Path.Combine(args[0],args[1]+".json"),Json.Write(KeyProfile(args[0],false)));return 0;}var report=Profile(args[0],args[2]!="profile");foreach(var p in KeyProfile(args[0],args[2]!="profile"))report[p.Key]=p.Value;File.WriteAllText(Path.Combine(args[0],args[1]+".json"),Json.Write(report));if(args[2]!="profile"){Verify(args[0]);Snapshots();IncrementalRows(args[0]);DragUnits();}return 0;}catch(Exception e){Console.Error.WriteLine(e);return 1;}}
+    private static void InspectorTheme(string folder)
+    {
+        using(var host=new Panel{Size=new Size(720,600),BackColor=Theme.Panel})using(var tabs=new InspectorTabs{Dock=DockStyle.Fill}){
+            var inspector=new ParameterInspector();var bag=new NativeProperties();string choice="sprCherry";Color color=Color.White;
+            bag.Add("贴图","外观",typeof(string),()=>choice,v=>choice=(string)v,new[]{"sprCherry","sprrainbowcherry"});bag.Add("颜色","外观",typeof(Color),()=>color,v=>color=(Color)v);inspector.SelectedObject=bag;
+            tabs.AddPage("属性",inspector);tabs.AddPage("对象统计",new Panel{BackColor=Theme.Panel});host.Controls.Add(tabs);host.CreateControl();
+            var combo=All(inspector).OfType<WheelSafeComboBox>().Single();var picker=All(inspector).OfType<ColorParameterButton>().Single();
+            foreach(bool classic in new[]{false,true}){
+                Application.VisualStyleState=classic?System.Windows.Forms.VisualStyles.VisualStyleState.NoneEnabled:System.Windows.Forms.VisualStyles.VisualStyleState.ClientAndNonClientAreasEnabled;
+                foreach(int width in new[]{420,720}){
+                    host.Width=width;tabs.SelectedIndex=1;tabs.SelectedIndex=0;host.PerformLayout();inspector.PerformLayout();tabs.RefreshLanguage();
+                    using(var bitmap=new Bitmap(width,host.Height)){host.DrawToBitmap(bitmap,host.ClientRectangle);Check(bitmap.GetPixel(width-2,5).GetBrightness()<.5f&&bitmap.GetPixel(width-2,host.Height/2).GetBrightness()<.5f,"Inspector tab frame inherited a light Windows background");bitmap.Save(Path.Combine(folder,"inspector-dark-"+width+(classic?"-classic":"")+".png"));}
+                    using(var bitmap=new Bitmap(picker.Width,picker.Height)){picker.DrawToBitmap(bitmap,picker.ClientRectangle);Check(bitmap.GetPixel(picker.Width-8,picker.Height/2).GetBrightness()<.5f,"White parameter value flooded the entire color editor");}
+                    using(var bitmap=new Bitmap(combo.Width,combo.Height)){combo.DrawToBitmap(bitmap,combo.ClientRectangle);Check(bitmap.GetPixel(combo.Width/2,combo.Height-4).GetBrightness()<.5f,"Combo box reverted to a light system background");}
+                }
+            }
+            Application.VisualStyleState=System.Windows.Forms.VisualStyles.VisualStyleState.ClientAndNonClientAreasEnabled;Check(!inspector.IsDisposed&&!combo.IsDisposed&&choice=="sprCherry"&&color==Color.White,"Theme changes recreated controls or edited parameters");
+        }
+        Console.WriteLine("PASS: inspector tabs, choices and color editors stay dark through page/size/theme changes without changing data");
+    }
+    [STAThread] public static int Main(string[] args){try{Application.EnableVisualStyles();Application.SetCompatibleTextRenderingDefault(false);Language.Initialize(args[0]);if(args[2]=="key-profile"){File.WriteAllText(Path.Combine(args[0],args[1]+".json"),Json.Write(KeyProfile(args[0],false)));return 0;}var report=Profile(args[0],args[2]!="profile");foreach(var p in KeyProfile(args[0],args[2]!="profile"))report[p.Key]=p.Value;File.WriteAllText(Path.Combine(args[0],args[1]+".json"),Json.Write(report));if(args[2]!="profile"){Verify(args[0]);Snapshots();IncrementalRows(args[0]);DragUnits();InspectorTheme(args[0]);}return 0;}catch(Exception e){Console.Error.WriteLine(e);return 1;}}
 }

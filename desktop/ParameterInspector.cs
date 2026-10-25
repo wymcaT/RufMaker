@@ -71,7 +71,7 @@ internal sealed class ParameterInspector : UserControl
         else if(p.PropertyType==typeof(bool))
         {var check=new CheckBox{AutoSize=false,Dock=DockStyle.Fill,Enabled=!p.IsReadOnly,Margin=new Padding(4,4,0,2)};check.Checked=(bool)get();check.CheckedChanged+=(s,e)=>set(check.Checked);check.Enter+=(s,e)=>Select(p);editor=check;binding.updates.Add(()=>{check.Checked=(bool)get();});}
         else if(p.PropertyType==typeof(Color))
-        {var button=new Button{Enabled=!p.IsReadOnly,FlatStyle=FlatStyle.Flat,Dock=DockStyle.Fill,Margin=new Padding(0,3,1,3)};Action update=()=>{Color c=(Color)get();button.BackColor=c;button.ForeColor=c.GetBrightness()>.5?Color.Black:Color.White;button.Text=String.Format("#{0:X2}{1:X2}{2:X2}",c.R,c.G,c.B);};button.Click+=(s,e)=>{Select(p);using(var dialog=new ColorDialog{Color=(Color)get(),FullOpen=true})if(Language.ShowDialog(dialog,this)==DialogResult.OK)set(dialog.Color);};editor=button;binding.updates.Add(update);update();}
+        {var button=new ColorParameterButton{Enabled=!p.IsReadOnly,Dock=DockStyle.Fill,Margin=new Padding(0,3,1,3)};Action update=()=>{Color c=(Color)get();button.Value=c;button.Text=String.Format("#{0:X2}{1:X2}{2:X2}",c.R,c.G,c.B);};button.Click+=(s,e)=>{Select(p);using(var dialog=new ColorDialog{Color=(Color)get(),FullOpen=true})if(Language.ShowDialog(dialog,this)==DialogResult.OK)set(dialog.Color);};editor=button;binding.updates.Add(update);update();}
         else if(p.Converter.GetStandardValuesSupported())
         {
             var combo=new WheelSafeComboBox{Dock=DockStyle.Fill,DropDownStyle=ComboBoxStyle.DropDownList,BackColor=Theme.Raised,ForeColor=Theme.Text,Enabled=!p.IsReadOnly,TabStop=false,LocalizeItems=!(p is ValueProperty)||((ValueProperty)p).LocalizeChoices,Margin=new Padding(0,4,1,2)};
@@ -121,6 +121,20 @@ internal sealed class ParameterInspector : UserControl
         if(layoutPending){layoutPending=false;UpdateRows();}else Refresh();
     }
     public override void Refresh(){if(!rebuilding){rebuilding=true;try{foreach(var update in refreshers)update();}finally{rebuilding=false;}}}
+}
+
+internal sealed class ColorParameterButton : Button
+{
+    private Color value;
+    public Color Value {get{return value;}set{if(this.value==value)return;this.value=value;Invalidate();}}
+    public ColorParameterButton(){SetStyle(ControlStyles.UserPaint|ControlStyles.AllPaintingInWmPaint|ControlStyles.OptimizedDoubleBuffer,true);BackColor=Theme.Raised;ForeColor=Theme.Text;FlatStyle=FlatStyle.Flat;UseVisualStyleBackColor=false;}
+    protected override void OnPaint(PaintEventArgs e)
+    {
+        e.Graphics.Clear(BackColor);int edge=Math.Max(8,Math.Min(22,Height-10));var swatch=new Rectangle(7,(Height-edge)/2,edge,edge);
+        using(var brush=new SolidBrush(value))e.Graphics.FillRectangle(brush,swatch);
+        using(var pen=new Pen(Focused?Theme.Accent:Theme.Line)){e.Graphics.DrawRectangle(pen,0,0,Width-1,Height-1);e.Graphics.DrawRectangle(pen,swatch);}
+        Theme.Label(e.Graphics,Text,new Rectangle(swatch.Right+8,0,Math.Max(0,Width-swatch.Right-12),Height),Enabled?ForeColor:Theme.Muted,Font,localize:false);
+    }
 }
 
 internal sealed class ScrubNumber : Control
