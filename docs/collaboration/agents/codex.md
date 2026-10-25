@@ -1,12 +1,20 @@
 # Codex 任务记录
 
 - 状态：`completed`
-- 任务：已按认可方案实施 2.0.0 原生 UI 整理，完成定向验证、EXE、GitHub 推送与正式 Release。
-- 开始时基线：`4848317`，分支 `main`；保留已有用户工程改动。
-- 当前占用文件：无，已完成并释放；实际文件清单见功能提交 `1f37928`。
-- 验收结果：固定工具行/命令、预设/行为/统计、共享时间、模板隔离/返回、语言/数据不变、关键帧/撤销/复制、控件复用、中英宽窄截图、播放和更新验证通过。隔离工程写 build，用户 projects 未写入；未做实际多显示器高 DPI 或本轮 GM 数值试玩验收。
-- 本轮发布：已按明确授权推送 main/v2.0.0，正式 Release 为 latest；Actions `40175140036` 成功，四个附件上线，线上更新器下载/校验/解压通过。后续默认不自动推送。
-- 本机产物：根目录 `RufMaker.exe`，ProductVersion `2.0.0`，FileVersion `2.0.0.0`，1,152,000 bytes；已构建并 File.Replace 安全替换，未结束用户进程。前版本在 build/ui-v2/RufMaker.previous.exe。
+- 任务：已完成本地 2.0.1：修复属性展开偏好丢失、默认布局重置及吸附面板的文字可读性。
+- 开始时基线：`71a0982`，分支 `main`；保留已有用户工程改动（12 文件，817 增/236 删）。
+- 当前占用文件：无，完成后释放；本轮只精确提交自己的源码、测试、交接文档和 EXE。
+- 验收结果：Test-ShellLayout（build/ui-polish/check）、Test-EditorPerformance（sections-polish）、Test-Localization 与正式构建通过。检查折叠偏好、实际布局重置菜单、控件复用，中英弹出面板 125%/150% 放大字体边界与颜色；不是多显示器实际 DPI 验收。用户 projects 未写入。
+- 本轮发布：2.0.0 已正式发布；本轮继续工作默认本地，不自动追加 Git 推送或新 Release。
+- 本机产物：根目录 `RufMaker.exe`，ProductVersion `2.0.1`，FileVersion `2.0.1.0`，1,152,512 bytes；已构建并 File.Replace 安全替换，未结束用户进程。2.0.0 前版本在 build/ui-polish/RufMaker.previous.exe。
+
+## 2026-10-25：2.0.1 本地 UI 细节修复（完成，未推送）
+
+- 用户“继续”后，限定在已确认 UI 整理范围。先复现：展开外观 → 切换到没有此分组的对象 → 保存/切回，展开标记丢失；原恢复默认布局又调用了“展开全部”。ParameterInspector 现在将已知分组的偏好与临时标题控件分开保存，记住出现过的展开/折叠分类；现有 ! 前缀布局格式不变。新增 ResetDefaultSections 供菜单使用，保留 ResetSections 供展开全部/既有性能用例使用。
+- 实际放大字体截图还发现吸附弹出面板的 BPM/延迟/关键帧选项使用黑字，以及分音框截断。EditorShell 的面板指定 Theme.Text；ProjectCommands 的分音框按本地化文字和当前字体测宽，FontChanged/弹出时更新。未修改节拍参数、吸附算法、工程数据、后台或 GML。
+- 扩展既有 ShellLayoutTests：类型往返与保存恢复的偏好、折叠/展开/默认重置的控件保留、真实“恢复默认布局”菜单及工程不变、吸附设置布局边界/文字亮度/选择框宽度、中英 125%/150% 字体截图。首个失败 sections-before.log 证实偏好丢失；随后测试复用 NativeProperties 导致原夹具被 Reconcile，改为每次新建测试 bag。Popup 初次恢复用只读 Controls 集合失败，改为移除/重加 ToolStripControlHost。失败日志保留，没有应用错误弹窗。
+- Test-ShellLayout 最终通过（snap-contrast.log）；Test-EditorPerformance 通过（performance.log），单值/关键帧撤销仍保留控件；Test-Localization 通过；Build-Native 通过并安全替换根 EXE 2.0.1。截图已查看。测试写 build/ui-polish/，没有同步或打开用户工程，原 demo 12 文件/817 增/236 删保留。
+- 本轮按独立本地提交收口，未推送、未发布；GitHub 正式版仍为 2.0.0。没有新增 .cs，无需更改显式构建列表；没有未完成必做项。使用 stop-that-shit 技能限制在已复现 UI 问题和相应验证内。
 
 ## 2026-10-25：2.0.0 原生界面整理与发布（完成）
 

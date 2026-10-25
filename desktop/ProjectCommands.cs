@@ -27,8 +27,9 @@ internal sealed partial class MainForm
         beatBar.Controls.Add(Button("自动检测 BPM / 延迟",async()=>await DetectMusicBeat(),false,150));beatBar.Controls.Add(Button("游标设为拍点",()=>{if(state==null)return;PushUndo();state.beatOffsetMs=frame*1000.0/state.fps;MarkChanged();},false,108));
         Language.ToolTip(tips,beatSnap,"拖动时间轴播放头时按节拍吸附；Alt 临时关闭吸附。帧数输入和逐帧定位保持精确。");Language.ToolTip(tips,beatDelay,"节拍网格相对歌曲起点的延迟，允许负数。4 分音符是一拍，8 分是半拍，16 分是四分之一拍。");
         Action change=()=>{if(beatLoading||state==null)return;PushUndo();state.beatSnap=beatSnap.Checked;state.bpm=(double)beatBpm.Value;state.beatOffsetMs=(double)beatDelay.Value;if(beatDivision.SelectedIndex>=0)state.beatDivision=divisions[beatDivision.SelectedIndex];MarkChanged();timeline.Invalidate();};
-        beatSnap.CheckedChanged+=(s,e)=>change();beatBpm.ValueChanged+=(s,e)=>change();beatDelay.ValueChanged+=(s,e)=>change();beatDivision.SelectionChangeCommitted+=(s,e)=>change();RefreshBeatControls();return beatBar;
+        beatSnap.CheckedChanged+=(s,e)=>change();beatBpm.ValueChanged+=(s,e)=>change();beatDelay.ValueChanged+=(s,e)=>change();beatDivision.SelectionChangeCommitted+=(s,e)=>change();beatDivision.FontChanged+=(s,e)=>FitBeatDivision();RefreshBeatControls();FitBeatDivision();return beatBar;
     }
+    private void FitBeatDivision(){beatDivision.Width=Math.Max(85,TextRenderer.MeasureText(Language.Text("1/128 音符"),beatDivision.Font).Width+SystemInformation.VerticalScrollBarWidth+16);}
     private void RefreshBeatControls()
     {
         if(beatBar==null)return;beatLoading=true;try{beatSnap.Checked=state!=null&&state.beatSnap;beatBpm.Value=(decimal)Math.Max(1,Math.Min(1000,state==null?120:state.bpm));beatDelay.Value=(decimal)Math.Max(-3600000,Math.Min(3600000,state==null?0:state.beatOffsetMs));int index=Array.IndexOf(divisions,state==null?4:state.beatDivision);beatDivision.SelectedIndex=index<0?3:index;}finally{beatLoading=false;}

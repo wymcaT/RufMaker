@@ -18,10 +18,14 @@ internal sealed class ParameterInspector : UserControl
     public Action BeginScrub,EndScrub;
     private readonly HashSet<string> collapsed=new HashSet<string>();
     private readonly HashSet<string> openSections=new HashSet<string>();
+    private readonly HashSet<string> knownSections=new HashSet<string>();
     public bool Compact {get;set;}
-    public string[] CaptureSections(){return collapsed.Concat(headings.Keys.Where(k=>!collapsed.Contains(k)).Select(k=>"!"+k)).ToArray();}
-    public void RestoreSections(string[] values){foreach(string value in values??new string[0])if(value.StartsWith("!")){openSections.Add(value.Substring(1));collapsed.Remove(value.Substring(1));}else collapsed.Add(value);UpdateRows();}
-    public void ResetSections(){collapsed.Clear();UpdateRows();}
+    private bool DefaultFolded(string category){return Compact&&new[]{"物件","形状","发射","弹幕寿命","分组与作用范围","外观","彩虹 Cherry","拖影","运动","整体对象","转转棒","发射器","发射阵列","生成模板","释放队形","生命周期"}.Contains(category);}
+    private void RememberSection(string category,bool folded){knownSections.Add(category);if(folded){collapsed.Add(category);openSections.Remove(category);}else{collapsed.Remove(category);openSections.Add(category);}}
+    public string[] CaptureSections(){return collapsed.Concat(openSections.Select(k=>"!"+k)).ToArray();}
+    public void RestoreSections(string[] values){collapsed.Clear();openSections.Clear();knownSections.Clear();foreach(string value in values??new string[0])RememberSection(value.StartsWith("!")?value.Substring(1):value,!value.StartsWith("!"));UpdateRows();}
+    public void ResetSections(){foreach(string category in knownSections.ToArray())RememberSection(category,false);UpdateRows();}
+    public void ResetDefaultSections(){foreach(string category in knownSections.ToArray())RememberSection(category,DefaultFolded(category));UpdateRows();}
     public string SelectedLabel {get;private set;}
     public object SelectedObject {get{return selectedObject;}set{CommitPending();var current=selectedObject as NativeProperties;if(current!=null&&current.TryRebind(value as NativeProperties)){Refresh();return;}if(current!=null&&value is NativeProperties){current.Reconcile((NativeProperties)value);}else selectedObject=value;UpdateRows();}}
     public bool EditingText {get{return Descendants(this).Any(c=>(c is TextBox&&!((TextBox)c).ReadOnly&&c.Visible&&c.ContainsFocus)||(c is ComboBox&&((ComboBox)c).DroppedDown));}}
@@ -109,7 +113,8 @@ internal sealed class ParameterInspector : UserControl
             var styles=new List<RowStyle>();int row=0;refreshers.Clear();textReverters.Clear();
             foreach(var group in descriptors.GroupBy(p=>p.Category).OrderBy(group=>!Compact?0:group.Key=="变换"||group.Key=="位置"?0:group.Key=="物件"?1:group.Key=="整体对象"||group.Key=="形状"?2:group.Key=="外观"?3:4))
             {
-                string category=group.Key;Button heading;if(!headings.TryGetValue(category,out heading)){heading=new Button{Text=category,Height=30,Dock=DockStyle.Fill,TextAlign=ContentAlignment.MiddleLeft,ForeColor=Theme.Text,BackColor=Theme.Raised,FlatStyle=FlatStyle.Flat,Font=Theme.Bold,Margin=new Padding(0,6,0,1),AutoEllipsis=true};heading.FlatAppearance.BorderSize=0;heading.Click+=(s,e)=>{CommitPending();ActiveControl=null;if(!collapsed.Remove(category))collapsed.Add(category);UpdateRows();};headings[category]=heading;if(Compact&&!openSections.Contains(category)&&new[]{"物件","形状","发射","弹幕寿命","分组与作用范围","外观","彩虹 Cherry","拖影","运动","整体对象","转转棒","发射器","发射阵列","生成模板","释放队形","生命周期"}.Contains(category))collapsed.Add(category);}
+                string category=group.Key;if(!knownSections.Contains(category))RememberSection(category,DefaultFolded(category));
+                Button heading;if(!headings.TryGetValue(category,out heading)){heading=new Button{Text=category,Height=30,Dock=DockStyle.Fill,TextAlign=ContentAlignment.MiddleLeft,ForeColor=Theme.Text,BackColor=Theme.Raised,FlatStyle=FlatStyle.Flat,Font=Theme.Bold,Margin=new Padding(0,6,0,1),AutoEllipsis=true};heading.FlatAppearance.BorderSize=0;heading.Click+=(sender,args)=>{CommitPending();ActiveControl=null;RememberSection(category,!collapsed.Contains(category));UpdateRows();};headings[category]=heading;}
                 bool folded=collapsed.Contains(category);string summary="";if(folded){var first=group.FirstOrDefault(p=>p.Name=="贴图"||p.Name=="种类"||p.Name=="拖影样式"||p.Name=="运动模式");if(first!=null)summary=" · "+Convert.ToString(first.GetValue(selectedObject));}heading.Text=(folded?"▸ ":"▾ ")+Language.Text(category)+summary;
                 Place(heading,0,row++,2);styles.Add(new RowStyle(SizeType.Absolute,Font.Height+22));
                 foreach(var property in group)
