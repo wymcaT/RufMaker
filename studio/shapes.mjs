@@ -2,7 +2,7 @@
 // Geometry is shared by persistent collision bullets, releases and sampled trails.
 export const formationIds={heart:1,star2:2,star:3,ellipse:4,flower:5,infinity:6};
 export function formationPoint(shape,u,radius=1,orientation=0,sides=5,aspect=1,inner=.45){
-  u-=Math.floor(u);sides=Math.max(3,Math.min(64,Math.round(sides)));aspect=Math.max(.05,Math.min(10,aspect));inner=Math.max(.01,Math.min(1,inner));
+  u-=Math.floor(u);sides=Math.max(3,Math.min(64,Math.round(sides)));aspect=Math.max(-10,Math.min(10,aspect));inner=Math.max(.01,Math.min(1,inner));
   const theta=u*2*Math.PI;let x,y;
   if(shape==='heart'){const s=Math.sin(theta);x=s*s*s;y=(-13*Math.cos(theta)+5*Math.cos(2*theta)+2*Math.cos(3*theta)+Math.cos(4*theta))/16;}
   else if(['star','star2','polygon'].includes(shape)){
@@ -26,7 +26,7 @@ export function formationPerimeter(shape,radius=1,sides=5,aspect=1,inner=.45){
 }
 export const formationScripts=[['rf_formation_point',`// axis, shape, phase, radius, orientation, sides, height ratio, inner ratio
 var rf_kind,rf_t,rf_n,rf_aspect,rf_inner,rf_theta,rf_ux,rf_uy,rf_s,rf_den,rf_vertices,rf_v,rf_segment,rf_mix,rf_a,rf_b,rf_ra,rf_rb,rf_r,rf_c;
-rf_kind=argument1;rf_t=argument2-floor(argument2);rf_n=clamp(round(argument5),3,64);rf_aspect=clamp(argument6,.05,10);rf_inner=clamp(argument7,.01,1);rf_theta=rf_t*2*pi;
+rf_kind=argument1;rf_t=argument2-floor(argument2);rf_n=clamp(round(argument5),3,64);rf_aspect=clamp(argument6,-10,10);rf_inner=clamp(argument7,.01,1);rf_theta=rf_t*2*pi;
 if rf_kind=1 {rf_s=sin(rf_theta);rf_ux=rf_s*rf_s*rf_s;rf_uy=(-13*cos(rf_theta)+5*cos(2*rf_theta)+2*cos(3*rf_theta)+cos(4*rf_theta))/16;}
 else if rf_kind=2 || rf_kind=3 {
 rf_vertices=rf_n;if rf_kind=3 rf_vertices*=2;rf_v=rf_t*rf_vertices;rf_segment=floor(rf_v);rf_mix=rf_v-rf_segment;rf_a=rf_segment*2*pi/rf_vertices;rf_b=(rf_segment+1+(rf_kind=2))*2*pi/rf_vertices;

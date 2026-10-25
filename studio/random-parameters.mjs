@@ -39,7 +39,7 @@ export function evaluateExpression(expression,seed,slot,context={}) {
   const result=run(parseExpression(expression));if(!Number.isFinite(result))throw new Error('随机表达式的结果必须是有限数字，请检查除数和范围。');return result;
 }
 export function clampParameter(field,value) {
-  if(field==='shapeAspect')return Math.max(.05,Math.min(10,value));if(field==='shapeInner')return Math.max(.01,Math.min(1,value));
+  if(field==='shapeAspect')return Math.max(-10,Math.min(10,value));if(field==='shapeInner')return Math.max(.01,Math.min(1,value));
   if(field==='cameraIntensity')return Math.max(0,Math.min(3,value));if(field==='fxFlash')return Math.max(0,Math.min(1,value));if(field==='fxZoom')return Math.max(1,Math.min(3,value));if(field==='cameraBlur')return Math.max(0,Math.min(100,value));
   if(field==='homingDelay')return Math.max(0,Math.round(value));if(field==='turnRate')return Math.max(0,value);
   if(['alpha','fxOpacity','fxRetention','trailStartAlpha'].includes(field))return Math.max(0,Math.min(1,value));
@@ -75,7 +75,7 @@ export function parameterCode(track,property,fallback=0,key=null,context={}) {
   return (key?.expression||!key&&track.expressions?.[property])?variable(track,property,key):num(key?key.value:track[property],fallback);
 }
 function clampCode(field,v) {
-  if(field==='shapeAspect')return `max(.05,min(10,${v}))`;if(field==='shapeInner')return `max(.01,min(1,${v}))`;
+  if(field==='shapeAspect')return `max(-10,min(10,${v}))`;if(field==='shapeInner')return `max(.01,min(1,${v}))`;
   if(field==='cameraIntensity')return `max(0,min(3,${v}))`;if(field==='fxFlash')return `max(0,min(1,${v}))`;if(field==='fxZoom')return `max(1,min(3,${v}))`;if(field==='cameraBlur')return `max(0,min(100,${v}))`;
   if(['alpha','fxOpacity','fxRetention','trailStartAlpha'].includes(field))return `max(0,min(1,${v}))`;
   if(field==='count')return `max(1,min(300,round(${v})))`;if(field==='sides')return `max(3,min(64,round(${v})))`;if(field==='fxSamples')return `max(2,min(16,round(${v})))`;

@@ -196,7 +196,7 @@ for(rf_sample=floor(rf_age/max(1,rf_t_interval))*max(1,rf_t_interval);rf_sample>
 rf_tail=rf_age-rf_sample;rf_seed=(rf_birth+rf_sample)*301+rf_index;
 rf_drift=rf_t_direction;if rf_t_random rf_drift=(sin((rf_seed+1)*12.9898)*43758.5453-floor(sin((rf_seed+1)*12.9898)*43758.5453))*360;
 rf_subimage=image_index;if rf_rainbow rf_subimage=rf_rainbow_index(rf_r_sequence,rf_world-rf_tail,rf_r_density,rf_r_offset,rf_r_speed,rf_r_start,rf_r_dynamic,rf_r_reverse,32);
-rf_tx=x-lengthdir_x(rf_speed*rf_tail,rf_dir);rf_ty=y-lengthdir_y(rf_speed*rf_tail,rf_dir);rf_ta=image_angle;rf_ts=image_xscale;rf_talpha=image_alpha;rf_tsprite=sprite_index;if rf_flight>=0 || rf_system {if rf_tail>300 continue;rf_slot=rf_sample mod 301;rf_tx=rf_hx[rf_slot];rf_ty=rf_hy[rf_slot];rf_ta=rf_ha[rf_slot];if rf_system {rf_ts=rf_hs[rf_slot];rf_talpha=rf_hal[rf_slot];rf_tsprite=rf_sprite;}}
+rf_tx=x-lengthdir_x(rf_speed*rf_tail,rf_dir);rf_ty=y-lengthdir_y(rf_speed*rf_tail,rf_dir);rf_ta=image_angle;rf_ts=image_xscale;rf_talpha=image_alpha;rf_tsprite=sprite_index;if rf_flight>=0 || rf_system {if rf_tail>300 continue;rf_slot=rf_sample mod 301;rf_tx=rf_hx[rf_slot];rf_ty=rf_hy[rf_slot];rf_ta=rf_ha[rf_slot];if rf_system {rf_ts=rf_hs[rf_slot];rf_talpha=rf_hal[rf_slot];rf_tsprite=rf_sprite;if rf_kinematic rf_subimage=rf_himage[rf_slot];}}
 rf_trail_draw(rf_tsprite,rf_tx,rf_ty,rf_ts,rf_ta,rf_talpha,image_blend,rf_tail,rf_t_mode,rf_t_life,rf_t_alpha,rf_t_scale_decay,rf_t_alpha_decay,rf_t_speed,rf_drift,rf_subimage);
 }}
 

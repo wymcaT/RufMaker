@@ -34,6 +34,7 @@ internal static class Motion
         TimelineLayout.Order(state);
         foreach(var t in state.tracks)
         {
+            t.rainbowMode=Rainbow.Mode(t);
             if(t.rainbow){t.sprite=String.IsNullOrEmpty(t.rainbowSprite)?Rainbow.Sprite:t.rainbowSprite;t.color="#FFFFFF";}
             var converted=new List<Keyframe>();
             foreach(var key in t.keyframes)

@@ -1,9 +1,13 @@
 using System;
+using System.Drawing;
 
 internal static class Rainbow
 {
     public const string Sprite="sprrainbowcherry";
     public static readonly string[] Parameters={"rainbowDensity","rainbowOffset","rainbowSpeed"};
+    public static readonly string[] Modes={"sequence","distance","angle"};
+    public static readonly string[] ModeNames={"原有顺序","距中心点距离","中心点角度"};
+    public static string Mode(Track t){return Array.IndexOf(Modes,t.rainbowMode)<0?"sequence":t.rainbowMode;}
     public static bool IsCherry(Track t){return t.sprite!=null&&t.sprite.IndexOf("cherry",StringComparison.OrdinalIgnoreCase)>=0;}
     public static void Enable(Track t,bool enabled)
     {
@@ -13,8 +17,17 @@ internal static class Rainbow
         else {if(!String.IsNullOrEmpty(t.rainbowSourceSprite))t.sprite=t.rainbowSourceSprite;if(!String.IsNullOrEmpty(t.rainbowSourceColor))t.color=t.rainbowSourceColor;}
     }
     public static void SetSprite(Track t,string sprite){if(t.rainbow&&sprite!=(String.IsNullOrEmpty(t.rainbowSprite)?Sprite:t.rainbowSprite))Enable(t,false);t.sprite=sprite;}
-    public static double RodSequence(Track t,int index,int count,double frame)
+    public static double RodSequence(Track t,int index,int count,double frame,PointF? point=null,Keyframe center=null,double rotation=0)
     {
+        string mode=Mode(t);
+        if(mode!="sequence")
+        {
+            var p=point??Motion.RodPoints(t,frame)[index];var c=center??Motion.At(t,frame);
+            // PointF preview coordinates must not flicker across integer color boundaries.
+            if(mode=="distance"){double dx=p.X-c.x,dy=p.Y-c.y;return Math.Round(Math.Sqrt(dx*dx+dy*dy),4,MidpointRounding.AwayFromZero);}
+            double angle=ExpressionContext.Direction(c.x,c.y,p.X,p.Y)+rotation;
+            return Math.Round(((angle%360+360)%360)*32/360,4,MidpointRounding.AwayFromZero);
+        }
         if(t.shape!="rod"||t.rodMode!="center")return index;
         double u=count<=1?.5:t.rolling?index/(double)count:index/(double)(count-1);
         if(t.rolling){var ends=Motion.Endpoints(t,frame);double dx=ends[1].X-ends[0].X,dy=ends[1].Y-ends[0].Y,len=Math.Sqrt(dx*dx+dy*dy);if(len>.001)u+=(frame-t.start)*Motion.Value(t,"rollSpeed",frame)/len;u-=Math.Floor(u);}

@@ -114,7 +114,7 @@ internal sealed class TemplateRuntime
                 {
                     var p=instance.Point(points[i].X,points[i].Y);var center=instance.Point(pose.x,pose.y);
                     double direction=t.releaseDirection=="fixed"?pose.angle+instance.rotation:t.releaseDirection=="aim"?ExpressionContext.Direction(p.X,p.Y,BulletSystem.PlayerAt(world.State,frame).x,BulletSystem.PlayerAt(world.State,frame).y):ExpressionContext.Direction(center.X,center.Y,p.X,p.Y)+(t.releaseDirection=="tangent"?90:0);
-                    var b=world.Spawn(t,frame,i,points.Length,0,p,direction,Motion.Value(t,"speed",time),instance.generation,false,instance.shift);world.TickNew(b,frame);
+                    var b=world.Spawn(t,frame,i,points.Length,0,p,direction,Motion.Value(t,"speed",time),instance.generation,false,instance.shift);if(t.rainbow&&Rainbow.Mode(t)!="sequence")b.sequence=Rainbow.RodSequence(t,i,points.Length,time,points[i],pose,instance.rotation);world.TickNew(b,frame);
                 }continue;
             }
             for(int i=0;i<points.Length;i++)
@@ -122,7 +122,7 @@ internal sealed class TemplateRuntime
                 if(!Visible(t,t.kind=="rod"?i:-1,instance.serial))continue;string key=Key(instance.serial,t,i);SimBullet b;
                 if(!fixedBullets.TryGetValue(key,out b)||b.dead)
                 {b=new SimBullet{source=t,birth=t.start+instance.shift,index=i,count=points.Length,kinematic=true,templateOwner=instance.serial,generation=instance.generation,clockShift=instance.shift,life=t.end-t.start+1,collision=t.kind=="rod"};fixedBullets[key]=b;world.bullets.Add(b);}
-                var p=instance.Point(points[i].X,points[i].Y);b.x=p.X;b.y=p.Y;b.scale=pose.scale;b.alpha=pose.alpha;b.color=t.rainbow?Color.White:Motion.ColorOf(t.color);b.visualAngle=t.kind=="object"?pose.angle+instance.rotation:Motion.Value(t,"spriteAngle",time)+(t.rotateSprite?pose.angle+instance.rotation:0);b.sequence=t.kind=="rod"?Rainbow.RodSequence(t,i,points.Length,time):0;b.count=points.Length;b.seenFrame=frame;world.TickNew(b,frame);
+                var p=instance.Point(points[i].X,points[i].Y);b.x=p.X;b.y=p.Y;b.scale=pose.scale;b.alpha=pose.alpha;b.color=t.rainbow?Color.White:Motion.ColorOf(t.color);b.visualAngle=t.kind=="object"?pose.angle+instance.rotation:Motion.Value(t,"spriteAngle",time)+(t.rotateSprite?pose.angle+instance.rotation:0);b.sequence=t.kind=="rod"?Rainbow.RodSequence(t,i,points.Length,time,points[i],pose,instance.rotation):0;b.count=points.Length;b.seenFrame=frame;world.TickNew(b,frame);
             }
         }
     }

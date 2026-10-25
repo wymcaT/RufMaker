@@ -9,7 +9,7 @@ using System.Windows.Forms;
 internal static class TemplateSystemTests
 {
     private static void Check(bool value,string message){if(!value)throw new Exception(message);}
-    private static object Rows(BulletWorld w){return w.bullets.Where(b=>b.birth<=w.Frame&&!b.dead).OrderBy(b=>b.source.id).ThenBy(b=>b.birth).ThenBy(b=>b.index).ThenBy(b=>b.x).Select(b=>new{source=b.source.id,birth=b.birth,index=b.index,generation=b.generation,x=b.x,y=b.y,direction=b.direction,speed=b.speed,scale=b.scale,alpha=b.alpha,kinematic=b.kinematic,clockShift=b.clockShift}).ToArray();}
+    private static object Rows(BulletWorld w){return w.bullets.Where(b=>b.birth<=w.Frame&&!b.dead).OrderBy(b=>b.source.id).ThenBy(b=>b.birth).ThenBy(b=>b.index).ThenBy(b=>b.x).Select(b=>new{source=b.source.id,birth=b.birth,index=b.index,generation=b.generation,x=b.x,y=b.y,direction=b.direction,speed=b.speed,scale=b.scale,alpha=b.alpha,kinematic=b.kinematic,clockShift=b.clockShift,image=Rainbow.Index(b.source,b.sequence,w.Frame-b.clockShift,(b.kinematic?w.Frame:b.birth)-b.clockShift)}).ToArray();}
     private static EditorState Read(string file){var state=Json.Read<EditorState>(File.ReadAllText(file));Motion.Normalize(state);return state;}
     [STAThread] public static int Main(string[] args)
     {
@@ -28,6 +28,7 @@ internal static class TemplateSystemTests
             world.Seek(3);world.Seek(230);Check(checkpoint==Json.Write(Rows(world)),"Replaying generation after rewind changed the result");
             var clones=BulletSystem.CloneTracks(state.tracks);var ids=clones.Select(t=>t.id).ToHashSetCompat();Check(clones.SelectMany(TemplateRuntime.Actions).Where(a=>a.type=="spawn").All(a=>ids.Contains(a.templateId)),"Copying lost template references");Check(!Object.ReferenceEquals(clones[0].spawnActions,state.tracks[0].spawnActions),"Copies share spawn actions");
             var preset=TrackPreset.Capture("generation",state.tracks,50);var imported=preset.Instantiate(20,100);Check(imported.First(t=>t.name=="repeat-host").spawnActions[0].spawnRepeat==140,"Preset FPS conversion missed generation intervals");
+            Check(clones.First(t=>t.name=="moving-heart").rainbowMode=="angle"&&imported.First(t=>t.name=="release-template").rainbowMode=="distance","Copy/preset lost rainbow distribution mode");
             using(var form=new BulletBehaviorForm(state.tracks.First(t=>t.id=="host-rod"),state,true)){var f=typeof(BulletBehaviorForm).GetField("list",BindingFlags.NonPublic|BindingFlags.Instance);var list=(ListBox)f.GetValue(form);list.SelectedIndex=0;typeof(BulletBehaviorForm).GetMethod("ShowAction",BindingFlags.NonPublic|BindingFlags.Instance).Invoke(form,null);var inspector=(ParameterInspector)typeof(BulletBehaviorForm).GetField("inspector",BindingFlags.NonPublic|BindingFlags.Instance).GetValue(form);var p=TypeDescriptor.GetProperties(inspector.SelectedObject);Check(p["生成模板"]!=null&&p["生成后销毁母体"]!=null&&p["最大编号（-1 不限）"]!=null,"Generation editor is missing required controls");}
             Console.WriteLine("PASS: independent template clocks, mother replacement, member filtering, repeating spawn, group/emitter templates, release, recursive depth, checkpoint rewind, copy/preset references and native UI.");return 0;
         }

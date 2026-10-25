@@ -6,6 +6,7 @@ import {spawn} from 'node:child_process';
 import {createProject} from '../../studio/project-files.mjs';
 import {normalizeState,stateCode} from '../../studio/motion.mjs';
 import {shapeSetup,shapePoint,formationPoint} from '../../studio/shapes.mjs';
+import {rainbowCode,rodSequence} from '../../studio/rainbow.mjs';
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'../..'),base=path.join(root,'build/formation-shapes-check');
 const fixture=JSON.parse(fs.readFileSync(path.join(base,'fixtures.json'),'utf8'));
 const created=createProject(root,{name:'Formation GM '+Date.now(),parent:base,preset:'floor',width:800,height:608,fps:50});
@@ -25,8 +26,9 @@ for(const [file,line] of [['index.yyd','objRufShapeProbe'],['tree.yyd','\t|objRu
 const expected=new Map(),write=(name,frame,index,x,y)=>`file_text_write_string(rf_probe,'${name},${frame},'+string(${index})+','+string_format(${x},0,8)+','+string_format(${y},0,8));file_text_writeln(rf_probe);`;
 const probe=["rf_probe=file_text_open_write(working_directory+'\\formation-probe.csv');"];
 for(const sample of fixture.samples){
-  const t=state.tracks.find(t=>t.id===sample.id);probe.push(`rf_frame=${sample.frame};`,stateCode(t,'rf_frame'),shapeSetup(t),`for(rf_j=0;rf_j<rf_count;rf_j+=1){`,shapePoint(t),write(sample.id,sample.frame,'rf_j','rf_px','rf_py'),'}');
+  const t=state.tracks.find(t=>t.id===sample.id);probe.push(`rf_frame=${sample.frame};`,stateCode(t,'rf_frame'),shapeSetup(t),`for(rf_j=0;rf_j<rf_count;rf_j+=1){`,shapePoint(t),write(sample.id,sample.frame,'rf_j','rf_px','rf_py'),t.rainbow?write('colors-'+sample.id,sample.frame,'rf_j',rainbowCode(t,rodSequence(t),'rf_frame'),'0'):'','}');
   sample.points.forEach((p,i)=>expected.set([sample.id,sample.frame,i].join(','),p));
+  if(t.rainbow)sample.images.forEach((x,i)=>expected.set(['colors-'+sample.id,sample.frame,i].join(','),{x,y:0}));
 }
 // Run the supplied scripts themselves. One velocity step equals their formation outline.
 probe.push('heart(60,112.5,objRufShapeProbe,0,0,-63);');
@@ -55,4 +57,4 @@ const report=path.join(project.project,'formation-probe.csv');if(!fs.existsSync(
 const lines=fs.readFileSync(report,'utf8').trim().split(/\r?\n/);if(lines.length!==expected.size)throw Error('Incomplete report: '+lines.length+'/'+expected.size);
 for(const line of lines){const [name,frame,index,x,y]=line.split(','),key=[name,frame,index].join(','),p=expected.get(key);if(!p||Math.abs(Number(x)-p.x)>.0002||Math.abs(Number(y)-p.y)>.0002)throw Error('Mismatch '+line+'; expected '+JSON.stringify(p));expected.delete(key);}
 if(expected.size)throw Error('Unreported samples: '+expected.size);
-console.log(`PASS: ${lines.length} GM8.2 coordinates match editor/reference samples, including the original heart/star2 scripts, keyframes, scrolling and parent transforms. ${project.project}`);
+console.log(`PASS: ${lines.length} GM8.2 coordinate/palette samples match editor/reference, including signed height, spatial rainbows, original heart/star2 scripts, scrolling and parent transforms. ${project.project}`);

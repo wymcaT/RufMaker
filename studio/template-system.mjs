@@ -2,7 +2,7 @@ import {gmlNumber as num} from './gml.mjs';
 import {stateCode,fields} from './motion.mjs';
 import {activeCode} from './bullet-schema.mjs';
 import {shapeSetup,shapePoint} from './shapes.mjs';
-import {rainbowCode,rodSequence} from './rainbow.mjs';
+import {rainbowCode,rodSequence,releasedRainbow} from './rainbow.mjs';
 import {parameterCode as parameter} from './random-parameters.mjs';
 import {trailMode} from './trails.mjs';
 export const templateKinds=['object','rod','emitter','group'];
@@ -16,7 +16,7 @@ export function templateBundles(s){
     bundles.push({rootIndex,root:tracks.find(t=>t.id===root.id),tracks});
   }return bundles;
 }
-const locals=fields.map(f=>'rf_'+f).concat(['rf_u','rf_px','rf_py','rf_len','rf_phase','rf_fraction','rf_seg','rf_mix','rf_j','rf_n','rf_inst','rf_dx','rf_dy','rf_heading','rf_now','rf_clock','rf_angle_outer']).join(',');
+const locals=fields.map(f=>'rf_'+f).concat(['rf_u','rf_px','rf_py','rf_len','rf_phase','rf_fraction','rf_seg','rf_mix','rf_j','rf_n','rf_inst','rf_dx','rf_dy','rf_heading','rf_now','rf_clock','rf_angle_outer','rf_color_sequence']).join(',');
 export function templateStateCode(t,time,context={},root='rf_template_source'){
   return stateCode(t,time,context).replaceAll('rf_group_pose(',`rf_template_group_pose(${root},`);
 }
@@ -46,7 +46,7 @@ ${generateAction(a,s,{age:`(${time}-${num(t.start)})`,index:'rf_j',generation,x:
 }
 function appearance(t){
   const color=/^#[0-9a-f]{6}$/i.test(t.color||'')?t.color.slice(1):'ffffff',tint=`make_color_rgb(${parseInt(color.slice(0,2),16)},${parseInt(color.slice(2,4),16)},${parseInt(color.slice(4,6),16)})`;
-  return `rf_inst.rf_sprite=${t.sprite};rf_inst.sprite_index=${t.kind==='object'?'-1':t.sprite};rf_inst.rf_collision=${t.kind==='object'?0:1};rf_inst.image_blend=${t.rainbow?'c_white':tint};rf_inst.image_xscale=rf_scale;rf_inst.image_yscale=rf_scale;rf_inst.image_alpha=rf_alpha;rf_inst.image_angle=${t.kind==='object'?'rf_angle+rf_rotation':`rf_spriteAngle+${t.rotateSprite?'rf_angle+rf_rotation':'0'}`};rf_inst.image_speed=0;rf_inst.image_index=${rainbowCode(t,t.kind==='rod'?rodSequence(t):'0','rf_clock')};
+  return `rf_inst.rf_sprite=${t.sprite};rf_inst.sprite_index=${t.kind==='object'?'-1':t.sprite};rf_inst.rf_collision=${t.kind==='object'?0:1};rf_inst.image_blend=${t.rainbow?'c_white':tint};rf_inst.image_xscale=rf_scale;rf_inst.image_yscale=rf_scale;rf_inst.image_alpha=rf_alpha;rf_inst.image_angle=${t.kind==='object'?'rf_angle+rf_rotation':`rf_spriteAngle+${t.rotateSprite?'rf_angle+rf_rotation':'0'}`};rf_inst.image_speed=0;rf_inst.image_index=${rainbowCode(t,'rf_color_sequence','rf_clock')};
 rf_inst.rf_t_mode='${trailMode(t)}';rf_inst.rf_t_interval=${parameter(t,'trailInterval',3)};rf_inst.rf_t_life=${parameter(t,'trailLife',18)};rf_inst.rf_t_alpha=${parameter(t,'trailStartAlpha',.55)};rf_inst.rf_t_scale_decay=${parameter(t,'trailScaleDecay',.035)};rf_inst.rf_t_alpha_decay=${parameter(t,'trailAlphaDecay',.035)};rf_inst.rf_t_speed=${parameter(t,'trailSpeed',0)};rf_inst.rf_t_direction=${parameter(t,'trailDirection',0)};rf_inst.rf_t_random=${t.trailRandom?1:0};`;
 }
 function instanceMember(t,s,bundle){
@@ -54,16 +54,17 @@ function instanceMember(t,s,bundle){
   if(t.kind==='emitter')return `if (${active}) && rf_template_visible(${source},-1,id) && (rf_clock-${num(t.start)}) mod ${parameter(t,'interval',1)}=0 {
 ${templateStateCode(t,'rf_clock')}rf_n=clamp(round(rf_count),1,300);for(rf_j=0;rf_j<rf_n;rf_j+=1){rf_inst=rf_pattern_spawn(${source},rf_now+rf_j*${num(t.indexDelay)},rf_j,rf_n,(rf_clock-${num(t.start)}) div ${parameter(t,'interval',1)},0,0,0,0,0,rf_generation,0,rf_shift,id);if instance_exists(rf_inst) with(rf_inst) rf_pattern_tick(global.rf_template_world);}}`;
   if(!['object','rod'].includes(t.kind))return '';
-  const release=t.kind==='rod'&&t.releaseFrame>=0?`if rf_clock=${num(t.releaseFrame)} {${templateStateCode(t,'rf_clock')}${shapeSetup(t,'rf_clock')}rf_n=rf_count;for(rf_j=0;rf_j<rf_n;rf_j+=1)if rf_template_visible(${source},rf_j,id){${shapePoint(t)}rf_heading=${t.releaseDirection==='fixed'?'rf_angle':t.releaseDirection==='aim'?'0':'point_direction(rf_x,rf_y,rf_px,rf_py)'+(t.releaseDirection==='tangent'?'+90':'')};${warp()}rf_heading+=rf_rotation;${t.releaseDirection==='aim'?'rf_heading=point_direction(rf_px,rf_py,rf_expression_player(0),rf_expression_player(1));':''}rf_inst=rf_pattern_spawn(${source},rf_now,rf_j,rf_n,0,1,rf_px,rf_py,rf_heading,rf_speed,rf_generation,0,rf_shift,id);if instance_exists(rf_inst) with(rf_inst) rf_pattern_tick(global.rf_template_world);}}`:'';
+  const release=t.kind==='rod'&&t.releaseFrame>=0?`if rf_clock=${num(t.releaseFrame)} {${templateStateCode(t,'rf_clock')}${shapeSetup(t,'rf_clock')}rf_n=rf_count;for(rf_j=0;rf_j<rf_n;rf_j+=1)if rf_template_visible(${source},rf_j,id){${shapePoint(t)}rf_color_sequence=${rodSequence(t,{rotation:'rf_rotation'})};rf_heading=${t.releaseDirection==='fixed'?'rf_angle':t.releaseDirection==='aim'?'0':'point_direction(rf_x,rf_y,rf_px,rf_py)'+(t.releaseDirection==='tangent'?'+90':'')};${warp()}rf_heading+=rf_rotation;${t.releaseDirection==='aim'?'rf_heading=point_direction(rf_px,rf_py,rf_expression_player(0),rf_expression_player(1));':''}rf_inst=rf_pattern_spawn(${source},rf_now,rf_j,rf_n,0,1,rf_px,rf_py,rf_heading,rf_speed,rf_generation,0,rf_shift,id);${releasedRainbow(t,'rf_clock')}if instance_exists(rf_inst) with(rf_inst) rf_pattern_tick(global.rf_template_world);}}`:'';
   return `${release}
 if (${active}) && rf_template_visible(${source},-1,id)${t.kind==='rod'&&t.releaseFrame>=0?' && rf_clock<'+num(t.releaseFrame):''} {
 ${templateStateCode(t,'rf_clock')}${t.kind==='rod'?shapeSetup(t,'rf_clock'):'rf_count=1;'}rf_n=rf_count;
 for(rf_j=0;rf_j<max(rf_n,rf_tc[${source}]);rf_j+=1){
 if rf_j>=rf_n || !rf_template_visible(${source},${t.kind==='rod'?'rf_j':'-1'},id) {if instance_exists(rf_tf[${source},rf_j]) with(rf_tf[${source},rf_j]) instance_destroy();rf_tf[${source},rf_j]=noone;continue;}
-${t.kind==='rod'?shapePoint(t):'rf_px=rf_x;rf_py=rf_y;'}${warp()}
+${t.kind==='rod'?shapePoint(t):'rf_px=rf_x;rf_py=rf_y;'}rf_color_sequence=${t.kind==='rod'?rodSequence(t,{rotation:'rf_rotation'}):'0'};${warp()}
 if !instance_exists(rf_tf[${source},rf_j]) {rf_tf[${source},rf_j]=instance_create(rf_px,rf_py,objRufBullet);rf_inst=rf_tf[${source},rf_j];rf_inst.rf_system=1;rf_inst.rf_kinematic=1;rf_inst.rf_template_owner=id;rf_inst.rf_source=${source};rf_inst.rf_behavior=-1;rf_inst.rf_birth=rf_shift+${num(t.start)};rf_inst.rf_index=rf_j;rf_inst.rf_generation=rf_generation;rf_inst.rf_clock_shift=rf_shift;rf_inst.rf_life=${num(t.end-t.start+1)};}
 rf_inst=rf_tf[${source},rf_j];rf_inst.x=rf_px;rf_inst.y=rf_py;rf_inst.rf_age=rf_now-rf_inst.rf_birth;rf_inst.rf_last_update=rf_now;rf_inst.rf_n=rf_n;${appearance(t)}
 rf_inst.rf_hx[rf_inst.rf_age mod 301]=rf_px;rf_inst.rf_hy[rf_inst.rf_age mod 301]=rf_py;rf_inst.rf_ha[rf_inst.rf_age mod 301]=rf_inst.image_angle;rf_inst.rf_hs[rf_inst.rf_age mod 301]=rf_scale;rf_inst.rf_hal[rf_inst.rf_age mod 301]=rf_alpha;
+rf_inst.rf_himage[rf_inst.rf_age mod 301]=rf_inst.image_index;
 }rf_tc[${source}]=rf_n;
 }else {${clear}}`;
 }

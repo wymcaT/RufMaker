@@ -84,10 +84,10 @@ internal sealed class SimBullet
     public bool kinematic;public int templateOwner,clockShift,seenFrame=-1,lastUpdate=-1;public double visualAngle;
     public Track source,behavior;public int birth,index,count,volley,generation;public double x,y,direction,speed,scale,alpha,baseDirection,baseSpeed,baseScale,baseAlpha,turn,acceleration,sequence;public int life;public bool collision=true,dead;
     public Color color;public List<BulletSample> history=new List<BulletSample>();public HashSet<string> commands=new HashSet<string>();
-    public BulletSample Sample(int frame){return new BulletSample{frame=frame,x=x,y=y,direction=kinematic?visualAngle:direction,scale=scale,alpha=alpha};}
+    public BulletSample Sample(int frame){return new BulletSample{frame=frame,x=x,y=y,direction=kinematic?visualAngle:direction,scale=scale,alpha=alpha,sequence=sequence};}
     public SimBullet Clone(){var b=(SimBullet)MemberwiseClone();b.history=new List<BulletSample>();b.commands=new HashSet<string>(commands);return b;}
 }
-internal sealed class BulletSample {public int frame;public double x,y,direction,scale,alpha;}
+internal sealed class BulletSample {public int frame;public double x,y,direction,scale,alpha,sequence;}
 internal sealed class BulletWorld
 {
     public EditorState State;public int Frame=-1;public readonly List<SimBullet> bullets=new List<SimBullet>();
@@ -128,7 +128,7 @@ internal sealed class BulletWorld
     {
         pendingSplits=new List<Tuple<SimBullet,BulletAction>>();Templates.Step(frame);
         foreach(var t in State.tracks.Where(t=>t.kind=="emitter"&&BulletSystem.Active(t,frame)&&Templates.Visible(t))){int dt=frame-t.start;if(dt%Math.Max(1,t.interval)!=0)continue;int n=Math.Max(1,Math.Min(300,(int)BulletSystem.Round(Motion.Value(t,"count",frame))));for(int i=0;i<n;i++)Spawn(t,frame+i*Math.Max(0,t.indexDelay),i,n,dt/Math.Max(1,t.interval));}
-        foreach(var t in State.tracks.Where(t=>t.kind=="rod"&&t.releaseFrame==frame&&BulletSystem.Active(t,frame)&&Templates.Visible(t))){var points=Motion.RodPoints(t,frame);for(int i=0;i<points.Length;i++){if(!Templates.Visible(t,i))continue;var p=Motion.At(t,frame);double d=t.releaseDirection=="aim"?ExpressionContext.Direction(points[i].X,points[i].Y,t.expressionPlayerX,t.expressionPlayerY):t.releaseDirection=="fixed"?p.angle:ExpressionContext.Direction(p.x,p.y,points[i].X,points[i].Y)+(t.releaseDirection=="tangent"?90:0);Spawn(t,frame,i,points.Length,0,points[i],d,Motion.Value(t,"speed",frame));}}
+        foreach(var t in State.tracks.Where(t=>t.kind=="rod"&&t.releaseFrame==frame&&BulletSystem.Active(t,frame)&&Templates.Visible(t))){var points=Motion.RodPoints(t,frame);var p=Motion.At(t,frame);for(int i=0;i<points.Length;i++){if(!Templates.Visible(t,i))continue;double d=t.releaseDirection=="aim"?ExpressionContext.Direction(points[i].X,points[i].Y,t.expressionPlayerX,t.expressionPlayerY):t.releaseDirection=="fixed"?p.angle:ExpressionContext.Direction(p.x,p.y,points[i].X,points[i].Y)+(t.releaseDirection=="tangent"?90:0);var b=Spawn(t,frame,i,points.Length,0,points[i],d,Motion.Value(t,"speed",frame));if(t.rainbow&&Rainbow.Mode(t)!="sequence")b.sequence=Rainbow.RodSequence(t,i,points.Length,frame,points[i],p);}}
         var splits=pendingSplits;
         foreach(var b in bullets.ToArray())TickBullet(b,frame,splits);
         for(int splitIndex=0;splitIndex<splits.Count;splitIndex++){var pair=splits[splitIndex];var b=pair.Item1;var a=pair.Item2;if(b.dead)continue;var template=State.tracks.FirstOrDefault(t=>t.id==a.templateId&&t.kind=="emitter")??b.source;for(int i=0;i<a.count;i++){var child=Spawn(template,frame,i,a.count,b.volley,new PointF((float)b.x,(float)b.y),b.direction+(i-(a.count-1)/2.0)*a.spread,a.childSpeed,b.generation+1,String.IsNullOrEmpty(a.templateId),b.clockShift);if(String.IsNullOrEmpty(a.templateId)){child.color=b.color;child.scale=child.baseScale=b.scale;child.alpha=child.baseAlpha=b.alpha;}TickBullet(child,frame,splits);}}
@@ -151,8 +151,8 @@ internal sealed class BulletWorld
     }
     public void Draw(Graphics g,SpriteStore sprites,int pass,bool hitboxes)
     {
-        foreach(var b in bullets){if(Frame<b.birth||b.dead)continue;var t=b.source;int image=Rainbow.Index(t,b.sequence,Frame-b.clockShift,b.birth-b.clockShift);double angle=b.kinematic?b.visualAngle:Motion.Value(t,"spriteAngle",b.birth-b.clockShift)+(t.rotateSprite?b.direction:0);
-            if(pass==0&&Trails.Mode(t)!="off")foreach(var p in b.history.Where(p=>(p.frame-b.birth)%Trails.Interval(t)==0&&Frame-p.frame<Trails.Life(t)))Trails.Draw(g,sprites,t,p.frame*301+b.index,Frame-p.frame,p.x,p.y,p.scale,b.kinematic?p.direction:Motion.Value(t,"spriteAngle",b.birth-b.clockShift)+(t.rotateSprite?p.direction:0),p.alpha,b.color,Rainbow.Index(t,b.sequence,p.frame-b.clockShift,b.birth-b.clockShift));
+        foreach(var b in bullets){if(Frame<b.birth||b.dead)continue;var t=b.source;int image=Rainbow.Index(t,b.sequence,Frame-b.clockShift,(b.kinematic?Frame:b.birth)-b.clockShift);double angle=b.kinematic?b.visualAngle:Motion.Value(t,"spriteAngle",b.birth-b.clockShift)+(t.rotateSprite?b.direction:0);
+            if(pass==0&&Trails.Mode(t)!="off")foreach(var p in b.history.Where(p=>(p.frame-b.birth)%Trails.Interval(t)==0&&Frame-p.frame<Trails.Life(t)))Trails.Draw(g,sprites,t,p.frame*301+b.index,Frame-p.frame,p.x,p.y,p.scale,b.kinematic?p.direction:Motion.Value(t,"spriteAngle",b.birth-b.clockShift)+(t.rotateSprite?p.direction:0),p.alpha,b.color,Rainbow.Index(t,p.sequence,p.frame-b.clockShift,(b.kinematic?p.frame:b.birth)-b.clockShift));
             if(pass==1){sprites.Draw(g,t.sprite,b.x,b.y,b.scale,angle,b.alpha,b.color,image);if(hitboxes)using(var pen=new Pen(b.collision?Color.Lime:Color.Gray)){var r=sprites.Bounds(t.sprite,b.x,b.y);g.DrawRectangle(pen,r.X,r.Y,r.Width,r.Height);}}
         }
     }

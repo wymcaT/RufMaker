@@ -21,7 +21,7 @@ internal static class FormationShapes
     }
     public static PointD Point(string shape,double u,double radius,double orientation,int sides,double aspect,double inner)
     {
-        u-=Math.Floor(u);sides=Math.Max(3,Math.Min(64,sides));aspect=Math.Max(.05,Math.Min(10,aspect));inner=Math.Max(.01,Math.Min(1,inner));
+        u-=Math.Floor(u);sides=Math.Max(3,Math.Min(64,sides));aspect=Math.Max(-10,Math.Min(10,aspect));inner=Math.Max(.01,Math.Min(1,inner));
         double theta=u*2*Math.PI,px,py;
         if(shape=="heart")
         {

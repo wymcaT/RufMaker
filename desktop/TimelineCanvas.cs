@@ -28,6 +28,7 @@ internal sealed partial class TimelineCanvas : UserControl
     private const int Names=190,Row=30;
     private string dragMode;private Point dragStart;private Track dragTrack;private Keyframe dragKey;
     private readonly Dictionary<Keyframe,int> groupFrames=new Dictionary<Keyframe,int>();
+    private Point keyDeltaBounds;
     private sealed class BarState {public int start,end,lane,release;public Dictionary<Keyframe,int> keys;}
     private readonly Dictionary<Track,BarState> bars=new Dictionary<Track,BarState>();
     private bool boxTracks;private HashSet<Track> boxTrackInitial=new HashSet<Track>();
@@ -69,10 +70,19 @@ internal sealed partial class TimelineCanvas : UserControl
     public void SelectAllKeys(Track track){if(track==null)return;SetSelection(track.keyframes,track,track.keyframes.FirstOrDefault());}
     public void MoveSelectedTo(int targetFrame)
     {
-        if(SelectedKey==null||SelectedKeys.Count==0)return;int delta=targetFrame-SelectedKey.frame;delta=Math.Max(-SelectedKeys.Min(k=>k.frame),Math.Min(State.duration-SelectedKeys.Max(k=>k.frame),delta));
+        if(SelectedKey==null||SelectedKeys.Count==0)return;var bounds=KeyMoveBounds(SelectedKeys.ToDictionary(k=>k,k=>k.frame));int delta=Math.Max(bounds.X,Math.Min(bounds.Y,targetFrame-SelectedKey.frame));
         foreach(var key in SelectedKeys)key.frame+=delta;
-        foreach(var track in State.tracks)foreach(var key in track.keyframes.Where(k=>SelectedKeys.Contains(k)).ToArray()){track.keyframes.RemoveAll(k=>!SelectedKeys.Contains(k)&&k.property==key.property&&k.frame==key.frame);track.start=Math.Min(track.start,key.frame);track.end=Math.Max(track.end,key.frame);}Invalidate();
+        MergeSelectedKeys();Invalidate();
     }
+    private Point KeyMoveBounds(IDictionary<Keyframe,int> frames)
+    {
+        int min=-frames.Values.Min(),max=State.duration-frames.Values.Max();
+        foreach(var track in State.tracks)foreach(var key in track.keyframes){int origin;if(!frames.TryGetValue(key,out origin))continue;min=Math.Max(min,track.start-origin);max=Math.Min(max,track.end-origin);}
+        // A selection already wider than its clips cannot move as a rigid group.
+        return min<=max?new Point(min,max):Point.Empty;
+    }
+    private void MergeSelectedKeys()
+    {foreach(var track in State.tracks)foreach(var key in track.keyframes.Where(k=>SelectedKeys.Contains(k)).ToArray())track.keyframes.RemoveAll(k=>!SelectedKeys.Contains(k)&&k.property==key.property&&k.frame==key.frame);}
     public Track Owner(Keyframe key){return State==null?null:State.tracks.FirstOrDefault(t=>t.keyframes.Contains(key));}
     private void NotifySelection(Track track,Keyframe key)
     {SelectedTrack=track;SelectedKey=key;NotifyingSelection=true;try{if(SelectTrack!=null)SelectTrack(track,key);}finally{NotifyingSelection=false;}Invalidate();}
@@ -188,7 +198,7 @@ internal sealed partial class TimelineCanvas : UserControl
         }
         else if(t!=null&&lane.property==null&&e.X>=X(t.start)+9&&e.X<X(t.start)+25&&ClipBounds(t).Contains(e.Location)){PickTrack(t,additive);Expand(t,!expanded.Contains(t.id));return;}
         else if(edge!=null){if(!SelectedTracks.Contains(t))PickTrack(t,additive);else{ClearKeySelection();NotifySelection(t,null);}PrepareBar(t,edge);}
-        else if(key!=null){SelectedTracks.Clear();SelectedTracks.Add(t);if(additive&&SelectedKeys.Contains(key)){SelectedKeys.Remove(key);var remaining=SelectedKeys.FirstOrDefault();NotifySelection(remaining==null?t:Owner(remaining),remaining);return;}if(!SelectedKeys.Contains(key)){if(!additive)SelectedKeys.Clear();SelectedKeys.Add(key);}if(lane.property!=null)SelectedProperty=lane.property;NotifySelection(t,key);dragTrack=t;dragKey=key;dragMode="key";groupFrames.Clear();foreach(var selected in SelectedKeys)groupFrames[selected]=selected.frame;}
+        else if(key!=null){SelectedTracks.Clear();SelectedTracks.Add(t);if(additive&&SelectedKeys.Contains(key)){SelectedKeys.Remove(key);var remaining=SelectedKeys.FirstOrDefault();NotifySelection(remaining==null?t:Owner(remaining),remaining);return;}if(!SelectedKeys.Contains(key)){if(!additive)SelectedKeys.Clear();SelectedKeys.Add(key);}if(lane.property!=null)SelectedProperty=lane.property;NotifySelection(t,key);dragTrack=t;dragKey=key;dragMode="key";groupFrames.Clear();foreach(var selected in SelectedKeys)groupFrames[selected]=selected.frame;keyDeltaBounds=KeyMoveBounds(groupFrames);}
         else if(t!=null&&lane.property==null){if(additive){if(!PickTrack(t,true))return;}else if(!SelectedTracks.Contains(t))PickTrack(t,false);else{ClearKeySelection();NotifySelection(t,null);}PrepareBar(t,"bar");}
         else if(t!=null&&lane.property=="@item"){PickTrack(t,additive);}
         else {if(lane!=null&&lane.property!=null)SelectedProperty=lane.property;BeginBox(e.Location,lane==null||lane.property==null,additive);}
@@ -257,7 +267,7 @@ internal sealed partial class TimelineCanvas : UserControl
         if(!dragChanged){if(BeginEdit!=null)BeginEdit();dragChanged=true;}
         int delta=(int)Math.Round((e.X+horizontal.Value-dragStartX)/PixelsPerSecond*State.fps);
         if(dragMode=="key")
-        {delta=Math.Max(-groupFrames.Values.Min(),Math.Min(State.duration-groupFrames.Values.Max(),delta));foreach(var pair in groupFrames)pair.Key.frame=pair.Value+delta;if(Seek!=null)Seek(dragKey.frame);}
+        {delta=Math.Max(keyDeltaBounds.X,Math.Min(keyDeltaBounds.Y,delta));foreach(var pair in groupFrames)pair.Key.frame=pair.Value+delta;if(Seek!=null)Seek(dragKey.frame);}
         else if(bars.Count>0)
         {
             if(dragMode=="bar")
@@ -278,8 +288,7 @@ internal sealed partial class TimelineCanvas : UserControl
     private void FinishGesture()
     {
         string mode=dragMode;dragMode=null;
-        if(mode=="key"&&dragChanged)
-        {foreach(var t in State.tracks){var keys=t.keyframes.Where(k=>SelectedKeys.Contains(k)).ToArray();foreach(var k in keys){t.keyframes.RemoveAll(other=>!SelectedKeys.Contains(other)&&other.property==k.property&&other.frame==k.frame);t.start=Math.Min(t.start,k.frame);t.end=Math.Max(t.end,k.frame);}}}
+        if(mode=="key"&&dragChanged)MergeSelectedKeys();
         if(mode=="box"){if(boxTracks)NotifySelection(SelectedTracks.FirstOrDefault(),null);else{var key=SelectedKeys.FirstOrDefault();SelectedTracks.Clear();if(key!=null)SelectedTracks.Add(Owner(key));NotifySelection(key==null?null:Owner(key),key);}}
         if(dragChanged&&mode!="box"&&mode!="seek"&&mode!="height"&&Changed!=null)Changed();dragTrack=null;dragKey=null;dragRowLanes=null;dragRowTops=null;dragRowHeights=null;resizeKey=null;groupFrames.Clear();bars.Clear();dragChanged=false;Cursor=Cursors.Default;Invalidate();
     }

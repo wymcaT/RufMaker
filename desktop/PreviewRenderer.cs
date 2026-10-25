@@ -63,10 +63,10 @@ internal static class PreviewRenderer
                         {
                             var q=Motion.At(track,sample);int tail=frame-sample;
                             if(track.kind=="object")Trails.Draw(g,sprites,track,sample,tail,q.x,q.y,q.scale,q.angle,q.alpha,tint,Rainbow.Index(track,0,sample));
-                            else {var points=Motion.RodPoints(track,sample);for(int k=0;k<points.Length;k++)if(!advanced||cache.bulletWorld.Templates.Visible(track,k))Trails.Draw(g,sprites,track,sample*301+k,tail,points[k].X,points[k].Y,q.scale,Motion.Value(track,"spriteAngle",sample)+(track.rotateSprite?q.angle:0),q.alpha,tint,Rainbow.Index(track,Rainbow.RodSequence(track,k,points.Length,sample),sample));}
+                            else {var points=Motion.RodPoints(track,sample);for(int k=0;k<points.Length;k++)if(!advanced||cache.bulletWorld.Templates.Visible(track,k))Trails.Draw(g,sprites,track,sample*301+k,tail,points[k].X,points[k].Y,q.scale,Motion.Value(track,"spriteAngle",sample)+(track.rotateSprite?q.angle:0),q.alpha,tint,Rainbow.Index(track,Rainbow.RodSequence(track,k,points.Length,sample,points[k],q),sample));}
                         }
                         if(pass==1){if(track.kind=="object")sprites.Draw(g,track.sprite,p.x,p.y,p.scale,p.angle,p.alpha,tint,Rainbow.Index(track,0,frame));
-                        else {var points=Motion.RodPoints(track,frame);for(int k=0;k<points.Length;k++)if(!advanced||cache.bulletWorld.Templates.Visible(track,k))sprites.Draw(g,track.sprite,points[k].X,points[k].Y,p.scale,Motion.Value(track,"spriteAngle",frame)+(track.rotateSprite?p.angle:0),p.alpha,tint,Rainbow.Index(track,Rainbow.RodSequence(track,k,points.Length,frame),frame));}}
+                        else {var points=Motion.RodPoints(track,frame);for(int k=0;k<points.Length;k++)if(!advanced||cache.bulletWorld.Templates.Visible(track,k))sprites.Draw(g,track.sprite,points[k].X,points[k].Y,p.scale,Motion.Value(track,"spriteAngle",frame)+(track.rotateSprite?p.angle:0),p.alpha,tint,Rainbow.Index(track,Rainbow.RodSequence(track,k,points.Length,frame,points[k],p),frame));}}
                     }
                     if(track.kind!="emitter")continue;
                     if(advanced)continue;

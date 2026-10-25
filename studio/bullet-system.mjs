@@ -4,11 +4,11 @@ import {parameterCode,expressionCall} from './random-parameters.mjs';
 import {activeCode} from './bullet-schema.mjs';
 import {trailMode} from './trails.mjs';
 import {shapeSetup,shapePoint} from './shapes.mjs';
-import {rainbowCode} from './rainbow.mjs';
+import {rainbowCode,rodSequence,releasedRainbow} from './rainbow.mjs';
 import {templateBundles,templateStateCode} from './template-system.mjs';
 
 const color=hex=>{const v=/^#[0-9a-f]{6}$/i.test(hex||'')?hex.slice(1):'ffffff';return `make_color_rgb(${parseInt(v.slice(0,2),16)},${parseInt(v.slice(2,4),16)},${parseInt(v.slice(4,6),16)})`;};
-const locals=`rf_u,rf_px,rf_py,rf_len,rf_phase,rf_fraction,rf_seg,rf_mix,${fields.map(f=>'rf_'+f).join(',')}`;
+const locals=`rf_u,rf_px,rf_py,rf_len,rf_phase,rf_fraction,rf_seg,rf_mix,rf_color_sequence,${fields.map(f=>'rf_'+f).join(',')}`;
 export function groupPoseGml(s){return `var ${locals};switch(argument0){
 ${s.tracks.map((t,i)=>t.kind==='group'?`case ${i}:${stateCode(t,'argument1')}global.rf_gx=rf_x;global.rf_gy=rf_y;global.rf_ga=rf_angle;global.rf_gscale=rf_scale;global.rf_galpha=rf_alpha;return 0;`:'').join('\n')}
 }global.rf_gx=0;global.rf_gy=0;global.rf_ga=0;global.rf_gscale=1;global.rf_galpha=1;return 0;`;
@@ -98,7 +98,7 @@ return 0;`;
   const update=`var ${locals},rf_now,rf_j,rf_n,rf_i,rf_instance,rf_heading;rf_now=argument0;rf_template_step(rf_now);
 ${s.tracks.map((t,index)=>{
     if(t.enabled===false)return '';if(t.kind==='emitter')return `if rf_template_visible(${index},-1,noone) && (${activeCode(t,'rf_now',s.tracks)}) && (rf_now-${num(t.start)}) mod ${parameterCode(t,'interval',1)}=0 {${stateCode(t,'rf_now')}rf_n=max(1,min(300,round(rf_count)));for(rf_j=0;rf_j<rf_n;rf_j+=1)rf_pattern_spawn(${index},rf_now+rf_j*${num(t.indexDelay)},rf_j,rf_n,(rf_now-${num(t.start)}) div ${parameterCode(t,'interval',1)},0,0,0,0,0,0,0,0,noone);}`;
-    if(t.kind==='rod'&&t.releaseFrame>=0)return `if rf_now=${num(t.releaseFrame)} && rf_template_visible(${index},-1,noone) && (${activeCode(t,'rf_now',s.tracks)}) {${stateCode(t,'rf_now')}${shapeSetup(t,'rf_now')}rf_n=rf_count;for(rf_j=0;rf_j<rf_n;rf_j+=1){if !rf_template_visible(${index},rf_j,noone) continue;${shapePoint(t)}rf_heading=${t.releaseDirection==='fixed'?'rf_angle':t.releaseDirection==='aim'?'point_direction(rf_px,rf_py,rf_expression_player(0),rf_expression_player(1))':'point_direction(rf_x,rf_y,rf_px,rf_py)'+(t.releaseDirection==='tangent'?'+90':'')};rf_pattern_spawn(${index},rf_now,rf_j,rf_n,0,1,rf_px,rf_py,rf_heading,rf_speed,0,0,0,noone);}}`;return '';
+    if(t.kind==='rod'&&t.releaseFrame>=0)return `if rf_now=${num(t.releaseFrame)} && rf_template_visible(${index},-1,noone) && (${activeCode(t,'rf_now',s.tracks)}) {${stateCode(t,'rf_now')}${shapeSetup(t,'rf_now')}rf_n=rf_count;for(rf_j=0;rf_j<rf_n;rf_j+=1){if !rf_template_visible(${index},rf_j,noone) continue;${shapePoint(t)}rf_color_sequence=${rodSequence(t)};rf_heading=${t.releaseDirection==='fixed'?'rf_angle':t.releaseDirection==='aim'?'point_direction(rf_px,rf_py,rf_expression_player(0),rf_expression_player(1))':'point_direction(rf_x,rf_y,rf_px,rf_py)'+(t.releaseDirection==='tangent'?'+90':'')};rf_instance=rf_pattern_spawn(${index},rf_now,rf_j,rf_n,0,1,rf_px,rf_py,rf_heading,rf_speed,0,0,0,noone);${releasedRainbow(t,'rf_now','rf_instance')}}}`;return '';
   }).join('\n')}
 global.rf_tick_world=rf_now;with(objRufBullet) if rf_system rf_pattern_tick(global.rf_tick_world);return 0;`;
   return [['rf_group_pose',groupPoseGml(s)],['rf_pattern_spawn',spawn],['rf_pattern_tick',tick],['rf_pattern_step',update]];

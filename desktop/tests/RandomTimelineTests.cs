@@ -99,6 +99,36 @@ internal static class RandomTimelineTests
         }
         Console.WriteLine("PASS: mixed clips per lane, overlap stacking, independent expansion, drag between lanes, grouped trim and key offsets.");
     }
+    private static Point KeyPoint(TimelineCanvas timeline,Track track,Keyframe key,bool expanded)
+    {
+        int y;
+        if(expanded){var lane=((IEnumerable)Get(timeline,"lanes")).Cast<object>().First(row=>ReferenceEquals(row.GetType().GetField("track").GetValue(row),track)&&(string)row.GetType().GetField("property").GetValue(row)==key.property);y=timeline.AudioBottom+(int)lane.GetType().GetField("top").GetValue(lane)+(int)lane.GetType().GetField("height").GetValue(lane)/2;}
+        else {var bar=timeline.ClipBounds(track);y=(int)bar.Bottom-3;}
+        return new Point((int)(float)Call(timeline,"X",key.frame),y);
+    }
+    private static void KeyBounds()
+    {
+        var a=new Track{id="bounds-a",kind="object",lane=0,start=40,end=140};var x=new Keyframe{property="x",frame=60,value=10};var y=new Keyframe{property="y",frame=90,value=20};a.keyframes.AddRange(new[]{x,y});
+        var b=new Track{id="bounds-b",kind="effect",lane=1,start=100,end=130};var alpha=new Keyframe{property="fxOpacity",frame=120,value=.5};b.keyframes.Add(alpha);
+        var state=new EditorState{duration=500,fps=50,laneCount=2,tracks=new List<Track>{a,b}};
+        using(var timeline=new TimelineCanvas{Size=new Size(1250,650),State=state,PixelsPerSecond=100})
+        {
+            timeline.SelectTrack=(t,k)=>{timeline.SelectedTrack=t;timeline.SelectedKey=k;};int begins=0,changes=0,seek=-1;timeline.BeginEdit=()=>begins++;timeline.Changed=()=>changes++;timeline.Seek=f=>seek=f;timeline.RefreshLayout();
+            var p=KeyPoint(timeline,a,x,false);Mouse(timeline,"OnMouseDown",p.X,p.Y);Check((string)Get(timeline,"dragMode")=="key","Collapsed key was not hit");
+            Mouse(timeline,"OnMouseMove",p.X-800,p.Y);Check(x.frame==40&&seek==40,"Single key crossed the left clip boundary");
+            Mouse(timeline,"OnMouseMove",p.X+1000,p.Y);Check(x.frame==140&&seek==140,"Single key crossed the right clip boundary");
+            Mouse(timeline,"OnMouseMove",p.X+16,p.Y);Mouse(timeline,"OnMouseUp",p.X+16,p.Y);Check(x.frame==68&&a.start==40&&a.end==140,"Key clamping changed clip length or lost drag origin");
+            Check(begins==1&&changes==1,"Bounded drag committed more than one undo step");
+            x.frame=60;timeline.Expand(a,true);timeline.Expand(b,true);timeline.SetSelection(new[]{x,y,alpha},a,x);p=KeyPoint(timeline,a,x,true);
+            Mouse(timeline,"OnMouseDown",p.X,p.Y);Mouse(timeline,"OnMouseMove",p.X+1000,p.Y);Check(x.frame==70&&y.frame==100&&alpha.frame==130,"Cross-object selection did not stop at the tightest right boundary");
+            Mouse(timeline,"OnMouseMove",p.X-800,p.Y);Check(x.frame==40&&y.frame==70&&alpha.frame==100,"Cross-property keys lost spacing or crossed a left boundary");Mouse(timeline,"OnMouseUp",p.X-800,p.Y);
+            Check(a.start==40&&a.end==140&&b.start==100&&b.end==130&&timeline.SelectedKeys.Count==3,"Dragging keys changed clips or selection");
+            timeline.MoveSelectedTo(500);Check(x.frame==70&&y.frame==100&&alpha.frame==130,"Move-to-playhead bypassed clip bounds");timeline.MoveSelectedTo(-100);Check(x.frame==40&&y.frame==70&&alpha.frame==100,"Move-to-playhead crossed a left boundary");
+            timeline.SetSelection(new[]{x},a,x);var collision=new Keyframe{property="x",frame=140,value=80};a.keyframes.Add(collision);timeline.MoveSelectedTo(500);Check(x.frame==140&&!a.keyframes.Contains(collision)&&a.end==140,"Boundary collision did not retain the moved key");
+            b.start=b.end=120;alpha.frame=120;timeline.SetSelection(new[]{alpha},b,alpha);timeline.MoveSelectedTo(0);Check(alpha.frame==120&&b.start==120&&b.end==120,"Zero-duration clip allowed key movement");
+        }
+        Console.WriteLine("PASS: collapsed/expanded key drags and move-to-playhead stay within each clip; multi-selection preserves offsets, boundaries, collisions and one undo step per gesture.");
+    }
     [STAThread] public static int Main(string[] args)
-    {try{Expressions(args[0]);Inspector(args[1]);Timeline(args[2]);return 0;}catch(Exception error){Console.Error.WriteLine(error);return 1;}}
+    {try{Expressions(args[0]);Inspector(args[1]);Timeline(args[2]);KeyBounds();return 0;}catch(Exception error){Console.Error.WriteLine(error);return 1;}}
 }

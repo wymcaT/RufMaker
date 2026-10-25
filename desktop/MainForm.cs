@@ -426,7 +426,7 @@ internal sealed partial class MainForm : LocalizedForm
     private void Field<T>(NativeProperties bag,string name,string category,Func<T> get,Action<T> set,string[] choices=null,string description="")
     {string property=selectedTrack==null?null:NumericProperty(name);var targets=timeline.SelectedTracks.Count>1?timeline.SelectedTracks.ToArray():new[]{selectedTrack};bag.Add(name,category,typeof(T),()=>property==null?(object)get():Convert.ChangeType(Motion.Value(selectedTrack,property,frame),typeof(T)),value=>{PushUndo();set((T)value);MarkChanged();},choices,description,property==null?null:ParameterControls(targets,property));}
     private static double ClampValue(string property,double value)
-    {if(property=="shapeAspect")return Math.Max(.05,Math.Min(10,value));if(property=="shapeInner")return Math.Max(.01,Math.Min(1,value));if(property=="alpha"||property=="fxOpacity"||property=="fxRetention")return Math.Max(0,Math.Min(1,value));if(property=="count")return Math.Max(1,Math.Min(300,Math.Round(value)));if(property=="life")return Math.Max(1,value);if(property=="sides")return Math.Max(3,Math.Min(64,Math.Round(value)));if(property=="cameraZoom")return Math.Max(.05,Math.Min(20,value));if(property=="radius"||property=="length"||property=="strength")return Math.Max(0,value);return value;}
+    {if(property=="shapeAspect")return Math.Max(-10,Math.Min(10,value));if(property=="shapeInner")return Math.Max(.01,Math.Min(1,value));if(property=="alpha"||property=="fxOpacity"||property=="fxRetention")return Math.Max(0,Math.Min(1,value));if(property=="count")return Math.Max(1,Math.Min(300,Math.Round(value)));if(property=="life")return Math.Max(1,value);if(property=="sides")return Math.Max(3,Math.Min(64,Math.Round(value)));if(property=="cameraZoom")return Math.Max(.05,Math.Min(20,value));if(property=="radius"||property=="length"||property=="strength")return Math.Max(0,value);return value;}
     private string CurrentProperty(bool inspector=false)
     {if(selectedTrack==null)return "x";if(inspector&&properties.SelectedLabel!=null){string label=properties.SelectedLabel;foreach(string p in Motion.Fields(selectedTrack))if(Motion.Name(p)==label)return p;}return selectedKey!=null?selectedKey.property:timeline.SelectedProperty;}
     private void EaseField(NativeProperties bag,Track t,Keyframe key)
@@ -558,12 +558,13 @@ internal sealed partial class MainForm : LocalizedForm
         if(!group.All(Rainbow.IsCherry))return;var t=group[0];
         Field(bag,"彩虹","彩虹 Cherry",()=>group.All(track=>track.rainbow),value=>{foreach(var track in group)Rainbow.Enable(track,value);QueueInspectorUpdate();},null,"使用 sprrainbowcherry，固定白色与 image_speed=0。中心转转棒按离中心的距离分配颜色。");
         if(!group.All(track=>track.rainbow))return;
+        if(group.All(track=>track.kind=="rod"))Field(bag,"彩虹分配方式","彩虹 Cherry",()=>Rainbow.ModeNames[Array.IndexOf(Rainbow.Modes,Rainbow.Mode(t))],value=>{foreach(var track in group)track.rainbowMode=Rainbow.Modes[Array.IndexOf(Rainbow.ModeNames,value)];QueueInspectorUpdate();},Rainbow.ModeNames,"中心使用整体对象的 X/Y。距离模式每像素推进一个颜色帧；角度模式绕中心一圈为一轮彩虹。颜色密度控制重复次数，支持反转和动态色彩。");
         Field(bag,"反转","彩虹 Cherry",()=>t.rainbowReverse,value=>{foreach(var track in group)track.rainbowReverse=value;});
         Field(bag,"动态色彩","彩虹 Cherry",()=>t.rainbowDynamic,value=>{foreach(var track in group)track.rainbowDynamic=value;});
         foreach(string item in Rainbow.Parameters)
         {
             string property=item;
-            bag.Add(Motion.Name(property),"彩虹 Cherry",typeof(double),()=>Motion.Value(t,property,frame),value=>{PushUndo();foreach(var track in group)Motion.EditValue(track,property,frame,property=="rainbowDensity"?Math.Max(0,(double)value):(double)value);timeline.SelectedProperty=property;MarkChanged();},null,property=="rainbowDensity"?"相邻序号间跨过多少颜色帧。1 表示逐帧递增；0 表示同色。支持独立关键帧。":"支持独立关键帧。动态开启后，按时间更新 image_index，image_speed 仍保持 0。",ParameterControls(group,property));
+            bag.Add(Motion.Name(property),"彩虹 Cherry",typeof(double),()=>Motion.Value(t,property,frame),value=>{PushUndo();foreach(var track in group)Motion.EditValue(track,property,frame,property=="rainbowDensity"?Math.Max(0,(double)value):(double)value);timeline.SelectedProperty=property;MarkChanged();},null,property=="rainbowDensity"?(t.kind=="rod"&&Rainbow.Mode(t)!="sequence"?"距离模式：每像素跨过的颜色帧。角度模式：绕中心一圈重复彩虹的次数。0 表示同色；支持独立关键帧。":"相邻序号间跨过多少颜色帧。1 表示逐帧递增；0 表示同色。支持独立关键帧。"):"支持独立关键帧。动态开启后，按时间更新 image_index，image_speed 仍保持 0。",ParameterControls(group,property));
         }
     }
     private void TrailFields(NativeProperties bag,Track[] group)

@@ -1,11 +1,26 @@
 # Codex 任务记录
 
 - 状态：`completed`
-- 任务：减少加键等操作的右栏强制刷新；按用户最新要求让动画属性原地标识、不重新分栏，结构变化增量更新属性行；拖数值步长按参数类别适配。本轮本地构建，不推送。
-- 开始时基线：`a83e764`，分支 `main`；保留用户 projects 下既有改动。
-- 当前占用文件：无，已完成并释放。实际文件见本轮提交；个人工程未操作。
-- 本轮发布：仅本地 1.13.2 构建/提交，未推送。远程 main 为 `a83e764`，Release/latest 仍为 v1.13.1（Actions `40114921642`）。
-- 本机产物：根目录 `RufMaker.exe`，ProductVersion `1.13.2`，FileVersion `1.13.2.0`，1,073,152 bytes。已安全替换路径，运行中的旧进程需保存并重启。
+- 任务：限制关键帧拖动边界、允许负的轮廓高度比例；按用户追加要求增加整体对象距离/角度彩虹。已本地实现、验证和构建，未推送。
+- 开始时基线：`1de325b`，分支 `main`；保留用户 projects 下既有改动。
+- 当前占用文件：无，完成并释放。实际改动文件见下文及本轮修复提交；未改用户工程或 Argon4 记录。
+- 本轮发布：仅本地 1.13.3 构建/提交，未推送。远程 main 为 `a83e764`，Release/latest 仍为 v1.13.1（Actions `40114921642`）。
+- 本机产物：根目录 `RufMaker.exe`，ProductVersion `1.13.3`，FileVersion `1.13.3.0`，1,075,200 bytes。已安全替换路径，运行中的旧进程需保存并重启。
+
+## 2026-10-25：关键帧边界、负高度比例与空间彩虹
+
+- `TimelineCanvas.KeyMoveBounds()` 在开始拖动时计算所选键各自物件的起止限制，取共同位移范围；鼠标移动时直接钳制。单键、多属性和跨物件多选均保留相对间隔，松手不再延长物件。`MoveSelectedTo()` 共用范围与碰撞合并规则。旧工程或裁剪留下的越界键不会在加载时被批量改写；无法整体移入的选择保持原位。
+- `shapeAspect` 原先在参数编辑、表达式和三端几何中被限制最小 0.05，现统一 -10～10。负值翻转局部高度，0 压成直线，关键帧/动态表达式可以连续过零；没有改用户提供的原始 heart/star2 脚本。涉及 `MainForm`、`RandomParameters`、`FormationShapes` 及 JS 同名路径和生成的 `rf_formation_point`。
+- Track 新增持久字符串 `rainbowMode="sequence"`，值 `sequence/distance/angle`；C#/JS 缺省与未知值回落原有模式。整体对象彩虹开关下增加“彩虹分配方式”。距离以物件自身 X/Y 为中心，每像素推进 density 个颜色帧；角度一周对应 32 帧，density=1 为一轮彩虹。保留反转、动态、密度/相位/速度关键帧和固定白色/image_speed=0。
+- `Rainbow.RodSequence()` 可接收已算出的成员坐标/中心，避免重复生成整组点；模板额外计入实例旋转。C# 与 GML 对空间序号舍入至 0.0001，避免 PointF 误差使等距圆环产生杂色。同步普通对象本体、空间拖影、模板生成及释放后的出生配色；释放后沿用出生配色序号，动态色彩继续随时间变化。
+- 模板历史新增内存 `BulletSample.sequence` 和 GML `rf_himage`，拖影读取历史样本配色。模板本体参数按当前局部时钟取样，释放后的弹幕按出生时取样。`Track.Snapshot` 的成员复制、JSON/预设与撤销涵盖新模式；未新增工程版本或破坏旧工程默认表现。
+- 测试改动：RandomTimelineTests、FormationShapeTests、formation-fixtures、TemplateSystemTests、template-fixtures、两个 verify-*-gml 探针、LocalizationTests、studio/shapes.test。中英文 README 与 en.json 增补用户选项和操作说明。
+- 通过：`Test-RandomTimeline.ps1`（含折叠/展开、左右边界、跨属性/物件多选、移到播放头、零长度及冲突合并）；`Test-FormationShapes.ps1`；`Test-TemplateSystem.ps1`；`Test-Localization.ps1`；`Test-Presets.ps1`；`Test-EditorPerformance.ps1`；Node shapes/template-system/bullet-system/random-parameters 共 15 项。
+- GM8.2 隔离探针最终通过：`runtime/node.exe desktop/tests/verify-formation-gml.mjs`，4,040 条坐标/颜色记录（负比例、过零、表达式、滚动与圆环配色），目录 `build/formation-shapes-check/Formation GM 1792896461188/`；`verify-template-gml.mjs`，8 个时刻 188 个完整状态含配色一致，目录 `build/template-system-check/Template GM 1792896478733/`。需沙箱外启动已安装引擎，未访问用户工程。
+- 性能回归仍保留参数控件，合成 40 物件/6400 键：编辑/撤销中位 6.51/12.98 ms，加键/撤销加键 17.39/20.47 ms。仅作回归记录，不代表游戏 FPS。
+- 早期扩充形状夹具时，参考代码曾对关闭滚动的新测试物件也计算滚动相位，导致 Track X ellipse 断言失败；已修正为检查 t.rolling，后续 C#/GM 最终对照通过。没有留下测试进程或错误弹窗。
+- 构建 `desktop/Build-Native.ps1 -Output D:\rufmaker\build\key-bounds-check\RufMaker.exe` 通过；File.Replace 安全替换根目录 EXE，SHA256 与构建产物相同，旧映像备份留在同一 build 目录。未关闭用户进程。
+- 本地提交随本节所属修复提交保存，未推送/发布；无剩余必做事项，待用户交互验收。
 
 ## 2026-10-25：属性原位标记、局部更新与语义拖动步长
 
