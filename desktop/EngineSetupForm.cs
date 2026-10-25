@@ -64,7 +64,7 @@ internal sealed class EngineSetupForm:LocalizedForm
 internal sealed partial class MainForm
 {
     internal void RefreshLanguageUI()
-    {languageChoice.SelectedIndex=Language.English?1:0;Language.Apply(this);if(document!=null){FillResources();ShowProperties();UpdateTitle();}RefreshStatisticsLanguage();stage.Invalidate();timeline.Invalidate();}
+    {if(languageChoice.Items.Count>0)languageChoice.SelectedIndex=Language.English?1:0;Language.Apply(this);if(document!=null){FillResources();ShowProperties();UpdateTitle();}RefreshStatisticsLanguage();RefreshShell();SyncResourceTree();stage.Invalidate();timeline.Invalidate();}
     private void OfferEngineAtStartup()
     {var found=EngineSetup.Find(root);if(EngineSetup.OfferAtStartup(root,found))using(var dialog=new EngineSetupForm(root))Language.ShowDialog(dialog,this);}
     private async Task<bool> EnsureEngine()

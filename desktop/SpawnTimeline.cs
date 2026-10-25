@@ -9,6 +9,7 @@ internal sealed partial class TimelineCanvas
     public Action<Track,int> EditSpawnRule;
     public Action<Track,int> EditBulletSpawnRule;
     public Action<Track> EditTemplateDefinition;
+    public Track TemplateSource;
     private bool TemplateLane(Lane lane){return lane!=null&&lane.track!=null&&lane.property=="@template";}
     private void AppendTemplateKeys(Track target,int lane,int indent,string key)
     {foreach(string property in Motion.Fields(target).Where(p=>Motion.HasKeys(target,p)))lanes.Add(new Lane{index=lane,track=target,property=property,indent=indent+1,bindingKey=key+"/key:"+property});}
@@ -58,7 +59,7 @@ internal sealed partial class TimelineCanvas
     }
     private void SelectTemplateCard(Lane lane,bool edit)
     {
-        PickTrack(lane.track,false);ActiveLane=lane.index;
+        TemplateSource=lane.generationSource;PickTrack(lane.track,false);ActiveLane=lane.index;
         if(edit){expanded.Add(lane.track.id);RefreshLayout();if(EditTemplateDefinition!=null)EditTemplateDefinition(lane.track);else if(Seek!=null)Seek(lane.track.start);ActiveLane=lane.index;EnsureFrameVisible();}
     }
     private BulletAction SpawnAction(Lane lane){return lane.property.StartsWith("@spawn:")?lane.track.spawnActions[SpawnIndex(lane)]:lane.track.bulletActions[SpawnIndex(lane)];}

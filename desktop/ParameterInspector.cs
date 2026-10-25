@@ -16,6 +16,12 @@ internal sealed class ParameterInspector : UserControl
     private readonly Dictionary<TextBox,Action> textReverters=new Dictionary<TextBox,Action>();
     private object selectedObject;private bool rebuilding,scrubbing;private bool stacked=true;
     public Action BeginScrub,EndScrub;
+    private readonly HashSet<string> collapsed=new HashSet<string>();
+    private readonly HashSet<string> openSections=new HashSet<string>();
+    public bool Compact {get;set;}
+    public string[] CaptureSections(){return collapsed.Concat(headings.Keys.Where(k=>!collapsed.Contains(k)).Select(k=>"!"+k)).ToArray();}
+    public void RestoreSections(string[] values){foreach(string value in values??new string[0])if(value.StartsWith("!")){openSections.Add(value.Substring(1));collapsed.Remove(value.Substring(1));}else collapsed.Add(value);UpdateRows();}
+    public void ResetSections(){collapsed.Clear();UpdateRows();}
     public string SelectedLabel {get;private set;}
     public object SelectedObject {get{return selectedObject;}set{CommitPending();var current=selectedObject as NativeProperties;if(current!=null&&current.TryRebind(value as NativeProperties)){Refresh();return;}if(current!=null&&value is NativeProperties){current.Reconcile((NativeProperties)value);}else selectedObject=value;UpdateRows();}}
     public bool EditingText {get{return Descendants(this).Any(c=>(c is TextBox&&!((TextBox)c).ReadOnly&&c.Visible&&c.ContainsFocus)||(c is ComboBox&&((ComboBox)c).DroppedDown));}}
@@ -26,7 +32,7 @@ internal sealed class ParameterInspector : UserControl
         scroll.Controls.Add(rows);Controls.Add(scroll);Controls.Add(help);
         Action defocus=()=>{CommitPending();ActiveControl=null;};
         scroll.MouseDown+=(s,e)=>defocus();rows.MouseDown+=(s,e)=>defocus();help.MouseDown+=(s,e)=>defocus();
-        scroll.Resize+=(s,e)=>{rows.Width=Math.Max(50,scroll.ClientSize.Width-SystemInformation.VerticalScrollBarWidth);bool next=rows.Width<520;if(next!=stacked){stacked=next;UpdateRows();}};
+        scroll.Resize+=(s,e)=>{rows.Width=Math.Max(50,scroll.ClientSize.Width-SystemInformation.VerticalScrollBarWidth);bool next=rows.Width<(Compact?260:520);if(next!=stacked){stacked=next;UpdateRows();}};
     }
     private static IEnumerable<Control> Descendants(Control root)
     {foreach(Control child in root.Controls){yield return child;foreach(var item in Descendants(child))yield return item;}}
@@ -48,7 +54,7 @@ internal sealed class ParameterInspector : UserControl
     private sealed class PropertyRow
     {public PropertyDescriptor property;public Label label;public Control editor;public readonly List<Action> updates=new List<Action>();public readonly Dictionary<TextBox,Action> reverts=new Dictionary<TextBox,Action>();public void Dispose(){label.Dispose();editor.Dispose();}}
     private readonly Dictionary<PropertyDescriptor,PropertyRow> boundRows=new Dictionary<PropertyDescriptor,PropertyRow>(new PropertyIdentity());
-    private readonly Dictionary<string,Label> headings=new Dictionary<string,Label>();private bool layoutPending;
+    private readonly Dictionary<string,Button> headings=new Dictionary<string,Button>();private bool layoutPending;
     private PropertyRow CreateRow(PropertyDescriptor p)
     {
         object component=selectedObject;var binding=new PropertyRow{property=p};var label=new Label{Text=p.Name,Dock=DockStyle.Fill,TextAlign=ContentAlignment.MiddleLeft,ForeColor=Theme.Text,Margin=new Padding(2,1,4,1),AutoEllipsis=true};
@@ -61,8 +67,8 @@ internal sealed class ParameterInspector : UserControl
             var number=new ScrubNumber(p.Name,p.PropertyType,get,set,actions){ReadOnly=p.IsReadOnly,Dock=DockStyle.Fill,Margin=new Padding(0,3,1,3)};
             number.Enter+=(s,e)=>Select(p);number.MouseDown+=(s,e)=>Select(p);number.BeginScrub=()=>{scrubbing=true;if(BeginScrub!=null)BeginScrub();};number.EndScrub=()=>{scrubbing=false;if(EndScrub!=null)EndScrub();Refresh();};editor=number;binding.updates.Add(number.RefreshValue);
             if(actions!=null){
-                var wrap=new TableLayoutPanel{Dock=DockStyle.Fill,ColumnCount=4,RowCount=1,Margin=Padding.Empty};wrap.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute,Math.Max(58,TextRenderer.MeasureText(Language.Text("表达式"),Font).Width+14)));wrap.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,100));wrap.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute,actions.ToggleKey==null?0:34));
-                var random=new CheckBox{Text="表达式",Name="random:"+p.Name,Appearance=Appearance.Button,Dock=DockStyle.Fill,TextAlign=ContentAlignment.MiddleCenter,FlatStyle=FlatStyle.Flat,BackColor=Theme.Raised,ForeColor=Theme.Text,Margin=new Padding(0,3,4,3)};random.Checked=actions.Random();random.ForeColor=random.Checked?Theme.Accent:Theme.Muted;random.Click+=(s,e)=>{Select(p);CommitPending();actions.ToggleRandom();Refresh();};wrap.Controls.Add(random,0,0);wrap.Controls.Add(number,1,0);binding.updates.Add(()=>{random.Checked=actions.Random();random.ForeColor=random.Checked?Theme.Accent:Theme.Muted;});
+                var wrap=new TableLayoutPanel{Dock=DockStyle.Fill,ColumnCount=4,RowCount=1,Margin=Padding.Empty};wrap.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute,Compact?30:Math.Max(58,TextRenderer.MeasureText(Language.Text("表达式"),Font).Width+14)));wrap.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,100));wrap.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute,actions.ToggleKey==null?0:34));
+                var random=new CheckBox{Text=Compact?"ƒ":"表达式",Name="random:"+p.Name,AccessibleName=Language.Text("表达式开关"),Appearance=Appearance.Button,Dock=DockStyle.Fill,TextAlign=ContentAlignment.MiddleCenter,FlatStyle=FlatStyle.Flat,BackColor=Theme.Raised,ForeColor=Theme.Text,Margin=new Padding(0,3,4,3)};random.Checked=actions.Random();random.ForeColor=random.Checked?Theme.Accent:Theme.Muted;random.Click+=(s,e)=>{Select(p);CommitPending();actions.ToggleRandom();Refresh();};wrap.Controls.Add(random,0,0);wrap.Controls.Add(number,1,0);binding.updates.Add(()=>{random.Checked=actions.Random();random.ForeColor=random.Checked?Theme.Accent:Theme.Muted;});
                 wrap.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute,36));var fx=new Button{Text="ƒx",Name="expression:"+p.Name,Dock=DockStyle.Fill,FlatStyle=FlatStyle.Flat,BackColor=Theme.Raised,ForeColor=Theme.Accent,Margin=new Padding(3,3,0,3)};fx.Click+=(s,e)=>{Select(p);CommitPending();if(actions.EditExpression!=null)actions.EditExpression();};wrap.Controls.Add(fx,3,0);
                 if(actions.ToggleKey!=null){var key=new CheckBox{Text="◇",Name="key:"+p.Name,Appearance=Appearance.Button,Dock=DockStyle.Fill,TextAlign=ContentAlignment.MiddleCenter,FlatStyle=FlatStyle.Flat,BackColor=Theme.Raised,ForeColor=Theme.Muted,Margin=new Padding(4,3,0,3)};key.Checked=actions.Keyed();key.Text=key.Checked?"◆":"◇";key.ForeColor=key.Checked?Theme.Accent:Theme.Muted;key.Click+=(s,e)=>{Select(p);CommitPending();actions.ToggleKey();Refresh();};wrap.Controls.Add(key,2,0);binding.updates.Add(()=>{key.Checked=actions.Keyed();key.Text=key.Checked?"◆":"◇";key.ForeColor=key.Checked?Theme.Accent:Theme.Muted;});}
                 editor=wrap;
@@ -101,13 +107,15 @@ internal sealed class ParameterInspector : UserControl
             foreach(var property in boundRows.Keys.Where(p=>!present.Contains(p)).ToArray()){var old=boundRows[property];if(old.editor.ContainsFocus||old.label.ContainsFocus)ActiveControl=null;old.Dispose();boundRows.Remove(property);}
             var categories=new HashSet<string>(descriptors.Select(p=>p.Category));foreach(string category in headings.Keys.Where(c=>!categories.Contains(c)).ToArray()){headings[category].Dispose();headings.Remove(category);}
             var styles=new List<RowStyle>();int row=0;refreshers.Clear();textReverters.Clear();
-            foreach(var group in descriptors.GroupBy(p=>p.Category))
+            foreach(var group in descriptors.GroupBy(p=>p.Category).OrderBy(group=>!Compact?0:group.Key=="变换"||group.Key=="位置"?0:group.Key=="物件"?1:group.Key=="整体对象"||group.Key=="形状"?2:group.Key=="外观"?3:4))
             {
-                Label heading;if(!headings.TryGetValue(group.Key,out heading)){heading=new Label{Text=group.Key,Height=30,Dock=DockStyle.Fill,TextAlign=ContentAlignment.MiddleLeft,ForeColor=Theme.Accent,Font=Theme.Bold,Margin=new Padding(0,7,0,1)};heading.MouseDown+=(s,e)=>{CommitPending();ActiveControl=null;};headings[group.Key]=heading;}
+                string category=group.Key;Button heading;if(!headings.TryGetValue(category,out heading)){heading=new Button{Text=category,Height=30,Dock=DockStyle.Fill,TextAlign=ContentAlignment.MiddleLeft,ForeColor=Theme.Text,BackColor=Theme.Raised,FlatStyle=FlatStyle.Flat,Font=Theme.Bold,Margin=new Padding(0,6,0,1),AutoEllipsis=true};heading.FlatAppearance.BorderSize=0;heading.Click+=(s,e)=>{CommitPending();ActiveControl=null;if(!collapsed.Remove(category))collapsed.Add(category);UpdateRows();};headings[category]=heading;if(Compact&&!openSections.Contains(category)&&new[]{"物件","形状","发射","弹幕寿命","分组与作用范围","外观","彩虹 Cherry","拖影","运动","整体对象","转转棒","发射器","发射阵列","生成模板","释放队形","生命周期"}.Contains(category))collapsed.Add(category);}
+                bool folded=collapsed.Contains(category);string summary="";if(folded){var first=group.FirstOrDefault(p=>p.Name=="贴图"||p.Name=="种类"||p.Name=="拖影样式"||p.Name=="运动模式");if(first!=null)summary=" · "+Convert.ToString(first.GetValue(selectedObject));}heading.Text=(folded?"▸ ":"▾ ")+Language.Text(category)+summary;
                 Place(heading,0,row++,2);styles.Add(new RowStyle(SizeType.Absolute,Font.Height+22));
                 foreach(var property in group)
                 {
-                    PropertyRow binding;if(!boundRows.TryGetValue(property,out binding)){binding=CreateRow(property);boundRows[property]=binding;}
+                    PropertyRow binding;if(!boundRows.TryGetValue(property,out binding)){if(folded)continue;binding=CreateRow(property);boundRows[property]=binding;}
+                    binding.label.Visible=binding.editor.Visible=!folded;if(folded){refreshers.AddRange(binding.updates);foreach(var revert in binding.reverts)textReverters.Add(revert.Key,revert.Value);continue;}
                     if(binding.label.AutoSize!=stacked)binding.label.AutoSize=stacked;
                     if(stacked){Place(binding.label,0,row++,2);styles.Add(new RowStyle(SizeType.AutoSize));Place(binding.editor,0,row++,2);styles.Add(new RowStyle(SizeType.Absolute,Math.Max(34,Font.Height+16)));}
                     else {Place(binding.label,0,row,1);Place(binding.editor,1,row++,1);styles.Add(new RowStyle(SizeType.Absolute,Math.Max(34,Font.Height+16)));}

@@ -1,10 +1,16 @@
 # RufMaker
 
-**1.13.1** adds audio spectrograms, independent timeline row heights and object counts, and improves property undo and saving responsiveness. Run `RufMaker.exe`; see the [release notes](releases/v1.13.1.md) and [detailed controls](beta-bullet-control.md).
+**2.0.0** reorganizes the native desktop interface: fixed command and transport bars, Assets/Presets browsing and Property/Behaviors/Statistics pages. Run `RufMaker.exe`; see the [release notes](releases/v2.0.0.md) and [detailed controls](beta-bullet-control.md).
 
 A native Windows timeline editor for **I Wanna avoidance games**, integrated with GameMaker 8.2.
 
 Place emitters, formations, cameras and effects on a timeline, animate their properties with keyframes, then playtest and export a real game. Native GML, objects and room editing remain available.
+
+## 2.0 interface
+
+Use File for project and import commands, Add for new clips, and the single transport bar for playback, frames, speed, volume, snapping and zoom. The library has Assets/Presets pages. The inspector has Property/Behaviors/Statistics pages; common rule parameters are editable inline, with Advanced editor for full rules. BPM/subdivision/offset settings are under Snap. Native recording management is under Project; engine and language settings are under Tools; updates and the guide are under Help.
+
+Double-click a template card for local preview. Return to source restores the original song time and selection; local preview is silent, and F5 returns to the source before playtesting. Panel sizes, pages and property folds are saved. View includes sidebar visibility, generation-group focus and default-layout reset.
 
 ## Getting started
 
@@ -20,16 +26,16 @@ Generated descendants render above their sources. **Inherit birth sprite and col
 
 Expand a source clip to see **↗ spawn rows** at scheduled song times, including repeats and member delays. Click to seek, double-click to edit the rule. The dialog also accepts **First trigger song frame**. Template cards describe local animation frames: their position defines an animation rather than an actual song-time appearance. Flying-bullet rows show a schedule; early destruction can cancel later triggers.
 
-Sources, spawn rules and referenced templates are automatically grouped on the same timeline track, expanded by default. Folding the source hides its rules and template references; moving it moves their displayed positions. Referenced template-only objects appear inside these groups. Shared templates can appear in several source groups, and edits affect every reference.
+Sources, spawn rules and referenced templates are automatically grouped on the same timeline track, with an option to focus the current group. Folding the source hides its rules and template references; moving it moves their displayed positions. Referenced template-only objects appear inside these groups. Shared templates can appear in several source groups, and edits affect every reference.
 
-Readable template cards show the name, type, local frame range and key count, even for one-shot emissions. Click a card to edit its parameters; double-click to expose its original keys and seek to the local start. Card width is for readability: the printed frame range defines the animation length. Grouping does not change stored clip times, template identities or runtime behavior.
+Readable template cards show the name, type, local frame range and key count, even for one-shot emissions. Click a card to edit its parameters; double-click to edit and preview on the template’s local clock, then use Return to source to restore the song position. Card width is for readability: the printed frame range defines the animation length. Grouping does not change stored clip times, template identities or runtime behavior.
 
 Enable **Random wave colors** on an emitter. `random(360)` chooses a hue; `choose("#FF75AD","#6DE8FF")` chooses explicit colors. Waves share a color unless per-bullet sampling is enabled. A spawn rule's wave color expression applies one shared tint to its generated batch. Results remain fixed after birth and follow the project seed/resample controls. Use a white sprite for arbitrary tinting; tinting a rainbow sprite retains its underlying colors.
 
 For sequential shots with equal speeds and increasing directions, make a separate one-shot template: start/end 0, count 1, fixed angle 0 and speed 3. Remove the distance-based speed behavior from the echo example. On the formation's spawn action choose **Each bullet**, set per-member delay to 3, turn direction inheritance off, and set the initial generation angle to 0 and angle increment per member to 10. Members 0, 1, 2… fire at 0, 10, 20… degrees, all at speed 3. A repeat interval of 0 fires each member once; a positive interval repeats the same direction sequence. Keep the source alive through `source start + trigger age + (member count - 1) × per-member delay`.
 
 1. Download **`RufMaker-VERSION-Windows-Portable.zip`** from [Releases](https://github.com/wymcaT/RufMaker/releases/latest). This is the full Windows application. Extract everything, then run `RufMaker.exe`. A starter project is created from the template when needed.
-2. Choose **English** from **切换语言 / Language** in the setup window or top bar. If GM8.2 is missing, click **Download and set up** in the engine setup window.
+2. Choose **English** from **切换语言 / Language** in the setup window or Tools → Language. If GM8.2 is missing, click **Download and set up** in the engine setup window.
 3. Create a project, choose a song and starting terrain, then add emitters or formations.
 4. Adjust clips and property keyframes. Press **Space** to preview with music, or **F5** to enter the actual game at the playhead.
 5. Use **Export game** and share its entire output folder, including the EXE, Data and required DLLs.

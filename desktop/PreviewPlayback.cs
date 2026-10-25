@@ -80,19 +80,19 @@ internal sealed partial class MainForm
     {
         if(state==null)return;
         try{double now=playClock.Elapsed.TotalSeconds;int next=previewTransport.Advance(now-previewTickTime,previewRate,state.fps,state.duration);previewTickTime=now;
-            if(next!=frame){SetFrame(next);timeline.EnsureFrameVisible();}SyncPreviewAudio();if(!previewTransport.Running)StopPreview(false);}
+            if(next!=frame){SetFrame(next);timeline.EnsureFrameVisible();}SyncPreviewAudio();if(!previewTransport.Running||templateEditing!=null&&next>=templateEditing.end)StopPreview(false);}
         catch(Exception error){StopPlaying();Error(error);}
     }
     private void SyncPreviewAudio()
     {
         double speed=previewTransport.Velocity(previewRate),seconds=previewTransport.Position/Math.Max(1,state.fps);
-        if(audio.Duration<=0)return;if(speed==0||seconds<0||seconds>=audio.Duration){audio.Pause();return;}
+        if(templateEditing!=null){audio.Pause();return;}if(audio.Duration<=0)return;if(speed==0||seconds<0||seconds>=audio.Duration){audio.Pause();return;}
         if(!audio.Playing)audio.Play(seconds,speed);else{audio.SetRate(speed);if(Math.Abs(audio.Position-seconds)>.09)audio.Seek(seconds);audio.Update();}
     }
     private void TogglePlaying()
     {
         if(state==null||busy)return;if(playTimer.Enabled){StopPlaying();return;}
-        try{if(frame>=state.duration)SetFrame(0);previewTransport.Start(frame,1,false);previewTickTime=0;SyncPreviewAudio();playClock.Restart();playTimer.Start();playButton.Text="Ⅱ";SetStatus("时间轴与音乐播放中 · "+previewRate.ToString("0.##")+"× · 空格暂停 · F5 试玩");}
+        try{if(templateEditing!=null&&frame>=templateEditing.end)SetFrame(templateEditing.start);else if(frame>=state.duration)SetFrame(0);previewTransport.Start(frame,1,false);previewTickTime=0;SyncPreviewAudio();playClock.Restart();playTimer.Start();playButton.Text="Ⅱ";SetStatus("时间轴与音乐播放中 · "+previewRate.ToString("0.##")+"× · 空格暂停 · F5 试玩");}
         catch(Exception error){StopPlaying();Error(error);}
     }
     private void StopPlaying(){StopPreview(true);}

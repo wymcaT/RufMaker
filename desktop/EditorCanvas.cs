@@ -34,7 +34,7 @@ internal sealed partial class StageCanvas : Control
     private PointF pointerDown;
     public Track SelectedTrack;public Keyframe SelectedKey;public RoomInstance SelectedInstance;
     public int Frame;public bool Grid=true,Hitboxes,RenderCamera;
-    public string NativeFilmPath;
+    public string NativeFilmPath,TemplatePreviewId;
     public NativeFilmInfo NativeFilmInfo;
     public bool EditNativeTest;public string NativeTestSprite;public Action NativeTestPreview,NativeTestChanged;private bool draggingNativeTest;
     public HashSet<string> NativeFilmIds=new HashSet<string>();
@@ -59,7 +59,9 @@ internal sealed partial class StageCanvas : Control
         if(State==null||Room==null||Sprites==null)return;
         RandomParameters.Attach(State);
         if(assetOwner!=Sprites){assetOwner=Sprites;assetVersion++;}
-        renderState=new EditorState{nativeProject=State.nativeProject,version=State.version,fps=State.fps,bpm=State.bpm,duration=State.duration,room=State.room,music=State.music,timelineInitialized=State.timelineInitialized,randomSeed=State.randomSeed,usePlayerTrace=State.usePlayerTrace,playerTrace=State.playerTrace.Select(p=>new PlayerTracePoint{frame=p.frame,x=p.x,y=p.y}).ToList(),nativeTest=new NativeTestPosition{x=State.nativeTest.x,y=State.nativeTest.y},tracks=State.tracks.Select(t=>t.Snapshot()).ToList()};renderState=BulletSystem.Expand(renderState);RandomParameters.Attach(renderState);renderRoom=Room.Snapshot();renderObjects=ObjectSprites;renderProject=Sprites.Project;renderMetadata=Sprites.Metadata;serial++;QueueRender();Invalidate();
+        renderState=new EditorState{nativeProject=State.nativeProject,version=State.version,fps=State.fps,bpm=State.bpm,duration=State.duration,room=State.room,music=State.music,timelineInitialized=State.timelineInitialized,randomSeed=State.randomSeed,usePlayerTrace=State.usePlayerTrace,playerTrace=State.playerTrace.Select(p=>new PlayerTracePoint{frame=p.frame,x=p.x,y=p.y}).ToList(),nativeTest=new NativeTestPosition{x=State.nativeTest.x,y=State.nativeTest.y},tracks=State.tracks.Select(t=>t.Snapshot()).ToList()};
+        if(!String.IsNullOrEmpty(TemplatePreviewId)){renderState.nativeProject=null;var visible=new HashSet<string>{TemplatePreviewId};bool added;do{added=false;foreach(var child in renderState.tracks)if(visible.Contains(child.parentId))added|=visible.Add(child.id);}while(added);foreach(var track in renderState.tracks){track.templateOnly=!visible.Contains(track.id);if(track.templateOnly&&(track.kind=="camera"||track.kind=="effect"))track.enabled=false;if(track.id==TemplatePreviewId){track.enabled=true;track.parentId="";}}}
+        renderState=BulletSystem.Expand(renderState);RandomParameters.Attach(renderState);renderRoom=Room.Snapshot();renderObjects=ObjectSprites;renderProject=Sprites.Project;renderMetadata=Sprites.Metadata;serial++;QueueRender();Invalidate();
     }
     public void ShowFrame(int frame){if(Frame==frame&&image!=null)return;Frame=frame;serial++;QueueRender();Invalidate();}
     public void DisplayOptionsChanged(){serial++;QueueRender();Invalidate();}
@@ -67,7 +69,7 @@ internal sealed partial class StageCanvas : Control
     {
         if(rendering||renderState==null||!IsHandleCreated||IsDisposed||finished==serial)return;
         if(StatisticsPending!=null)StatisticsPending(Frame);ObjectStatisticsSnapshot statistics=null;
-        rendering=true;int request=serial,frame=Frame,assets=assetVersion;var state=renderState;var room=renderRoom;var objects=renderObjects;string project=renderProject,film=NativeFilmPath;var metadata=renderMetadata;bool grid=Grid,hitboxes=Hitboxes;var cameraPose=RenderCamera?Camera.At(Camera.Active(state,frame),frame,room):null;Fit();var transform=DisplayMatrix();int width=Math.Max(1,Width),height=Math.Max(1,Height);RectangleF frameBounds=view;RectangleF? clip=RenderCamera?(RectangleF?)view:null;
+        rendering=true;int request=serial,frame=Frame,assets=assetVersion;var state=renderState;var room=renderRoom;var objects=renderObjects;string project=renderProject,film=String.IsNullOrEmpty(TemplatePreviewId)?NativeFilmPath:null;var metadata=renderMetadata;bool grid=Grid,hitboxes=Hitboxes;var cameraPose=RenderCamera?Camera.At(Camera.Active(state,frame),frame,room):null;Fit();var transform=DisplayMatrix();int width=Math.Max(1,Width),height=Math.Max(1,Height);RectangleF frameBounds=view;RectangleF? clip=RenderCamera?(RectangleF?)view:null;
         var clock=System.Diagnostics.Stopwatch.StartNew();
         try
         {
@@ -98,9 +100,9 @@ internal sealed partial class StageCanvas : Control
     private Matrix DisplayMatrix()
     {
         Fit();float scale=view.Width/(Room==null?800:Room.width);var m=new Matrix(scale,0,0,scale,view.Left,view.Top);
-        if(RenderCamera&&State!=null&&Room!=null)using(var camera=Camera.At(Camera.Active(State,Frame),Frame,Room).WorldToView(Room.width,Room.height))m.Multiply(camera,MatrixOrder.Prepend);return m;
+        if(RenderCamera&&State!=null&&Room!=null)using(var camera=Camera.At(Camera.Active(String.IsNullOrEmpty(TemplatePreviewId)?State:renderState??State,Frame),Frame,Room).WorldToView(Room.width,Room.height))m.Multiply(camera,MatrixOrder.Prepend);return m;
     }
-    private NativeViewPose NativeView {get{return NativeFilmPath==null||NativeFilmInfo==null||State==null?null:NativeFilmInfo.View((int)Math.Round(Frame*NativeFilmInfo.fps/(double)Math.Max(1,State.fps)));}}
+    private NativeViewPose NativeView {get{return !String.IsNullOrEmpty(TemplatePreviewId)||NativeFilmPath==null||NativeFilmInfo==null||State==null?null:NativeFilmInfo.View((int)Math.Round(Frame*NativeFilmInfo.fps/(double)Math.Max(1,State.fps)));}}
     private Matrix WorldDisplayMatrix(){var m=DisplayMatrix();var pose=NativeView;if(pose!=null&&Room!=null)using(var native=pose.WorldToRoom(Room.width,Room.height))m.Multiply(native,MatrixOrder.Prepend);return m;}
     private PointF TrackPoint(Track track,PointF point){var pose=NativeView;if(track.kind=="camera"&&pose!=null){var points=new[]{point};using(var m=pose.WorldToRoom(Room.width,Room.height))m.TransformPoints(points);return points[0];}return point;}
     private PointF WorldPoint(Track track,PointF point){var pose=NativeView;if(track.kind=="camera"&&pose!=null){var points=new[]{point};using(var m=pose.WorldToRoom(Room.width,Room.height)){m.Invert();m.TransformPoints(points);}return points[0];}return point;}

@@ -64,6 +64,8 @@ internal static class Language
     {Bind(control,()=>control.Text,s=>control.Text=s,h=>control.TextChanged+=h);}
     public static void PreserveText(Control control)
     {bindings.Add(control,new Binding{Apply=()=>{}});}
+    public static void PreserveText(ToolStripItem item)
+    {bindings.Add(item,new Binding{Apply=()=>{}});}
     public static void Attach(Control control)
     {
         if(control==null)return;
@@ -79,10 +81,11 @@ internal static class Language
     {
         Binding existing;if(bindings.TryGetValue(item,out existing))return;
         Bind(item,()=>item.Text,s=>item.Text=s,h=>item.TextChanged+=h);
+        var host=item as ToolStripControlHost;if(host!=null)Attach(host.Control);
         var drop=item as ToolStripDropDownItem;if(drop!=null){foreach(ToolStripItem child in drop.DropDownItems)Attach(child);drop.DropDown.ItemAdded+=(s,e)=>Attach(e.Item);}
     }
     private static void ApplyItem(ToolStripItem item)
-    {Binding b;if(bindings.TryGetValue(item,out b))b.Apply();var drop=item as ToolStripDropDownItem;if(drop!=null)foreach(ToolStripItem child in drop.DropDownItems)ApplyItem(child);}
+    {Binding b;if(bindings.TryGetValue(item,out b))b.Apply();var host=item as ToolStripControlHost;if(host!=null)Apply(host.Control);var drop=item as ToolStripDropDownItem;if(drop!=null)foreach(ToolStripItem child in drop.DropDownItems)ApplyItem(child);}
     public static void Apply(Control control)
     {
         control.SuspendLayout();Binding b;if(bindings.TryGetValue(control,out b))b.Apply();else Attach(control);

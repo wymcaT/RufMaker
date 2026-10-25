@@ -45,7 +45,7 @@ internal sealed partial class MainForm
         presetTools=new FlowLayoutPanel{Dock=DockStyle.Fill,AutoSize=true,WrapContents=true,Margin=Padding.Empty,Visible=false};
         presetAddress=new Label{Text=Language.Text("公共预设库"),AutoSize=true,MaximumSize=new Size(250,0),ForeColor=Theme.Muted,Margin=new Padding(8,4,8,4)};Language.PreserveText(presetAddress);presetTools.Controls.Add(presetAddress);presetTools.SetFlowBreak(presetAddress,true);
         presetTools.Resize+=(s,e)=>presetAddress.MaximumSize=new Size(Math.Max(60,presetTools.ClientSize.Width-20),0);
-        presetTools.Controls.Add(Button("上级",()=>{presetFolder=Path.GetDirectoryName(presetFolder)??"";FillResources();},false,48));presetTools.Controls.Add(Button("新建文件夹",NewPresetFolder,false,88));presetTools.Controls.Add(Button("导入",ImportPresets,false,48));presetTools.Controls.Add(Button("导出",()=>ExportPreset(false),false,48));
+        presetTools.Controls.Add(Button("上级",()=>{presetFolder=Path.GetDirectoryName(presetFolder)??"";FillResources();},false,48));
         return presetTools;
     }
     private PresetEntry SelectedPresetEntry(){return resources.SelectedItems.Count==0?null:resources.SelectedItems[0].Tag as PresetEntry;}

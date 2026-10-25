@@ -19,7 +19,7 @@ internal sealed class InspectorTabs : UserControl
     public void AddPage(string title,Control page)
     {
         int index=pages.Count;titles.Add(title);pages.Add(page);page.Dock=DockStyle.Fill;body.Controls.Add(page);
-        var button=new Button{Text=title,AutoSize=true,MinimumSize=new Size(120,Font.Height+16),FlatStyle=FlatStyle.Flat,UseVisualStyleBackColor=false,BackColor=Theme.Panel,ForeColor=Theme.Text,Padding=new Padding(10,3,10,3),Margin=new Padding(0,0,3,3)};
+        var button=new Button{Text=title,AutoSize=true,MinimumSize=new Size(66,Font.Height+16),FlatStyle=FlatStyle.Flat,UseVisualStyleBackColor=false,BackColor=Theme.Panel,ForeColor=Theme.Text,Padding=new Padding(6,3,6,3),Margin=new Padding(0,0,3,3)};
         button.FlatAppearance.BorderColor=Theme.Line;button.Click+=(s,e)=>SelectedIndex=index;buttons.Add(button);header.Controls.Add(button);SelectedIndex=selected;SizeHeader();
     }
     public void RefreshLanguage(){for(int i=0;i<buttons.Count;i++)buttons[i].Text=Language.Text(titles[i]);SizeHeader();}
@@ -33,9 +33,9 @@ internal sealed partial class MainForm
     private ObjectStatisticsSnapshot lastStatistics;
     private Control BuildInspectorTabs()
     {
-        inspectorTabs.AddPage("属性",properties);inspectorTabs.AddPage("对象统计",objectStatistics);
-        inspectorTabs.SelectedIndex=restoredView!=null&&restoredView.objectStatistics?1:0;
-        objectCount.Click+=(s,e)=>inspectorTabs.SelectedIndex=1;Language.ToolTip(tips,objectStatistics,"统计当前预览帧的实例数量；来源物件是分类明细，不重复计入总数。");
+        inspectorTabs.AddPage("属性",properties);inspectorTabs.AddPage("行为",BuildBehaviorWorkspace());inspectorTabs.AddPage("统计",objectStatistics);
+        inspectorTabs.SelectedIndex=restoredView!=null?(restoredView.objectStatistics?2:Math.Max(0,Math.Min(2,restoredView.inspectorPage))):0;
+        objectCount.Click+=(s,e)=>inspectorTabs.SelectedIndex=2;Language.ToolTip(tips,objectStatistics,"统计当前预览帧的实例数量；来源物件是分类明细，不重复计入总数。");
         stage.StatisticsPending=PendingStatistics;stage.StatisticsReady=data=>{lastStatistics=data;objectStatistics.SetPending(data.frame);objectStatistics.ShowStatistics(data);objectCount.Text=(data.nativeMissing?"obj ≥ ":"obj: ")+data.total.ToString("N0");};return inspectorTabs;
     }
     private void PendingStatistics(int at){objectStatistics.SetPending(at);if(lastStatistics==null)objectCount.Text="obj: …";}

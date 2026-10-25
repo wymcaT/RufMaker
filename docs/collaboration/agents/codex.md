@@ -1,12 +1,31 @@
 # Codex 任务记录
 
-- 状态：`completed`
-- 任务：已完成同轨生成组、可读模板卡片、选择/局部关键帧入口及共享引用显示。本地实现、构建和提交，不推送。
-- 开始时基线：`4292f12`，分支 `main`；保留已有用户工程改动。
-- 当前占用文件：无（已完成并释放）。
-- 验收结果：同轨分组/模板可读宽度/共享与循环引用/选择和局部关键帧/实际鼠标拖组/折叠保存/工程数据不变检查通过；撤销、复制粘贴、关键帧边界、混合轨道和语言回归通过；截图已检查，正式 EXE 已构建。
-- 本轮发布：仅本地 1.13.9 构建/提交，未推送。远程 main 为 `a83e764`，Release/latest 仍为 v1.13.1（Actions `40114921642`）。
-- 本机产物：根目录 `RufMaker.exe`，ProductVersion `1.13.9`，FileVersion `1.13.9.0`，1,111,040 bytes。已安全替换路径，运行中的旧进程需保存并重启。
+- 状态：`in_progress`
+- 任务：按已认可方案实施 2.0.0 原生 UI 整理，完成定向验证、EXE 构建、推送与正式 Release。
+- 开始时基线：`4848317`，分支 `main`；保留已有用户工程改动。
+- 当前占用文件：desktop/{MainForm,WorkspaceView,SelectionTimeControl,StatisticsTools,ParameterInspector,NativeProperties,BulletTools,TemplateTools,PresetBrowser,Localization,PreviewPlayback,TimelineCanvas,TimelineLayout,SpawnTimeline,TimelineAudio,Updater}.cs；新增 desktop/*Shell*.cs、desktop/*Workspace*.cs；desktop/Build-Native.ps1 与定向 UI 测试；assets/locales/en.json；双语 README、docs/design/、docs/collaboration/{STATUS.md,agents/codex.md}；build/ui-v2/、根 RufMaker.exe；发布脚本/说明按需要登记。
+- 验收计划：固定工具行、命令可达、资源/行为/统计切页、右栏复用、模板时间上下文、关键帧/撤销/复制、中文英文窄窗口与高 DPI；隔离测试工程，用户 projects 不写入。
+- 本轮发布：用户已明确授权完成后推送并发布 v2.0.0；发布前核对版本、完整便携包与更新包，保留用户资料。
+- 本机产物：根目录 `RufMaker.exe`，ProductVersion `2.0.0`，FileVersion `2.0.0.0`，1,152,000 bytes；已构建并 File.Replace 安全替换，未结束用户进程。前版本在 build/ui-v2/RufMaker.previous.exe。
+
+## 2026-10-25：2.0.0 原生界面整理与发布（进行中）
+
+- 已实施六菜单和固定 ToolStrip 主工具/播放工具，使用原生 overflow；左栏素材/预设分类、搜索与管理菜单；预览显示/测试/缩放菜单、条件随机和底片状态；右栏属性/行为/统计、紧凑共享进度条和起止输入、折叠分组及原位参数按钮。保留完整行为编辑器，常用规则参数可在行为页编辑；时间轴双击规则直达对应行。用户已明确授权 v2.0.0 推送/Release。
+- 新增 EditorShell.cs、BehaviorWorkspace.cs，并加入 Build-Native 显式列表。WorkspaceView 版本 2，新增 recentProjects、collapsedSections（! 前缀表示展开）、leftHidden/rightHidden、inspectorPage；TimelineView 新增 focusGenerationGroups。仅工作区字段；工程模型/后台协议/导出 GML 未改。语言绑定补 ToolStripControlHost 控件与用户文本保留，语言菜单替代旧顶栏组合框。
+- 模板双击设置 StageCanvas.TemplatePreviewId，在渲染快照中单独激活模板及分组成员，保持生成依赖；原生底片与原生视野在局部预览中暂停使用。模板编辑限制游标至模板区间、静音局部播放，返回时恢复歌曲帧与来源；F5 自动退出局部上下文。预览状态不写入工程。测试检查隔离快照及工程不变，没有改变游戏运行公式。
+- Test-ShellLayout.ps1 通过：命令可达、固定工具行、共享时间、行为页、模板隔离/返回、语言/工程不变、关键帧撤销和中/英/1100×740 截图；未启动主窗 Shown/后台 load，所有数据写 build/ui-v2/check。Test-Localization、Test-RandomTimeline、Test-TemplateSystem、Test-Presets 通过。Test-EditorPerformance（ui-v2-final）通过，40 轨/6400 键合成用例单值编辑中位约 1.46ms、撤销 3.76ms、原控件保留；加键约 83.35ms、撤销 7.73ms，共用控件保留。这些不是实际工程 FPS 或 GUI 用户验收。
+- 初次本地化测试暴露 popup 内 checkbox 未翻译，已补 hosted control 递归绑定；性能测试按新分类展开后复测通过，保留失败日志。相关现有测试调整为 ToolStrip 菜单入口与“外观”原位分类，没有删掉状态/控件复用断言。第一次 Shell 运行遗留测试目录语言影响重跑，测试显式重置自身隔离语言设置。无遗留错误弹窗。
+- 发布说明、双语 README 与设计状态已更新；根 EXE 版本一致。构建/截图/测试日志在 build/ui-v2/。未修改 projects 用户文件；仍为 12 个已有追踪文件，817 增/236 删，未纳入暂存。
+- Package-Release 产出 final-distribution：完整便携 ZIP 58,785,959 bytes、更新 ZIP 56,954,131 bytes 及各自 SHA256。检查必需入口和 2,639 个便携文件，不含个人工程/设置。初次检查错误假定模板入口为 avoidance.gm82，已核实实际 rufmaker-demo.gm82 存在并修正检查。远程正式 1.13.1 EXE 的旧更新器实际解压/校验最终 2.0.0 更新包通过，AppPaths 新素材整理通过。
+- Test-Updater 通过：最新版/双版本提示、资源选择，以及隔离应用真实替换、保留资料、备份和重启。Test-PreviewPlayback 通过：逐帧/长按/倒放、倍速、GM 标记吸附和静音 FMOD 播放；原测试的 [short] 在 Windows PowerShell 无法解析，改为等价 [int16] 后通过。没有修改音频实现。新测试/测试修正属于本轮占用。
+- 本地构建和包验证完成；待精确提交、push main+v2.0.0 和 Actions 发布结果确认。旧窗口需用户保存并重启，无需重新制作用户工程。
+
+## 2026-10-25：界面整理提案（尚未实施）
+
+- 用户要求先给方案。新增 `docs/design/ui-reorganization-2026-10-25.md` 与 `docs/design/images/ui-reorganization-2026-10-25.png`，明确菜单迁移表、常驻/情境入口、阶段顺序及验收要求；布局保留四区和原生 WinForms，不引入 HTML。
+- 建议菜单 + 一行主工具，左栏素材/预设，右栏属性/行为/统计，时间轴单行播放工具。保留右栏共享时间条、物件起止输入、参数行关键帧、同轨生成组、可读模板引用、波形/频谱高度与快捷键；补充模板局部编辑上下文和窄窗口/DPI/双语约束。均为提案，不是已上线功能。
+- 对照读取 MainForm、ProjectCommands、SelectionTimeControl、BulletTools、PreviewPlayback、NativeTestPlayer、PlayerTrace、StatisticsTools 等入口；参考现有 `build/verified-english-layout.png` 确认拥挤位置。System.Drawing 生成器在 `build/ui-plan/render-ui-plan.cs`，用系统 Framework64 csc 编译并成功输出 PNG，已查看修正起止按钮文字截断；初次生成器编译因隐式多变量声明失败，已修正，没有启动应用或遗留弹窗。
+- 未修改应用源码、语言资源、版本、根 EXE 或用户工程；未跑应用测试/GM 运行，不把静态图检查当成交互验收。未本地提交、未推送；后续实施等待用户对方案的反馈，本轮提案无必做剩余项。
 
 ## 2026-10-25：同轨生成组与可读模板卡片
 
