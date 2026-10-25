@@ -9,7 +9,7 @@ internal static class PreviewRenderer
     {
         if(cache==null)using(var temporary=new PreviewCache())return Render(state,room,objectSprites,sprites,frame,grid,hitboxes,temporary,transform,width,height,displayClip,effectsFrame,nativeFilmPath,camera,applyEffects);
         if(cache.expandedState==null){cache.expandedState=BulletSystem.Expand(state);BulletSystem.Attach(cache.expandedState);}state=cache.expandedState;
-        bool advanced=BulletSystem.Advanced(state);if(advanced){if(cache.bulletWorld==null)cache.bulletWorld=new BulletWorld(state);cache.bulletWorld.Seek(frame);}
+        var film=cache.FilmFrame(nativeFilmPath,frame,state.fps);bool advanced=BulletSystem.Advanced(state);if(advanced){if(cache.bulletWorld==null)cache.bulletWorld=new BulletWorld(state,room,f=>cache.FilmInfo==null?null:cache.FilmInfo.View((int)Math.Round(f*cache.FilmInfo.fps/(double)Math.Max(1,state.fps))));cache.bulletWorld.Seek(frame);}
         if(camera!=null&&camera.Post){
             Bitmap processed;using(var scene=Render(state,room,objectSprites,sprites,frame,grid,hitboxes,cache,null,room.width,room.height,null,null,nativeFilmPath,null,false))processed=Effects.CameraFrame(scene,camera);
             if(applyEffects)processed=Effects.Apply(processed,state,frame,cache);
@@ -19,7 +19,7 @@ internal static class PreviewRenderer
                 inverse.Invert();if(transform!=null)baseMatrix.Multiply(inverse,MatrixOrder.Prepend);Theme.Workspace(g,new Rectangle(0,0,output.Width,output.Height));if(displayClip.HasValue)g.SetClip(displayClip.Value);g.Transform=baseMatrix;g.InterpolationMode=InterpolationMode.NearestNeighbor;g.PixelOffsetMode=PixelOffsetMode.Half;g.DrawImage(processed,new Rectangle(0,0,room.width,room.height),0,0,processed.Width,processed.Height,GraphicsUnit.Pixel);
             }return output;
         }
-        var film=cache.FilmFrame(nativeFilmPath,frame,state.fps);var baked=film==null?null:cache.FilmNativeIds;
+        var baked=film==null?null:cache.FilmNativeIds;
         var signature=new System.Text.StringBuilder().Append(room.width).Append(':').Append(room.height).Append(':').Append(room.bgColor).Append(':').Append(grid).Append(':').Append(hitboxes);
         string roomKey=signature.ToString();
         if(cache.roomLayer==null||cache.roomKey!=roomKey)

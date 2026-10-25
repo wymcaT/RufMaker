@@ -25,5 +25,19 @@ add({id:'release-rainbow',kind:'rod',start:0,end:30,shape:'ellipse',x:610,y:230,
 tracks.push(...starEchoTracks());
 add({id:'echo-star-other',kind:'rod',shape:'star2',start:0,end:300,x:540,y:230,count:15,radius:55,orientation:15,spawnActions:[spawn('echo-shot',{start:100,spawnOrigin:'each',inheritAngle:true})]});
 add({id:'nested-echo',kind:'rod',parentId:'group-template',start:200,end:240,x:25,y:10,shape:'star2',count:5,radius:12,spawnActions:[spawn('echo-shot',{start:7,spawnOrigin:'each',inheritAngle:true,maxGeneration:2})]});
+
+add({id:'life-camera',kind:'camera',start:0,end:50,x:400,y:304,cameraZoom:2,angle:90});
+add({id:'life-fixed',kind:'emitter',end:0,x:120,y:120,count:1,speed:0,scale:2,alpha:.8,life:10,deathEffect:'shrink-fade',deathFrames:4});
+add({id:'life-room',kind:'emitter',end:0,x:790,y:200,count:1,speed:10,life:1,lifetimeMode:'room',deathEffect:'shrink-fade',deathFrames:4});
+add({id:'life-room-none',kind:'emitter',end:0,x:790,y:230,count:1,speed:10,life:1,lifetimeMode:'room'});
+add({id:'life-view',kind:'emitter',end:0,x:530,y:304,count:1,speed:10,life:1,lifetimeMode:'view',deathEffect:'fade',deathFrames:4});
+add({id:'life-room-vs-view',kind:'emitter',end:0,x:530,y:304,count:1,speed:10,life:1,lifetimeMode:'room'});
+add({id:'life-clear',kind:'emitter',end:0,x:100,y:150,count:1,speed:0,life:40,deathEffect:'fade',deathFrames:4,bulletActions:[{type:'clear',start:3,duration:0}]});
+add({id:'life-clear-overlap',kind:'emitter',end:0,x:100,y:180,count:1,speed:0,life:4,deathEffect:'fade',deathFrames:6,bulletActions:[{type:'clear',start:3,duration:0}]});
+add({id:'life-born-outside',kind:'emitter',end:0,x:-10,y:200,count:1,speed:10,life:100,lifetimeMode:'room'});
+add({id:'life-inset',kind:'emitter',end:0,x:790,y:260,count:1,speed:0,life:100,lifetimeMode:'room',despawnMargin:-20,deathEffect:'fade',deathFrames:3});
+add({id:'life-stagger-shot',kind:'emitter',templateOnly:true,end:0,x:0,y:0,count:1,speed:3,life:60,emissionFacing:'fixed'});
+add({id:'life-stagger-host',kind:'rod',shape:'rod',count:4,start:0,end:50,x:350,y:250,length:60,spawnActions:[spawn('life-stagger-shot',{start:5,duration:20,spawnRepeat:20,stagger:3,spawnOrigin:'each',spawnAngle:10,spawnAngleStep:15,inheritAngle:false})]});
+
 const scene=normalizeState({version:2,name:'Template runtime check',room:'rAvoidance',duration:1500,fps:50,randomSeed:781,nativeTest:{x:400,y:500},tracks});
 fs.mkdirSync(process.argv[2],{recursive:true});fs.writeFileSync(path.join(process.argv[2],'scene.json'),JSON.stringify(scene));

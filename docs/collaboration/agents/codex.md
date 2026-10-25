@@ -1,11 +1,26 @@
 # Codex 任务记录
 
 - 状态：`completed`
-- 任务：已添加 source.x/source.y（生成时直接来源中心的世界坐标快照），创建可编辑、可导出的星星复制扩散示例。已本地验证、构建，未推送。
-- 开始时基线：`6c31b3f`，分支 `main`；保留用户 projects 下既有改动。
-- 当前占用文件：无，完成并释放；原有用户工程及 Argon4 记录未改。
-- 本轮发布：仅本地 1.13.5 构建/提交，未推送。远程 main 为 `a83e764`，Release/latest 仍为 v1.13.1（Actions `40114921642`）。
-- 本机产物：根目录 `RufMaker.exe`，ProductVersion `1.13.5`，FileVersion `1.13.5.0`，1,078,272 bytes。已安全替换路径，运行中的旧进程需保存并重启。
+- 任务：已完成飞行弹幕寿命模式（固定/房间外/当前视野外）、缩小/淡出销毁过渡，以及模板生成的初始方向和逐成员方向递增；补充周期扩散与逐颗等速发射说明。仅本地实现、构建，不推送。
+- 开始时基线：`d278c0b`，分支 `main`；保留已有用户工程及示例。
+- 当前占用文件：无（已完成并释放）。
+- 验收结果：C#/JS 定向测试、复制预设与 FPS、右栏控件复用和中英切换通过；隔离 GM8.2 22 时刻 1,130 个完整状态对照通过。待用户交互验收。
+- 本轮发布：仅本地 1.13.6 构建/提交，未推送。远程 main 为 `a83e764`，Release/latest 仍为 v1.13.1（Actions `40114921642`）。
+- 本机产物：根目录 `RufMaker.exe`，ProductVersion `1.13.6`，FileVersion `1.13.6.0`，1,085,952 bytes。已安全替换路径，运行中的旧进程需保存并重启。
+
+## 2026-10-25：弹幕寿命、销毁过渡与顺序发射
+
+- 持久字段：Track 增加 `lifetimeMode="fixed"`（fixed/room/view）、`deathEffect="none"`（none/shrink/fade/shrink-fade）、`deathFrames=15`、`despawnMargin=0`；BulletAction 增加 `spawnAngle=0`、`spawnAngleStep=0`。旧工程默认保持固定寿命、无过渡与原生成方向；现有 Memberwise 快照、复制、JSON 保存/读取和预设涵盖这些值。预设和循环片段按 FPS/时间倍率换算 deathFrames，角度/像素余量不缩放。
+- 新增 `desktop/BulletLifetime.cs`，已加入 Build-Native 显式清单；新增 `studio/bullet-lifetime.mjs`，同步登记 `rf_lifetime_inside/request/tick` 三个内部 GML 脚本。发射器和整体对象右栏增加“弹幕寿命”，条件字段沿用增量更新，不清空整页。寿命数值仅固定模式显示，已有 life 关键帧保留。
+- 房间外/游戏视野外模式不受数值 life 限制；边界以弹幕中心计算，出生即越界也触发。余量正值扩大、负值缩小允许范围。当前 RufMaker 拉镜优先，随后使用原生底片/游戏 view0，最后回退房间；编辑器自身缩放/平移不改变判定。C# 按模拟帧缓存镜头边界。
+- 固定寿命在到期前消退，按原时刻移除；越界、RufMaker clear 和生成后销毁触发后播放过渡，结束才移除。待销毁实例保持移动、禁用碰撞和后续行为/生成，统计保留到真正移除。缩放/透明度以原参数乘过渡系数，历史拖影保存最终外观，避免逐帧重复衰减；已开始固定寿命消退后再 clear 不会突然变亮。
+- 此寿命设置用于发射弹幕及已释放成员；未释放的整体成员仍由队形/物件时段控制。任意用户 GML 中直接 instance_destroy 不会被拦截。这些边界已写进双语说明与工具提示。
+- 生成方向为 `(继承 ? 母体方向 : 0) + spawnAngle + 成员编号 × spawnAngleStep`，成员编号从 0 开始。C#/GML 同步。现有 stagger 和 spawnRepeat 分别控制逐成员错开与重复；重复时每名成员保持自己的方向，不按重复次数继续加角度。README/英文指南写出周期星形副本、逐颗等速发射配方；未改写用户上一轮 Star Echo 工程。
+- 实际源码：desktop/{BulletLifetime,EditorCore,BulletSystem,TemplateRuntime,BulletBehaviorForm,MainForm,BulletTools,PreviewRenderer,PresetLibrary,Updater}.cs、desktop/Build-Native.ps1；studio/{bullet-lifetime,bullet-schema,bullet-system,template-system,project}.mjs；assets/locales/en.json。测试修改：TemplateSystemTests、template-fixtures、verify-template-gml、LocalizationTests、PresetTests，新增 studio/bullet-lifetime.test.mjs；另有双语 README、交接和根 EXE。
+- 通过：Node `--test studio/bullet-lifetime.test.mjs studio/template-system.test.mjs studio/bullet-system.test.mjs`（8/8）；`Test-TemplateSystem.ps1`（固定/越界/旋转缩放视野/原生 view/缩小透明/销毁重叠/负余量/出生在外/两轮错开发射及新 UI 参数写入）；`Test-Presets.ps1`；`Test-Localization.ps1`；`Test-EditorPerformance.ps1`。最终桌面日志在 `build/lifetime-check/{template,localization,inspector}.log`。
+- 真实 GM8.2：`runtime/node.exe desktop/tests/verify-template-gml.mjs` 通过，22 个时刻 1,130 个完整状态含碰撞、待销毁年龄、视觉缩放/透明度、生成方向与 C# 一致。隔离目录 `build/template-system-check/Template GM 1792900814285/`；沙箱外运行已配置引擎，无残留错误弹窗。
+- 右栏性能回归：40 物件/6400 键，单项编辑/撤销中位数 1.75/3.87 ms，加键/撤销加键 4.57/5.74 ms，168 个基础控件全部保留。仅本轮合成场景的回归结果，不用于推断实际游戏 FPS。
+- 最终构建 `desktop/Build-Native.ps1 -Output D:\rufmaker\build\lifetime-check\RufMaker.exe` 通过，根入口通过 File.Replace 安全替换、SHA256 相同，备份 `build/lifetime-check/RufMaker.previous-*.exe`。未关闭用户进程。本地提交随本节所属修复保存；未推送/发布，无剩余必做项，待用户验收。
 
 ## 2026-10-25：生成来源中心与星星复制扩散示例
 

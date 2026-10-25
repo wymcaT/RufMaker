@@ -436,7 +436,7 @@ internal sealed partial class MainForm : LocalizedForm
     }
     private void AnimatedFields(NativeProperties bag,Track track)
     {
-        foreach(string item in Motion.Fields(track).Where(p=>!Rainbow.Parameters.Contains(p)))
+        foreach(string item in Motion.Fields(track).Where(p=>!Rainbow.Parameters.Contains(p)&&(p!="life"||BulletLifetime.Mode(track)=="fixed")))
         {string property=item;bag.Add(Motion.Name(property),"参数",typeof(double),()=>Motion.Value(track,property,frame),value=>{PushUndo();Motion.EditValue(track,property,frame,ClampValue(property,(double)value));timeline.SelectedProperty=property;MarkChanged();},null,"◇ 开启属性关键帧；◆ 关闭并保留当前值。随机开关支持 random、random_range、choose，结果保持到重新随机。",ParameterControls(new[]{track},property));}
     }
     private bool inspectorUpdatePending;

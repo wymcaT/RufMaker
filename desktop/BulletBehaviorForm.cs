@@ -58,6 +58,8 @@ internal sealed class BulletBehaviorForm : Form
         bag.Add("最小编号","生成",typeof(int),()=>a.spawnIndexFrom,v=>a.spawnIndexFrom=Math.Max(0,(int)v));bag.Add("最大编号（-1 不限）","生成",typeof(int),()=>a.spawnIndexTo,v=>a.spawnIndexTo=Math.Max(-1,(int)v));
         bag.Add("生成偏移 X","生成",typeof(double),()=>a.spawnOffsetX,v=>a.spawnOffsetX=(double)v);bag.Add("生成偏移 Y","生成",typeof(double),()=>a.spawnOffsetY,v=>a.spawnOffsetY=(double)v);
         bag.Add("继承母体方向","生成",typeof(bool),()=>a.inheritAngle,v=>a.inheritAngle=(bool)v);bag.Add("生成后销毁母体","生成",typeof(bool),()=>a.destroyParent,v=>a.destroyParent=(bool)v);
+        bag.Add("初始生成方向 / 度","生成",typeof(double),()=>a.spawnAngle,v=>a.spawnAngle=(double)v);
+        bag.Add("每颗生成方向递增 / 度","生成",typeof(double),()=>a.spawnAngleStep,v=>a.spawnAngleStep=(double)v,null,"方向 = 初始生成方向 + 成员编号 × 递增值；开启继承时再叠加母体方向。编号从 0 开始。");
         bag.Add("最大生成代数","生成",typeof(int),()=>a.maxGeneration,v=>a.maxGeneration=Math.Max(1,Math.Min(4,(int)v)),null,"原物件为第 0 代。生成物可继续生成下一代，最大 4 代。");
         bag.Add("说明","生成",typeof(string),()=>"生成物以当前位置为起点，从模板自己的开始帧执行关键帧和运动；生成后独立存在。整体中心销毁整件，各颗弹幕模式只销毁符合筛选的成员。",null);
     }

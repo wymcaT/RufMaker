@@ -22,6 +22,7 @@ internal sealed partial class MainForm
     private void BulletFields(NativeProperties bag,Track t)
     {
         TemplateFields(bag,t);
+        if(t.kind=="emitter"||t.kind=="rod")LifetimeFields(bag,t);
         if(new[]{"emitter","rod","object","group"}.Contains(t.kind)){
             Field(bag,"弹幕标签","分组与作用范围",()=>t.tag,v=>t.tag=(v??"").Trim());var groups=state.tracks.Where(g=>g.kind=="group"&&g!=t&&!Ancestors(g).Contains(t)).ToArray();var names=new[]{"无父级"}.Concat(groups.Select(g=>g.name+" · "+g.id.Substring(0,Math.Min(6,g.id.Length)))).ToArray();
             Field(bag,"父级分组","分组与作用范围",()=>names[Math.Max(0,Array.FindIndex(groups,g=>g.id==t.parentId)+1)],v=>{int i=Array.IndexOf(names,v)-1;t.parentId=i<0?"":groups[i].id;},names,"有父级时坐标、角度、大小为组内局部值。右键创建分组会保留当前摆放。");
@@ -35,7 +36,7 @@ internal sealed partial class MainForm
             bag.Add("弹幕行为","弹幕行为",typeof(string),()=>t.bulletActions.Count+" 项 · 点击下栏“弹幕行为…”编辑",null);if(t.emissionShape=="bezier")bag.Add("曲线控制点","发射阵列",typeof(string),()=>"选中物件后拖动画布中的四个方块；也可右键重置曲线。",null);
         }
         if(t.kind=="rod"){
-            Field(bag,"释放队形的歌曲帧（-1 关闭）","释放队形",()=>t.releaseFrame,v=>t.releaseFrame=Math.Max(-1,Math.Min(state.duration,v)),null,"释放后保留当时位置，按弹速和弹幕行为独立飞行。");string[] names={"径向散开","沿切线","指定角度","朝玩家"},values={"radial","tangent","fixed","aim"};Field(bag,"释放方向","释放队形",()=>names[Math.Max(0,Array.IndexOf(values,t.releaseDirection))],v=>t.releaseDirection=values[Array.IndexOf(names,v)],names);Field(bag,"释放弹速","释放队形",()=>t.speed,v=>t.speed=v);Field(bag,"释放后寿命 / 帧","释放队形",()=>t.life,v=>t.life=Math.Max(1,v));bag.Add("弹幕行为","释放队形",typeof(string),()=>t.bulletActions.Count+" 项 · 点击下栏“弹幕行为…”编辑",null);
+            Field(bag,"释放队形的歌曲帧（-1 关闭）","释放队形",()=>t.releaseFrame,v=>t.releaseFrame=Math.Max(-1,Math.Min(state.duration,v)),null,"释放后保留当时位置，按弹速和弹幕行为独立飞行。");string[] names={"径向散开","沿切线","指定角度","朝玩家"},values={"radial","tangent","fixed","aim"};Field(bag,"释放方向","释放队形",()=>names[Math.Max(0,Array.IndexOf(values,t.releaseDirection))],v=>t.releaseDirection=values[Array.IndexOf(names,v)],names);Field(bag,"释放弹速","释放队形",()=>t.speed,v=>t.speed=v);if(BulletLifetime.Mode(t)=="fixed")Field(bag,"释放后寿命 / 帧","释放队形",()=>t.life,v=>t.life=Math.Max(1,v));bag.Add("弹幕行为","释放队形",typeof(string),()=>t.bulletActions.Count+" 项 · 点击下栏“弹幕行为…”编辑",null);
         }
         if(t.kind=="control"){
             var sources=state.tracks.Where(s=>new[]{"emitter","rod"}.Contains(s.kind)).ToArray();var names=new[]{"全部来源"}.Concat(sources.Select(s=>s.name+" · "+s.id.Substring(0,Math.Min(6,s.id.Length)))).ToArray();Field(bag,"来源物件","作用范围",()=>names[Math.Max(0,Array.FindIndex(sources,s=>s.id==t.targetSource)+1)],v=>{int i=Array.IndexOf(names,v)-1;t.targetSource=i<0?"":sources[i].id;},names);

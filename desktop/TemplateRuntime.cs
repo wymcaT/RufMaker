@@ -57,10 +57,10 @@ internal sealed class TemplateRuntime
         instances.Clear();hidden=snapshot==null?new HashSet<string>():new HashSet<string>(snapshot.hidden);serial=snapshot==null?0:snapshot.serial;
         if(snapshot!=null)instances.AddRange(snapshot.instances.Select(t=>t.Clone()));fixedBullets.Clear();foreach(var b in world.bullets.Where(b=>b.kinematic))fixedBullets[Key(b.templateOwner,b.source,b.index)]=b;
     }
-    private bool Generate(BulletAction action,int frame,double x,double y,double heading,int generation,double sourceX,double sourceY)
+    private bool Generate(BulletAction action,int frame,double x,double y,double heading,int generation,double sourceX,double sourceY,int index)
     {
         var definition=Definition(action.templateId);if(definition==null)return false;
-        double rotation=action.inheritAngle?heading:0,a=rotation*Math.PI/180;
+        double rotation=(action.inheritAngle?heading:0)+action.spawnAngle+index*action.spawnAngleStep,a=rotation*Math.PI/180;
         var instance=new TemplateInstance{serial=++serial,birth=frame,shift=frame-definition.root.start,generation=generation+1,x=x+action.spawnOffsetX*Math.Cos(a)+action.spawnOffsetY*Math.Sin(a),y=y-action.spawnOffsetX*Math.Sin(a)+action.spawnOffsetY*Math.Cos(a),rotation=rotation,sourceX=sourceX,sourceY=sourceY,definition=definition};
         instances.Add(instance);StepInstance(instance,frame);return true;
     }
@@ -69,7 +69,7 @@ internal sealed class TemplateRuntime
         if(bullet.behavior==null)return;
         bool destroy=false;
         foreach(var a in bullet.behavior.bulletActions.Where(a=>a.type=="spawn"))if(Trigger(a,frame-bullet.birth,bullet.index,bullet.generation))
-            if(Generate(a,frame,bullet.x,bullet.y,bullet.direction,bullet.generation,bullet.x,bullet.y))destroy|=a.destroyParent;
+            if(Generate(a,frame,bullet.x,bullet.y,bullet.direction,bullet.generation,bullet.x,bullet.y,bullet.index))destroy|=a.destroyParent;
         if(destroy)bullet.dead=true;
     }
     private void TrackActions(Track track,int time,int frame,int owner,int generation,TemplateInstance instance)
@@ -84,7 +84,7 @@ internal sealed class TemplateRuntime
                 int member=each?i:-1;if(!Visible(track,member,owner)||!Trigger(action,time-track.start,i,generation))continue;
                 var p=points[i];double heading=each?ExpressionContext.Direction(pose.x,pose.y,p.X,p.Y):pose.angle;
                 if(instance!=null){p=instance.Point(p.X,p.Y);heading+=instance.rotation;}
-                if(Generate(action,frame,p.X,p.Y,heading,generation,center.X,center.Y)&&action.destroyParent)Hide(track,member,owner);
+                if(Generate(action,frame,p.X,p.Y,heading,generation,center.X,center.Y,i)&&action.destroyParent)Hide(track,member,owner);
             }
         }
     }

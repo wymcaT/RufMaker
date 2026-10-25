@@ -59,6 +59,8 @@ internal sealed class Track
     public bool cameraMirror;public double cameraBlur,cameraBlurAngle;
     public double fxZoom=1.13,fxFlash=.18;public int fxSlices=11,fxStutter=2;
     public string trailMode="legacy";
+    public string lifetimeMode="fixed",deathEffect="none";
+    public int deathFrames=15;public double despawnMargin;
     public int trailInterval=3,trailLife=18;
     public double spriteAngle,trailScaleDecay=.035,trailAlphaDecay=.035,trailStartAlpha=.55,trailSpeed,trailDirection;
     public bool rainbow,rainbowReverse,rainbowDynamic;
@@ -79,7 +81,7 @@ internal sealed class BulletAction
 {
     public string type="speed",easing="linear",expression="",templateId="";public bool enabled=true,relative;
     public string spawnOrigin="center",spawnParity="all";public int spawnRepeat,spawnIndexFrom,spawnIndexTo=-1;
-    public double spawnOffsetX,spawnOffsetY;public bool inheritAngle,destroyParent;
+    public double spawnOffsetX,spawnOffsetY,spawnAngle,spawnAngleStep;public bool inheritAngle,destroyParent;
     public int start,duration=30,stagger,count=5,maxGeneration=1;public double from,to=3,spread=20,childSpeed=3;
     public BulletAction Snapshot(){return (BulletAction)MemberwiseClone();}
 }

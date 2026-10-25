@@ -7,14 +7,16 @@
 | 项目 | 状态 |
 | --- | --- |
 | 本机仓库 | `D:\rufmaker` |
-| 正式分支 | `main`；本轮基线 `6c31b3f`，远程仍为 `a83e764` |
-| 功能版本 | 本地 `1.13.5`：生成来源中心 source.x/y、移动星星复制扩散示例；包含 1.13.2～1.13.4 本地改动。远程 main/Release 仍为 `1.13.1` |
-| 本机正式入口 | `RufMaker.exe`，ProductVersion `1.13.5`，已构建并安全替换；正在运行的旧进程需用户保存后重启 |
+| 正式分支 | `main`；本轮基线 `d278c0b`，远程仍为 `a83e764` |
+| 功能版本 | 本地 `1.13.6`：弹幕固定/房间外/视野外寿命、缩小/透明销毁过渡、逐成员生成方向递增；包含 1.13.2～1.13.5 本地改动。远程 main/Release 仍为 `1.13.1` |
+| 本机正式入口 | `RufMaker.exe`，ProductVersion `1.13.6`，已构建并安全替换；正在运行的旧进程需用户保存后重启 |
 | 历史测试入口 | 忽略文件 `RufMaker.Beta.exe` 可能仍是旧 Beta，不作为正式入口 |
 | 远程 | [v1.13.1 正式发行版](https://github.com/wymcaT/RufMaker/releases/tag/v1.13.1) 已设为 latest；完整便携包、更新包及两个 SHA256 已上线，Actions `40114921642` 成功 |
-| 用户验收 | 1.13.5 定向 C#/JS 回归、真实 GM8.2 来源中心/扩散对照及示例编译通过，待用户验收；本轮未推送 |
+| 用户验收 | 1.13.6 定向 C#/JS 回归、真实 GM8.2 寿命/过渡/顺序发射对照通过，待用户验收；本轮未推送 |
 
 新文档或后续修复提交会使 HEAD 高于功能基线，请先执行 Git 状态检查。不要把“远程没有此分支”当成需要自动推送的理由。
+
+1.13.6：Track 新增 lifetimeMode/deathEffect/deathFrames/despawnMargin，BulletAction 新增 spawnAngle/spawnAngleStep；旧工程默认不变。房间/视野模式忽略固定寿命，按弹幕中心及余量判断，支持镜头旋转/缩放。固定寿命在到期前播放销毁过渡，越界和 RufMaker 销毁行为触发后播放；未释放队形成员及任意原生 GML 销毁不改。方向增量按成员编号计算，配合现有 stagger/repeat 可依次等速发射与周期扩散。双语 README 含具体配方。22 时刻 1,130 个完整 GM/C# 状态对照通过；右栏控件复用、预设/FPS、语言和正式构建通过。详细文件、日志及边界见 Codex 记录。
 
 1.13.5：`source.x/y` 是生成时直接来源中心的世界坐标快照，后续母体移动不改变它；逐成员生成单发模板可用年龄 0 的速度公式实现等比例扩散副本。完整本地示例 `projects/examples/Star Echo/Star Echo.rufmaker`，可直接导出/试玩；独立游戏包在该目录 build/release/。配方 `tools/examples/create-star-echo.mjs` 与说明 `docs/examples/star-echo.md` 入库，用户示例工程本身不提交。GM 隔离探针 11 时刻 647 状态通过。内部表达式/生成函数参数已改，保存同步需一起生成，详见 Codex 记录。
 

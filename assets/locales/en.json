@@ -1125,5 +1125,21 @@
   "从来源中心向外": "Outward from source center",
   "按来源距离设置弹速（弹幕行为）": "Speed by source distance (bullet behavior)",
   "变量：source.x / source.y（生成时来源中心世界坐标）、player.x / player.y、x / y（当前物件）、x1 / y1 / x2 / y2（端点当前值）、frame（绝对帧）、time（秒）、age（已存在帧）、direction、speed、fps、pi、i（编号从0开始）、n（总数）、u（0–1位置）、volley（齐射编号）。方向单位为度，sin / cos 使用弧度。": "Variables: source.x / source.y (source center in world coordinates at generation), player.x / player.y, x / y (current object), x1 / y1 / x2 / y2, frame, time, age, direction, speed, fps, pi, i (zero-based index), n (count), u (0–1 position), volley. Directions use degrees; sin / cos use radians.",
-  "在行为生效期间执行。x/y 是本弹幕位置；source.x/y 是生成时来源中心的世界坐标快照。可用 i、n、u、volley、age、player.x/y、speed、direction。sin/cos 使用弧度。": "Runs while this behavior is active. x/y is this bullet position; source.x/y is a snapshot of the source center in world coordinates at generation. Also supports i, n, u, volley, age, player.x/y, speed and direction. sin/cos use radians."
+  "在行为生效期间执行。x/y 是本弹幕位置；source.x/y 是生成时来源中心的世界坐标快照。可用 i、n、u、volley、age、player.x/y、speed、direction。sin/cos 使用弧度。": "Runs while this behavior is active. x/y is this bullet position; source.x/y is a snapshot of the source center in world coordinates at generation. Also supports i, n, u, volley, age, player.x/y, speed and direction. sin/cos use radians.",
+  "固定寿命": "Fixed lifespan",
+  "出屏幕销毁": "Destroy outside room",
+  "出视野销毁": "Destroy outside game view",
+  "无过渡": "No transition",
+  "缩小并透明": "Shrink and fade",
+  "寿命模式": "Lifetime mode",
+  "弹幕寿命": "Bullet lifetime",
+  "出界余量 / 像素": "Boundary margin / pixels",
+  "销毁过渡": "Destruction transition",
+  "过渡帧数": "Transition frames",
+  "初始生成方向 / 度": "Initial spawn direction / degrees",
+  "每颗生成方向递增 / 度": "Direction increment per member / degrees",
+  "用于发射后的弹幕与释放后的成员。出屏幕按房间边界；出视野按游戏镜头。边界按弹幕中心判断，出生即在外也会触发。": "Applies to fired bullets and released formation members. Room bounds and the current game camera are separate modes. Tests the bullet center; spawning outside also triggers removal.",
+  "正值放宽边界；负值提前在范围内触发，可让销毁过渡在画面内可见。出界模式不受固定寿命限制。": "Positive values expand the boundary; negative values trigger inside it so the transition stays visible. Boundary modes ignore the fixed lifespan.",
+  "固定寿命在结束前播放过渡；出界或销毁行为触发后播放过渡，结束才移除。触发销毁后不再碰撞或继续生成。": "Fixed lifespan transitions run before expiry. Boundary exits and destroy actions start a transition before removal. Once destruction is triggered, collision and further spawning stop.",
+  "方向 = 初始生成方向 + 成员编号 × 递增值；开启继承时再叠加母体方向。编号从 0 开始。": "Direction = initial spawn direction + member index × increment, plus the parent direction when inheritance is enabled. Indices start at 0."
 }

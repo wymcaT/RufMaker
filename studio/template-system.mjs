@@ -29,7 +29,7 @@ export function spawnCondition(a,age,index,generation){
 }
 function generateAction(a,s,{age,index,generation,x,y,heading,sourceX=x,sourceY=y,after=''}){
   const target=s.tracks.findIndex(t=>t.id===a.templateId&&templateKinds.includes(t.kind));if(target<0)return '';
-  const angle=a.inheritAngle?heading:'0';
+  const angle=`(${a.inheritAngle?heading:'0'}+${num(a.spawnAngle)}+${index}*${num(a.spawnAngleStep)})`;
   return `if (${spawnCondition(a,age,index,generation)}) {rf_inst=rf_template_spawn(${target},rf_now,${x}+lengthdir_x(${num(a.spawnOffsetX)},${angle})+lengthdir_x(${num(a.spawnOffsetY)},${angle}-90),${y}+lengthdir_y(${num(a.spawnOffsetX)},${angle})+lengthdir_y(${num(a.spawnOffsetY)},${angle}-90),${angle},${generation}+1,${sourceX},${sourceY});if instance_exists(rf_inst) {${after}}}`;
 }
 function warp(x='rf_px',y='rf_py'){return `rf_dx=${x}-rf_anchor_x;rf_dy=${y}-rf_anchor_y;${x}=rf_origin_x+lengthdir_x(rf_dx,rf_rotation)+lengthdir_x(rf_dy,rf_rotation-90);${y}=rf_origin_y+lengthdir_y(rf_dx,rf_rotation)+lengthdir_y(rf_dy,rf_rotation-90);`;}

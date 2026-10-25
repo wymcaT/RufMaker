@@ -12,6 +12,10 @@ You can animate a reusable object, formation, emitter or group, then enable **Te
 
 Generated bullets can read `source.x / source.y`, a snapshot of the source center in world coordinates when generation was triggered. The snapshot includes movement and group transforms and stays fixed afterward. To keep a star while spawning an expanding copy, generate a one-shot template at every member, inherit direction, and use `point_distance(x,y,source.x,source.y)*0.02` in a speed behavior at bullet age 0 with duration 0. See the [star echo example](examples/star-echo.md). Before generation, parameter formula previews use the object's base X/Y as a reference source.
 
+To repeat the expanding copy, set the source's spawn interval to 50 frames, duration to 0 and per-member delay to 0. Keep **Each bullet** and direction inheritance, leave both generation angle settings at 0, and keep **Destroy source after spawning** off. At 50 FPS this creates a new copy each second, using the source's current shape and center, until the source ends.
+
+For sequential shots with equal speeds and increasing directions, make a separate one-shot template: start/end 0, count 1, fixed angle 0 and speed 3. Remove the distance-based speed behavior from the echo example. On the formation's spawn action choose **Each bullet**, set per-member delay to 3, turn direction inheritance off, and set the initial generation angle to 0 and angle increment per member to 10. Members 0, 1, 2… fire at 0, 10, 20… degrees, all at speed 3. A repeat interval of 0 fires each member once; a positive interval repeats the same direction sequence. Keep the source alive through `source start + trigger age + (member count - 1) × per-member delay`.
+
 1. Download **`RufMaker-VERSION-Windows-Portable.zip`** from [Releases](https://github.com/wymcaT/RufMaker/releases/latest). This is the full Windows application. Extract everything, then run `RufMaker.exe`. A starter project is created from the template when needed.
 2. Choose **English** from **切换语言 / Language** in the setup window or top bar. If GM8.2 is missing, click **Download and set up** in the engine setup window.
 3. Create a project, choose a song and starting terrain, then add emitters or formations.
@@ -56,6 +60,18 @@ Ctrl+C / Ctrl+V pastes clips at the current playhead. For multiple clips, the ea
 Rainbow formations offer **Original order**, **Distance from center** and **Angle around center**, using the formation X/Y as the center. In distance mode, density sets color frames per pixel; in angle mode, density 1 maps a full turn to one rainbow cycle. Reverse, animation and keyed density/offset/speed remain available. Existing projects keep their previous color order.
 
 Ellipse and other outline height ratios accept -10 to 10. Negative values flip the local height direction, and 0 flattens the outline into a line. Keys and expressions can animate through zero in both preview and exported games.
+
+### Bullet lifetime and destruction effects
+
+Select an emitter or formation and open **Bullet lifetime** in the inspector. It controls fired bullets, bullets fired by templates, and released formation members. Members still held in a formation follow its clip duration.
+
+- **Fixed lifetime:** remove at the configured lifetime. A destruction transition runs during the final frames without extending that lifetime.
+- **Destroy outside room:** trigger when the bullet center leaves the room, ignoring fixed lifetime.
+- **Destroy outside view:** use the game camera's position, rotation and zoom, including a recorded native view when available. Editor pan/zoom does not change this boundary. Without a game camera it falls back to the room.
+
+Choose **Shrink**, **Fade out**, or **Shrink and fade**, then set the transition length in frames. Boundary exits and RufMaker removal actions start this transition before removing the instance. Pending bullets keep moving, stop colliding and stop generating children. Native GML that directly destroys arbitrary instances does not automatically use these transitions.
+
+Boundary checks use the bullet center and also apply at birth. A positive boundary margin expands the allowed area; a negative margin starts removal inside it. For example, -24 starts the transition 24 pixels before the edge so the effect remains visible. Existing projects retain fixed lifetime with no transition.
 
 ### Spectrogram and object counts
 

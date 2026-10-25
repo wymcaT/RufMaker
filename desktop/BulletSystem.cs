@@ -14,7 +14,7 @@ internal static class BulletSystem
     public static string ActionName(string type){int i=Array.IndexOf(ActionTypes,type);return i<0?type:ActionNames[i];}
     public static List<Track> CloneTracks(IEnumerable<Track> source)
     {var copies=source.Select(t=>t.Snapshot()).ToList();var map=copies.Where(t=>!String.IsNullOrEmpty(t.id)).GroupBy(t=>t.id).ToDictionary(g=>g.Key,g=>Guid.NewGuid().ToString("N"));foreach(var t in copies){string id;t.id=map.TryGetValue(t.id??"",out id)?id:Guid.NewGuid().ToString("N");if(map.TryGetValue(t.parentId??"",out id))t.parentId=id;if(map.TryGetValue(t.targetSource??"",out id))t.targetSource=id;foreach(var a in TemplateRuntime.Actions(t))if(map.TryGetValue(a.templateId??"",out id))a.templateId=id;}return copies;}
-    public static bool Advanced(EditorState state){return state.usePlayerTrace||state.tracks.Any(t=>t.spawnActions.Count>0||t.bulletActions.Any(a=>a.type=="spawn")||t.kind=="control"||t.kind=="pattern"||t.kind=="group"||t.kind=="rod"&&t.releaseFrame>=0||t.kind=="emitter"&&(t.advancedBullets||t.bulletActions.Count>0||t.emissionShape!="point"||t.indexDelay!=0||t.indexSpeed!=0||t.indexAngle!=0||t.indexScale!=0||t.flightMode=="expression"&&t.flightExpression.Contains("source.")||t.expressions.Values.Any(v=>System.Text.RegularExpressions.Regex.IsMatch(v,@"\b(i|n|u|volley)\b|\bsource\.[xy]\b"))));}
+    public static bool Advanced(EditorState state){return state.usePlayerTrace||state.tracks.Any(t=>t.kind=="emitter"&&BulletLifetime.Enabled(t)||t.spawnActions.Count>0||t.bulletActions.Any(a=>a.type=="spawn")||t.kind=="control"||t.kind=="pattern"||t.kind=="group"||t.kind=="rod"&&t.releaseFrame>=0||t.kind=="emitter"&&(t.advancedBullets||t.bulletActions.Count>0||t.emissionShape!="point"||t.indexDelay!=0||t.indexSpeed!=0||t.indexAngle!=0||t.indexScale!=0||t.flightMode=="expression"&&t.flightExpression.Contains("source.")||t.expressions.Values.Any(v=>System.Text.RegularExpressions.Regex.IsMatch(v,@"\b(i|n|u|volley)\b|\bsource\.[xy]\b"))));}
     public static NativeTestPosition PlayerAt(EditorState state,int frame)
     {
         var fallback=state.nativeTest??new NativeTestPosition();var trace=state.playerTrace;if(!state.usePlayerTrace||trace==null||trace.Count==0||frame<trace[0].frame||frame>trace[trace.Count-1].frame)return fallback;int lo=0,hi=trace.Count-1;while(lo<hi){int mid=(lo+hi+1)/2;if(trace[mid].frame<=frame)lo=mid;else hi=mid-1;}var a=trace[lo];if(lo==trace.Count-1)return new NativeTestPosition{x=a.x,y=a.y};var b=trace[lo+1];double u=(frame-a.frame)/(double)Math.Max(1,b.frame-a.frame);return new NativeTestPosition{x=a.x+(b.x-a.x)*u,y=a.y+(b.y-a.y)*u};
@@ -71,7 +71,7 @@ internal static class BulletSystem
                 foreach(var a in TemplateRuntime.Actions(t)){a.spawnRepeat=(int)Round(a.spawnRepeat*scale);if(!String.IsNullOrEmpty(a.templateId)&&clip.children.Any(c=>c.id==a.templateId))a.templateId=idPrefix+a.templateId;a.start=(int)BulletSystem.Round(a.start*scale);a.duration=(int)BulletSystem.Round(a.duration*scale);a.stagger=(int)BulletSystem.Round(a.stagger*scale);if(a.type=="speed"||a.type=="turn"||a.type=="home"){a.from/=scale;a.to/=scale;}if(a.type=="acceleration"){a.from/=scale*scale;a.to/=scale*scale;}a.childSpeed/=scale;}
                 t.start=origin+(int)BulletSystem.Round(child.start*scale);t.end=Math.Min(result.duration,origin+(int)BulletSystem.Round(child.end*scale));if(t.start>result.duration)continue;
                 foreach(var k in t.keyframes){k.frame=origin+(int)BulletSystem.Round(k.frame*scale);if(k.property=="speed"||k.property=="rollSpeed")k.value/=scale;if(k.property=="life")k.value*=scale;}
-                t.interval=Math.Max(1,(int)BulletSystem.Round(t.interval*scale));t.life=Math.Max(1,(int)BulletSystem.Round(t.life*scale));t.homingDelay=(int)BulletSystem.Round(t.homingDelay*scale);t.indexDelay=(int)BulletSystem.Round(t.indexDelay*scale);t.speed/=scale;t.indexSpeed/=scale;t.turnRate/=scale;t.angularSpeed/=scale;t.velocityX/=scale;t.velocityY/=scale;t.accelerationX/=scale*scale;t.accelerationY/=scale*scale;t.orbitSpeed/=scale;if(t.releaseFrame>=0)t.releaseFrame=origin+(int)BulletSystem.Round(t.releaseFrame*scale);
+                t.interval=Math.Max(1,(int)BulletSystem.Round(t.interval*scale));t.life=Math.Max(1,(int)BulletSystem.Round(t.life*scale));t.deathFrames=Math.Max(0,BulletSystem.Round(t.deathFrames*scale));t.homingDelay=(int)BulletSystem.Round(t.homingDelay*scale);t.indexDelay=(int)BulletSystem.Round(t.indexDelay*scale);t.speed/=scale;t.indexSpeed/=scale;t.turnRate/=scale;t.angularSpeed/=scale;t.velocityX/=scale;t.velocityY/=scale;t.accelerationX/=scale*scale;t.accelerationY/=scale*scale;t.orbitSpeed/=scale;if(t.releaseFrame>=0)t.releaseFrame=origin+(int)BulletSystem.Round(t.releaseFrame*scale);
                 t.rollSpeed/=scale;t.rainbowSpeed/=scale;t.trailSpeed/=scale;t.trailScaleDecay/=scale;t.trailAlphaDecay/=scale;t.trailInterval=Math.Max(1,BulletSystem.Round(t.trailInterval*scale));t.trailLife=Math.Max(1,BulletSystem.Round(t.trailLife*scale));t.targetMinAge=BulletSystem.Round(t.targetMinAge*scale);t.targetMaxAge=BulletSystem.Round(t.targetMaxAge*scale);if(t.controlAction=="speed"||t.controlAction=="turn"||t.controlAction=="home"){t.controlFrom/=scale;t.controlValue/=scale;}if(t.controlAction=="acceleration"){t.controlFrom/=scale*scale;t.controlValue/=scale*scale;}
                 result.tracks.Add(t);
             }
@@ -81,10 +81,10 @@ internal static class BulletSystem
 
 internal sealed class SimBullet
 {
-    public bool kinematic;public int templateOwner,clockShift,seenFrame=-1,lastUpdate=-1;public double visualAngle,sourceX,sourceY;
+    public bool kinematic;public int templateOwner,clockShift,seenFrame=-1,lastUpdate=-1,deathStart=-1;public double visualAngle,sourceX,sourceY,deathFactor=1,deathInitial=1;
     public Track source,behavior;public int birth,index,count,volley,generation;public double x,y,direction,speed,scale,alpha,baseDirection,baseSpeed,baseScale,baseAlpha,turn,acceleration,sequence;public int life;public bool collision=true,dead;
     public Color color;public List<BulletSample> history=new List<BulletSample>();public HashSet<string> commands=new HashSet<string>();
-    public BulletSample Sample(int frame){return new BulletSample{frame=frame,x=x,y=y,direction=kinematic?visualAngle:direction,scale=scale,alpha=alpha,sequence=sequence};}
+    public BulletSample Sample(int frame){return new BulletSample{frame=frame,x=x,y=y,direction=kinematic?visualAngle:direction,scale=scale*BulletLifetime.Scale(this),alpha=alpha*BulletLifetime.Alpha(this),sequence=sequence};}
     public SimBullet Clone(){var b=(SimBullet)MemberwiseClone();b.history=new List<BulletSample>();b.commands=new HashSet<string>(commands);return b;}
 }
 internal sealed class BulletSample {public int frame;public double x,y,direction,scale,alpha,sequence;}
@@ -93,8 +93,17 @@ internal sealed class BulletWorld
     public EditorState State;public int Frame=-1;public readonly List<SimBullet> bullets=new List<SimBullet>();
     private sealed class Checkpoint {public List<SimBullet> bullets;public TemplateSnapshot templates;}
     public readonly TemplateRuntime Templates;private List<Tuple<SimBullet,BulletAction>> pendingSplits;
+    private readonly RoomData lifetimeRoom;private readonly Func<int,NativeViewPose> nativeView;
+    private int lifetimeViewFrame=-1;private LifetimeBounds lifetimeView;
     private readonly SortedDictionary<int,Checkpoint> checkpoints=new SortedDictionary<int,Checkpoint>();
-    public BulletWorld(EditorState state){State=BulletSystem.Expand(state);Templates=new TemplateRuntime(this);}
+    public BulletWorld(EditorState state,RoomData room=null,Func<int,NativeViewPose> nativeView=null){State=BulletSystem.Expand(state);Templates=new TemplateRuntime(this);lifetimeRoom=room??new RoomData();this.nativeView=nativeView;}
+    private LifetimeBounds LifetimeView()
+    {
+        if(lifetimeViewFrame==Frame)return lifetimeView;lifetimeViewFrame=Frame;var camera=Camera.Active(State,Frame);
+        if(camera!=null){var p=Camera.At(camera,Frame,lifetimeRoom);lifetimeView=BulletLifetime.Bounds(p.x,p.y,lifetimeRoom.width/p.zoom,lifetimeRoom.height/p.zoom,p.angle);}
+        else {var p=nativeView==null?null:nativeView(Frame);lifetimeView=p!=null&&p.enabled?BulletLifetime.Bounds(p.x+p.w/2,p.y+p.h/2,p.w,p.h,p.angle):BulletLifetime.Bounds(lifetimeRoom.width/2.0,lifetimeRoom.height/2.0,lifetimeRoom.width,lifetimeRoom.height,0);}
+        return lifetimeView;
+    }
     public void Seek(int target)
     {
         if(target<Frame){int tail=State.tracks.Where(t=>Trails.Mode(t)!="off").Select(t=>Math.Min(300,Trails.Life(t))).DefaultIfEmpty(0).Max();int at=checkpoints.Keys.Where(f=>f<=target-tail).DefaultIfEmpty(-1).Max();bullets.Clear();Frame=at;if(at>=0)bullets.AddRange(checkpoints[at].bullets.Select(b=>b.Clone()));Templates.Restore(at>=0?checkpoints[at].templates:null);}
@@ -131,29 +140,32 @@ internal sealed class BulletWorld
         foreach(var t in State.tracks.Where(t=>t.kind=="rod"&&t.releaseFrame==frame&&BulletSystem.Active(t,frame)&&Templates.Visible(t))){var points=Motion.RodPoints(t,frame);var p=Motion.At(t,frame);for(int i=0;i<points.Length;i++){if(!Templates.Visible(t,i))continue;double d=t.releaseDirection=="aim"?ExpressionContext.Direction(points[i].X,points[i].Y,t.expressionPlayerX,t.expressionPlayerY):t.releaseDirection=="fixed"?p.angle:ExpressionContext.Direction(p.x,p.y,points[i].X,points[i].Y)+(t.releaseDirection=="tangent"?90:0);var b=Spawn(t,frame,i,points.Length,0,points[i],d,Motion.Value(t,"speed",frame),0,false,0,null,new PointF((float)p.x,(float)p.y));if(t.rainbow&&Rainbow.Mode(t)!="sequence")b.sequence=Rainbow.RodSequence(t,i,points.Length,frame,points[i],p);}}
         var splits=pendingSplits;
         foreach(var b in bullets.ToArray())TickBullet(b,frame,splits);
-        for(int splitIndex=0;splitIndex<splits.Count;splitIndex++){var pair=splits[splitIndex];var b=pair.Item1;var a=pair.Item2;if(b.dead)continue;var template=State.tracks.FirstOrDefault(t=>t.id==a.templateId&&t.kind=="emitter")??b.source;for(int i=0;i<a.count;i++){var child=Spawn(template,frame,i,a.count,b.volley,new PointF((float)b.x,(float)b.y),b.direction+(i-(a.count-1)/2.0)*a.spread,a.childSpeed,b.generation+1,String.IsNullOrEmpty(a.templateId),b.clockShift,null,new PointF((float)b.x,(float)b.y));if(String.IsNullOrEmpty(a.templateId)){child.color=b.color;child.scale=child.baseScale=b.scale;child.alpha=child.baseAlpha=b.alpha;}TickBullet(child,frame,splits);}}
+        for(int splitIndex=0;splitIndex<splits.Count;splitIndex++){var pair=splits[splitIndex];var b=pair.Item1;var a=pair.Item2;if(b.dead||b.deathStart>=0)continue;var template=State.tracks.FirstOrDefault(t=>t.id==a.templateId&&t.kind=="emitter")??b.source;for(int i=0;i<a.count;i++){var child=Spawn(template,frame,i,a.count,b.volley,new PointF((float)b.x,(float)b.y),b.direction+(i-(a.count-1)/2.0)*a.spread,a.childSpeed,b.generation+1,String.IsNullOrEmpty(a.templateId),b.clockShift,null,new PointF((float)b.x,(float)b.y));if(String.IsNullOrEmpty(a.templateId)){child.color=b.color;child.scale=child.baseScale=b.scale;child.alpha=child.baseAlpha=b.alpha;}TickBullet(child,frame,splits);}}
         bullets.RemoveAll(b=>b.dead);
     }
     private void TickBullet(SimBullet b,int frame,List<Tuple<SimBullet,BulletAction>> splits)
     {
 
             if(b.lastUpdate==frame)return;b.lastUpdate=frame;
-            int age=frame-b.birth;if(age<0)return;if(b.kinematic){if(!Templates.FixedAlive(b,frame)){b.dead=true;return;}b.history.Add(b.Sample(frame));if(b.history.Count>301)b.history.RemoveAt(0);return;}if(age>=b.life){b.dead=true;return;}
-            if(b.behavior!=null){var t=b.behavior;if(age>t.homingDelay){if(t.flightMode=="aim")Apply(b,"aim",0);else if(t.flightMode=="turn")Apply(b,"home",t.turnRate);else if(t.flightMode=="expression")b.direction=Expression(b,frame,"("+t.flightExpression+")+0*frame","flight|base",b.direction);}
+            int age=frame-b.birth;if(age<0)return;if(b.kinematic){if(!Templates.FixedAlive(b,frame)){b.dead=true;return;}b.history.Add(b.Sample(frame));if(b.history.Count>301)b.history.RemoveAt(0);return;}if(BulletLifetime.Expired(b,age)){b.dead=true;return;}
+            if(b.deathStart<0&&b.behavior!=null){var t=b.behavior;if(age>t.homingDelay){if(t.flightMode=="aim")Apply(b,"aim",0);else if(t.flightMode=="turn")Apply(b,"home",t.turnRate);else if(t.flightMode=="expression")b.direction=Expression(b,frame,"("+t.flightExpression+")+0*frame","flight|base",b.direction);}
                 foreach(var a in t.bulletActions.Where(a=>a.enabled&&a.type!="spawn")){int at=age-a.start-b.index*a.stagger;if(at<0||at>Math.Max(0,a.duration))continue;if(a.type=="aim"&&at!=0)continue;if(a.type=="split"){if(at==0&&b.generation<a.maxGeneration)splits.Add(Tuple.Create(b,a));continue;}if(a.type=="clear"){if(at==0)b.dead=true;continue;}double u=a.duration==0?1:Motion.Ease(a.easing,at/(double)a.duration),v=a.from+(a.to-a.from)*u;if(a.relative)v=a.type=="scale"?v*b.baseScale:a.type=="alpha"?v*b.baseAlpha:v+(a.type=="direction"?b.baseDirection:a.type=="speed"?b.baseSpeed:0);v=Expression(b,frame,a.expression,"action"+t.bulletActions.IndexOf(a)+"|base",v);Apply(b,a.type,v);}}
-            foreach(var e in State.tracks.Where(t=>t.enabled&&t.kind=="control"&&frame>=t.start&&frame<=t.end)){
+            foreach(var e in State.tracks.Where(t=>b.deathStart<0&&t.enabled&&t.kind=="control"&&frame>=t.start&&frame<=t.end)){
                 if(!b.commands.Contains(e.id)){if(!Match(e,b,frame)||!e.includeFuture&&b.birth>e.start)continue;if(frame!=e.start&&!e.includeFuture)continue;b.commands.Add(e.id);}
                 double u=e.end==e.start?1:Motion.Ease(e.controlEasing,(frame-e.start)/(double)(e.end-e.start));double v=Expression(b,frame,e.controlExpression,"control|"+e.id+"|base",e.controlFrom+(e.controlValue-e.controlFrom)*u,true);if(e.controlAction=="color")b.color=Motion.ColorOf(e.controlColor);else Apply(b,e.controlAction,v);
             }
-            if(b.dead)return;
+            if(b.dead&&!BulletLifetime.Request(b,age))return;
             if(age>0){b.speed+=b.acceleration;b.direction+=b.turn;b.x+=Math.Cos(b.direction*Math.PI/180)*b.speed;b.y-=Math.Sin(b.direction*Math.PI/180)*b.speed;}
-            b.history.Add(b.Sample(frame));if(b.history.Count>301)b.history.RemoveAt(0);Templates.FromBullet(b,frame);
+            if(b.deathStart<0)Templates.FromBullet(b,frame);
+            if(b.dead&&!BulletLifetime.Request(b,age))return;
+            if(!BulletLifetime.Update(b,age,lifetimeRoom,BulletLifetime.Mode(b.source)=="view"?LifetimeView():new LifetimeBounds()))return;
+            b.history.Add(b.Sample(frame));if(b.history.Count>301)b.history.RemoveAt(0);
     }
     public void Draw(Graphics g,SpriteStore sprites,int pass,bool hitboxes)
     {
         foreach(var b in bullets){if(Frame<b.birth||b.dead)continue;var t=b.source;int image=Rainbow.Index(t,b.sequence,Frame-b.clockShift,(b.kinematic?Frame:b.birth)-b.clockShift);double angle=b.kinematic?b.visualAngle:Motion.Value(t,"spriteAngle",b.birth-b.clockShift)+(t.rotateSprite?b.direction:0);
             if(pass==0&&Trails.Mode(t)!="off")foreach(var p in b.history.Where(p=>(p.frame-b.birth)%Trails.Interval(t)==0&&Frame-p.frame<Trails.Life(t)))Trails.Draw(g,sprites,t,p.frame*301+b.index,Frame-p.frame,p.x,p.y,p.scale,b.kinematic?p.direction:Motion.Value(t,"spriteAngle",b.birth-b.clockShift)+(t.rotateSprite?p.direction:0),p.alpha,b.color,Rainbow.Index(t,p.sequence,p.frame-b.clockShift,(b.kinematic?p.frame:b.birth)-b.clockShift));
-            if(pass==1){sprites.Draw(g,t.sprite,b.x,b.y,b.scale,angle,b.alpha,b.color,image);if(hitboxes)using(var pen=new Pen(b.collision?Color.Lime:Color.Gray)){var r=sprites.Bounds(t.sprite,b.x,b.y);g.DrawRectangle(pen,r.X,r.Y,r.Width,r.Height);}}
+            if(pass==1){sprites.Draw(g,t.sprite,b.x,b.y,b.scale*BulletLifetime.Scale(b),angle,b.alpha*BulletLifetime.Alpha(b),b.color,image);if(hitboxes)using(var pen=new Pen(b.collision?Color.Lime:Color.Gray)){var r=sprites.Bounds(t.sprite,b.x,b.y);g.DrawRectangle(pen,r.X,r.Y,r.Width,r.Height);}}
         }
     }
 }
