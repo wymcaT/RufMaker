@@ -7,6 +7,8 @@ import {parameterCode as parameter} from './random-parameters.mjs';
 import {trailMode} from './trails.mjs';
 import {expressionCall} from './random-parameters.mjs';
 import {colorCall} from './spawn-appearance.mjs';
+import {hasEvents} from './event-presets.mjs';
+import {copySpawnGml} from './copy-generation.mjs';
 export const templateKinds=['object','rod','emitter','group'];
 export const hasTemplates=s=>s.tracks.some(t=>t.spawnActions.length||t.bulletActions.some(a=>a.type==='spawn'));
 export function templateBundles(s){
@@ -36,6 +38,7 @@ function generateAction(a,s,{age,index,generation,x,y,heading,sourceX=x,sourceY=
   const phase=a.spawnDirectionMode==='random'?expressionCall('random(360)',source,angleSlot,null,{frame:'rf_now',randomFrame:'rf_now',randomOffset:`(${wave}*1009)`}):a.spawnDirectionMode==='add'?`(${wave}*${num(a.spawnWaveAngleStep)})`:'0';
   const angle=`(${a.inheritAngle?heading:'0'}+${num(a.spawnAngle)}+${index}*${num(a.spawnAngleStep)}+${phase})`;
   const slot='spawnColor'+[...source.spawnActions,...source.bulletActions].indexOf(a),color=a.spawnColorExpression?colorCall(a.spawnColorExpression,source,slot,{frame:'rf_now',randomOffset:`(${wave}*1009)`,volley:wave}):'-1';
+  if(a.generationPreset==='copy-object')return `if (${spawnCondition(a,age,index,generation)}) {${copySpawnGml(a,target,{source,x,y,heading,generation,sourceX,sourceY,lookSprite,lookColor,lookImage,lookScale,color,after})}}`;
   return `if (${spawnCondition(a,age,index,generation)}) {rf_inst=rf_template_spawn(${target},rf_now,${x}+lengthdir_x(${num(a.spawnOffsetX)},${angle})+lengthdir_x(${num(a.spawnOffsetY)},${angle}-90),${y}+lengthdir_y(${num(a.spawnOffsetX)},${angle})+lengthdir_y(${num(a.spawnOffsetY)},${angle}-90),${angle},${generation}+1,${sourceX},${sourceY},${a.inheritAppearance?lookSprite:'-1'},${lookColor},${lookImage},${a.inheritScale?1:0},${lookScale},${color});if instance_exists(rf_inst) {${after}}}`;
 }
 function warp(x='rf_px',y='rf_py'){return `rf_dx=${x}-rf_anchor_x;rf_dy=${y}-rf_anchor_y;${x}=rf_origin_x+lengthdir_x(rf_dx,rf_rotation)+lengthdir_x(rf_dy,rf_rotation-90);${y}=rf_origin_y+lengthdir_y(rf_dx,rf_rotation)+lengthdir_y(rf_dy,rf_rotation-90);`;}
@@ -89,7 +92,7 @@ while(rf_source_idx>=0){if rf_owner_obj=noone {if global.rf_thidden[rf_source_id
 with(objRufBullet){if rf_static_source>=0 {if !rf_template_visible(rf_static_source,rf_index,noone) instance_destroy();}else if rf_kinematic {if !rf_template_visible(rf_source,rf_index,rf_template_owner) instance_destroy();}}return 0;`;
   const groups=`var ${locals};switch(argument0){${bundles.map(b=>`case ${b.rootIndex}:switch(argument1){${b.tracks.filter(t=>t.kind==='group').map(t=>`case ${s.tracks.findIndex(x=>x.id===t.id)}:${templateStateCode(t,'argument2',{},'argument0')}global.rf_gx=rf_x;global.rf_gy=rf_y;global.rf_ga=rf_angle;global.rf_gscale=rf_scale;global.rf_galpha=rf_alpha;return 0;`).join('\n')}}break;`).join('\n')}}global.rf_gx=0;global.rf_gy=0;global.rf_ga=0;global.rf_gscale=1;global.rf_galpha=1;return 0;`;
   const prepare=`var ${locals},rf_i;switch(rf_template_source){${bundles.map(b=>`case ${b.rootIndex}:rf_shift=rf_birth-${num(b.root.start)};rf_end=${num(b.root.end)}+rf_shift;${templateStateCode(b.root,num(b.root.start))}rf_anchor_x=rf_x;rf_anchor_y=rf_y;rf_scale_multiplier=1;if rf_inherit_scale rf_scale_multiplier=rf_inherit_size/max(.000001,rf_scale);${b.tracks.map(t=>{const i=s.tracks.findIndex(x=>x.id===t.id);return `rf_tc[${i}]=0;for(rf_i=0;rf_i<=300;rf_i+=1){rf_thidden[${i},rf_i]=0;rf_tf[${i},rf_i]=noone;}`;}).join('\n')}return 1;`).join('\n')}}return 0;`;
-  const instance=`var ${locals};rf_now=argument0;if rf_last_frame=rf_now return 0;rf_last_frame=rf_now;if rf_now>rf_end {instance_destroy();return 0;}rf_clock=rf_now-rf_shift;global.rf_template_world=rf_now;
+  const instance=`var ${locals};rf_now=argument0;if rf_last_frame=rf_now return 0;rf_last_frame=rf_now;if rf_now>rf_end {instance_destroy();return 0;}rf_clock=rf_now-rf_shift;global.rf_template_world=rf_now;${hasEvents(s)?'rf_event_template(rf_now);':''}
 switch(rf_template_source){${bundles.map(b=>`case ${b.rootIndex}:${b.tracks.filter(t=>templateKinds.includes(t.kind)).map(t=>trackActions(t,s,'id',b.tracks)).join('\n')}${b.tracks.filter(t=>templateKinds.includes(t.kind)).map(t=>instanceMember(t,s,b)).join('\n')}break;`).join('\n')}}return 0;`;
   const spawn=`var rf_created;rf_created=instance_create(0,0,objRufTemplate);rf_created.rf_template_source=argument0;rf_created.rf_birth=argument1;rf_created.rf_origin_x=argument2;rf_created.rf_origin_y=argument3;rf_created.rf_rotation=argument4;rf_created.rf_generation=argument5;rf_created.rf_source_x=argument6;rf_created.rf_source_y=argument7;rf_created.rf_inherit_sprite=argument8;rf_created.rf_inherit_color=argument9;rf_created.rf_inherit_image=argument10;rf_created.rf_inherit_scale=argument11;rf_created.rf_inherit_size=argument12;rf_created.rf_color_override=argument13;global.rf_template_serial+=1;rf_created.rf_template_serial=global.rf_template_serial;
 global.rf_template_world=argument1;with(rf_created){if !rf_template_prepare(){instance_destroy();}else rf_template_instance_step(global.rf_template_world);}return rf_created;`;
@@ -97,7 +100,9 @@ global.rf_template_world=argument1;with(rf_created){if !rf_template_prepare(){in
 ${s.tracks.filter(t=>templateKinds.includes(t.kind)&&t.enabled!==false).map(t=>trackActions(t,s)).join('\n')}
 global.rf_template_world=rf_now;with(objRufTemplate) rf_template_instance_step(global.rf_template_world);return 0;`;
   const bullet=`var rf_inst,rf_now;rf_now=argument0;switch(rf_behavior){${s.tracks.map((t,i)=>`case ${i}:${t.bulletActions.filter(a=>a.type==='spawn').map(a=>generateAction(a,s,{source:t,age:'rf_age',index:'rf_index',generation:'rf_generation',x:'x',y:'y',heading:'rf_dir',lookSprite:'rf_sprite',lookColor:'image_blend',lookImage:`(rf_rainbow*rf_rainbow_index(rf_r_sequence,rf_now,rf_r_density,rf_r_offset,rf_r_speed,rf_r_start,rf_r_dynamic,rf_r_reverse,32)+(!rf_rainbow)*image_index)`,lookScale:'image_xscale',after:a.destroyParent?'rf_dead=1;':''})).join('\n')}break;`).join('\n')}}return 0;`;
-  return [['rf_template_init',init],['rf_template_visible',visible],['rf_template_hide',hide],['rf_template_group_pose',groups],['rf_template_prepare',prepare],['rf_template_instance_step',instance],['rf_template_spawn',spawn],['rf_template_step',step],['rf_template_bullet_actions',bullet]];
+  const copies=s.tracks.some(t=>[...t.spawnActions,...t.bulletActions].some(a=>a.generationPreset==='copy-object'));
+  const anchor=`var ${locals};switch(argument0){${bundles.map(b=>`case ${b.rootIndex}:${templateStateCode(b.root,num(b.root.start),{},'argument0')}return rf_angle;`).join('\n')}}return 0;`;
+  return [['rf_template_init',init],['rf_template_visible',visible],['rf_template_hide',hide],['rf_template_group_pose',groups],['rf_template_prepare',prepare],['rf_template_instance_step',instance],['rf_template_spawn',spawn],['rf_template_step',step],['rf_template_bullet_actions',bullet],...(copies?[['rf_copy_anchor_angle',anchor]]:[])];
 }
 export const templateObject=`#define Create_0
 /*"/*'/**//* YYD ACTION

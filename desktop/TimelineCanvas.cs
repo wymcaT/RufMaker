@@ -26,12 +26,15 @@ internal sealed partial class TimelineCanvas : UserControl
     private readonly HScrollBar horizontal=new HScrollBar();private readonly VScrollBar vertical=new VScrollBar();
     private readonly HashSet<string> expanded=new HashSet<string>();private readonly List<Lane> lanes=new List<Lane>();
     private readonly HashSet<string> collapsedGenerationGroups=new HashSet<string>();
-    private const int Names=190,Row=30;
+    public bool SelectionKeyframesOnly,InspectorKeyframes;
+    public Action<Track> EditKeyframes;
+    private int Names {get{return InspectorKeyframes?Math.Max(110,Font.Height*6):190;}}
+    private int Row {get{return InspectorKeyframes?Math.Max(30,Font.Height+12):30;}}
     private string dragMode;private Point dragStart;private Track dragTrack;private Keyframe dragKey;
     private readonly Dictionary<Keyframe,int> groupFrames=new Dictionary<Keyframe,int>();
     private Point keyDeltaBounds;
     private sealed class BarState {public int start,end,lane,release,top,height;public int? clockStart,clockEnd;public MotionPresetData preset;public Dictionary<Keyframe,int> keys;}
-    public bool ClipSnap=true;public Action<string> EditNotice;private int dragVisualRow;private int? clipSnapGuide;private bool paintingDragged;
+    public bool ClipSnap=true;public string StretchKeys="sync";public Action<string> EditNotice;private int dragVisualRow;private int? clipSnapGuide;private bool paintingDragged;
     private readonly Dictionary<Track,BarState> bars=new Dictionary<Track,BarState>();
     private bool boxTracks;private HashSet<Track> boxTrackInitial=new HashSet<Track>();
     private HashSet<Keyframe> boxInitial=new HashSet<Keyframe>();private PointF boxStart,boxEnd;
@@ -44,7 +47,7 @@ internal sealed partial class TimelineCanvas : UserControl
         horizontal.ValueChanged+=(s,e)=>Invalidate();vertical.ValueChanged+=(s,e)=>Invalidate();
     }
     public bool FocusGenerationGroups;
-    private bool IsExpanded(Track track){return TimelineLayout.HasGeneration(track)?!collapsedGenerationGroups.Contains(track.id)&&(!FocusGenerationGroups||track==SelectedTrack||expanded.Contains(track.id)||SelectedTrack!=null&&TemplateRuntime.Actions(track).Any(a=>a.templateId==SelectedTrack.id)):expanded.Contains(track.id);}
+    private bool IsExpanded(Track track){if(SelectionKeyframesOnly)return TimelineLayout.HasGeneration(track)&&!collapsedGenerationGroups.Contains(track.id)&&(track==SelectedTrack||SelectedTrack!=null&&TemplateRuntime.Actions(track).Any(a=>a.templateId==SelectedTrack.id));return TimelineLayout.HasGeneration(track)?!collapsedGenerationGroups.Contains(track.id)&&(!FocusGenerationGroups||track==SelectedTrack||expanded.Contains(track.id)||SelectedTrack!=null&&TemplateRuntime.Actions(track).Any(a=>a.templateId==SelectedTrack.id)):expanded.Contains(track.id);}
     public void Expand(Track track,bool value){if(track==null)return;if(value){expanded.Add(track.id);collapsedGenerationGroups.Remove(track.id);}else{expanded.Remove(track.id);if(TimelineLayout.HasGeneration(track))collapsedGenerationGroups.Add(track.id);}RefreshLayout();}
     public TimelineView CaptureView(){return new TimelineView{focusGenerationGroups=FocusGenerationGroups,clipSnap=ClipSnap,pixelsPerSecond=PixelsPerSecond,horizontal=horizontal.Value,vertical=vertical.Value,expanded=expanded.ToArray(),collapsedGenerationGroups=collapsedGenerationGroups.ToArray(),audioDisplay=audioDisplay,audioHeight=audioHeight,rowHeights=new Dictionary<string,int>(rowHeights)};}
     public void RestoreView(TimelineView view)
@@ -66,7 +69,7 @@ internal sealed partial class TimelineCanvas : UserControl
         if(SelectedTracks.Count==0)return;
         int min=left?-SelectedTracks.Min(t=>t.start):SelectedTracks.Max(t=>t.start-t.end);
         int max=left?SelectedTracks.Min(t=>t.end-t.start):State.duration-SelectedTracks.Max(t=>t.end);
-        delta=Math.Max(min,Math.Min(max,delta));foreach(var t in SelectedTracks){if(left)t.start+=delta;else t.end+=delta;MotionPresets.FitRange(t);}
+        delta=Math.Max(min,Math.Min(max,delta));foreach(var t in SelectedTracks)TimelineEditing.Resize(t,t.start,t.end,t.start+(left?delta:0),t.end+(left?0:delta),StretchKeys);
     }
     public void ClearKeySelection(){SelectedKeys.Clear();SelectedKey=null;Invalidate();}
     public void SelectOnly(Keyframe key){SelectedKeys.Clear();if(key!=null)SelectedKeys.Add(key);SelectedKey=key;Invalidate();}
@@ -94,7 +97,8 @@ internal sealed partial class TimelineCanvas : UserControl
     {
         if(dragMode=="bar"&&bars.Count>0){Invalidate();return;}
         if(horizontal==null||vertical==null)return;lanes.Clear();
-        if(State!=null){ActiveLane=Math.Min(ActiveLane,State.laneCount-1);
+        if(State!=null&&InspectorKeyframes){if(SelectedTrack!=null&&State.tracks.Contains(SelectedTrack))foreach(string property in Motion.Fields(SelectedTrack).Where(p=>Motion.HasKeys(SelectedTrack,p)&&!MotionPresets.Generated(SelectedTrack,p)))lanes.Add(new Lane{track=SelectedTrack,property=property});}
+        else if(State!=null){ActiveLane=Math.Min(ActiveLane,State.laneCount-1);
             foreach(var native in State.tracks.Where(t=>t.kind=="native")){lanes.Add(new Lane{track=native});if(IsExpanded(native)&&State.nativeProject!=null)foreach(string file in State.nativeProject.events.Select(e=>e.file).Distinct())lanes.Add(new Lane{track=native,property="@gm:"+file});}
             var bound=TimelineLayout.BoundTemplates(State);
             for(int index=0;index<State.laneCount;index++){
@@ -104,7 +108,7 @@ internal sealed partial class TimelineCanvas : UserControl
                     var clips=ordinary.Where(t=>stack[t]==row).ToList();var overview=clips.Where(t=>!TimelineLayout.HasGeneration(t)||!IsExpanded(t)).ToList();if(clips.Count>0||items.Count==0)lanes.Add(new Lane{index=index,stack=row,clips=overview});
                     foreach(var t in clips.Where(IsExpanded))AppendGenerationGroup(t,index,0,new HashSet<string>(),null);
                 }
-                foreach(var t in items.Where(t=>t.templateOnly)){lanes.Add(new Lane{index=index,track=t,property="@template"});if(expanded.Contains(t.id))AppendTemplateKeys(t,index,0,"standalone:"+t.id);if(IsExpanded(t))AppendGenerationRows(t,index,0,new HashSet<string>(),"standalone:"+t.id);}
+                foreach(var t in items.Where(t=>t.templateOnly)){lanes.Add(new Lane{index=index,track=t,property="@template"});if(!SelectionKeyframesOnly&&expanded.Contains(t.id))AppendTemplateKeys(t,index,0,"standalone:"+t.id);if(IsExpanded(t))AppendGenerationRows(t,index,0,new HashSet<string>(),"standalone:"+t.id);}
             }
             SelectedKeys.RemoveWhere(k=>Owner(k)==null);SelectedTracks.RemoveWhere(t=>!State.tracks.Contains(t));
         }
@@ -121,17 +125,20 @@ internal sealed partial class TimelineCanvas : UserControl
     }
     public void ViewSeconds(double seconds){SetZoom((float)(Math.Max(1,Width-Names-vertical.Width-25)/Math.Max(.1,seconds)));horizontal.Value=0;Invalidate();}
     public void FitAll(){if(State!=null)ViewSeconds(State.duration/(double)State.fps);}
+    public void FitSelection()
+    {if(State==null||SelectedTrack==null)return;PixelsPerSecond=Math.Max(.5f,Math.Min(2400,(Width-Names-vertical.Width-24)*State.fps/(float)Math.Max(1,SelectedTrack.end-SelectedTrack.start)));RefreshLayout();horizontal.Value=Math.Max(0,Math.Min(horizontal.Maximum-horizontal.LargeChange+1,(int)(SelectedTrack.start/(double)State.fps*PixelsPerSecond)-10));Invalidate();}
     public void EnsureFrameVisible()
     {
         float x=X(Frame);if(x<Names+10||x>Width-vertical.Width-25)horizontal.Value=Math.Max(0,Math.Min(horizontal.Maximum-horizontal.LargeChange+1,(int)(Frame/(double)State.fps*PixelsPerSecond-horizontal.LargeChange*.2)));
     }
     public void PlayheadMoved(int oldFrame)
     {int a=(int)X(oldFrame),b=(int)X(Frame);Invalidate(new Rectangle(Math.Max(Names,Math.Min(a,b)-8),0,Math.Abs(a-b)+18,Height-horizontal.Height));}
-    protected override void OnResize(EventArgs e){base.OnResize(e);RefreshLayout();}
+    private int fittedWidth;
+    protected override void OnResize(EventArgs e){base.OnResize(e);RefreshLayout();if(InspectorKeyframes&&Width!=fittedWidth){fittedWidth=Width;FitSelection();}}
     private float X(int frame){return State==null?Names:Names+frame/(float)State.fps*PixelsPerSecond-horizontal.Value;}
     private int ToFrame(int x){int frame=Math.Max(0,Math.Min(State.duration,(int)Math.Round((x-Names+horizontal.Value)/PixelsPerSecond*State.fps)));return (ModifierKeys&Keys.Alt)!=0?frame:BeatGrid.Snap(State,frame);}
     private int CursorFrame(int x){int value=Math.Max(0,Math.Min(State.duration,(int)Math.Round((x-Names+horizontal.Value)/PixelsPerSecond*State.fps)));return SnapCursor==null?ToFrame(x):SnapCursor(value);}
-    protected override void OnDragEnter(DragEventArgs e){string text=e.Data.GetData(DataFormats.Text) as string;e.Effect=text!=null&&new[]{"generation-presets|","presets|","camera-presets|","effect-presets|","custom-presets|"}.Any(text.StartsWith)?DragDropEffects.Copy:DragDropEffects.None;}
+    protected override void OnDragEnter(DragEventArgs e){string text=e.Data.GetData(DataFormats.Text) as string;e.Effect=text!=null&&new[]{"event-presets|","generation-presets|","presets|","camera-presets|","effect-presets|","custom-presets|"}.Any(text.StartsWith)?DragDropEffects.Copy:DragDropEffects.None;}
     protected override void OnDragOver(DragEventArgs e){OnDragEnter(e);}
     protected override void OnDragDrop(DragEventArgs e)
     {var text=e.Data.GetData(DataFormats.Text) as string;if(State==null||text==null||PresetDropped==null)return;int split=text.IndexOf('|');if(split<0)return;var p=PointToClient(new Point(e.X,e.Y));var lane=LaneAt(p);ActiveLane=lane!=null&&lane.index>=0?lane.index:Math.Max(0,State.laneCount-1);PresetDropped(text.Substring(0,split),text.Substring(split+1),lane==null?null:lane.track,p.X<Names?Frame:ToFrame(p.X));}
@@ -141,13 +148,13 @@ internal sealed partial class TimelineCanvas : UserControl
         int width=Width-vertical.Width,height=Height-horizontal.Height;if(width<=Names||height<=Header)return;
         using(var brush=new SolidBrush(Theme.Back))g.FillRectangle(brush,Names,0,width-Names,Header);
         using(var pen=new Pen(Theme.Line)){g.DrawLine(pen,Names,0,Names,height);g.DrawLine(pen,0,Header,width,Header);}
-        Theme.Label(g,SelectedKeys.Count>1?"已选 "+SelectedKeys.Count+" 个关键帧":SelectedTracks.Count>1?"已选 "+SelectedTracks.Count+" 个物件":"时间轴 · ▸ 展开 · 空白框选",new Rectangle(8,0,Names-12,28),Theme.Text,Theme.Bold);
+        Theme.Label(g,InspectorKeyframes?"属性关键帧":SelectedKeys.Count>1?"已选 "+SelectedKeys.Count+" 个关键帧":SelectedTracks.Count>1?"已选 "+SelectedTracks.Count+" 个物件":SelectionKeyframesOnly?"时间轴 · 物件剪辑":"时间轴 · ▸ 展开 · 空白框选",new Rectangle(8,0,Names-12,InspectorKeyframes?Ruler:28),Theme.Text,InspectorKeyframes?Font:Theme.Bold);
         var clip=g.Save();g.SetClip(new Rectangle(Names,0,width-Names,height));
-        double target=65/PixelsPerSecond;double[] steps={.02,.05,.1,.2,.5,1,2,5,10,15,30,60,120,300,600};double step=steps.FirstOrDefault(v=>v>=target);if(step==0)step=600;
+        int tickWidth=InspectorKeyframes?Math.Max(65,Font.Height*4):65;double target=tickWidth/PixelsPerSecond;double[] steps={.02,.05,.1,.2,.5,1,2,5,10,15,30,60,120,300,600};double step=steps.FirstOrDefault(v=>v>=target);if(step==0)step=600;
         double left=horizontal.Value/PixelsPerSecond,right=(horizontal.Value+width-Names)/PixelsPerSecond;
         using(var pen=new Pen(Color.FromArgb(38,47,63)))for(double second=Math.Floor(left/step)*step;second<=right;second+=step)
-        {float x=Names+(float)second*PixelsPerSecond-horizontal.Value;g.DrawLine(pen,x,25,x,height);Theme.Label(g,step<1?second.ToString("0.00")+"s":String.Format("{0:00}:{1:00}",(int)second/60,(int)second%60),new Rectangle((int)x+4,0,65,26),Theme.Muted,Theme.Small);}
-        g.Restore(clip);DrawAudio(g,width);clip=g.Save();g.SetClip(new Rectangle(Names,0,width-Names,height));
+        {float x=Names+(float)second*PixelsPerSecond-horizontal.Value;g.DrawLine(pen,x,Ruler-1,x,height);if(x>=Names-2)Theme.Label(g,step<1?second.ToString("0.00")+"s":String.Format("{0:00}:{1:00}",(int)second/60,(int)second%60),new Rectangle((int)x+4,0,Math.Max(1,Math.Min(tickWidth,width-(int)x-4)),Ruler),Theme.Muted,InspectorKeyframes?Font:Theme.Small);}
+        g.Restore(clip);if(!InspectorKeyframes)DrawAudio(g,width);clip=g.Save();g.SetClip(new Rectangle(Names,0,width-Names,height));
         float endX=X(State.duration);using(var pen=new Pen(Color.FromArgb(160,210,180,95),2)){pen.DashStyle=DashStyle.Dash;g.DrawLine(pen,endX,0,endX,height);}g.Restore(clip);
         int first=Math.Max(0,RowIndex(vertical.Value)),last=lanes.Count;
         for(int i=first;i<last;i++){
@@ -155,7 +162,7 @@ internal sealed partial class TimelineCanvas : UserControl
             bool chosen=t!=null&&(SelectedTracks.Contains(t)||t==SelectedTrack)&&(lane.property==null||lane.property==SelectedProperty||lane.property=="@item");
             using(var bg=new SolidBrush(chosen?Color.FromArgb(47,44,62):lane.property!=null?Color.FromArgb(23,29,39):lane.index%2==0?Theme.Panel:Color.FromArgb(29,35,47)))g.FillRectangle(bg,0,y,width,lane.height);
             if(lane.clips!=null){if(lane.stack==0)Theme.Label(g,Language.Text("轨道")+" "+(lane.index+1),new Rectangle(8,y,Names-16,lane.height),ActiveLane==lane.index?Theme.Accent:Theme.Text,localize:false);}
-            else {string title=TemplateLane(lane)?"    ▣ "+lane.track.name:SpawnLane(lane)?SpawnTitle(lane):lane.property==null?(IsExpanded(t)?"▾ ":"▸ ")+t.name:lane.property=="@item"?"▾ "+t.name:"    ◇ "+(lane.property.StartsWith("@gm:")?System.IO.Path.GetFileNameWithoutExtension(lane.property.Substring(4)):Language.Text(Motion.Name(lane.property)));Theme.Label(g,title,new Rectangle(8,y,Names-14,lane.height),chosen?Theme.Accent:Theme.Muted,lane.property=="@item"?Theme.Font:Theme.Small,localize:false);}
+            else {string title=TemplateLane(lane)?"    ▣ "+lane.track.name:SpawnLane(lane)?SpawnTitle(lane):lane.property==null?(IsExpanded(t)?"▾ ":"▸ ")+t.name:lane.property=="@item"?"▾ "+t.name:"    ◇ "+(lane.property.StartsWith("@gm:")?System.IO.Path.GetFileNameWithoutExtension(lane.property.Substring(4)):Language.Text(Motion.Name(lane.property)));Theme.Label(g,title,new Rectangle(8,y,Names-14,lane.height),chosen?Theme.Accent:Theme.Muted,InspectorKeyframes?Font:lane.property=="@item"?Theme.Font:Theme.Small,localize:false);}
             if(lane.bindingKey!=null)using(var pen=new Pen(Color.FromArgb(90,119,220,221),2))g.DrawLine(pen,9+Math.Min(5,lane.indent)*8,y+3,9+Math.Min(5,lane.indent)*8,y+lane.height-3);
             g.SetClip(new Rectangle(Names,Header,width-Names,height-Header));
             if(lane.clips!=null)foreach(var item in lane.clips)DrawItem(g,item,null,y,width,lane.height);
@@ -165,6 +172,7 @@ internal sealed partial class TimelineCanvas : UserControl
             else DrawItem(g,t,lane.property,y,width,lane.height);
             using(var pen=new Pen(Theme.Line))g.DrawLine(pen,0,y+lane.height-1,width,y+lane.height-1);g.Restore(saved);
         }
+        if(InspectorKeyframes&&lanes.Count==0)Theme.Label(g,SelectedTrack!=null&&MotionPresets.Bound(SelectedTrack)?"位置由动作预设控制":"启用属性旁的 ◇ 来添加关键帧",new Rectangle(8,Header+8,width-16,Font.Height*3),Theme.Muted,Theme.Small);
         DrawBeatGrid(g,width,height);
         if(dragMode=="bar"&&dragChanged){var saved=g.Save();g.SetClip(new Rectangle(Names,Header,width-Names,height-Header));paintingDragged=true;foreach(var pair in bars)if(SelectedTracks.Contains(pair.Key)){var r=DraggedBounds(pair.Key);DrawItem(g,pair.Key,null,(int)r.Y-3,width,(int)r.Height+6);}paintingDragged=false;g.Restore(saved);}
         if(clipSnapGuide.HasValue){float sx=X(clipSnapGuide.Value);using(var pen=new Pen(Color.FromArgb(245,203,104))){pen.DashStyle=DashStyle.Dash;g.DrawLine(pen,sx,Header,sx,height);}}
@@ -179,19 +187,21 @@ internal sealed partial class TimelineCanvas : UserControl
     private void DrawItem(Graphics g,Track t,string property,int y,int width,int rowHeight)
     {
         if(dragMode=="bar"&&dragChanged&&bars.ContainsKey(t)&&!paintingDragged)return;
-        bool chosen=SelectedTracks.Contains(t)||t==SelectedTrack;Color color=t.enabled?Theme.TrackColor(t.kind):Color.FromArgb(80,87,100);float x=X(t.start),end=X(t.end);
+        bool chosen=SelectedTracks.Contains(t)||t==SelectedTrack;Color color=t.enabled?Theme.TrackColor(t.kind):Color.FromArgb(80,87,100);float x=X(t.start),end=X(t.end+1);
         if(property==null){using(var brush=new SolidBrush(Color.FromArgb(chosen?225:155,color)))g.FillRectangle(brush,x,y+3,Math.Max(5,end-x),rowHeight-6);
-            var saved=g.Save();g.SetClip(new RectangleF(x,y+3,Math.Max(5,end-x),rowHeight-6),CombineMode.Intersect);Theme.Label(g,(IsExpanded(t)?"▾ ":"▸ ")+(t.templateOnly?Language.Text("模板 · 局部时间 · "):"")+t.name,new Rectangle((int)x+10,y+(rowHeight-20)/2,Math.Max(20,(int)(end-x)-13),20),Color.White,Theme.Small,localize:false);g.Restore(saved);
+            var saved=g.Save();g.SetClip(new RectangleF(x,y+3,Math.Max(5,end-x),rowHeight-6),CombineMode.Intersect);Theme.Label(g,(SelectionKeyframesOnly&&!TimelineLayout.HasGeneration(t)?"":IsExpanded(t)?"▾ ":"▸ ")+(t.templateOnly?Language.Text("模板 · 局部时间 · "):"")+t.name,new Rectangle((int)x+10,y+(rowHeight-20)/2,Math.Max(20,(int)(end-x)-13),20),Color.White,Theme.Small,localize:false);g.Restore(saved);
             if(t==hoverTrack&&hoverEdge!=null)using(var pen=new Pen(Color.White,2)){float edge=hoverEdge=="left"?x:end;g.DrawLine(pen,edge,y+2,edge,y+rowHeight-2);g.DrawLine(pen,edge-5,y+rowHeight/2,edge+5,y+rowHeight/2);g.DrawLine(pen,edge-5,y+rowHeight/2,edge-2,y+rowHeight/2-3);g.DrawLine(pen,edge+5,y+rowHeight/2,edge+2,y+rowHeight/2+3);}
+            if(State.tracks.Any(other=>other!=t&&other.kind!="native"&&other.lane==t.lane&&other.end+1==t.start&&Math.Abs(ClipBounds(other).Y-(y+3))<1))using(var seam=new Pen(Color.White,1))g.DrawLine(seam,x,y+4,x,y+rowHeight-4);
         }else using(var pen=new Pen(Color.FromArgb(80,color)))g.DrawLine(pen,x,y+rowHeight/2,end,y+rowHeight/2);
-        if(t.kind=="native")foreach(var item in NativeEvents(new Lane{track=t,property=property})){float at=X(item.frame);if(at<Names||at>width)continue;using(var pen=new Pen(Color.FromArgb(255,205,110),2))g.DrawLine(pen,at,y+rowHeight/2-8,at,y+rowHeight/2+8);}
-        foreach(var key in t.keyframes){if(key.frame<t.start||key.frame>t.end||property==null&&IsExpanded(t)||property!=null&&key.property!=property)continue;float kx=X(key.frame);if(kx<Names-7||kx>width+7)continue;int ky=property==null?y+rowHeight-6:y+rowHeight/2;float size=property==null?3:5;
+        if(t.kind=="native"&&(!SelectionKeyframesOnly||t==SelectedTrack))foreach(var item in NativeEvents(new Lane{track=t,property=property})){float at=X(item.frame);if(at<Names||at>width)continue;using(var pen=new Pen(Color.FromArgb(255,205,110),2))g.DrawLine(pen,at,y+rowHeight/2-8,at,y+rowHeight/2+8);}
+        if(SelectionKeyframesOnly&&t!=SelectedTrack)return;
+        foreach(var key in t.keyframes){if(key.frame<t.start||key.frame>t.end||SelectionKeyframesOnly&&MotionPresets.Generated(t,key.property)||property==null&&!SelectionKeyframesOnly&&IsExpanded(t)||property!=null&&key.property!=property)continue;float kx=X(key.frame);if(kx<Names-7||kx>width+7)continue;int ky=property==null?y+rowHeight-6:y+rowHeight/2;float size=property==null?3:5;
             var points=new[]{new PointF(kx,ky-size),new PointF(kx+size,ky),new PointF(kx,ky+size),new PointF(kx-size,ky)};using(var brush=new SolidBrush(SelectedKeys.Contains(key)?Color.White:Color.FromArgb(255,218,137)))g.FillPolygon(brush,points);if(SelectedKeys.Contains(key))using(var pen=new Pen(Theme.Accent))g.DrawPolygon(pen,points);
         }
     }
     public RectangleF ClipBounds(Track track)
     {if(dragMode=="bar"&&dragChanged&&bars.ContainsKey(track))return DraggedBounds(track);int row=lanes.FindIndex(l=>l.clips!=null&&l.clips.Contains(track)||l.track==track&&(l.property==null||l.property=="@item"&&TimelineLayout.HasGeneration(track)));if(row<0){row=lanes.FindIndex(l=>l.track==track&&l.property=="@template");return row<0?RectangleF.Empty:TemplateCardBounds(lanes[row],Header+lanes[row].top-vertical.Value,Width-vertical.Width);}
-        return new RectangleF(X(track.start),Header+lanes[row].top-vertical.Value+3,Math.Max(5,X(track.end)-X(track.start)),lanes[row].height-6);}
+        return new RectangleF(X(track.start),Header+lanes[row].top-vertical.Value+3,Math.Max(5,X(track.end+1)-X(track.start)),lanes[row].height-6);}
     private void DrawBeatGrid(Graphics g,int width,int height)
     {
         if(!State.beatSnap)return;double step=BeatGrid.StepSeconds(State),offset=State.beatOffsetMs/1000;
@@ -211,6 +221,7 @@ internal sealed partial class TimelineCanvas : UserControl
         if(e.Button!=MouseButtons.Left)return;
         if(TemplateLane(lane)){
             var rect=TemplateCardBounds(lane,Header+lane.top-vertical.Value,Width-vertical.Width);
+            if(SelectionKeyframesOnly&&(e.X<27||e.X>=rect.Left&&e.X<rect.Left+27)&&!TimelineLayout.HasGeneration(t)){SelectTemplateCard(lane,false);if(EditKeyframes!=null)EditKeyframes(t);return;}
             if((e.X<27||e.X>=rect.Left&&e.X<rect.Left+27)&&(TimelineLayout.HasGeneration(t)||t.keyframes.Count>0)){
                 bool open=!IsExpanded(t);Expand(t,open);if(open&&t.keyframes.Count>0)SelectTemplateCard(lane,true);return;
             }SelectTemplateCard(lane,false);return;
@@ -221,12 +232,12 @@ internal sealed partial class TimelineCanvas : UserControl
             if(t!=null){if(e.X<27&&(lane.property==null||lane.property=="@item")){Expand(t,!IsExpanded(t));return;}if(lane.property!=null&&!lane.property.StartsWith("@"))SelectedProperty=lane.property;PickTrack(t,additive);}
             else if(lane!=null&&lane.clips!=null){SetTrackSelection(State.tracks.Where(item=>item.kind!="native"&&item.lane==lane.index));KeyboardPreviewNavigation=true;}return;
         }
-        else if(t!=null&&(lane.property==null||lane.property=="@item")&&e.X>=X(t.start)+9&&e.X<X(t.start)+25){PickTrack(t,additive);Expand(t,!IsExpanded(t));return;}
+        else if(t!=null&&(lane.property==null||lane.property=="@item")&&e.X>=X(t.start)+9&&e.X<X(t.start)+25&&(!SelectionKeyframesOnly||TimelineLayout.HasGeneration(t))){PickTrack(t,additive);Expand(t,!IsExpanded(t));return;}
         else if(edge!=null){if(!SelectedTracks.Contains(t))PickTrack(t,additive);else{ClearKeySelection();NotifySelection(t,null);}PrepareBar(t,edge);}
-        else if(key!=null){SelectedTracks.Clear();SelectedTracks.Add(t);if(additive&&SelectedKeys.Contains(key)){SelectedKeys.Remove(key);var remaining=SelectedKeys.FirstOrDefault();NotifySelection(remaining==null?t:Owner(remaining),remaining);return;}if(!SelectedKeys.Contains(key)){if(!additive)SelectedKeys.Clear();SelectedKeys.Add(key);}if(lane.property!=null)SelectedProperty=lane.property;NotifySelection(t,key);dragTrack=t;dragKey=key;dragMode="key";groupFrames.Clear();foreach(var selected in SelectedKeys)groupFrames[selected]=selected.frame;keyDeltaBounds=KeyMoveBounds(groupFrames);}
+        else if(key!=null){SelectedTracks.Clear();SelectedTracks.Add(t);if(additive&&SelectedKeys.Contains(key)){SelectedKeys.Remove(key);var remaining=SelectedKeys.FirstOrDefault();NotifySelection(remaining==null?t:Owner(remaining),remaining);return;}if(!SelectedKeys.Contains(key)){if(!additive)SelectedKeys.Clear();SelectedKeys.Add(key);}if(lane.property!=null)SelectedProperty=lane.property;NotifySelection(t,key);if(SelectionKeyframesOnly){if(Seek!=null)Seek(key.frame);if(EditKeyframes!=null)EditKeyframes(t);return;}dragTrack=t;dragKey=key;dragMode="key";groupFrames.Clear();foreach(var selected in SelectedKeys)groupFrames[selected]=selected.frame;keyDeltaBounds=KeyMoveBounds(groupFrames);}
         else if(t!=null&&lane.property==null){if(additive){if(!PickTrack(t,true))return;}else if(!SelectedTracks.Contains(t))PickTrack(t,false);else{ClearKeySelection();NotifySelection(t,null);}PrepareBar(t,"bar");}
         else if(t!=null&&lane.property=="@item"){PickTrack(t,additive);if(TimelineLayout.HasGeneration(t))PrepareBar(t,"bar");}
-        else {if(lane!=null&&lane.property!=null)SelectedProperty=lane.property;BeginBox(e.Location,lane==null||lane.property==null,additive);}
+        else {if(lane!=null&&lane.property!=null)SelectedProperty=lane.property;BeginBox(e.Location,!InspectorKeyframes&&(lane==null||lane.property==null),additive);}
         if(dragMode!=null)Capture=true;
     }
     private bool PickTrack(Track track,bool additive)
@@ -238,14 +249,14 @@ internal sealed partial class TimelineCanvas : UserControl
     private Lane LaneAt(Point point)
     {
         int i=RowIndex(point.Y-Header+vertical.Value);if(point.Y<Header||i<0||i>=lanes.Count)return null;var lane=lanes[i];if(lane.clips==null||point.X<Names)return lane;
-        var t=lane.clips.FirstOrDefault(item=>point.X>=X(item.start)-8&&point.X<=X(item.end)+8);return t==null?lane:new Lane{track=t,index=lane.index,stack=lane.stack,top=lane.top,height=lane.height};
+        var inside=lane.clips.Where(item=>point.X>=X(item.start)&&point.X<=X(item.end+1)).ToArray();var t=inside.FirstOrDefault(item=>item==SelectedTrack)??inside.FirstOrDefault()??lane.clips.FirstOrDefault(item=>point.X>=X(item.start)-8&&point.X<=X(item.end+1)+8);return t==null?lane:new Lane{track=t,index=lane.index,stack=lane.stack,top=lane.top,height=lane.height};
     }
     private string EdgeAt(Lane lane,Point point)
-    {if(lane==null||lane.track==null||lane.track.kind=="native"||lane.property!=null&&lane.property!="@item"||point.X<Names)return null;double left=Math.Abs(point.X-X(lane.track.start)),right=Math.Abs(point.X-X(lane.track.end));if(Math.Min(left,right)>8)return null;return left<right?"left":"right";}
+    {if(lane==null||lane.track==null||lane.track.kind=="native"||lane.property!=null&&lane.property!="@item"||point.X<Names)return null;double left=Math.Abs(point.X-X(lane.track.start)),right=Math.Abs(point.X-X(lane.track.end+1));if(Math.Min(left,right)>8)return null;return left<right?"left":"right";}
     private IEnumerable<NativeEvent> NativeEvents(Lane lane){if(State.nativeProject==null)return new NativeEvent[0];return State.nativeProject.events.Where(e=>lane.property==null||lane.property=="@gm:"+e.file);}
     private NativeEvent NativeAt(Lane lane,int x){return NativeEvents(lane).OrderBy(e=>Math.Abs(X(e.frame)-x)).FirstOrDefault(e=>Math.Abs(X(e.frame)-x)<8);}
     private Keyframe KeyAt(Lane lane,Point point)
-    {if(lane==null||lane.track==null||point.X<Names||lane.property!=null&&lane.property.StartsWith("@")||lane.property==null&&IsExpanded(lane.track))return null;int center=Header+lane.top-vertical.Value+(lane.property==null?lane.height-6:lane.height/2);if(Math.Abs(point.Y-center)>8)return null;return lane.track.keyframes.Where(k=>k.frame>=lane.track.start&&k.frame<=lane.track.end&&!MotionPresets.Generated(lane.track,k.property)&&(lane.property==null||k.property==lane.property)).OrderBy(k=>Math.Abs(X(k.frame)-point.X)).FirstOrDefault(k=>Math.Abs(X(k.frame)-point.X)<8);}
+    {if(lane==null||lane.track==null||point.X<Names||lane.property!=null&&lane.property.StartsWith("@")||SelectionKeyframesOnly&&lane.track!=SelectedTrack||lane.property==null&&!SelectionKeyframesOnly&&IsExpanded(lane.track))return null;int center=Header+lane.top-vertical.Value+(lane.property==null?lane.height-6:lane.height/2);if(Math.Abs(point.Y-center)>8)return null;return lane.track.keyframes.Where(k=>k.frame>=lane.track.start&&k.frame<=lane.track.end&&!MotionPresets.Generated(lane.track,k.property)&&(lane.property==null||k.property==lane.property)).OrderBy(k=>Math.Abs(X(k.frame)-point.X)).FirstOrDefault(k=>Math.Abs(X(k.frame)-point.X)<8);}
     private void PrepareBar(Track track,string mode)
     {
         dragTrack=track;dragMode=mode;bars.Clear();dragRowLanes=lanes.Select(l=>l.index).ToArray();dragRowTops=lanes.Select(l=>l.top).ToArray();dragRowHeights=lanes.Select(l=>l.height).ToArray();dragLaneCount=State.laneCount;
@@ -253,7 +264,7 @@ internal sealed partial class TimelineCanvas : UserControl
         foreach(var t in mode=="bar"?ExpandedSelection():SelectedTracks){int row=lanes.FindIndex(l=>l.track==t&&(l.property==null||l.property=="@item")||l.clips!=null&&l.clips.Contains(t));bars[t]=new BarState{start=t.start,end=t.end,lane=t.lane,release=t.releaseFrame,clockStart=t.clockStart,clockEnd=t.clockEnd,preset=t.motionPreset==null?null:t.motionPreset.Snapshot(),top=row<0?lanes[dragVisualRow].top:lanes[row].top,height=row<0?Row:lanes[row].height,keys=t.keyframes.ToDictionary(k=>k,k=>k.frame)};}
     }
     private RectangleF DraggedBounds(Track track)
-    {var b=bars[track];int top=dragVisualRow<dragRowTops.Length?dragRowTops[dragVisualRow]:dragRowTops.Last()+dragRowHeights.Last()+Row*(dragVisualRow-dragRowTops.Length);return new RectangleF(X(track.start),Header+top+b.top-bars[dragTrack].top-vertical.Value+3,Math.Max(5,X(track.end)-X(track.start)),b.height-6);}
+    {var b=bars[track];int top=dragVisualRow<dragRowTops.Length?dragRowTops[dragVisualRow]:dragRowTops.Last()+dragRowHeights.Last()+Row*(dragVisualRow-dragRowTops.Length);return new RectangleF(X(track.start),Header+top+b.top-bars[dragTrack].top-vertical.Value+3,Math.Max(5,X(track.end+1)-X(track.start)),b.height-6);}
     private int SnapClipDelta(int delta,string mode)
     {
         clipSnapGuide=null;if(!ClipSnap||(ModifierKeys&Keys.Alt)!=0)return delta;double best=8.0*State.fps/PixelsPerSecond;int result=delta;
@@ -288,7 +299,7 @@ internal sealed partial class TimelineCanvas : UserControl
         if(TemplateLane(lane)){SelectTemplateCard(lane,true);return;}
         if(SpawnLane(lane)){if(lane.property.StartsWith("@spawn:")){if(EditSpawnRule!=null)EditSpawnRule(lane.track,SpawnIndex(lane));}else if(EditBulletSpawnRule!=null)EditBulletSpawnRule(lane.track,SpawnIndex(lane));return;}
         if(lane.property!=null&&!lane.property.StartsWith("@")&&InsertKey!=null)InsertKey(lane.track,lane.property,ToFrame(e.X));
-        else if(lane.property==null||lane.property=="@item")Expand(lane.track,!IsExpanded(lane.track));
+        else if(lane.property==null||lane.property=="@item"){if(SelectionKeyframesOnly){PickTrack(lane.track,false);if(EditKeyframes!=null)EditKeyframes(lane.track);}else Expand(lane.track,!IsExpanded(lane.track));}
     }
     protected override void OnMouseMove(MouseEventArgs e)
     {
@@ -298,7 +309,7 @@ internal sealed partial class TimelineCanvas : UserControl
             if(TemplateLane(lane)){Cursor=Cursors.Hand;Language.ToolTip(tips,this,lane.track.name+"\n"+TemplateSummary(lane.track)+"\n"+Language.Text("单击编辑模板参数；双击打开关联规则的完整编辑窗口。右键可预览模板局部动画。共用模板的修改会影响所有引用。"));return;}
             if(SpawnLane(lane)){Cursor=Cursors.Hand;Language.ToolTip(tips,this,"生成触发位置（歌曲时间）：单击定位；双击编辑此规则。逐成员延迟与重复均已计入。");return;}
             string edge=EdgeAt(lane,e.Location);var key=KeyAt(lane,e.Location);hoverTrack=edge==null?null:t;hoverEdge=edge;Cursor=edge!=null?Cursors.SizeWE:key!=null||t!=null&&lane.property==null?Cursors.SizeAll:Cursors.Default;
-            string tip=edge=="left"?"左右拖动：修改开始帧（不移动关键帧）":edge=="right"?"左右拖动：修改结束帧（不移动关键帧）":t!=null&&lane.property==null?t.name+" · 拖动移动时间与轨道；▸ 单独展开关键帧":"空白框选物件或关键帧；Ctrl / Shift 加选";if(tips.GetToolTip(this)!=tip)Language.ToolTip(tips,this,tip);Invalidate();return;
+            string tip=edge=="left"?"左右拖动：修改开始帧；关键帧按“拉伸关键帧”设置处理":edge=="right"?"左右拖动：修改结束帧；关键帧按“拉伸关键帧”设置处理":SelectionKeyframesOnly&&key!=null?"选中标记：在右栏编辑关键帧":t!=null&&lane.property==null?t.name+" · 拖动移动时间与轨道":"空白框选物件或关键帧；Ctrl / Shift 加选";if(tips.GetToolTip(this)!=tip)Language.ToolTip(tips,this,tip);Invalidate();return;
         }
         if(e.X>Width-vertical.Width-15)ScrollHorizontal(20);else if(e.X<Names+5)ScrollHorizontal(-20);
         if(dragMode=="seek"){if(Seek!=null)Seek(CursorFrame(e.X));return;}
@@ -331,11 +342,11 @@ internal sealed partial class TimelineCanvas : UserControl
     {
         string mode=dragMode;dragMode=null;bool cutFailed=false;
         if(dragChanged&&(mode=="bar"||mode=="left"||mode=="right")){
-            if(mode!="bar")foreach(var t in bars.Keys)if(MotionPresets.Bound(t)){t.motionPreset.start=t.start;t.motionPreset.end=t.end;MotionPresets.Bake(t);}
+            if(mode!="bar")foreach(var pair in bars)TimelineEditing.Resize(pair.Key,pair.Value.start,pair.Value.end,pair.Key.start,pair.Key.end,StretchKeys);
             cutFailed=!TimelineLayout.CutOverlaps(State,bars.Keys);RandomParameters.Attach(State);RefreshLayout();
         }
         if(mode=="key"&&dragChanged)MergeSelectedKeys();
-        if(mode=="box"){if(boxTracks)NotifySelection(SelectedTracks.FirstOrDefault(),null);else{var key=SelectedKeys.FirstOrDefault();SelectedTracks.Clear();if(key!=null)SelectedTracks.Add(Owner(key));NotifySelection(key==null?null:Owner(key),key);}}
+        if(mode=="box"){if(boxTracks)NotifySelection(SelectedTracks.FirstOrDefault(),null);else{var key=SelectedKeys.FirstOrDefault();var owner=key==null?(InspectorKeyframes?SelectedTrack:null):Owner(key);SelectedTracks.Clear();if(owner!=null)SelectedTracks.Add(owner);NotifySelection(owner,key);}}
         if(dragChanged&&mode!="box"&&mode!="seek"&&mode!="height"&&Changed!=null)Changed();if(cutFailed&&EditNotice!=null)EditNotice("裁剪后物件数量超过上限，未裁剪其他物件。");clipSnapGuide=null;dragTrack=null;dragKey=null;dragRowLanes=null;dragRowTops=null;dragRowHeights=null;resizeKey=null;groupFrames.Clear();bars.Clear();dragChanged=false;Cursor=Cursors.Default;Invalidate();
     }
     protected override void OnMouseCaptureChanged(EventArgs e){base.OnMouseCaptureChanged(e);if(!Capture&&dragMode!=null)FinishGesture();}

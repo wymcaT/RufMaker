@@ -1,6 +1,6 @@
 # 当前协作交接
 
-更新日期：2026-10-26。集成者：Codex。此页记录阶段事实；任务占用以 [Codex](agents/codex.md) 与 [Argon4](agents/argon4.md) 各自的记录为准。
+更新日期：2026-10-27。集成者：Codex。此页记录阶段事实；任务占用以 [Codex](agents/codex.md) 与 [Argon4](agents/argon4.md) 各自的记录为准。
 
 ## 当前代码与产物
 
@@ -8,13 +8,19 @@
 | --- | --- |
 | 本机仓库 | `D:\rufmaker` |
 | 正式分支 | `main`；2.2.0 功能提交 `b53abb9` 已推送；标签 `v2.2.0` 同指此提交。后续交接文档提交不改变发布标签 |
-| 功能版本 | `2.2.0` 已正式发布；用户确认保留原SHA256更新方式，兼容旧更新器 |
-| 本机正式入口 | `RufMaker.exe`，ProductVersion `2.2.0`，1,212,928 bytes，已构建并安全替换；正在运行的旧进程需用户保存后重启 |
+| 功能版本 | `2.3.0` 实现及本地打包完成，用户已明确授权push/Release，正式发布进行中；保留原SHA256更新方式 |
+| 本机正式入口 | `RufMaker.exe`，ProductVersion `2.3.0`，1,258,496 bytes，含复制obj、时间轴整理/拉伸、右栏关键帧与事件预设；旧进程需用户保存后重启 |
 | 历史测试入口 | 忽略文件 `RufMaker.Beta.exe` 可能仍是旧 Beta，不作为正式入口 |
 | 远程 | [v2.2.0](https://github.com/wymcaT/RufMaker/releases/tag/v2.2.0) 为 latest、非草稿/非预发布；Actions [40302243614](https://github.com/wymcaT/RufMaker/actions/runs/40302243614) 成功，完整便携包59,955,673 bytes、更新包58,020,935 bytes与两个SHA256均uploaded |
 | 验证 | 2.2.0定向/回归与GM对照见下方；本轮Updater本地替换/保留用户数据/隐藏重启通过，原2.0.0更新器验证新包2616个文件通过；线上检测最新版本/下载/校验/解压通过，线上完整包无GM首次建空工程并重开通过。尚无新版本用户实操验收 |
 
 新文档或后续修复提交会使 HEAD 高于功能基线，请先执行 Git 状态检查。不要把“远程没有此分支”当成需要自动推送的理由。
+
+2026-10-27 2.3.0（当前发布进行中）：复制obj支持方向/像素网格/圆周、整组动画/行为、内外向/固定/切线朝向及颜色；相接片段白线，按类型功能整理lane且preserveTrackOrder保留运行序；拉伸四模式，默认普通键同比缩放、密集特效/拉镜按完整周期重复填满，keyframeCycle保存周期并支持FPS。动作路径仍按参数重铺，其他键同步；修复隐藏关键帧页签高度0分隔条异常。C#定向/回归、Node20项（后续相关12项）及真实GM1487状态/17特效值/F5通过。包含此前本地右栏关键帧与事件一起发布。两个本地包/原v2.0.0更新器/当前更新器/无GM新建重开通过；用户已授权推送及Release，尚待线上工作流和实际下载确认。用户demo12文件817增236删保留。详见Codex记录与docs/copy-and-timeline-editing.md。
+
+2026-10-27（本地未提交/推送）：关键帧区改为真实可拖动SplitContainer，保存keyframesHeight，刻度/行高按字号调整；时间区取消TrackBar原生AutoSize并按字体计算行高，起终点按钮完整。左栏新增“事件”四种：清飞行子弹、连同整体/可视对象清除、速度归零、恢复出生/自定义运动重设；control轨道以eventPreset区分，支持一次/拉长持续、复制/Undo/预设/换FPS，C#/GML含后代和倒拖保持一致。额外原生对象明确按名称选择（含子类），原生底片录像不随事件改变。EventPresets及UI回归通过，Node17/17；专用GM543条状态、21帧显隐/静态整体清除与原生父子对象清/停/重设通过，通用GM537条状态/F5预热通过。测试夹具错误曾导致用户截图的unknown key/resource data弹窗，已改正事件头及self字段并验证，无测试进程残留。根EXE版本仍2.2.0/1,232,896 bytes，旧入口备份build/event-presets-check/RufMaker.before-20261027-005325.exe。用户工程保持，未提交/推送/Release；远程v2.2.0不含本地新功能。详见Codex记录与docs/event-presets.md。
+
+2026-10-27（本地未提交/推送）：下栏只保留当前物件的关键帧摘要，其他物件的键和所有属性子行隐藏。关键帧的逐属性选择、拖动、框选、增删、值/缓动编辑集中在右栏属性页顶端，与预览和主时间轴共享时间；右区自适应高度、可收起且保存偏好。密集动作位置键仍由预设参数控制。新增KeyframeWorkspace与显式构建项，WorkspaceView仅加keyframesOpen；无工程/JS/GML语义变化。KeyframeWorkspace、EditorPerformance、ShellLayout、Localization、MotionEditing、RandomTimeline及构建通过，中英文窄栏离屏图已检查；无用户实操验收。根EXE版本仍2.2.0但含本地改动，1,220,096 bytes，旧入口备份build/keyframe-workspace-check/RufMaker.before-20261027-001448.exe；用户工程保持。远程v2.2.0未变，本轮无推送授权。详细文件和日志见Codex记录。
 
 2026-10-26发布完成：用户明确选择“保留原更新方式，继续推送发布”，取消SHA的尝试已全部撤回。应用57个文件在b53abb9提交，未含用户工程/歌曲；main及v2.2.0原子推送成功。Actions已发布4个附件，实际线上下载检查通过；远端CI的EXE为2.2.0/1,211,904 bytes，本机编译入口2.2.0/1,212,928 bytes，均来自相同功能源码。旧原2.0.0更新器兼容性与线上新版更新流程通过。后续默认不自动推送，仍须用户明确授权。
 

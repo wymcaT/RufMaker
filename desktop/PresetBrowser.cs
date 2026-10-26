@@ -39,7 +39,7 @@ internal sealed partial class MainForm
 {
     private PresetLibrary presetLibrary;private string presetFolder="";private FlowLayoutPanel presetTools;private Label presetAddress;
     private PresetLibrary Library {get{return presetLibrary??(presetLibrary=new PresetLibrary(Path.Combine(root,"user-presets")));}}
-    private static bool IsPresetKind(string kind){return kind=="presets"||kind=="effect-presets"||kind=="camera-presets"||kind=="custom-presets"||kind=="generation-presets";}
+    private static bool IsPresetKind(string kind){return kind=="presets"||kind=="effect-presets"||kind=="camera-presets"||kind=="custom-presets"||kind=="generation-presets"||kind=="event-presets";}
     private FlowLayoutPanel BuildPresetTools()
     {
         presetTools=new FlowLayoutPanel{Dock=DockStyle.Fill,AutoSize=true,WrapContents=true,Margin=Padding.Empty,Visible=false};
@@ -59,9 +59,10 @@ internal sealed partial class MainForm
             entries.AddRange(Directory.GetDirectories(folder).OrderBy(s=>s).Select(s=>new PresetEntry{name=Path.GetFileName(s),key=Library.Relative(s),folder=true}));
             entries.AddRange(Directory.GetFiles(folder,"*.rufpreset").OrderBy(s=>s).Select(s=>new PresetEntry{name=Path.GetFileNameWithoutExtension(s),key=Library.Relative(s)}));
         }else if(resourceKind=="generation-presets"){for(int i=0;i<GenerationPresets.Names.Length;i++)entries.Add(new PresetEntry{name=GenerationPresets.Names[i],key=GenerationPresets.Keys[i]});}
+        else if(resourceKind=="event-presets"){for(int i=0;i<EventPresets.Keys.Length;i++)entries.Add(new PresetEntry{name=EventPresets.Names[i],key=EventPresets.Keys[i]});}
         else foreach(string name in resourceKind=="presets"?MotionPresets.Names:resourceKind=="camera-presets"?CameraPresets.Names:EffectPresets.Names)entries.Add(new PresetEntry{name=name,key=name});
         var icons=PresetIcons.Create();resources.BeginUpdate();resources.Items.Clear();var previous=resources.SmallImageList;
-        foreach(var entry in entries.Where(e=>e.name.IndexOf(ResourceFilter,StringComparison.OrdinalIgnoreCase)>=0||!custom&&Language.Text(e.name).IndexOf(ResourceFilter,StringComparison.OrdinalIgnoreCase)>=0))resources.Items.Add(new ListViewItem(custom?entry.name:Language.Text(entry.name),entry.folder?1:custom?2:0){Tag=entry,ToolTipText=Language.Text(entry.folder?"双击进入分类；右键重命名 / 移动分类":custom?"拖入时间轴按落点新建轨道；双击从播放头添加。保留原位置和全部关键帧。":resourceKind=="generation-presets"?"拖到来源物件上，自动循环生成弹幕；双击应用到所选物件。":resourceKind=="presets"?"拖到物件或拉镜上应用动作；双击应用到所选轨道。":"拖到同类轨道上应用；拖到空白处或双击可新建轨道。")});
+        foreach(var entry in entries.Where(e=>e.name.IndexOf(ResourceFilter,StringComparison.OrdinalIgnoreCase)>=0||!custom&&Language.Text(e.name).IndexOf(ResourceFilter,StringComparison.OrdinalIgnoreCase)>=0))resources.Items.Add(new ListViewItem(custom?entry.name:Language.Text(entry.name),entry.folder?1:custom?2:0){Tag=entry,ToolTipText=Language.Text(entry.folder?"双击进入分类；右键重命名 / 移动分类":custom?"拖入时间轴按落点新建轨道；双击从播放头添加。保留原位置和全部关键帧。":resourceKind=="event-presets"?"拖到时间轴创建事件；双击从播放头添加。":resourceKind=="generation-presets"?"拖到来源物件上，自动循环生成弹幕；双击应用到所选物件。":resourceKind=="presets"?"拖到物件或拉镜上应用动作；双击应用到所选轨道。":"拖到同类轨道上应用；拖到空白处或双击可新建轨道。")});
         resources.SmallImageList=icons;if(previous!=null)previous.Dispose();resources.EndUpdate();
     }
     private ContextMenuStrip PresetResourceMenu()
@@ -98,6 +99,7 @@ internal sealed partial class MainForm
     {
         if(state==null||busy)return;
         try{
+            if(kind=="event-presets"){AddEventPreset(name,at);return;}
             if(kind=="generation-presets"){ApplyGenerationPreset(name,target);return;}
             if(kind=="presets"){ApplyMotionPreset(name,target);return;}
             StopPlaying();properties.CommitPending();

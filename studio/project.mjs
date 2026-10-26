@@ -63,10 +63,11 @@ export function validateState(s) {
   if (!s || ![1,2].includes(s.version) || !Array.isArray(s.tracks) || s.tracks.length > 200 || !Number.isInteger(s.duration) || s.duration < 1 || s.duration > 1000000 || !Number.isInteger(s.fps) || s.fps < 15 || s.fps > 240) throw new Error('Invalid project state');
   if (!safeName(s.room) || !fs.existsSync(path.join(project,'rooms',s.room,'room.txt'))) throw new Error('Invalid room');
   for (const t of s.tracks) {
-    if (!['emitter', 'object', 'rod', 'effect', 'script', 'camera','native','group','control','pattern','variable'].includes(t.kind) || !Array.isArray(t.keyframes) || t.keyframes.length > (t.motionPreset?2010000:10000) || !Number.isFinite(t.start) || !Number.isFinite(t.end) || t.start < 0 || t.end > s.duration || t.start > t.end) throw new Error('Invalid track');
+    if (!['emitter', 'object', 'rod', 'effect', 'script', 'camera','native','group','control','pattern','variable'].includes(t.kind) || !Array.isArray(t.keyframes) || t.keyframes.length > (t.motionPreset||t.keyframeCycle?2010000:10000) || !Number.isFinite(t.start) || !Number.isFinite(t.end) || t.start < 0 || t.end > s.duration || t.start > t.end) throw new Error('Invalid track');
     if(t.kind==='native'&&(!s.nativeProject?.imported||t.id!=='gm-native'))throw new Error('原生轨道必须来自工程导入');
     if (t.kind === 'emitter' && (!safeName(t.sprite) || !Number.isInteger(t.count) || t.count < 1 || t.count > 300 || !Number.isInteger(t.interval) || t.interval < 1 || !Number.isFinite(t.speed) || !Number.isFinite(t.life) || t.life < 1)) throw new Error('Invalid emitter');
     if (t.kind === 'object' && !safeName(t.sprite)) throw new Error('Invalid sprite');
+    if(t.eventPreset)for(const name of String(t.eventNativeObjects||'').split(/[,，;；\r\n]/).map(v=>v.trim()).filter(Boolean))if(!safeName(name)||!fs.existsSync(path.join(project,'objects',name+'.gml')))throw new Error('原生事件对象不存在：'+name);
     if(t.kind==='effect'&&!effectTypes.includes(t.effect))throw new Error('Invalid screen effect');
     for (const k of t.keyframes) if (!Number.isFinite(k.frame) || !fields.includes(k.property) || !Number.isFinite(k.value) || k.frame<(t.clockStart!=null?-1000000:0) || k.frame>s.duration) throw new Error('Invalid keyframe');
   }
@@ -175,7 +176,7 @@ const bulletGml = `#define Create_0
 ${action}
 image_speed=0;image_index=0;rf_frozen_image=-1;rf_rainbow=0;rf_r_sequence=0;rf_r_density=1;rf_r_offset=0;rf_r_speed=.25;rf_r_start=0;rf_r_dynamic=0;rf_r_reverse=0;
 ${lifetimeDefaults}
-rf_source_x=0;rf_source_y=0;rf_kinematic=0;rf_template_owner=noone;rf_static_source=-1;rf_clock_shift=0;rf_system=0;rf_source=-1;rf_behavior=-1;rf_last_update=-1;rf_spin=0;rf_accel=0;rf_collision=1;rf_dead=0;rf_sprite=sprite_index;
+rf_source_x=0;rf_source_y=0;rf_kinematic=0;rf_template_owner=noone;rf_static_source=-1;rf_clock_shift=0;rf_system=0;rf_source=-1;rf_behavior=-1;rf_last_update=-1;rf_motion_reset=0;rf_spin=0;rf_accel=0;rf_collision=1;rf_dead=0;rf_sprite=sprite_index;
 rf_flight=-1;rf_turn=3;rf_delay=0;rf_age=0;rf_life=120;rf_speed=0;rf_dir=0;rf_trail=0;rf_fixed=0;rf_rotate=0;rf_sprite_angle=0;rf_birth=0;rf_index=0;
 rf_t_mode='off';rf_t_interval=3;rf_t_life=18;rf_t_alpha=.55;rf_t_scale_decay=.035;rf_t_alpha_decay=.035;rf_t_speed=0;rf_t_direction=0;rf_t_random=0;
 #define Step_0

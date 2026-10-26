@@ -1,16 +1,52 @@
 # Codex 任务记录
 
-- 状态：`completed`
-- 任务：main/v2.2.0已推送并正式发布，保留原SHA256与旧更新器兼容；线上更新与完整包验证通过。
-- 开始时基线：`b88164b`，分支 `main`；保留已有用户工程改动（12 文件，817 增/236 删）。
-- 当前占用文件：无，已释放。57个产品文件已在b53abb9提交，main/v2.2.0推送成功；AGENTS.md、Package-Release.ps1与release.yml保持原流程，Updater.cs仅版本变化。用户工程全部保留。
-- 本轮发布结果：GitHub latest为v2.2.0（非草稿/非预发布），Actions40302243614成功；完整包59,955,673 bytes、更新包58,020,935 bytes及两个SHA256均uploaded。线上检测更新/下载/清单校验/解压和完整包无GM首次建工程/重开均通过。
-- 本轮约定：用户明确选择裁短被覆盖的其他物件；中间覆盖保留前后两段、全覆盖移出时间轴，同轨执行，跨轨仅吸附。验收含连续拖动稳定性/吸附开关/裁剪的时间历史与Undo，14种预设逐帧位置/参数/保存复制、C#/GM及构建。
-- 本轮验收计划：原生重叠选择候选/取消/房间实例/多选与拖动定向测试；独立方向和自定义范围分布、倒拖、C#/GML对照；中英文和本地EXE构建。
-- 本轮验收：五种拖放入口/快捷参数/循环与不同方向模式；变量赋值/重复/引用/初值/随机历史/倒拖/保存复制预设；C#/Node定向测试、隔离GM运行数值对照、中英布局、EXE构建。仅本地交付，无推送授权。
-- 验收结果：Test-MotionEditing及Presets/RandomTimeline/GenerationPresets/Localization/EditorPerformance/ShellLayout通过；Node20/20；本轮201条GM弹幕状态、17帧变量历史、F5第85帧恢复对照通过；2.2.0本地EXE构建通过。
-- 本轮发布：2.2.0已正式发布；此后默认本地，不自动追加Git推送或新Release。
-- 本机产物：根目录 `RufMaker.exe`，ProductVersion `2.2.0`，FileVersion `2.2.0.0`，1,212,928 bytes；已构建并File.Replace安全替换，未结束用户进程。原2.1.1在build/motion-editing-check/RufMaker.2.1.1.previous.exe；用户须保存并重启旧进程使用新版。
+- 状态：`in_progress`（实现完成，2.3.0正式发布进行中）
+- 任务：“复制obj”模板、紧贴片段白线、整理时间轴、拉伸关键帧/密集预设循环；包含此前本地右栏关键帧与事件预设一起发布。
+- 基线：`2de5a96` / `main`，远端同基线；Argon4无占用。用户追加明确授权“做完推送git并且release”，选择2.3.0，保留原SHA256更新方式。
+- 当前占用：本轮与此前本地产品文件、desktop/Updater.cs、根EXE、README/中英文教程/2.3.0发布说明、当前交接记录。发布完成后释放。
+- 产物：根RufMaker.exe已为2.3.0，原入口备份build/release-check-2.3.0/RufMaker.before-release.exe；包在build/distribution/v2.3.0。版本标签尚未推送，不提前声称发布完成。
+- 验证：CopyEditing、GenerationPresets、TemplateSystem、MotionEditing、RandomTimeline、EditorPerformance、ShellLayout、Localization、EventPresets及构建通过；Node定向20/20，后续copy/template/bullet/presets12/12。最终GM1487复制状态、17个特效值与F5启动一致；先前原生事件543状态/21帧及通用537状态/F5通过。
+- 包验证：完整包59,999,757 bytes/2654项，更新包58,047,147 bytes/2621项；版本/必需文件/重复路径/个人资料排除/逐清单SHA通过。原v2.0.0更新器解包2620文件通过，当前更新器提示与隐藏替换/保留用户资料/重启通过；完整包无GM首次新建及重开通过。待线上工作流及实际下载验证。
+- 用户数据：demo仍12文件817增236删；个人工程/歌曲/底片未暂存或改写。尚无本轮用户交互验收。
+
+## 2026-10-27：复制obj与时间轴整理、关键帧拉伸（实现完成，发布进行中）
+
+- 新增CopyGeneration.cs/copy-generation.mjs，生成模板由五种扩为六种。复制源及parentId子树成共享templateOnly定义，保留旧行为，在克隆后才附加新规则避免无意自递归；默认spawnActions整对象/发射器，间隔50帧、0为一次，可切到飞行弹幕。副本从模板起点播放，来源后改不自动重制模板；已有规则可多代生成，沿用四代限制。
+- BulletAction新增copyMode/Facing/ColorMode/Color、Up/Down/Left/Right/Center、Count、SpacingX/Y、Width/Height、Radius/Angle/FacingAngle/Hue/ColorDensity。方向支持多层；网格宽高为像素、中心对称、旋转、可排除真实中心格点；圆周等距；每轮最多300，UI编辑先校验快照。朝向保留/固定/内向/外向/切线并减模板初始角，颜色继承/固定/彩虹。普通图混色需白底，彩虹Cherry按副本冻结贴图帧，继承模式保持成员彩虹分布。分组保留子图。C# GenerateOne/GM rf_template_spawn共用既有后代时钟、外观/大小继承和生命周期；rf_copy_anchor_angle仅有复制规则时生成。复制模板是动画初始快照，未宣称实时深拷贝任意手写GML实例。
+- TimelineCanvas含末帧的长条画到end+1，命中/边界/拖动预览同步；相邻同轨同物理行画1px白缝，不改实际帧。LaneAt优先实际落点物件，选中用于共边界判别，避免左片段宽容区抢走右片段。
+- 新增TimelineEditing.cs。整理按类型/形状/功能分lane，同类非重叠共享轨道，模板后代跟源收纳。EditorState.preserveTrackOrder（默认false，整理时true）令C#/JS归一化、展开片段及模板定义保留原执行数组，避免改变随机、同帧变量和绘制次序。支持Undo/保存；不动时段和参数。
+- WorkspaceView.stretchKeys默认sync，菜单四模式keep/sync/scale/repeat，所有拉边/右栏/多选入口统一。普通键按比例，密集camera/effect某属性>=8键时自动重复；Track.keyframeCycle深复制保存length、相对keys及FNV编辑戳，原周期包含末帧，0..20下一轮从21开始。缩短再增长保留原样式，手改后再捕获，尾周期补到末帧；跨FPS换算周期和速度/寿命单位。动作预设XY先排除再按参数重铺，其余键照选项处理，自动XY不会误判密集重复。重复已烘焙到真实关键帧，预览索引与GML>32键二分树一致，不新增仅编辑器效果。
+- 文件：desktop/CopyGeneration.cs、TimelineEditing.cs、GenerationPresets.cs、TemplateRuntime.cs、EditorCore.cs、BulletSystem.cs、PresetLibrary.cs、Motion.cs、TimelineLayout.cs、TimelineCanvas.cs、EditorShell.cs、MainForm.cs、BehaviorWorkspace.cs、WorkspaceView.cs、KeyframeWorkspace.cs、Build-Native.ps1、Updater.cs；studio/copy-generation.mjs、template-system.mjs、bullet-schema.mjs、motion.mjs、project.mjs；定向测试/GM探针、中英词条及README/生成教程/复制教程/剪辑教程/开发入口/交接/发布说明与EXE。此前两轮产品修改一并保留。新CS已列Build-Native显式源表。
+- 定向覆盖方向/旋转网格/圆周、初始朝向校正、颜色/彩虹帧、分组随机子发射器、倒拖、循环、保存预设/FPS、比例/保持/重复/缩短再增长/手改样式、动作路径+其他属性、无缝白线像素、右栏resize/Undo和整理执行不变。查看copy-grid-zh/en、adjacent-seam与宽窄shell图。性能合成40物件6400键，普通编辑中位1.72ms、撤销5.26ms且控件保留；不当作游戏FPS。
+- 最终GM夹具build/copy-editing-check/GM Copy 1793040744857/GameMaker.gm82：1487条含出生/坐标/运动/朝向/混色/彩虹帧，17个重复特效值及F5第85帧一致。只用隔离工程，未控制用户桌面。日志copy-inclusive-delivery、gm-inclusive-delivery、node-final-delivery、build-final-delivery、templates/performance/shell/localization、events-ui-delivery等在build/copy-editing-check。
+- 发现并修正两处：恢复行为页签时隐藏SplitContainer高度0，SplitterDistance越界；高度有效才设置，保留hidden-sidebar-failure.txt并同布局及事件分隔条回归通过。早期循环长度漏包含末帧，稀疏非闭合键边界覆盖变平；改为包含首尾，sparse-cycle-failure.log保留，速度/FPS与路径混合周期用例通过，重新GM核对通过。无无人处理错误弹窗，无用户进程被关闭。
+
+## 2026-10-27：可拉伸关键帧区与全局事件（完成，本地未提交/推送）
+
+- 用户反馈上轮关键帧区被压成滚动条、起终点按钮裁切，并要求事件预设。修正固定200px上限：KeyframeWorkspace使用SplitContainer，工具栏在外，关键帧/参数分别挂两面板；分隔条7px可拖，宽度/字号改变按最小可见行约束而不覆盖手动高度。WorkspaceView新增keyframesHeight=220，保留keyframesOpen；收起后保留标题，多选/无动画字段隐藏键区。刻度/名字宽度/行高随字号调整。SelectionTimeControl原生TrackBar关闭AutoSize，表行按实际字体/数字框高度计算，主检查器时间区改AutoSize，标签保持亮色。
+- 左栏新增event-presets/“事件”，支持拖到歌曲时间落点或双击播放头插入control事件，默认start=end，可拉长每帧执行。四种：clear-bullets清飞行子弹（保留未释放队形）；clear-danmaku同时隐藏当前rod/object和模板可视成员，后帧不再复活；stop-bullets该帧速度0并跳过本帧加速积分，未来行为可恢复；reset-motion恢复出生速度/方向或用自定义速度方向加速度转向，可禁用后续年龄运动/追踪/表达式，外观/寿命/生成行为和未来时间轴控制保留。
+- 模型复用control轨道，新增eventPreset、eventNativeObjects、eventRestoreBirth=true、eventDisableMotion=true、eventAcceleration、eventTurn；controlAction固定event，controlValue/from存自定义速度/方向。新字段为primitive，Snapshot/Undo/复制直接保留；Normalize同步默认和校验，跨FPS预设/片段换算速度/加速度/转向单位。SimBullet.motionReset纳入现有MemberwiseClone检查点。
+- C#按帧缓存清除条件，清子弹在年龄行为前立即移除（含寿命过渡中的弹幕、触发帧新弹，未真正出生的延迟弹保留）；清所有弹幕通过TemplateRuntime.hidden快照维持显隐，包括同帧新生成模板。GML对应eventEarly/eventTick/rf_event_prepare/rf_event_template，纳入生成脚本索引；rf_motion_reset在objRufBullet初始化，出生后行为及追踪守卫一致。没有改GM默认FPS或游戏重启方式。
+- 可额外填写逗号分隔的原生对象名，校验真实工程资源和标识符，不自动猜测玩家/地形/控制器；GML with(parent)覆盖子类且跳过objRufBullet以免重复处理。原生reset使用自定义数值操作GM内建speed/direction/gravity/friction，自定义Step仍可覆盖；出生状态无法推算。原生事件只在真实当前rf_frame执行，避免在overlay预热循环反复作用于当前原生实例。缓存原生底片不会随这些事件改变，F5/导出核对原生效果。
+- 实际文件：desktop/KeyframeWorkspace.cs、SelectionTimeControl.cs、WorkspaceView.cs、TimelineCanvas.cs、TimelineAudio.cs、EditorShell.cs、MainForm.cs、EventPresets.cs、EditorCore.cs、BulletSystem.cs、TemplateRuntime.cs、BulletTools.cs、Motion.cs、PresetBrowser.cs、PresetLibrary.cs、Build-Native.ps1；studio/event-presets.mjs、event-presets.test.mjs、bullet-schema.mjs、bullet-system.mjs、template-system.mjs、project.mjs；desktop/Test-EventPresets.ps1、tests/EventPresetTests.cs、tests/verify-event-gml.mjs；assets/locales/en.json、双语README、docs/event-presets.md、动作教程/开发入口/交接及EXE。上一轮未提交UI文件仍保留。
+- 定向EventPresets通过：清除含死亡过渡/同帧出生、保留未来发射、区分held、无复活、模板后代、连续停速、运动行为禁用/恢复出生、205帧检查点倒拖、Snapshot和跨FPS、分类/落点/Undo/双语、真实分隔条移动不被刷新覆盖且保存、高字号完整行/起终点。KeyframeWorkspace原回归通过；EditorPerformance/ShellLayout/Localization通过；Node event/bullet/template/presets/random共17/17。属性控件保留，编辑中位3.10ms、撤销8.92ms（合成40物件6400键，不代表游戏FPS）。
+- GM：通用生成探针537条状态/17帧变量/F5第85帧一致（GM Generators 1793032923224）；专用事件探针543条状态/21个显隐与静态整体清除取样、原生父子对象清除/停速/自定义reset一致（GM Events 1793033270863）。最终新增出生恢复事件也包含在专用探针中。编译和实际运行日志均检查，不是只验证编译。
+- 失败记录必须保留：沙箱GM启动3221225794后获审核运行；首个新rf_event_template缺闭括号，修正并增加Node全脚本括号验证后通用探针通过。新原生测试对象曾误用id/kind元数据，触发用户截图的unknown key和resource data弹窗；改为工程标准action_id=603/applies_to=self，测试进程已退出，Get-Process无残留。随后探针读取rf_dir/rf_speed被控制器局部变量遮蔽，改self字段后专用检查通过。以上均build隔离夹具，用户工程未写入。最初Splitter测试反射只搜NonPublic未找到公开OnSplitterMoving，改直接调用；产品控件无该问题。
+- 产物和日志在build/event-presets-check：events-delivery/performance/shell/localization/node-delivery/build.log、gm-native-final/gm-events-final.log与保留失败日志；resizable-keys-large/time-large等截图已查看。Build-Native显式新增EventPresets，根EXE版本2.2.0/1,232,896 bytes安全替换，备份RufMaker.before-20261027-005325.exe。没有结束用户编辑器，也没有使用电脑控制技能。
+- 用户demo仍12文件817增236删，个人工程/素材/歌曲未提交。无本地提交、无远程推送或Release；应用版本未提升，本机含未发布功能。无必做待办，用户需保存重启后实际验收；原生录像和任意手写运动代码边界如上。
+
+## 2026-10-27：右栏关键帧与精简下栏（完成，本地未提交/推送）
+
+- 用户要求关键帧编辑留在右栏，下栏只显示当前物件的键、其他全部折叠且隐藏属性行。从2de5a96/main接续；本轮无推送授权。用户projects、歌曲、个人预设未写入；demo仍12文件817增236删。
+- 新增KeyframeWorkspace.cs并纳入Build-Native显式源码。右栏属性页顶端嵌入TimelineCanvas关键帧模式，按已动画属性分行；选择、边界内拖动、框选、增删、前后键跳转、适应和Ctrl滚轮缩放沿用原编辑路径。与主时间轴共享播放头和选中；选中键的帧/值/缓动放在参数表前方。高度按可用空间适配，可收起；多选/未选/原生代码轨道不显示这块。
+- WorkspaceView仅新增keyframesOpen=true布局字段，旧布局可读。产品下栏SelectionKeyframesOnly、右栏InspectorKeyframes；底部不建立属性子行，只绘制当前物件摘要，点击标记定位并打开右栏，双击普通物件也可打开。其他物件及未选原生事件标记隐藏；生成组聚焦当前来源/模板引用，保留规则和卡片，选中模板显示局部键摘要。
+- 旧expanded偏好不重新铺开属性行；无效的展开关键帧/原生来源菜单移除，改用右栏编辑入口。“只展开当前生成组”固定成为产品行为。TimelineCanvas原通用详细模式保留供右栏和既有独立控件测试复用；新增用例专门核对产品紧凑模式。
+- 自动采样动作预设XY不进入手工编辑区，仍通过动作参数修改；没有删键或改变工程/JS/GML/随机/运动语义。右区宽度变化重适应物件时段，窄栏刻度标签不再侵入属性标题。
+- 文件：desktop/TimelineCanvas.cs、TimelineAudio.cs、SpawnTimeline.cs、MainForm.cs、EditorShell.cs、StatisticsTools.cs、WorkspaceView.cs、KeyframeWorkspace.cs、Build-Native.ps1；Test-KeyframeWorkspace.ps1、tests/KeyframeWorkspaceTests.cs；assets/locales/en.json；README中英文、docs/motion-timeline-editing.md、开发入口、协作状态及根RufMaker.exe。
+- 定向验证通过：旧展开布局、选择切换、下栏无属性行/未选键不命中、右栏拖动/框选/边界/单次Undo/恢复选中/空白不丢物件/加删键/数值重绑/共享时间、多选/共用模板/密集动作、中英文250px窄栏。最初JSON字符串等值断言受字段输出顺序影响，改持久字段SceneComparison后确认内容不变；不是工程数据变化。
+- 回归通过：EditorPerformance、ShellLayout、Localization、MotionEditing、RandomTimeline，含控件复用、撤销重绑、折叠滚动锚点和物件拖动/覆盖/吸附。合成40物件6400键的标量编辑中位2.74ms、撤销6.82ms；不当作游戏FPS。未改运行公式，不重跑GM探针。均离屏原生控件，未控制用户桌面。
+- 日志/截图：build/keyframe-workspace-check下workspace-final/build/performance/shell/localization/motion/random.log，workspace-zh、keys-zh/keys-en/keys-narrow-en、bottom-compact.png。Build-Native通过，根EXE版本2.2.0/1,220,096 bytes，File.Replace安全替换，旧入口备份RufMaker.before-20261027-001448.exe。
+- 无本地提交、无推送、无Release。应用版本暂未提高，本机EXE有未发布UI改动，不能称远程2.2.0包包含本轮修改。无必做待办，待用户保存并重启后的使用反馈。
 
 ## 2026-10-26：2.2.0正式推送与发布（完成）
 

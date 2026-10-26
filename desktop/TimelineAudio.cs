@@ -8,7 +8,7 @@ using System.Windows.Forms;
 
 internal sealed partial class TimelineCanvas
 {
-    private const int Ruler=26;
+    private int Ruler {get{return InspectorKeyframes?Math.Max(26,Font.Height+10):26;}}
     private int audioHeight=50;private string audioDisplay="waveform",resizeKey;private int resizeHeight;
     private readonly Dictionary<string,int> rowHeights=new Dictionary<string,int>();
     private WaveData wave;private SpectrogramData spectrum;private Bitmap spectrumStrip;private string stripKey;private ContextMenuStrip audioMenu;
@@ -17,7 +17,7 @@ internal sealed partial class TimelineCanvas
     public WaveData Wave {get{return wave;}set{wave=value;Spectrum=null;Invalidate();if(audioDisplay=="spectrogram"&&SpectrumRequested!=null)SpectrumRequested();}}
     public SpectrogramData Spectrum {get{return spectrum;}set{spectrum=value;ClearSpectrumStrip();Invalidate();}}
     public string AudioDisplay {get{return audioDisplay;}set{audioDisplay=value=="spectrogram"?"spectrogram":"waveform";if(audioDisplay=="spectrogram"){if(audioHeight<100)audioHeight=180;if(SpectrumRequested!=null)SpectrumRequested();}RefreshLayout();}}
-    private int Header {get{return Ruler+Math.Min(audioHeight,Math.Max(20,Height-horizontal.Height-Ruler-Row));}}
+    private int Header {get{return InspectorKeyframes?Ruler:Ruler+Math.Min(audioHeight,Math.Max(20,Height-horizontal.Height-Ruler-Row));}}
     public int AudioHeight {get{return audioHeight;}}
     public int AudioBottom {get{return Header;}}
     public void SetAudioHeight(int height){audioHeight=Math.Max(20,Math.Min(600,height));RefreshLayout();}
@@ -30,6 +30,7 @@ internal sealed partial class TimelineCanvas
     {int lo=0,hi=lanes.Count-1;while(lo<=hi){int mid=(lo+hi)/2;var row=lanes[mid];if(y<row.top)hi=mid-1;else if(y>=row.top+row.height)lo=mid+1;else return mid;}return -1;}
     private string HeightBoundary(Point p)
     {
+        if(InspectorKeyframes)return null;
         if(Math.Abs(p.Y-Header)<=3)return "@audio";
         if(p.X>=Names||p.Y<Header)return null;int y=p.Y-Header+vertical.Value;
         int row=RowIndex(y-3);if(row>=0&&Math.Abs(y-lanes[row].top-lanes[row].height)<=4)return RowKey(lanes[row]);return null;

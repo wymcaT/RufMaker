@@ -18,7 +18,7 @@ internal sealed partial class TimelineCanvas
     {
         var fields=Motion.Fields(source).Where(p=>Motion.HasKeys(source,p)).ToArray();if(fields.Length==0&&!TimelineLayout.HasGeneration(source))return;
         lanes.Add(new Lane{index=lane,track=source,property="@item",indent=indent,bindingKey=key});
-        foreach(string property in fields)lanes.Add(new Lane{index=lane,track=source,property=property,indent=indent+1,bindingKey=key});
+        if(!SelectionKeyframesOnly)foreach(string property in fields)lanes.Add(new Lane{index=lane,track=source,property=property,indent=indent+1,bindingKey=key});
         AppendGenerationRows(source,lane,indent,path,key??source.id);
     }
     private void AppendGenerationRows(Track source,int lane,int indent,HashSet<string> path,string key)
@@ -32,7 +32,7 @@ internal sealed partial class TimelineCanvas
                 var target=State.tracks.FirstOrDefault(t=>t.id==action.templateId);if(target==null)continue;
                 lanes.Add(new Lane{index=lane,track=target,property="@template",indent=indent+2,generationSource=source,generationRule=property,bindingKey=binding+"/template"});
                 if(!path.Contains(target.id)){
-                    if(expanded.Contains(target.id))AppendTemplateKeys(target,lane,indent+2,binding);
+                    if(!SelectionKeyframesOnly&&expanded.Contains(target.id))AppendTemplateKeys(target,lane,indent+2,binding);
                     if(IsExpanded(target))AppendGenerationRows(target,lane,indent+2,new HashSet<string>(path),binding);
                 }
             }
@@ -57,6 +57,7 @@ internal sealed partial class TimelineCanvas
         string arrow=TimelineLayout.HasGeneration(lane.track)||lane.track.keyframes.Count>0?(IsExpanded(lane.track)?"▾ ":"▸ "):"▣ ";
         Theme.Label(g,arrow+Language.Text("模板")+" · "+lane.track.name,new Rectangle(rect.X+10,rect.Y+3,rect.Width-20,21),Theme.Text,Theme.Bold,localize:false);
         Theme.Label(g,TemplateSummary(lane.track),new Rectangle(rect.X+10,rect.Y+25,rect.Width-20,18),Theme.Muted,Theme.Small,localize:false);
+        if(SelectionKeyframesOnly&&SelectedTrack==lane.track)foreach(var key in lane.track.keyframes.Where(k=>k.frame>=lane.track.start&&k.frame<=lane.track.end&&!MotionPresets.Generated(lane.track,k.property))){float x=rect.X+12+(rect.Width-24)*(key.frame-lane.track.start)/(float)Math.Max(1,lane.track.end-lane.track.start),yKey=rect.Bottom-3;using(var brush=new SolidBrush(SelectedKeys.Contains(key)?Color.White:Color.FromArgb(255,218,137)))g.FillPolygon(brush,new[]{new PointF(x,yKey-2),new PointF(x+2,yKey),new PointF(x,yKey+2),new PointF(x-2,yKey)});}
     }
     private void SelectTemplateCard(Lane lane,bool edit)
     {

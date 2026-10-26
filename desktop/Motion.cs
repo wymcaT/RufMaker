@@ -34,6 +34,7 @@ internal static class Motion
         TimelineLayout.Order(state);
         foreach(var t in state.tracks)
         {
+            if(EventPresets.IsEvent(t))t.controlAction="event";
             t.rainbowMode=Rainbow.Mode(t);
             if(t.rainbow){t.sprite=String.IsNullOrEmpty(t.rainbowSprite)?Rainbow.Sprite:t.rainbowSprite;t.color="#FFFFFF";}
             var converted=new List<Keyframe>();
@@ -65,7 +66,7 @@ internal static class Motion
     private static double ValueCore(Track t,string property,double frame,ExpressionContext context)
     {
         Keyframe before=null,after=null;
-        if(MotionPresets.Bound(t)){
+        if(MotionPresets.Bound(t)||t.keyframeCycle!=null){
             if(t.keyIndex==null)t.keyIndex=t.keyframes.GroupBy(k=>k.property).ToDictionary(g=>g.Key,g=>g.OrderBy(k=>k.frame).ToArray());
             Keyframe[] keys;if(t.keyIndex.TryGetValue(property,out keys)){int lo=0,hi=keys.Length;while(lo<hi){int mid=(lo+hi)/2;if(keys[mid].frame<=frame)lo=mid+1;else hi=mid;}if(lo>0)before=keys[lo-1];if(lo<keys.Length)after=keys[lo];}
         }else foreach(var key in t.keyframes)
@@ -99,7 +100,7 @@ internal static class Motion
     public static Keyframe SampleAt(Track t,double frame,ExpressionContext context)
     {var p=Position(t,frame,context);context.x=p.x;context.y=p.y;p.angle=ValueCore(t,"angle",frame,context)+ValueCore(t,"angularSpeed",frame,context)*Math.Max(0,frame-TimelineLayout.ClockStart(t));p.scale=ValueCore(t,"scale",frame,context);p.alpha=ValueCore(t,"alpha",frame,context);return BulletSystem.Transform(t.parent,frame,p);}
     public static void SetKey(Track t,string property,int frame,double value)
-    {var key=t.keyframes.FirstOrDefault(k=>k.property==property&&k.frame==frame);if(key==null){key=new Keyframe{frame=frame,property=property};t.keyframes.Add(key);}key.expression="";key.value=value;t.start=Math.Min(t.start,frame);t.end=Math.Max(t.end,frame);}
+    {t.keyIndex=null;var key=t.keyframes.FirstOrDefault(k=>k.property==property&&k.frame==frame);if(key==null){key=new Keyframe{frame=frame,property=property};t.keyframes.Add(key);}key.expression="";key.value=value;t.start=Math.Min(t.start,frame);t.end=Math.Max(t.end,frame);}
     public static PointF[] Endpoints(Track t,double frame)
     {
         if(t.parent!=null){var local=t.Snapshot();local.parent=null;return BulletSystem.TransformPoints(t.parent,frame,Endpoints(local,frame));}

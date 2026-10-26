@@ -5,14 +5,15 @@ using System.Linq;
 
 internal static class GenerationPresets
 {
-    public static readonly string[] Names={"整体扩散 · 保持形状","整体扩散 · 统一速度","360° 随机弹","对玩家自机狙","溅射弹幕"};
-    public static readonly string[] Keys={"formation-scale","formation-uniform","random-360","aim-player","splash"};
+    public static readonly string[] Names={"整体扩散 · 保持形状","整体扩散 · 统一速度","360° 随机弹","对玩家自机狙","溅射弹幕","复制obj"};
+    public static readonly string[] Keys={"formation-scale","formation-uniform","random-360","aim-player","splash",CopyGeneration.Key};
     public static bool Formation(string key){return key==Keys[0]||key==Keys[1];}
     public static string Name(string key){int i=Array.IndexOf(Keys,key);return i<0?key:Names[i];}
     public static BulletAction Apply(EditorState state,Track source,string key)
     {
         if(!TemplateRuntime.Eligible(source)||!Keys.Contains(key))throw new ArgumentException("请将弹幕生成模板拖到物件、整体对象、发射器或分组上。");
         if(Formation(key)&&source.kind!="rod")throw new ArgumentException("整体扩散模板需要拖到整体对象上。");
+        if(key==CopyGeneration.Key)return CopyGeneration.Apply(state,source);
         if(state.tracks.Count>=200)throw new ArgumentException("工程物件数量已达上限。");
         bool formation=Formation(key);var shot=new Track{id=Guid.NewGuid().ToString("N"),kind="emitter",name="模板 · "+Name(key),lane=source.lane,start=0,end=0,x=0,y=0,angle=0,speed=3,scale=.75,count=formation||key==Keys[3]?1:12,spread=0,life=180,interval=25,advancedBullets=true,templateOnly=true,rotateSprite=false,emissionFacing=key==Keys[3]?"aim":"fan",randomPerInstance=true,sprite=source.kind=="rod"||source.kind=="emitter"?source.sprite:"sprBullet",color=source.kind=="rod"||source.kind=="emitter"?source.color:"#FFFFFF",deathEffect="shrink-fade",deathFrames=15};
         if(formation)shot.bulletActions.Add(new BulletAction{type="direction",start=0,duration=0,expression="point_direction(source.x,source.y,x,y)"});
@@ -35,6 +36,7 @@ internal static class GenerationPresets
     public static void Fields(NativeProperties bag,EditorState state,Track source,BulletAction action,Action<Action> edit)
     {
         if(String.IsNullOrEmpty(action.generationPreset))return;var t=state.tracks.FirstOrDefault(row=>row.id==action.templateId);if(t==null)return;
+        if(action.generationPreset==CopyGeneration.Key){CopyGeneration.Fields(bag,state,source,action,edit);return;}
         bag.Add("弹幕生成模板","快捷生成参数",typeof(string),()=>Language.Text(Name(action.generationPreset)),null);
         bag.Add(action.generationPreset==Keys[0]?"扩散速度（距中心100像素处）":"新弹幕速度","快捷生成参数",typeof(double),()=>t.speed,value=>edit(()=>t.speed=(double)value));
         if(!Formation(action.generationPreset))bag.Add("每次发射数量","快捷生成参数",typeof(int),()=>t.count,value=>edit(()=>t.count=Math.Max(1,Math.Min(300,(int)value))));
@@ -81,7 +83,7 @@ internal sealed partial class MainForm
             if(!TemplateRuntime.Eligible(target)){SetStatus("请将弹幕生成模板拖到物件、整体对象、发射器或分组上。");return;}
             if(GenerationPresets.Formation(key)&&target.kind!="rod"){SetStatus("整体扩散模板需要拖到整体对象上。");return;}
             if(state.tracks.Count>=200)throw new ArgumentException("工程物件数量已达上限。");
-            StopPlaying();properties.CommitPending();PushUndo();GenerationPresets.Apply(state,target,key);SelectTrack(target,null);timeline.Expand(target,true);MarkChanged();bool age=target.kind=="emitter";FocusBehavior(!age,(age?target.bulletActions:target.spawnActions).Count-1);SetStatus("已添加循环生成："+GenerationPresets.Name(key)+"；在右栏调整间隔、速度和数量。");
+            StopPlaying();properties.CommitPending();PushUndo();GenerationPresets.Apply(state,target,key);SelectTrack(target,null);timeline.Expand(target,true);MarkChanged();bool age=target.kind=="emitter"&&key!=CopyGeneration.Key;FocusBehavior(!age,(age?target.bulletActions:target.spawnActions).Count-1);SetStatus("已添加循环生成："+GenerationPresets.Name(key)+"；在右栏调整间隔、速度和数量。");
         }catch(Exception error){Error(error);}
     }
     private void SetGeneratorSource(Track source,BulletAction action,bool bullets)

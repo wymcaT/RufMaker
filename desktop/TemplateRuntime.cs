@@ -41,6 +41,11 @@ internal sealed class TemplateRuntime
         return index<0||!hidden.Contains(Key(owner,track,index));
     }
     private void Hide(Track track,int index,int owner){hidden.Add(Key(owner,track,index));}
+    public void ClearDanmaku(int frame)
+    {
+        foreach(var t in world.State.tracks.Where(t=>(t.kind=="rod"||t.kind=="object")&&BulletSystem.Active(t,frame)))Hide(t,-1,0);
+        foreach(var instance in instances)foreach(var t in instance.definition.scene.tracks.Where(t=>(t.kind=="rod"||t.kind=="object")&&BulletSystem.Active(t,frame-instance.shift)))Hide(t,-1,instance.serial);
+    }
     private TemplateDefinition Definition(string id)
     {
         TemplateDefinition found;if(definitions.TryGetValue(id,out found))return found;
@@ -48,7 +53,7 @@ internal sealed class TemplateRuntime
         var selected=new HashSet<string>{id};bool more;
         do{more=false;foreach(var t in world.State.tracks)if(selected.Contains(t.parentId))more|=selected.Add(t.id);}while(more);
         var tracks=world.State.tracks.Where(t=>selected.Contains(t.id)).Select(t=>t.Snapshot()).ToList();var root=tracks.First(t=>t.id==id);root.parentId="";root.enabled=true;root.templateOnly=false;
-        var scene=new EditorState{globalSource=world.State,fps=world.State.fps,duration=world.State.duration,randomSeed=world.State.randomSeed,nativeTest=world.State.nativeTest,usePlayerTrace=world.State.usePlayerTrace,playerTrace=world.State.playerTrace,tracks=tracks};Motion.Normalize(scene);
+        var scene=new EditorState{preserveTrackOrder=world.State.preserveTrackOrder,globalSource=world.State,fps=world.State.fps,duration=world.State.duration,randomSeed=world.State.randomSeed,nativeTest=world.State.nativeTest,usePlayerTrace=world.State.usePlayerTrace,playerTrace=world.State.playerTrace,tracks=tracks};Motion.Normalize(scene);
         found=new TemplateDefinition{scene=scene,root=root,anchor=Motion.At(root,root.start)};definitions[id]=found;return found;
     }
     public TemplateSnapshot Capture(){return new TemplateSnapshot{serial=serial,instances=instances.Select(t=>t.Clone()).ToList(),hidden=new HashSet<string>(hidden)};}
@@ -59,12 +64,20 @@ internal sealed class TemplateRuntime
     }
     private bool Generate(BulletAction action,int frame,double x,double y,double heading,int generation,double sourceX,double sourceY,int index,Track source,int age,BirthAppearance appearance)
     {
+        if(action.generationPreset!=CopyGeneration.Key)return GenerateOne(action,frame,x,y,heading,generation,sourceX,sourceY,index,source,age,appearance,null);
+        bool generated=false;foreach(var copy in CopyGeneration.Placements(action))generated|=GenerateOne(action,frame,x,y,heading,generation,sourceX,sourceY,index,source,age,appearance,copy);return generated;
+    }
+    private bool GenerateOne(BulletAction action,int frame,double x,double y,double heading,int generation,double sourceX,double sourceY,int index,Track source,int age,BirthAppearance appearance,CopyPlacement copy)
+    {
         var definition=Definition(action.templateId);if(definition==null)return false;
-        double rotation=(action.inheritAngle?heading:0)+GenerationPresets.Phase(action,source,age,index,frame)+index*action.spawnAngleStep,a=rotation*Math.PI/180;
+        double rotation=copy==null?(action.inheritAngle?heading:0)+GenerationPresets.Phase(action,source,age,index,frame)+index*action.spawnAngleStep:CopyGeneration.Rotation(action,copy,heading,definition.anchor.angle),a=rotation*Math.PI/180;
+        if(copy!=null){x+=copy.x;y+=copy.y;}
         var instance=new TemplateInstance{serial=++serial,birth=frame,shift=frame-definition.root.start,generation=generation+1,x=x+action.spawnOffsetX*Math.Cos(a)+action.spawnOffsetY*Math.Sin(a),y=y-action.spawnOffsetX*Math.Sin(a)+action.spawnOffsetY*Math.Cos(a),rotation=rotation,sourceX=sourceX,sourceY=sourceY,definition=definition};
         if(action.inheritAppearance)instance.appearance=appearance.Clone();
         if(action.inheritScale)instance.scaleMultiplier=appearance.scale/Math.Max(.000001,definition.anchor.scale);
         if(!String.IsNullOrWhiteSpace(action.spawnColorExpression)){int at=age-action.start-index*action.stagger,wave=action.spawnRepeat>0?at/action.spawnRepeat:0;instance.colorOverride=SpawnColors.Evaluate(action.spawnColorExpression,source,"spawnColor"+source.spawnActions.Concat(source.bulletActions).ToList().IndexOf(action),frame,wave);}
+        if(copy!=null){var tint=CopyGeneration.Tint(action,copy);if(tint.HasValue)instance.colorOverride=tint;if(source.rainbow&&action.copyColorMode=="inherit")instance.appearance=null;
+            if(source.rainbow&&action.copyColorMode=="rainbow"){instance.appearance=appearance.Clone();instance.appearance.color=Color.White;double hue=action.copyHue+360*copy.index/(double)Math.Max(1,copy.count)*action.copyColorDensity;instance.appearance.image=(int)Math.Floor(((hue%360+360)%360)*32/360);instance.colorOverride=Color.White;}}
         instances.Add(instance);StepInstance(instance,frame);return true;
     }
     public void FromBullet(SimBullet bullet,int frame)
@@ -102,6 +115,7 @@ internal sealed class TemplateRuntime
     private void StepInstance(TemplateInstance instance,int frame)
     {
         if(instance.lastFrame==frame)return;instance.lastFrame=frame;int time=frame-instance.shift;var scene=instance.definition.scene;foreach(var child in scene.tracks)child.expressionWorldShift=instance.shift;
+        if(world.ClearDanmakuThisFrame)foreach(var t in scene.tracks.Where(t=>(t.kind=="rod"||t.kind=="object")&&BulletSystem.Active(t,time)))Hide(t,-1,instance.serial);
         foreach(var t in scene.tracks.Where(t=>Eligible(t)&&BulletSystem.Active(t,time)))TrackActions(t,time,frame,instance.serial,instance.generation,instance);
         foreach(var t in scene.tracks.Where(t=>Eligible(t)&&BulletSystem.Active(t,time)&&Visible(t,-1,instance.serial)))
         {

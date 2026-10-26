@@ -17,7 +17,7 @@ internal sealed class EditorState
     public double bpm=120,beatOffsetMs;public int beatDivision=4;public bool beatSnap,directStart;
     public string name="",musicTitle="";public PlayerSettings player;public object terrain;
     public string room="rAvoidance", music="Data/Music/BGM.ogg";
-    public bool timelineInitialized;
+    public bool timelineInitialized,preserveTrackOrder;
     public int randomSeed=12345,laneCount;public bool randomizeOnPlay;
     public bool usePlayerTrace;public List<PlayerTracePoint> playerTrace=new List<PlayerTracePoint>();
     public string[] plainRooms=new string[0];
@@ -47,6 +47,7 @@ internal sealed class Track
     public string targetSource="",targetTag="",targetParity="all",controlAction="speed",controlExpression="",controlEasing="linear";
     public int targetVolley=-1,targetMinAge,targetMaxAge=1000000;public bool includeFuture;
     public double controlFrom,controlValue;public string controlColor="#FFFFFF";
+    public string eventPreset="",eventNativeObjects="";public bool eventRestoreBirth=true,eventDisableMotion=true;public double eventAcceleration,eventTurn;
     [ScriptIgnore] public Track parent;[ScriptIgnore] public EditorState owner;
     public int lane=-1;public string randomId="";public Dictionary<string,string> expressions=new Dictionary<string,string>();
     public string id, name, kind, sprite="sprBullet", easing="linear", color="#ff6d91", effect="flash", code="", rodMode="center", motion="keyframes";
@@ -75,16 +76,19 @@ internal sealed class Track
     public double x=400,y=304,scale=1,alpha=1,x1=280,y1=304,x2=520,y2=304,length=240,rollSpeed=2,easePower=3,easePeriod=.3;
     public double velocityX,velocityY,accelerationX,accelerationY,angularSpeed,orbitRadius=100,orbitSpeed=1,orbitPhase;
     public double pathStartX,pathStartY,pathEndX,pathEndY,pathPeakX,pathPeakY,pathProgress;
-    public MotionPresetData motionPreset;public int? clockStart,clockEnd;public string clipSourceId="";
+    public MotionPresetData motionPreset;public KeyframeCycle keyframeCycle;public int? clockStart,clockEnd;public string clipSourceId="";
     [ScriptIgnore] public Dictionary<string,Keyframe[]> keyIndex;
     public double fxOpacity=1,fxAngle,fxRetention=.5,fxFrequency=1;
     public int fxSamples=6;
     public List<Keyframe> keyframes=new List<Keyframe>();
-    public Track Snapshot(){var copy=(Track)MemberwiseClone();copy.keyframes=keyframes.Select(k=>k.Snapshot()).ToList();copy.expressions=new Dictionary<string,string>(expressions??new Dictionary<string,string>());copy.bulletActions=(bulletActions??new List<BulletAction>()).Select(a=>a.Snapshot()).ToList();copy.spawnActions=(spawnActions??new List<BulletAction>()).Select(a=>a.Snapshot()).ToList();copy.curvePoints=(curvePoints??new List<CurvePoint>()).Select(p=>new CurvePoint{x=p.x,y=p.y}).ToList();copy.children=(children??new List<Track>()).Select(t=>t.Snapshot()).ToList();copy.motionPreset=motionPreset==null?null:motionPreset.Snapshot();copy.keyIndex=null;copy.parent=null;copy.owner=null;return copy;}
+    public Track Snapshot(){var copy=(Track)MemberwiseClone();copy.keyframes=keyframes.Select(k=>k.Snapshot()).ToList();copy.expressions=new Dictionary<string,string>(expressions??new Dictionary<string,string>());copy.bulletActions=(bulletActions??new List<BulletAction>()).Select(a=>a.Snapshot()).ToList();copy.spawnActions=(spawnActions??new List<BulletAction>()).Select(a=>a.Snapshot()).ToList();copy.curvePoints=(curvePoints??new List<CurvePoint>()).Select(p=>new CurvePoint{x=p.x,y=p.y}).ToList();copy.children=(children??new List<Track>()).Select(t=>t.Snapshot()).ToList();copy.motionPreset=motionPreset==null?null:motionPreset.Snapshot();copy.keyframeCycle=keyframeCycle==null?null:keyframeCycle.Snapshot();copy.keyIndex=null;copy.parent=null;copy.owner=null;return copy;}
 }
 internal sealed class CurvePoint {public double x,y;}
 internal sealed class BulletAction
 {
+    public string copyMode="directions",copyFacing="keep",copyColorMode="inherit",copyColor="#FFFFFF";
+    public bool copyUp=true,copyDown=true,copyLeft=true,copyRight=true,copyCenter;public int copyCount=1;
+    public double copySpacingX=128,copySpacingY=128,copyWidth=640,copyHeight=384,copyRadius=180,copyAngle,copyFacingAngle,copyHue,copyColorDensity=1;
     public string generationPreset="",spawnDirectionMode="fixed";public double spawnWaveAngleStep=15;
     public string type="speed",easing="linear",expression="",templateId="";public bool enabled=true,relative;
     public string spawnOrigin="center",spawnParity="all";public int spawnRepeat,spawnIndexFrom,spawnIndexTo=-1;

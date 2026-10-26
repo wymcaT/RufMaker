@@ -23,6 +23,9 @@ internal sealed class WorkspaceView
     public string projectPath="";
     public string[] recentProjects=new string[0],collapsedSections=new string[0];
     public bool leftHidden,rightHidden;public int inspectorPage;
+    public bool keyframesOpen=true;
+    public int keyframesHeight=220;
+    public string stretchKeys="sync";
     public string resourceKind="objects",search="",selectedTrack,selectedProperty="x";
     public TimelineView timeline=new TimelineView();
     public static WorkspaceView Load(string root)

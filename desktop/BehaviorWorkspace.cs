@@ -43,10 +43,10 @@ internal sealed partial class MainForm
         behaviorSummary.Text=Language.Text(template?"生成时间从来源物件开始计算；生成模板使用自己的局部时间。":"按每颗弹幕出生后的年龄执行。复杂筛选、公式和外观继承可在“展开编辑”中调整。");
         Action<Action> edit=change=>{PushUndo();change();if(!template)track.advancedBullets=true;MarkChanged();RefreshBehavior();};
         if(a.type=="spawn"&&!String.IsNullOrEmpty(a.generationPreset)){
-            if(generatedBehaviorButton!=null)generatedBehaviorButton.Visible=true;
+            if(generatedBehaviorButton!=null)generatedBehaviorButton.Visible=state.tracks.Any(t=>t.id==a.templateId&&(t.kind=="emitter"||t.kind=="rod"));
             if(track.kind=="emitter")bag.Add("生成来源","循环生成",typeof(string),()=>template?"发射器本体":"发出的每颗弹幕",value=>SetGeneratorSource(track,a,(string)value=="发出的每颗弹幕"),new[]{"发射器本体","发出的每颗弹幕"});
             bag.Add("启用","循环生成",typeof(bool),()=>a.enabled,value=>edit(()=>a.enabled=(bool)value));
-            bag.Add("发射间隔 / 帧","循环生成",typeof(int),()=>a.spawnRepeat,value=>edit(()=>a.spawnRepeat=Math.Max(1,(int)value)));
+            bag.Add(a.generationPreset==CopyGeneration.Key?"复制间隔 / 帧（0仅一次）":"发射间隔 / 帧","循环生成",typeof(int),()=>a.spawnRepeat,value=>edit(()=>a.spawnRepeat=Math.Max(a.generationPreset==CopyGeneration.Key?0:1,(int)value)));
             GenerationPresets.Fields(bag,state,track,a,edit);
             bag.Add("首次发射延迟 / 帧","循环生成",typeof(int),()=>a.start,value=>edit(()=>a.start=Math.Max(0,(int)value)));
             bag.Add("继承出生贴图与颜色","生成外观",typeof(bool),()=>a.inheritAppearance,value=>edit(()=>a.inheritAppearance=(bool)value));

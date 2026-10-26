@@ -83,7 +83,13 @@ pwsh -NoProfile -File desktop/Test-EditorPerformance.ps1
 
 先从当前源码编译测试 EXE，再使用该接口；不要把 `--sample` 当成产品 EXE 的参数。`INPUT.json`、`FRAME`、`OUTPUT.json` 是需要替换的占位值。
 
+`Test-KeyframeWorkspace.ps1` 验证产品下栏只显示当前物件的标记、旧展开布局不再露出属性子行，以及右栏逐属性编辑区的选帧/框选/边界拖动/单次Undo/加删键/数值绑定/时间同步。包括多选、共用模板、自动采样路径和中英文窄栏；所有夹具与截图位于build/keyframe-workspace-check，不加载用户工程。
+
 ### GM8.2 验证
+
+复制obj与时间轴编辑入口为desktop/CopyGeneration.cs、TimelineEditing.cs和studio/copy-generation.mjs。先运行desktop/Test-CopyEditing.ps1，再用runtime/node.exe desktop/tests/verify-copy-gml.mjs核对独立GM工程；Node单元测试studio/copy-generation.test.mjs。夹具位于build/copy-editing-check，覆盖方向/旋转网格/圆周、朝向/混色/彩虹帧、带随机子发射器的分组、重复特效与F5。UI检查包括无缝接线、整理/Undo、拉伸模式与中英参数。项目新增preserveTrackOrder以让整理只改lane不改变执行；Track.keyframeCycle保存原样式长度/相对关键帧/编辑戳，快照需深复制。产品新增CS必须在Build-Native显式列出。
+
+事件预设入口为desktop/EventPresets.cs和studio/event-presets.mjs（复用control轨道，以eventPreset区分）。运行desktop/Test-EventPresets.ps1覆盖事件语义和高字号分隔条/时间按钮；随后用runtime/node.exe desktop/tests/verify-event-gml.mjs核对独立GM工程的弹幕、整体显隐及额外原生父子对象。Node单元测试为studio/event-presets.test.mjs。夹具均位于build/event-presets-check；测试对象事件头使用工程标准action_id/applies_to，不使用id/kind字段。
 
 2.1.0 的生成模板与全局变量定向入口：`desktop/Test-GenerationPresets.ps1`，通过后运行 `runtime/node.exe desktop/tests/verify-generation-gml.mjs`。前者覆盖5种循环模板、移动母弹、寿命/拖影/子弹行为入口、变量历史与复制预设；后者创建独立 GM 工程，对照弹幕状态、拖影参数、全局变量与 F5 中途启动。Node 的对应单元测试为 `studio/global-variables.test.mjs`。
 

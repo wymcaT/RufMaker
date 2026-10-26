@@ -10,6 +10,9 @@ $names+=@('AudioSpectrogram','TimelineAudio','AudioTimelineTools','ObjectStatist
 $names+=@('BulletLifetime')
 $names+=@('SpawnAppearance','SpawnTimeline')
 $names+=@('EditorShell','BehaviorWorkspace','GlobalVariables','GenerationPresets')
+$names+=@('KeyframeWorkspace')
+$names+=@('EventPresets')
+$names+=@('CopyGeneration','TimelineEditing')
 $sources=$names | ForEach-Object {Join-Path $PSScriptRoot ($_.ToString()+'.cs')}
 & $compiler /nologo /target:winexe /platform:x86 /optimize+ /codepage:65001 /reference:System.Windows.Forms.dll /reference:System.Drawing.dll /reference:System.Web.Extensions.dll /reference:System.IO.Compression.dll /reference:System.IO.Compression.FileSystem.dll "/win32icon:$(Join-Path $taskRoot 'assets/icons/icon.ico')" "/resource:$(Join-Path $taskRoot 'assets/icons/icon.ico'),RufMaker.App.ico" "/resource:$(Join-Path $taskRoot 'assets/locales/en.json'),RufMaker.en.json" "/out:$Output" @sources
 if($LASTEXITCODE -ne 0){throw 'Native editor compilation failed.'}

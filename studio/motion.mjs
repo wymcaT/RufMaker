@@ -20,7 +20,7 @@ export function normalizeState(s,globalSource=null) {
   }
   let next=Math.max(0,...s.tracks.map(t=>Number.isInteger(t.lane)&&t.lane>=0?t.lane+1:0));for(const t of s.tracks)if(!Number.isInteger(t.lane)||t.lane<0)t.lane=next++;
   s.laneCount=Math.max(1,s.laneCount||0,...s.tracks.map(t=>t.lane+1));
-  s.tracks.sort((a,b)=>(a.kind==='native'?-1:a.lane)-(b.kind==='native'?-1:b.lane));
+  s.preserveTrackOrder??=false;s.tracks.sort((a,b)=>(a.kind==='native'?-1:s.preserveTrackOrder?0:a.lane)-(b.kind==='native'?-1:s.preserveTrackOrder?0:b.lane));
   normalizeBulletState(s);const identify=t=>{t.randomId||=t.id;t.children.forEach(identify);};s.tracks.forEach(identify);resolveRandomState(s);for(const t of s.tracks)if(t.kind==='pattern')normalizeState({version:2,fps:s.fps,duration:s.duration,randomSeed:s.randomSeed,nativeTest:s.nativeTest,tracks:t.children},s);return s;
 }
 function bounce(u) {if(u<1/2.75)return 7.5625*u*u;if(u<2/2.75)return 7.5625*(u-1.5/2.75)**2+.75;if(u<2.5/2.75)return 7.5625*(u-2.25/2.75)**2+.9375;return 7.5625*(u-2.625/2.75)**2+.984375;}
@@ -60,7 +60,7 @@ export function stateCode(t,time,context={}) {
     const code=[];blocks.set(field,code);
     const keys=t.keyframes.filter(k=>k.property===field).sort((a,b)=>a.frame-b.frame),base=t[field]??defaults[field];
     if(!keys.length){code.push(`rf_${field}=${parameter(t,field,base)};`);continue;}
-    if(t.motionPreset&&['x','y'].includes(field)&&keys.length>32){
+    if(keys.length>32){
       const tree=(lo,hi)=>{if(hi-lo===1){const a=keys[lo],b=keys[hi];return `rf_u=rf_ease('${a.easing||t.easing||'linear'}',(${time}-(${num(a.frame)}))/${num(Math.max(1,b.frame-a.frame))},${parameter(t,'easePower',3)},${parameter(t,'easePeriod',.3)});rf_${field}=(${parameter(t,field,0,a)})+((${parameter(t,field,0,b)})-(${parameter(t,field,0,a)}))*rf_u;`;}const mid=Math.floor((lo+hi)/2);return `if ${time}<${num(keys[mid].frame)} {${tree(lo,mid)}}else {${tree(mid,hi)}}`;};
       code.push(`if ${time}<=${num(keys[0].frame)} {rf_${field}=${parameter(t,field,0,keys[0])};}else if ${time}>=${num(keys.at(-1).frame)} {rf_${field}=${parameter(t,field,0,keys.at(-1))};}else {${tree(0,keys.length-1)}}`);continue;
     }
