@@ -1,15 +1,24 @@
 # Codex 任务记录
 
-- 状态：`in_progress`（实现完成，2.3.0正式发布进行中）
+- 状态：`completed`（2.3.0已推送并正式发布）
 - 任务：“复制obj”模板、紧贴片段白线、整理时间轴、拉伸关键帧/密集预设循环；包含此前本地右栏关键帧与事件预设一起发布。
 - 基线：`2de5a96` / `main`，远端同基线；Argon4无占用。用户追加明确授权“做完推送git并且release”，选择2.3.0，保留原SHA256更新方式。
-- 当前占用：本轮与此前本地产品文件、desktop/Updater.cs、根EXE、README/中英文教程/2.3.0发布说明、当前交接记录。发布完成后释放。
-- 产物：根RufMaker.exe已为2.3.0，原入口备份build/release-check-2.3.0/RufMaker.before-release.exe；包在build/distribution/v2.3.0。版本标签尚未推送，不提前声称发布完成。
+- 当前占用：无，已完成并释放。
+- 产物：根RufMaker.exe已为2.3.0，原入口备份build/release-check-2.3.0/RufMaker.before-release.exe；包在build/distribution/v2.3.0。提交cea040920c9ac8c42c472989eea53114a9b17f59与标签v2.3.0已原子推送，GitHub Actions及正式附件发布成功。
 - 验证：CopyEditing、GenerationPresets、TemplateSystem、MotionEditing、RandomTimeline、EditorPerformance、ShellLayout、Localization、EventPresets及构建通过；Node定向20/20，后续copy/template/bullet/presets12/12。最终GM1487复制状态、17个特效值与F5启动一致；先前原生事件543状态/21帧及通用537状态/F5通过。
-- 包验证：完整包59,999,757 bytes/2654项，更新包58,047,147 bytes/2621项；版本/必需文件/重复路径/个人资料排除/逐清单SHA通过。原v2.0.0更新器解包2620文件通过，当前更新器提示与隐藏替换/保留用户资料/重启通过；完整包无GM首次新建及重开通过。待线上工作流及实际下载验证。
+- 包验证：完整包59,999,757 bytes/2654项，更新包58,047,147 bytes/2621项；版本/必需文件/重复路径/个人资料排除/逐清单SHA通过。原v2.0.0更新器解包2620文件通过，当前更新器提示与隐藏替换/保留用户资料/重启通过；完整包无GM首次新建及重开通过。线上工作流及实际下载验证均通过，详见下方发布记录。
 - 用户数据：demo仍12文件817增236删；个人工程/歌曲/底片未暂存或改写。尚无本轮用户交互验收。
 
-## 2026-10-27：复制obj与时间轴整理、关键帧拉伸（实现完成，发布进行中）
+## 2026-10-27：2.3.0发布验证（完成）
+
+- 用户在实现中追加明确授权“做完推送git并且release”。54个精确产品文件提交cea040920c9ac8c42c472989eea53114a9b17f59，main与annotated tag v2.3.0原子推送成功，未包含任何projects/歌曲/底片。随后仅补交接文档，不改发布标签或重新发布二进制。
+- Actions 40382567777：completed/success，https://github.com/wymcaT/RufMaker/actions/runs/40382567777。Release https://github.com/wymcaT/RufMaker/releases/tag/v2.3.0 为latest、draft=false、prerelease=false，四个附件均uploaded。
+- 线上完整包60,002,231 bytes，SHA256 2fcafbbf9313621169ef9848b9872b9a6abce53b38a612124791eed11d0e7e1e；更新包58,047,468 bytes，SHA256 739f6743efd5bbdae5d8fae784abd0e527ac104f515e68d7ce0832ffb34a389c；两份旁置校验文本102/85 bytes。线上CI EXE为2.3.0/1,256,960 bytes，本机编译2.3.0/1,258,496 bytes；编译器/文档打包差异不误当成字节一致，以各自清单校验为准。
+- 本地两个包检查通过，原v2.0.0更新器接受2.3.0更新包并校验解包2620文件。Test-Updater.ps1本地确认版本提示、保留用户文件、隐藏替换/备份/重启通过；-Online -Version 2.3.0实际调用产品latest、下载公开ZIP及SHA、逐清单解压通过。
+- 线上完整包已下载到build/release-check-2.3.0/published-portable.zip，旁置SHA和GitHub资产digest均吻合；解压内容有EXE/运行依赖/资源/模板/文档、无用户工程，verify-portable-release.mjs首次新建空工程和重开通过。未启动或控制用户的游戏/编辑器。
+- 日志在build/copy-editing-check：release-published.json、release-runs.json、updater-local/online.log、package-release/check.log、old-updater-release.log、portable-release/online.log；本地与线上包在build/distribution/v2.3.0和build/release-check-2.3.0。用户demo仍12文件817增236删及个人未跟踪工程保持。无待发布必做项，尚无本版用户实操验收；后续推送仍需用户新授权。
+
+## 2026-10-27：复制obj与时间轴整理、关键帧拉伸（完成，2.3.0已发布）
 
 - 新增CopyGeneration.cs/copy-generation.mjs，生成模板由五种扩为六种。复制源及parentId子树成共享templateOnly定义，保留旧行为，在克隆后才附加新规则避免无意自递归；默认spawnActions整对象/发射器，间隔50帧、0为一次，可切到飞行弹幕。副本从模板起点播放，来源后改不自动重制模板；已有规则可多代生成，沿用四代限制。
 - BulletAction新增copyMode/Facing/ColorMode/Color、Up/Down/Left/Right/Center、Count、SpacingX/Y、Width/Height、Radius/Angle/FacingAngle/Hue/ColorDensity。方向支持多层；网格宽高为像素、中心对称、旋转、可排除真实中心格点；圆周等距；每轮最多300，UI编辑先校验快照。朝向保留/固定/内向/外向/切线并减模板初始角，颜色继承/固定/彩虹。普通图混色需白底，彩虹Cherry按副本冻结贴图帧，继承模式保持成员彩虹分布。分组保留子图。C# GenerateOne/GM rf_template_spawn共用既有后代时钟、外观/大小继承和生命周期；rf_copy_anchor_angle仅有复制规则时生成。复制模板是动画初始快照，未宣称实时深拷贝任意手写GML实例。
