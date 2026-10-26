@@ -5,6 +5,7 @@ import {shapeSetup,shapePoint} from './shapes.mjs';
 import {rainbowCode,rodSequence,releasedRainbow} from './rainbow.mjs';
 import {parameterCode as parameter} from './random-parameters.mjs';
 import {trailMode} from './trails.mjs';
+import {expressionCall} from './random-parameters.mjs';
 import {colorCall} from './spawn-appearance.mjs';
 export const templateKinds=['object','rod','emitter','group'];
 export const hasTemplates=s=>s.tracks.some(t=>t.spawnActions.length||t.bulletActions.some(a=>a.type==='spawn'));
@@ -30,8 +31,10 @@ export function spawnCondition(a,age,index,generation){
 }
 function generateAction(a,s,{age,index,generation,x,y,heading,sourceX=x,sourceY=y,after='',source,lookSprite,lookColor,lookImage,lookScale}){
   const target=s.tracks.findIndex(t=>t.id===a.templateId&&templateKinds.includes(t.kind));if(target<0)return '';
-  const angle=`(${a.inheritAngle?heading:'0'}+${num(a.spawnAngle)}+${index}*${num(a.spawnAngleStep)})`;
   const wave=a.spawnRepeat>0?`((${age}-${num(a.start)}-${index}*${num(a.stagger)}) div ${num(a.spawnRepeat)})`:'0';
+  const angleSlot='spawnAngle'+[...source.spawnActions,...source.bulletActions].indexOf(a);
+  const phase=a.spawnDirectionMode==='random'?expressionCall('random(360)',source,angleSlot,null,{frame:'rf_now',randomFrame:'rf_now',randomOffset:`(${wave}*1009)`}):a.spawnDirectionMode==='add'?`(${wave}*${num(a.spawnWaveAngleStep)})`:'0';
+  const angle=`(${a.inheritAngle?heading:'0'}+${num(a.spawnAngle)}+${index}*${num(a.spawnAngleStep)}+${phase})`;
   const slot='spawnColor'+[...source.spawnActions,...source.bulletActions].indexOf(a),color=a.spawnColorExpression?colorCall(a.spawnColorExpression,source,slot,{frame:'rf_now',randomOffset:`(${wave}*1009)`,volley:wave}):'-1';
   return `if (${spawnCondition(a,age,index,generation)}) {rf_inst=rf_template_spawn(${target},rf_now,${x}+lengthdir_x(${num(a.spawnOffsetX)},${angle})+lengthdir_x(${num(a.spawnOffsetY)},${angle}-90),${y}+lengthdir_y(${num(a.spawnOffsetX)},${angle})+lengthdir_y(${num(a.spawnOffsetY)},${angle}-90),${angle},${generation}+1,${sourceX},${sourceY},${a.inheritAppearance?lookSprite:'-1'},${lookColor},${lookImage},${a.inheritScale?1:0},${lookScale},${color});if instance_exists(rf_inst) {${after}}}`;
 }
@@ -46,7 +49,7 @@ ${each?'rf_n=rf_count;':'rf_n=1;'}for(rf_j=0;rf_j<rf_n;rf_j+=1) {if !rf_template
 ${each?shapePoint(t):'rf_px=rf_x;rf_py=rf_y;'}rf_color_sequence=${each?rodSequence(t,{rotation:inside?'rf_rotation':'0'}):'0'};rf_heading=${each?'point_direction(rf_x,rf_y,rf_px,rf_py)':'rf_angle'};${inside?warp()+'rf_heading+=rf_rotation;':''}
 rf_look_sprite=${t.sprite};rf_look_color=${t.rainbow?'c_white':tint(t.color)};rf_look_image=${rainbowCode(t,'rf_color_sequence',time)};rf_look_scale=rf_scale;
 ${inside?'rf_look_scale*=rf_scale_multiplier;if rf_inherit_sprite>=0 {rf_look_sprite=rf_inherit_sprite;rf_look_color=rf_inherit_color;rf_look_image=rf_inherit_image;}if rf_color_override>=0 rf_look_color=rf_color_override;':''}
-${generateAction(a,s,{source:t,age:`(${time}-${num(t.start)})`,index:'rf_j',generation,x:'rf_px',y:'rf_py',heading:'rf_heading',sourceX:'rf_center_x',sourceY:'rf_center_y',lookSprite:'rf_look_sprite',lookColor:'rf_look_color',lookImage:'rf_look_image',lookScale:'rf_look_scale',after:a.destroyParent?`rf_template_hide(${source},${member},${owner});`:''})}}}`;
+${generateAction(a,s,{source:t,age:`(${time}-(${num(t.clockStart??t.start)}))`,index:'rf_j',generation,x:'rf_px',y:'rf_py',heading:'rf_heading',sourceX:'rf_center_x',sourceY:'rf_center_y',lookSprite:'rf_look_sprite',lookColor:'rf_look_color',lookImage:'rf_look_image',lookScale:'rf_look_scale',after:a.destroyParent?`rf_template_hide(${source},${member},${owner});`:''})}}}`;
   }).join('\n');
 }
 function tint(hex){const c=/^#[0-9a-f]{6}$/i.test(hex||'')?hex.slice(1):'ffffff';return `make_color_rgb(${parseInt(c.slice(0,2),16)},${parseInt(c.slice(2,4),16)},${parseInt(c.slice(4,6),16)})`;}
@@ -57,8 +60,8 @@ rf_inst.rf_t_mode='${trailMode(t)}';rf_inst.rf_t_interval=${parameter(t,'trailIn
 }
 function instanceMember(t,s,bundle){
   const source=s.tracks.findIndex(x=>x.id===t.id),active=activeCode(t,'rf_clock',bundle.tracks),clear=`for(rf_j=0;rf_j<rf_tc[${source}];rf_j+=1) if instance_exists(rf_tf[${source},rf_j]) with(rf_tf[${source},rf_j]) instance_destroy();rf_tc[${source}]=0;`;
-  if(t.kind==='emitter')return `if (${active}) && rf_template_visible(${source},-1,id) && (rf_clock-${num(t.start)}) mod ${parameter(t,'interval',1)}=0 {
-${templateStateCode(t,'rf_clock')}rf_n=clamp(round(rf_count),1,300);for(rf_j=0;rf_j<rf_n;rf_j+=1){rf_inst=rf_pattern_spawn(${source},rf_now+rf_j*${num(t.indexDelay)},rf_j,rf_n,(rf_clock-${num(t.start)}) div ${parameter(t,'interval',1)},0,0,0,0,0,rf_generation,0,rf_shift,id,rf_source_x,rf_source_y);if instance_exists(rf_inst) with(rf_inst) rf_pattern_tick(global.rf_template_world);}}`;
+  if(t.kind==='emitter')return `if (${active}) && rf_template_visible(${source},-1,id) && (rf_clock-(${num(t.clockStart??t.start)})) mod ${parameter(t,'interval',1)}=0 {
+${templateStateCode(t,'rf_clock')}rf_n=clamp(round(rf_count),1,300);for(rf_j=0;rf_j<rf_n;rf_j+=1){rf_inst=rf_pattern_spawn(${source},rf_now+rf_j*${num(t.indexDelay)},rf_j,rf_n,(rf_clock-(${num(t.clockStart??t.start)})) div ${parameter(t,'interval',1)},0,0,0,0,0,rf_generation,0,rf_shift,id,rf_source_x,rf_source_y);if instance_exists(rf_inst) with(rf_inst) rf_pattern_tick(global.rf_template_world);}}`;
   if(!['object','rod'].includes(t.kind))return '';
   const release=t.kind==='rod'&&t.releaseFrame>=0?`if rf_clock=${num(t.releaseFrame)} {${templateStateCode(t,'rf_clock')}${shapeSetup(t,'rf_clock')}rf_center_x=rf_x;rf_center_y=rf_y;${warp('rf_center_x','rf_center_y')}rf_n=rf_count;for(rf_j=0;rf_j<rf_n;rf_j+=1)if rf_template_visible(${source},rf_j,id){${shapePoint(t)}rf_color_sequence=${rodSequence(t,{rotation:'rf_rotation'})};rf_heading=${t.releaseDirection==='fixed'?'rf_angle':t.releaseDirection==='aim'?'0':'point_direction(rf_x,rf_y,rf_px,rf_py)'+(t.releaseDirection==='tangent'?'+90':'')};${warp()}rf_heading+=rf_rotation;${t.releaseDirection==='aim'?'rf_heading=point_direction(rf_px,rf_py,rf_expression_player(0),rf_expression_player(1));':''}rf_inst=rf_pattern_spawn(${source},rf_now,rf_j,rf_n,0,1,rf_px,rf_py,rf_heading,rf_speed,rf_generation,0,rf_shift,id,rf_center_x,rf_center_y);${releasedRainbow(t,'rf_clock')}if instance_exists(rf_inst) with(rf_inst) rf_pattern_tick(global.rf_template_world);}}`:'';
   return `${release}

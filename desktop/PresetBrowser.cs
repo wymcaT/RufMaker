@@ -39,7 +39,7 @@ internal sealed partial class MainForm
 {
     private PresetLibrary presetLibrary;private string presetFolder="";private FlowLayoutPanel presetTools;private Label presetAddress;
     private PresetLibrary Library {get{return presetLibrary??(presetLibrary=new PresetLibrary(Path.Combine(root,"user-presets")));}}
-    private static bool IsPresetKind(string kind){return kind=="presets"||kind=="effect-presets"||kind=="camera-presets"||kind=="custom-presets";}
+    private static bool IsPresetKind(string kind){return kind=="presets"||kind=="effect-presets"||kind=="camera-presets"||kind=="custom-presets"||kind=="generation-presets";}
     private FlowLayoutPanel BuildPresetTools()
     {
         presetTools=new FlowLayoutPanel{Dock=DockStyle.Fill,AutoSize=true,WrapContents=true,Margin=Padding.Empty,Visible=false};
@@ -58,9 +58,10 @@ internal sealed partial class MainForm
         if(custom){if(!Directory.Exists(Library.Resolve(presetFolder)))presetFolder="";string folder=Library.Resolve(presetFolder);presetAddress.Text=Language.Text("公共预设库 / ")+presetFolder.Replace('\\','/');
             entries.AddRange(Directory.GetDirectories(folder).OrderBy(s=>s).Select(s=>new PresetEntry{name=Path.GetFileName(s),key=Library.Relative(s),folder=true}));
             entries.AddRange(Directory.GetFiles(folder,"*.rufpreset").OrderBy(s=>s).Select(s=>new PresetEntry{name=Path.GetFileNameWithoutExtension(s),key=Library.Relative(s)}));
-        }else foreach(string name in resourceKind=="presets"?MotionPresets.Names:resourceKind=="camera-presets"?CameraPresets.Names:EffectPresets.Names)entries.Add(new PresetEntry{name=name,key=name});
+        }else if(resourceKind=="generation-presets"){for(int i=0;i<GenerationPresets.Names.Length;i++)entries.Add(new PresetEntry{name=GenerationPresets.Names[i],key=GenerationPresets.Keys[i]});}
+        else foreach(string name in resourceKind=="presets"?MotionPresets.Names:resourceKind=="camera-presets"?CameraPresets.Names:EffectPresets.Names)entries.Add(new PresetEntry{name=name,key=name});
         var icons=PresetIcons.Create();resources.BeginUpdate();resources.Items.Clear();var previous=resources.SmallImageList;
-        foreach(var entry in entries.Where(e=>e.name.IndexOf(ResourceFilter,StringComparison.OrdinalIgnoreCase)>=0||!custom&&Language.Text(e.name).IndexOf(ResourceFilter,StringComparison.OrdinalIgnoreCase)>=0))resources.Items.Add(new ListViewItem(custom?entry.name:Language.Text(entry.name),entry.folder?1:custom?2:0){Tag=entry,ToolTipText=Language.Text(entry.folder?"双击进入分类；右键重命名 / 移动分类":custom?"拖入时间轴按落点新建轨道；双击从播放头添加。保留原位置和全部关键帧。":resourceKind=="presets"?"拖到物件或拉镜上应用动作；双击应用到所选轨道。":"拖到同类轨道上应用；拖到空白处或双击可新建轨道。")});
+        foreach(var entry in entries.Where(e=>e.name.IndexOf(ResourceFilter,StringComparison.OrdinalIgnoreCase)>=0||!custom&&Language.Text(e.name).IndexOf(ResourceFilter,StringComparison.OrdinalIgnoreCase)>=0))resources.Items.Add(new ListViewItem(custom?entry.name:Language.Text(entry.name),entry.folder?1:custom?2:0){Tag=entry,ToolTipText=Language.Text(entry.folder?"双击进入分类；右键重命名 / 移动分类":custom?"拖入时间轴按落点新建轨道；双击从播放头添加。保留原位置和全部关键帧。":resourceKind=="generation-presets"?"拖到来源物件上，自动循环生成弹幕；双击应用到所选物件。":resourceKind=="presets"?"拖到物件或拉镜上应用动作；双击应用到所选轨道。":"拖到同类轨道上应用；拖到空白处或双击可新建轨道。")});
         resources.SmallImageList=icons;if(previous!=null)previous.Dispose();resources.EndUpdate();
     }
     private ContextMenuStrip PresetResourceMenu()
@@ -97,11 +98,12 @@ internal sealed partial class MainForm
     {
         if(state==null||busy)return;
         try{
+            if(kind=="generation-presets"){ApplyGenerationPreset(name,target);return;}
             if(kind=="presets"){ApplyMotionPreset(name,target);return;}
             StopPlaying();properties.CommitPending();
             if(kind=="custom-presets"){
                 bool enabled=Enabled;SetBusy(true);Enabled=false;
-                try{if(state.tracks.Count+PresetLibrary.Read(Library.Resolve(name)).tracks.Count>200)throw new InvalidOperationException("添加此预设后会超过 200 条轨道。");var added=Library.Instantiate(name,document.project,Math.Max(0,at),state.fps);int end=added.Max(t=>Math.Max(t.end,t.keyframes.Select(k=>k.frame).DefaultIfEmpty(t.end).Max()));if(end>1000000)throw new InvalidOperationException("预设超出工程支持的最大帧数。");var assets=await bridge.Call<ImportResult>("asset-info",new{});document.inventory=assets.inventory;document.spriteMeta=assets.spriteMeta;sprites.Metadata=assets.spriteMeta;PushUndo();int firstLane=added.Min(t=>Math.Max(0,t.lane)),baseLane=timeline.ActiveLane>=0?timeline.ActiveLane:Math.Max(0,state.laneCount-1);foreach(var t in added)t.lane=Math.Min(199,baseLane+Math.Max(0,t.lane-firstLane));RandomParameters.Resolve(new EditorState{randomSeed=state.randomSeed,tracks=added});state.tracks.AddRange(added);state.laneCount=Math.Max(state.laneCount,added.Max(t=>t.lane)+1);state.duration=Math.Max(state.duration,end);foreach(var t in added)timeline.Expand(t,true);timeline.SetTrackSelection(added,added[0]);MarkChanged();SetStatus("已添加自定义预设 · "+added.Count+" 个物件，关键帧按落点对齐。");}
+                try{if(state.tracks.Count+PresetLibrary.Read(Library.Resolve(name)).tracks.Count>200)throw new InvalidOperationException("添加此预设后会超过 200 条轨道。");var added=Library.Instantiate(name,document.project,Math.Max(0,at),state.fps);GlobalVariables.RemapCopies(added,state);int end=added.Max(t=>Math.Max(t.end,t.keyframes.Select(k=>k.frame).DefaultIfEmpty(t.end).Max()));if(end>1000000)throw new InvalidOperationException("预设超出工程支持的最大帧数。");var assets=await bridge.Call<ImportResult>("asset-info",new{});document.inventory=assets.inventory;document.spriteMeta=assets.spriteMeta;sprites.Metadata=assets.spriteMeta;PushUndo();int firstLane=added.Min(t=>Math.Max(0,t.lane)),baseLane=timeline.ActiveLane>=0?timeline.ActiveLane:Math.Max(0,state.laneCount-1);foreach(var t in added)t.lane=Math.Min(199,baseLane+Math.Max(0,t.lane-firstLane));RandomParameters.Resolve(new EditorState{fps=state.fps,duration=Math.Max(state.duration,end),randomSeed=state.randomSeed,nativeTest=state.nativeTest,tracks=state.tracks.Select(row=>row.Snapshot()).Concat(added).ToList()});state.tracks.AddRange(added);state.laneCount=Math.Max(state.laneCount,added.Max(t=>t.lane)+1);state.duration=Math.Max(state.duration,end);foreach(var t in added)timeline.Expand(t,true);timeline.SetTrackSelection(added,added[0]);MarkChanged();SetStatus("已添加自定义预设 · "+added.Count+" 个物件，关键帧按落点对齐。");}
                 finally{Enabled=enabled;SetBusy(false);}return;
             }
             bool camera=kind=="camera-presets";if(!camera&&kind!="effect-presets")return;string type=camera?"camera":"effect";

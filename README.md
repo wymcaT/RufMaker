@@ -1,6 +1,6 @@
 # RufMaker
 
-当前版本 **2.0.0**：重新整理原生界面，固定主工具栏与播放工具栏，资源库分为素材/预设，右栏分为属性/行为/统计。直接运行 `RufMaker.exe`。[本版更新说明](docs/releases/v2.0.0.md) · [弹幕控制说明](docs/beta-bullet-control.md)。
+**2.2.0**：动作预设支持路径参数编辑和逐帧铺键；时间轴拖动稳定，同轨覆盖会裁剪，并默认支持跨轨道边缘吸附。[下载完整便携版](https://github.com/wymcaT/RufMaker/releases/tag/v2.2.0)，解压后运行 `RufMaker.exe`；已有版本可点击“检测更新”。[本版更新说明](docs/releases/v2.2.0.md) · [动作与时间轴教程](docs/motion-timeline-editing.md) · [生成模板与变量教程](docs/generation-presets.md) · [弹幕控制说明](docs/beta-bullet-control.md)。
 
 开发协作请从 [AGENTS.md](AGENTS.md) 和 [开发入口](docs/development/GETTING_STARTED.md) 开始；[当前状态](docs/collaboration/STATUS.md) 与 [Argon4 接手提示](docs/collaboration/START_ARGON4.md) 用于跨代理交接。
 

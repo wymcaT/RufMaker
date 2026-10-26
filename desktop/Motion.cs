@@ -65,7 +65,10 @@ internal static class Motion
     private static double ValueCore(Track t,string property,double frame,ExpressionContext context)
     {
         Keyframe before=null,after=null;
-        foreach(var key in t.keyframes)
+        if(MotionPresets.Bound(t)){
+            if(t.keyIndex==null)t.keyIndex=t.keyframes.GroupBy(k=>k.property).ToDictionary(g=>g.Key,g=>g.OrderBy(k=>k.frame).ToArray());
+            Keyframe[] keys;if(t.keyIndex.TryGetValue(property,out keys)){int lo=0,hi=keys.Length;while(lo<hi){int mid=(lo+hi)/2;if(keys[mid].frame<=frame)lo=mid+1;else hi=mid;}if(lo>0)before=keys[lo-1];if(lo<keys.Length)after=keys[lo];}
+        }else foreach(var key in t.keyframes)
         {
             if(key.property!=property)continue;
             if(key.frame<=frame&&(before==null||key.frame>=before.frame))before=key;
@@ -81,7 +84,7 @@ internal static class Motion
     private static Keyframe Position(Track t,double frame,ExpressionContext context)
     {
         var p=new Keyframe{x=ValueCore(t,"x",frame,context),y=ValueCore(t,"y",frame,context)};
-        double dt=Math.Max(0,frame-t.start);
+        double dt=Math.Max(0,frame-TimelineLayout.ClockStart(t));
         if(t.motion=="velocity"){p.x+=ValueCore(t,"velocityX",frame,context)*dt+ValueCore(t,"accelerationX",frame,context)*dt*dt/2;p.y+=ValueCore(t,"velocityY",frame,context)*dt+ValueCore(t,"accelerationY",frame,context)*dt*dt/2;}
         if(t.motion=="orbit"){double a=(ValueCore(t,"orbitPhase",frame,context)+ValueCore(t,"orbitSpeed",frame,context)*dt)*Math.PI/180;p.x+=Math.Cos(a)*ValueCore(t,"orbitRadius",frame,context);p.y-=Math.Sin(a)*ValueCore(t,"orbitRadius",frame,context);}
         if(t.motion=="parabola"){
@@ -92,9 +95,9 @@ internal static class Motion
         return p;
     }
     public static Keyframe At(Track t,double frame)
-    {var context=GeometryContext(t,frame);var p=Position(t,frame,context);context.x=p.x;context.y=p.y;p.angle=ValueCore(t,"angle",frame,context)+ValueCore(t,"angularSpeed",frame,context)*Math.Max(0,frame-t.start);p.scale=ValueCore(t,"scale",frame,context);p.alpha=ValueCore(t,"alpha",frame,context);return BulletSystem.Transform(t.parent,frame,p);}
+    {var context=GeometryContext(t,frame);var p=Position(t,frame,context);context.x=p.x;context.y=p.y;p.angle=ValueCore(t,"angle",frame,context)+ValueCore(t,"angularSpeed",frame,context)*Math.Max(0,frame-TimelineLayout.ClockStart(t));p.scale=ValueCore(t,"scale",frame,context);p.alpha=ValueCore(t,"alpha",frame,context);return BulletSystem.Transform(t.parent,frame,p);}
     public static Keyframe SampleAt(Track t,double frame,ExpressionContext context)
-    {var p=Position(t,frame,context);context.x=p.x;context.y=p.y;p.angle=ValueCore(t,"angle",frame,context)+ValueCore(t,"angularSpeed",frame,context)*Math.Max(0,frame-t.start);p.scale=ValueCore(t,"scale",frame,context);p.alpha=ValueCore(t,"alpha",frame,context);return BulletSystem.Transform(t.parent,frame,p);}
+    {var p=Position(t,frame,context);context.x=p.x;context.y=p.y;p.angle=ValueCore(t,"angle",frame,context)+ValueCore(t,"angularSpeed",frame,context)*Math.Max(0,frame-TimelineLayout.ClockStart(t));p.scale=ValueCore(t,"scale",frame,context);p.alpha=ValueCore(t,"alpha",frame,context);return BulletSystem.Transform(t.parent,frame,p);}
     public static void SetKey(Track t,string property,int frame,double value)
     {var key=t.keyframes.FirstOrDefault(k=>k.property==property&&k.frame==frame);if(key==null){key=new Keyframe{frame=frame,property=property};t.keyframes.Add(key);}key.expression="";key.value=value;t.start=Math.Min(t.start,frame);t.end=Math.Max(t.end,frame);}
     public static PointF[] Endpoints(Track t,double frame)
@@ -112,7 +115,7 @@ internal static class Motion
         {
             var p=At(t,frame);double radius=Math.Max(0,Value(t,"radius",frame));int n=Math.Max(1,Math.Min(300,(int)BulletSystem.Round(Value(t,"count",frame)))),sides=Math.Max(3,Math.Min(64,(int)BulletSystem.Round(Value(t,"sides",frame))));var result=new PointF[n];
             double aspect=Value(t,"shapeAspect",frame),inner=Value(t,"shapeInner",frame),orientation=t.shape=="ring"?0:Value(t,"orientation",frame),phase=p.angle/360;
-            if(t.rolling){double perimeter=FormationShapes.Perimeter(t.shape,radius,sides,aspect,inner);if(perimeter>.001)phase+=(frame-t.start)*Value(t,"rollSpeed",frame)/perimeter;}
+            if(t.rolling){double perimeter=FormationShapes.Perimeter(t.shape,radius,sides,aspect,inner);if(perimeter>.001)phase+=(frame-TimelineLayout.ClockStart(t))*Value(t,"rollSpeed",frame)/perimeter;}
             for(int i=0;i<n;i++)
             {
                 // heart.gml numbers its instances from 1, star2.gml from 0.
@@ -125,7 +128,7 @@ internal static class Motion
         var endpoints=Endpoints(t,frame);double dx=endpoints[1].X-endpoints[0].X,dy=endpoints[1].Y-endpoints[0].Y,len=Math.Sqrt(dx*dx+dy*dy);
         int count=Math.Max(1,Math.Min(300,(int)Math.Round(Value(t,"count",frame))));var points=new PointF[count];
         // Rolling uses a half-open line to keep a constant number of evenly spaced bullets at wraparound.
-        double offset=t.rolling&&len>.001?(frame-t.start)*Value(t,"rollSpeed",frame)/len:0;
+        double offset=t.rolling&&len>.001?(frame-TimelineLayout.ClockStart(t))*Value(t,"rollSpeed",frame)/len:0;
         for(int i=0;i<count;i++){double u=t.rolling?(i/(double)count+offset):count==1?.5:i/(double)(count-1);if(t.rolling)u-=Math.Floor(u);points[i]=new PointF((float)(endpoints[0].X+dx*u),(float)(endpoints[0].Y+dy*u));}return points;
     }
     private static double Bounce(double u)

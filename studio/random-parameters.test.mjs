@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {evaluateExpression,resolveRandomState,randomInitialization,parameterCode} from './random-parameters.mjs';
+import {evaluateExpression,resolveRandomState,randomInitialization,parameterCode,expressionCall,expressionScripts} from './random-parameters.mjs';
 import {normalizeState,stateCode,valueAt} from './motion.mjs';
 
 test('random expressions accept arithmetic, nested calls and Chinese punctuation',()=>{
@@ -30,4 +30,16 @@ test('game initializes samples once, uses independent RNG and preserves seed mod
 test('lane migration keeps old layouts and mixed objects can share a lane',()=>{
   const s=normalizeState({version:2,tracks:[{id:'a',kind:'object',keyframes:[]},{id:'b',kind:'effect',keyframes:[]},{id:'c',kind:'camera',keyframes:[]}]});
   assert.deepEqual(s.tracks.map(t=>t.lane),[0,1,2]);s.tracks[1].lane=0;s.tracks[2].lane=0;normalizeState(s);assert.deepEqual(s.tracks.map(t=>t.lane),[0,0,0]);
+});
+test('generated bullet samples cover arbitrary direction ranges without a fixed angular step',()=>{
+  const context=i=>({randomFrame:0,randomOffset:10*104729+i*9176,randomMix:true});
+  const samples=Array.from({length:300},(_,i)=>evaluateExpression('random_range(30,150)',991,'template2|angle|base',context(i)));
+  assert.ok(samples.every(x=>x>=30&&x<150));assert.equal(new Set(samples.map(x=>Math.floor((x-30)/10))).size,12);
+  const gaps=samples.slice(1,12).map((x,i)=>(x-samples[i]+120)%120);assert.ok(Math.max(...gaps)-Math.min(...gaps)>30);
+  assert.deepEqual(samples,samples.map((x,i)=>evaluateExpression('random_range(30,150)',991,'template2|angle|base',context(i))));
+  assert.equal(new Set(samples.map((x,i)=>evaluateExpression('choose(0,90,180,270)',991,'template2|angle|base',context(i)))).size,4);
+  const track={id:'t',randomId:'t',x:0,y:0,start:0,randomPerInstance:true,spawnActions:[],bulletActions:[],expressions:{angle:'random_range(0,360)'},keyframes:[]};
+  assert.ok(expressionCall('random_range(0,360)',track,'angle',null,{randomMix:true}).includes('rf_random_mix('));
+  assert.ok(!expressionCall('random_range(0,360)',track,'angle').includes('rf_random_mix('));
+  assert.ok(expressionScripts({fps:50,tracks:[track]},[]).some(([name])=>name==='rf_random_mix'));
 });

@@ -30,14 +30,14 @@ internal static class Rainbow
         }
         if(t.shape!="rod"||t.rodMode!="center")return index;
         double u=count<=1?.5:t.rolling?index/(double)count:index/(double)(count-1);
-        if(t.rolling){var ends=Motion.Endpoints(t,frame);double dx=ends[1].X-ends[0].X,dy=ends[1].Y-ends[0].Y,len=Math.Sqrt(dx*dx+dy*dy);if(len>.001)u+=(frame-t.start)*Motion.Value(t,"rollSpeed",frame)/len;u-=Math.Floor(u);}
+        if(t.rolling){var ends=Motion.Endpoints(t,frame);double dx=ends[1].X-ends[0].X,dy=ends[1].Y-ends[0].Y,len=Math.Sqrt(dx*dx+dy*dy);if(len>.001)u+=(frame-TimelineLayout.ClockStart(t))*Motion.Value(t,"rollSpeed",frame)/len;u-=Math.Floor(u);}
         return Math.Abs(u-.5)*(count-1);
     }
     public static int Index(Track t,double sequence,double time,double sampleTime=-1)
     {
         if(!t.rainbow)return 0;if(sampleTime<0)sampleTime=time;
         double phase=Motion.Value(t,"rainbowOffset",sampleTime)+sequence*Motion.Value(t,"rainbowDensity",sampleTime);
-        if(t.rainbowDynamic)phase+=(time-t.start)*Motion.Value(t,"rainbowSpeed",sampleTime);
+        if(t.rainbowDynamic)phase+=(time-TimelineLayout.ClockStart(t))*Motion.Value(t,"rainbowSpeed",sampleTime);
         if(t.rainbowReverse)phase=-phase;
         return (int)((Math.Floor(phase)%32+32)%32);
     }

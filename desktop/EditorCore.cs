@@ -12,6 +12,7 @@ using System.Web.Script.Serialization;
 #pragma warning disable 0649 // JSON fields are populated by JavaScriptSerializer.
 internal sealed class EditorState
 {
+    [ScriptIgnore] public GlobalVariableTimeline variableTimeline;[ScriptIgnore] public EditorState globalSource;
     public int version=2, fps=50, duration=1500;
     public double bpm=120,beatOffsetMs;public int beatDivision=4;public bool beatSnap,directStart;
     public string name="",musicTitle="";public PlayerSettings player;public object terrain;
@@ -25,7 +26,7 @@ internal sealed class EditorState
     public List<Track> tracks=new List<Track>();
     public EditorState Snapshot()
     {
-        var copy=(EditorState)MemberwiseClone();copy.tracks=tracks.Select(t=>t.Snapshot()).ToList();copy.playerTrace=playerTrace.Select(p=>new PlayerTracePoint{frame=p.frame,x=p.x,y=p.y}).ToList();copy.plainRooms=plainRooms==null?null:(string[])plainRooms.Clone();
+        var copy=(EditorState)MemberwiseClone();copy.variableTimeline=null;copy.globalSource=null;copy.tracks=tracks.Select(t=>t.Snapshot()).ToList();copy.playerTrace=playerTrace.Select(p=>new PlayerTracePoint{frame=p.frame,x=p.x,y=p.y}).ToList();copy.plainRooms=plainRooms==null?null:(string[])plainRooms.Clone();
         copy.nativeTest=nativeTest==null?null:new NativeTestPosition{x=nativeTest.x,y=nativeTest.y};copy.player=player==null?null:player.Snapshot();copy.nativeProject=nativeProject==null?null:nativeProject.Snapshot();copy.terrain=terrain==null?null:Json.Read<object>(Json.Write(terrain));return copy;
     }
 }
@@ -34,6 +35,8 @@ internal sealed class PlayerTracePoint {public int frame;public double x,y;}
 internal sealed class PlayerSettings {public double gravity=.4,moveSpeed=3,jumpSpeed=8.5,doubleJumpSpeed=7;public int maxJumps=2;public bool infiniteJump;public PlayerSettings Snapshot(){return (PlayerSettings)MemberwiseClone();}}
 internal sealed class Track
 {
+    public string variableName="phase",variableExpression="random(360)";public double variableDefault;public int variableRepeat;
+    public bool randomPerInstance;[ScriptIgnore] public int expressionWorldShift;
     public string tag="",parentId="",emissionShape="point",emissionFacing="fan",randomScope="bullet";
     public bool advancedBullets;
     public double emitWidth=240,emitHeight=160,emitArc=360,emitPhase,emitRotation,emitWaves=1,indexSpeed,indexAngle,indexScale;
@@ -72,14 +75,17 @@ internal sealed class Track
     public double x=400,y=304,scale=1,alpha=1,x1=280,y1=304,x2=520,y2=304,length=240,rollSpeed=2,easePower=3,easePeriod=.3;
     public double velocityX,velocityY,accelerationX,accelerationY,angularSpeed,orbitRadius=100,orbitSpeed=1,orbitPhase;
     public double pathStartX,pathStartY,pathEndX,pathEndY,pathPeakX,pathPeakY,pathProgress;
+    public MotionPresetData motionPreset;public int? clockStart,clockEnd;public string clipSourceId="";
+    [ScriptIgnore] public Dictionary<string,Keyframe[]> keyIndex;
     public double fxOpacity=1,fxAngle,fxRetention=.5,fxFrequency=1;
     public int fxSamples=6;
     public List<Keyframe> keyframes=new List<Keyframe>();
-    public Track Snapshot(){var copy=(Track)MemberwiseClone();copy.keyframes=keyframes.Select(k=>k.Snapshot()).ToList();copy.expressions=new Dictionary<string,string>(expressions??new Dictionary<string,string>());copy.bulletActions=(bulletActions??new List<BulletAction>()).Select(a=>a.Snapshot()).ToList();copy.spawnActions=(spawnActions??new List<BulletAction>()).Select(a=>a.Snapshot()).ToList();copy.curvePoints=(curvePoints??new List<CurvePoint>()).Select(p=>new CurvePoint{x=p.x,y=p.y}).ToList();copy.children=(children??new List<Track>()).Select(t=>t.Snapshot()).ToList();copy.parent=null;copy.owner=null;return copy;}
+    public Track Snapshot(){var copy=(Track)MemberwiseClone();copy.keyframes=keyframes.Select(k=>k.Snapshot()).ToList();copy.expressions=new Dictionary<string,string>(expressions??new Dictionary<string,string>());copy.bulletActions=(bulletActions??new List<BulletAction>()).Select(a=>a.Snapshot()).ToList();copy.spawnActions=(spawnActions??new List<BulletAction>()).Select(a=>a.Snapshot()).ToList();copy.curvePoints=(curvePoints??new List<CurvePoint>()).Select(p=>new CurvePoint{x=p.x,y=p.y}).ToList();copy.children=(children??new List<Track>()).Select(t=>t.Snapshot()).ToList();copy.motionPreset=motionPreset==null?null:motionPreset.Snapshot();copy.keyIndex=null;copy.parent=null;copy.owner=null;return copy;}
 }
 internal sealed class CurvePoint {public double x,y;}
 internal sealed class BulletAction
 {
+    public string generationPreset="",spawnDirectionMode="fixed";public double spawnWaveAngleStep=15;
     public string type="speed",easing="linear",expression="",templateId="";public bool enabled=true,relative;
     public string spawnOrigin="center",spawnParity="all";public int spawnRepeat,spawnIndexFrom,spawnIndexTo=-1;
     public double spawnOffsetX,spawnOffsetY,spawnAngle,spawnAngleStep;public bool inheritAngle,destroyParent;

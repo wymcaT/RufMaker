@@ -1,12 +1,74 @@
 # Codex 任务记录
 
-- 状态：`completed`
-- 任务：已完成本地 2.0.2：右栏展开原地保持、模板双击直达完整规则编辑、暗色工具栏/菜单/输入控件修复。
-- 开始时基线：`92dce66`，分支 `main`；保留已有用户工程改动（12 文件，817 增/236 删）。
-- 当前占用文件：无，已完成释放；实际修改为上述 10 个产品 .cs、ShellLayoutTests、语言资源、双语 README/范例说明、交接和根 EXE。未修改 TemplateTools/StatisticsTools 或既有 EditorPerformanceTests/TemplateSystemTests。
-- 验收结果：ShellLayout、EditorPerformance、Localization、TemplateSystem 与正式 EXE 构建通过；真实标题焦点/展开滚动、正常键盘滚动、模板引用关联模式/规则序号、主题边缘像素及中英截图已检查。测试隔离，不写用户工程；未运行 GM 试玩或更改弹幕/GML 语义。
+- 状态：`in_progress`
+- 任务：用户明确确认“保留原更新方式，继续推送发布”；发布main/v2.2.0，保留原SHA256与旧更新器兼容。
+- 开始时基线：`b88164b`，分支 `main`；保留已有用户工程改动（12 文件，817 增/236 删）。
+- 当前占用文件：README中英文、v2.2.0说明、交接文档、RufMaker.exe及发布产物；集成此前已验证的全部2.1.x/2.2.0产品源码和测试。基线b88164b/main；保留用户工程。AGENTS.md、Package-Release.ps1与release.yml保持原流程，Updater.cs仅版本变化。
+- 本轮发布计划：重新构建两个ZIP，检查完整包/清单/旧更新器兼容；精确提交产品改动并推送main/v2.2.0，由Actions发布；最后验证线上附件下载与检测更新。当前尚未远程写入。公共API此前遭共享IP限速，必要时用GitHub网页和连接器查Actions。
+- 本轮约定：用户明确选择裁短被覆盖的其他物件；中间覆盖保留前后两段、全覆盖移出时间轴，同轨执行，跨轨仅吸附。验收含连续拖动稳定性/吸附开关/裁剪的时间历史与Undo，14种预设逐帧位置/参数/保存复制、C#/GM及构建。
+- 本轮验收计划：原生重叠选择候选/取消/房间实例/多选与拖动定向测试；独立方向和自定义范围分布、倒拖、C#/GML对照；中英文和本地EXE构建。
+- 本轮验收：五种拖放入口/快捷参数/循环与不同方向模式；变量赋值/重复/引用/初值/随机历史/倒拖/保存复制预设；C#/Node定向测试、隔离GM运行数值对照、中英布局、EXE构建。仅本地交付，无推送授权。
+- 验收结果：Test-MotionEditing及Presets/RandomTimeline/GenerationPresets/Localization/EditorPerformance/ShellLayout通过；Node20/20；本轮201条GM弹幕状态、17帧变量历史、F5第85帧恢复对照通过；2.2.0本地EXE构建通过。
 - 本轮发布：2.0.0 已正式发布；本轮继续工作默认本地，不自动追加 Git 推送或新 Release。
-- 本机产物：根目录 `RufMaker.exe`，ProductVersion `2.0.2`，FileVersion `2.0.2.0`，1,157,632 bytes；已构建并 File.Replace 安全替换，未结束用户进程。2.0.1 前版本在 build/ui-interaction/RufMaker.previous.exe。
+- 本机产物：根目录 `RufMaker.exe`，ProductVersion `2.2.0`，FileVersion `2.2.0.0`，1,212,928 bytes；已构建并File.Replace安全替换，未结束用户进程。原2.1.1在build/motion-editing-check/RufMaker.2.1.1.previous.exe；用户须保存并重启旧进程使用新版。
+
+## 2026-10-26：2.2.0逐帧动作与时间轴覆盖剪辑（完成，本地未推送）
+
+- 用户先要求推开重叠物件，经异步问答明确选择“裁短其他物件被覆盖的部分”。最终语义：同lane手中物件保留鼠标落点，边缘覆盖裁短、中间覆盖保留前后两段、全覆盖移出时间轴；跨lane仅吸附，不裁剪。没有额外发布授权。
+- MotionPresets改为MotionPresetData参数（name/easing、时间域、起终点/峰、中心、振幅、起止半径、圈数、初相角、停顿占比）+原生X/Y关键帧。14种动作每帧生成线性连接的位置键；参数本身不加关键帧，绑定期间隐藏X/Y输入、禁止位置键拖动/插入/粘贴，切“手动关键帧”解除绑定并保留结果。圆周仅显示单个半径，螺旋分别显示起止半径；圈数/停顿拖动步长.01。画布及批量位置平移会改路径参数；时段拉伸重铺，复制/预设/换FPS/片段展开/撤销保留参数。旧动作没有可靠的预设标识，不猜测迁移，须重新应用一次。
+- Track新增motionPreset、可空clockStart/clockEnd、clipSourceId；Snapshot深复制预设，keyIndex为ScriptIgnore运行缓存。密集路径按属性建立排序键索引，预览二分查找，导出GML用平衡分支树（不逐帧扫描长else-if链）。新数据仍有真实可执行的逐帧XY键，JS归一化保留参数元数据；预设和工程对绑定路径的键数上限调整为2,010,000，普通物件仍10,000。
+- Timeline拖动期间冻结布局，单独绘制手持物件覆盖层，鼠标跨行以手势开始时的行映射确定lane，不受重叠Stack重排影响；松手一次性裁剪并提交一次Undo。切分保留原时间域与隐藏关键帧（移动到零帧可出现合法的内部负帧），后半段不重置运动/角速度/发射波次/变量赋值/特效缓动/滚动彩虹。分组随子树切分、父ID重映射，避免无父后代；若来源也是被引用模板，保留原模板定义并裁剪可见副本。clipSourceId让原控制事件仍能匹配切分的后段。超过现有200物件限制时保留其他物件并提示，未扩大项目物件数量上限。
+- 跨轨物件边缘吸附默认开，8像素捕捉范围，黄色引导线；同轨优先首尾衔接到end+1，避免同一边界帧重复发射。吸附菜单开关保存在TimelineView.clipSnap，旧布局缺字段默认为true；Alt暂时绕过。其他轨道不裁剪。
+- 时间原点同步核对：C# Motion/ExpressionContext/BulletSystem/TemplateRuntime/GlobalVariables/PreviewEffects/StyleEffects/Rainbow；JS motion/bullet-schema/bullet-system/template-system/global-variables/effects/rainbow/shapes/random-parameters及project脚本。裁剪片段强制走历史弹幕演算，周期片段用原时间域展开后再裁范围，负字面量减法加括号。未改GM原生导入底片、用户歌曲或项目。
+- 验证：Test-MotionEditing通过，含14种逐帧位置、5101帧路径索引复用、参数面板无XY、单参数与覆盖Ctrl+Z选中保持、FPS翻倍重新铺键、同lane多次往返拖动不跳行/未松手不剪、边缘/中间/全覆盖、分组、共用模板、首尾/跨轨吸附和偏好保存。Presets、RandomTimeline、GenerationPresets、Localization、EditorPerformance、ShellLayout通过；Node定向20/20。中英动作参数页离屏截图已查看，未控制用户桌面。性能合成测试40物件/6400键，标量编辑中位1.68ms、撤销3.87ms，参数控件复用；不当作实际游戏FPS。
+- GM最终隔离项目build/motion-editing-check/GM Generators 1792990110969/GameMaker.gm82：201条实际弹幕状态、17帧变量值、F5第85帧预热一致，包含14条密集路径、原发射时钟/控制来源别名、循环片段裁剪和负时钟/隐藏负关键帧。日志gm-final2.log。探针增加可选RUFMAKER_TEST_BUILD/SAMPLER，原默认生成模板检查不变；修正源索引按展开后的轨道表读取。
+- 过程问题：首次新测试有held局部变量命名冲突（测试编译），后修复；GM第一次把展开后的索引映射到原片段表导致source不符（gm.log保留），修正探针后通过；参数步长尝试只传Property的ParameterActions导致测试UI构造NRE，已撤回这种用法，改为参数标签识别步长，最终原生面板测试通过。失败均发生于隔离测试，根EXE交付前未替换。最终日志和截图均在build/motion-editing-check；部分C#日志重跑更新，以本记录说明原因，不将初始失败冒充通过。
+- 构建2.2.0，根EXE1,212,928 bytes，File.Replace安全替换，旧2.1.1留在build备份，用户进程未关闭。README中英文、docs/motion-timeline-editing.md、docs/releases/v2.2.0.md及开发入口已更新。没有新增产品.cs文件，无需额外Build-Native源码项；新增测试脚本/测试.cs未纳入产品。
+- 没有暂存/提交/push/Release。原demo12文件817增236删保持；用户项目、个人耐久、歌曲和参考资料均未修改。无必做待办，待用户重启后交互验收。
+
+## 2026-10-26：2.1.1重叠选择与独立随机方向（完成，本地未推送）
+
+- StageCanvas统一点击/拖放的命中列表，过滤模板专用、禁用、时间段外或隐藏父级物件；局部模板预览仍可选模板根。支持物件中心、整体成员、按大小/旋转变换的贴图区域，以及未被底片隐藏的房间实例。点按重叠位置在MouseUp打开原生暗色候选菜单，显示名称、lane+1、类型/实例坐标和序号；确认后选中明确目标，取消保持原选择。Ctrl/Shift可多选，直接拖动优先已选候选，保留拖动单次Undo、曲线/端点控制和中键取景。
+- 360随机模板默认angle=random_range(0,360)，randomScope=bullet。快捷行为页新增“新弹幕方向 / 度或表达式”，提交前验证，支持自定义random_range/choose或固定角度；编辑子模板原字段，不新增工程字段。
+- 根因：出生随机种子直接加i*9176，Park-Miller第一抽样使相邻方向呈等差；只变波次不能解决。对randomPerInstance=true的生成模板出生取样增加确定性MixSeed，GML用rf_random_mix对应（正31位XOR/整数除法/模乘，中间乘积低于2^53）。实例偏移补birth*104729+serial*13007，解决同帧各成员/母弹共用子模板时复用同一方向。只在标记出生上下文启用，旧普通轨道与静态参数随机保持原算法；倒拖checkpoint仍恢复serial，固定种子可复现。全局变量/生命周期/行为执行顺序未改。
+- 修改：desktop/EditorCanvas.cs、GenerationPresets.cs、ExpressionContext.cs、RandomParameters.cs、BulletSystem.cs、Updater.cs、tests/GenerationPresetTests.cs；studio/random-parameters.mjs、bullet-system.mjs及random-parameters.test.mjs；assets/locales/en.json，README中英文、教程及v2.1.1本地说明。此前未提交的2.1.0改动保留；未新增产品.cs，无需调整构建源列表。
+- 验证：Test-GenerationPresets通过（跨成员/每颗独立、范围/choose、倒拖、候选底层/房间实例/取消/多选/明确主选择/拖动/缩放/中英文等）；Node定向20/20；Test-RandomTimeline及Test-Localization通过。中文/英文候选菜单和随机方向参数页离屏截图已查看，均暗色可读，未操作用户桌面。
+- 原生GM：build/generation-presets-check/GM Generators 1792985836073/GameMaker.gm82，2254条实际弹幕状态、17个变量历史时刻以及F5第85帧恢复对照通过，含自定义30..150、choose四方向和同帧成员分别取样。日志direction-gm.log，非人工试玩。测试新增辅助脚本后首次Node回归有旧测试固定脚本数不符，改为仅需要时生成rf_random_mix后20/20通过，初始日志保留。
+- 构建2.1.1通过，根EXE1,195,520 bytes；旧2.1.0保留build备份，正在运行的旧进程未关闭。没有暂存/提交/push/Release；用户demo12文件原差异（817增236删）保持。无必做待办，待用户实操验收。
+
+## 2026-10-26：2.1.0 生成模板与全局变量（完成，本地未推送）
+
+- 左栏“预设”新增“弹幕生成模板”，五项为保持形状扩散、统一速度扩散、360°随机弹、对玩家自机狙和溅射。双击应用到选择物件，或拖到画布/时间轴物件。自动建 templateOnly 发射器及生成规则，来源同轨绑定、Undo与复制/预设沿用完整依赖。
+- 普通对象/整体/分组使用来源时间段；拖到 emitter 默认绑定每颗飞行弹幕的 bulletActions，右栏“生成来源”可切回发射器本体。默认每 fps/2 帧、持续0表示至来源结束。形状保持速度为 source-distance*speed/100；统一速度仅按径向定向。继承出生外观，保持形状/统一扩散继承大小。溅射为360/n等距，支持固定、按波重新随机、每轮递增角度。
+- 右栏对标记生成规则使用紧凑面板，直接改重复间隔、首次延迟、子弹数量/速度/寿命模式。新弹幕寿命支持 fixed/room/view、边界余量、销毁过渡；完整拖影6种样式与衰减/漂移字段保存在子模板。“新弹幕行为…”直接打开子模板的 BulletBehaviorForm，应用后仍选来源；子弹新增分裂/继续生成默认允许到4代。寿命/拖影高级分组默认折叠，控件保留和暗色样式沿用原实现。
+- 新 Track 字段 variableName/variableExpression/variableDefault/variableRepeat，kind=variable；工具栏/时间轴右键新增入口。命名 global.name（统一小写，rf_保留），初值在赋值前生效；开始帧赋值，repeat0一次、正数间隔至end含边界，之后保持。同帧按轨道顺序赋值，在本帧发射前执行。支持自身上次值、变量间依赖、random/choose/floor/point_distance等原有数学；未定义引用报错。变量重命名更新参数公式，不改手写GML；仍被引用时阻止误删最后定义。
+- C# GlobalVariableTimeline 按事件生成缓存历史、旧帧读取原样本；ExpressionContext 按歌曲时间取值，生成模板使用globalSource/instance shift而非局部年龄。循环片段会展开变量时间，FPS/时间倍率保留正重复间隔至少1帧。JS同实现/归一化/公式编译，生成 rf_global_init/step；所有变量强制进历史演算路径，F5预热逐帧赋值，循环结束补一次镜头/固定队形姿态。GML可读真实global字段。C#缓存/owner/shift用ScriptIgnore且快照不共享缓存。
+- 新持久字段：BulletAction.generationPreset、spawnDirectionMode(fixed/random/add)、spawnWaveAngleStep；Track.randomPerInstance（只对新模板默认true）。后者每生成实例加入出生帧随机偏移，解决子模板各轮局部第0帧重复同一随机结果；旧物件缺省false。随机相位使用已有种子/slot算法，与C#/GML一致。基础值/新字段均经JSON/Snapshot/预设保存，Build-Native显式列表已加入GenerationPresets/GlobalVariables。
+- 保存自定义预设与Ctrl+C会带生成/分裂模板依赖以及参数引用的变量；导入/复制遇同名变量自动改名并重写复制内容中的引用。变量依赖保留为真实赋值轨道。PresetLibrary和schema支持variable，发射方向/随机数不靠临时UI状态。
+- 定向验证：Test-GenerationPresets（5种默认值、源生命周期、移动母弹、两种溅射相位、倒拖、变量依赖/默认/循环/自身递增/片段局部时钟、快照、预设FPS/重名、左栏/拖放/紧凑字段、子寿命/拖影指向和子行为代数）；Node global-variables/template-system/bullet-system/random-parameters/player-expressions 19/19；Test-TemplateSystem、Test-PlayerExpressions、Test-Presets、Test-Localization、Test-EditorPerformance、Test-ShellLayout通过。性能检查单值/关键帧仍保留控件，未将合成耗时当真实FPS。
+- GM对照最终项目 build/generation-presets-check/GM Generators 1792984144714/GameMaker.gm82：1777条实际弹幕状态，含fixed/room/view、fade/shrink、custom/shrink-fade拖影参数、转向和移动母弹；17个时刻的变量值与F5在85帧历史恢复均匹配C#，无runtime错误日志。位置容差.01，队形PointF派生角沿用原探针.002度，其余数值.00001。不是人工试玩。
+- 过程记录：早期GM探针取样用了控制器同名局部变量而非self字段，错误读为speed0/index0；修正探针后遇到PointF派生角约1e-5差值，按既有模板探针标准处理，最终通过。最初截图因隐藏父容器为空白，改为独立Panel离屏绘制并查看；中英紧凑生成页、变量页已检查。测试button.Visible因父窗口隐藏为false，改检查Available；真实入口逻辑不因此改变。日志均保留在 build/generation-presets-check。
+- 交付根EXE2.1.0（1,190,912 bytes），先构建临时再File.Replace，旧进程未关闭。README中英文、本地发布说明docs/releases/v2.1.0.md、完整教程docs/generation-presets.md和开发入口已更新。本轮修改包括 ParameterInspector 新分组默认折叠；没有修改用户耐久、歌曲、自定义预设或原始引擎安装。
+- Git仍以b88164b/main为基线，功能改动未本地提交/暂存、未push/Release；原demo12文件817增236删保持。新源码、测试和文档需要下次提交时精确暂存，不能git add .混入用户工程。无必做待办；未获用户新界面实操验收。
+
+## 2026-10-25：可编辑工程与导出版本不一致修正（完成，未推送）
+
+- 用户询问工程是否修改，读取发现原 Neko Pulse/GameMaker.gm82/rufmaker.json 在19:12:42已变为旧63物件/固定种子版，晚于19:07最终EXE导出；文件回写符合仍打开旧状态时自动保存的情况，但未借UI确认来源，不断言具体进程。
+- 保留当前原工程，使用自带 createProject 新建 projects/examples/Neko Pulse Mix/Neko Pulse Mix.rufmaker，从本轮 compose 配方重建130物件、13组随机层、全曲持续出弹的最终版；避免再次向原工程写回。临时脚本改为接收 RUFMAKER_PROJECT 或明确资产路径，新建阶段不导入默认 project.mjs。无产品源码变动。
+- 通过 studio/bridge.mjs 真实 load/返回/退出核对 descriptor、130物件、randomizeOnPlay=true、13组随机层；与已通过 GM runner-project-3 的全部130个轨道 deepEqual。随后新工程编译成功，独立游戏 游玩/Neko Pulse.exe 为4,871,545 bytes，ZIP12,852,428 bytes，源状态 SHA256 写交付校验.json。只是新工程ID/路径，没有更改已验证弹幕，不重复整曲探针。
+- 新旧 README 标明最新可编辑入口及原工程回写状况；原63物件用户时间轴、其他工程和正在运行的编辑器均未操作。无UI控制、无本地提交、无push/release。当前后续编辑应选择 Mix 工程，不再把原 Neko Pulse 当最终可编辑版本。
+
+## 2026-10-25：人是猫 · Neko Pulse 本地完整关卡（完成，未推送）
+
+- 用户最初要求简单耐久，随后连续要求加快节奏、弹速、密度、增加单源随机方向扩散和其他随机弹，不要空隙段。最终交付高速混合版，全长 136.28 秒、50 FPS、130 个可编辑物件；148 BPM/-405 ms 来自歌曲旁 maidata 元数据，FMOD 自动检测的 98.9 BPM 未直接采用。音乐复制到新工程 Data/Music/song-2eef7530f2c7.mp3，原件只读。沒有改用户其他工程。
+- 工程入口 projects/examples/Neko Pulse/Neko Pulse.rufmaker；真实文本 GM 工程在 GameMaker.gm82/rufmaker-demo.gm82。游玩/Neko Pulse.exe 为最终独立游戏（4,871,724 bytes），配套 Data 必须保留；便携 ZIP 12,852,594 bytes。README 记录控制、10 段时间、编辑入口、随机设置、来源和验证边界；预览目录含 6 张 GM 实际输出及关卡总览。
+- 弹型为移动缺口快雨、错拍交叉扇形、快旋转环、star2/heart 周期复制扩散、双源蛇形、随机初相位双环、随机角速扇形、减速后加速环。三条全曲随机底层覆盖开场至尾奏；无段落清弹，上段尾弹自然延续。星/心使用随库原脚本，来源保留，副本冻结出生彩虹帧及大小，速度按 source.x/y 距离 *0.035。随机表达式保存在参数字段，游玩默认新随机种子，预览可重现。
+- 关卡配置全用 RufMaker 字段/关键帧/生成行为，少量本工程 GML 处理 R 从当前耐久重来（room_goto，无 game_restart）、死亡记录和原生 CLEAR 房间；未修改 C#/JS 引擎公式或构建根编辑器。临时 compose/create/assets/分析/探针/导出脚本均在 build/neko-pulse。用户明确不要桌面控制后，改走 RufMaker 自身 Node 接口和 C# 预览演算，无后续键鼠操作。
+- 参考视频：BV1Hjt4zeENo《春天～The Spring》、BV1w1421X7w6 Noisepike、BV1RJ411W7pz Noisepike。公开低清文件和联系表在 build/neko-pulse/references；第三份后半样本不完整，仅参考前段。没有复制参考影片/立绘/原关卡代码到交付包。
+- 定向验证：build/neko-pulse/AnalyzeAudio.exe 得到 136.28 s；Probe.exe 调实际 C# Motion/PreviewRenderer/BulletWorld 渲染 12 时刻并逐帧检查 6815 帧，参考种子飞行弹峰值 350，保守矩形避让的地面路线存在（X73..433，最多每帧3像素）。未声称所有随机种子无死。最终 export.mjs 使用 studio/native.mjs 成功编译、打包。未改语义，不重跑无关产品测试。
+- GM 隔离副本 runner-project-3 固定种子20261025，程序设置参考路线并冻结玩家物理/键鼠输入；原碰撞仍有效，自动执行 R 重试、强制死亡后 R 重试，再跑完整曲到 CLEAR，verify.ini 含 run=3/forced_death=1/clear=3，无 game_errors.log。不是人工试玩或完整输入物理验证。真实帧保存后已查看星形段与 CLEAR，并形成总览。
+- 失败记录保留：第一次受限编译 0xC0000142，获审核后本机编译成功；runner-project 初版探针文本文件句柄报错，改 INI/内嵌路线；runner-project-2 未冻结玩家物理的测试在1643帧死亡，未将其称通过。最终碰撞/流程探针和首次 C# 演算通过，后来仅修改 CLEAR 的 EASY→MIX 文案及音频缓存，最终游戏已重编译。旧日志不删除。
+- 本轮无本地提交、无推送、无 Release；音乐、个人关卡、录像和缓存未暂存入 Git。根 RufMaker.exe 仍2.0.2，用户原 demo 12文件/817增236删保留。交付无必做待办，难度体验待用户实际游玩反馈。
 
 ## 2026-10-25：2.0.2 右栏原地展开、模板完整编辑与暗色 UI（完成，未推送）
 

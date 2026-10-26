@@ -5,7 +5,8 @@ import {resolveRandomState,parameterCode as parameterBase,evaluateExpression,isD
 export const basic=['x','y','angle','scale','alpha'];
 export const fields=['emitWidth','emitHeight','emitArc','emitPhase','emitRotation','emitWaves','x','y','angle','scale','alpha','speed','spread','count','life','x1','y1','x2','y2','length','rollSpeed','rainbowDensity','rainbowOffset','rainbowSpeed','spriteAngle','strength','fxOpacity','fxAngle','fxRetention','radius','orientation','sides','shapeAspect','shapeInner','cameraZoom','orbitRadius','orbitPhase','pathStartX','pathStartY','pathEndX','pathEndY','pathPeakX','pathPeakY','pathProgress','cameraIntensity','cameraBlur','cameraBlurAngle','fxZoom','fxFlash'];
 export const defaults={emitWidth:240,emitHeight:160,emitArc:360,emitPhase:0,emitRotation:0,emitWaves:1,cameraIntensity:1,cameraBlur:0,cameraBlurAngle:0,fxZoom:1.13,fxFlash:.18,radius:120,orientation:0,sides:5,shapeAspect:1,shapeInner:.45,cameraZoom:1,x:400,y:304,angle:0,scale:1,alpha:1,speed:3,spread:30,count:12,life:160,x1:280,y1:304,x2:520,y2:304,length:240,rollSpeed:2,rainbowDensity:1,rainbowOffset:0,rainbowSpeed:.25,spriteAngle:0,strength:6,fxOpacity:1,fxAngle:0,fxRetention:.5};
-export function normalizeState(s) {
+export function normalizeState(s,globalSource=null) {
+  if(globalSource)Object.defineProperty(s,'_globalSource',{value:globalSource,configurable:true});
   if(s.version===1) {
     for(const t of s.tracks)t.keyframes=t.keyframes.flatMap(k=>k.property?[k]:basic.map(property=>({frame:k.frame,property,value:(k[property]??defaults[property])+(property==='angle'&&t.kind==='emitter'?(t.angle||0):0),easing:''})));
     s.version=2;
@@ -20,7 +21,7 @@ export function normalizeState(s) {
   let next=Math.max(0,...s.tracks.map(t=>Number.isInteger(t.lane)&&t.lane>=0?t.lane+1:0));for(const t of s.tracks)if(!Number.isInteger(t.lane)||t.lane<0)t.lane=next++;
   s.laneCount=Math.max(1,s.laneCount||0,...s.tracks.map(t=>t.lane+1));
   s.tracks.sort((a,b)=>(a.kind==='native'?-1:a.lane)-(b.kind==='native'?-1:b.lane));
-  normalizeBulletState(s);for(const t of s.tracks)if(t.kind==='pattern')normalizeState({version:2,fps:s.fps,duration:s.duration,randomSeed:s.randomSeed,nativeTest:s.nativeTest,tracks:t.children});return resolveRandomState(s);
+  normalizeBulletState(s);const identify=t=>{t.randomId||=t.id;t.children.forEach(identify);};s.tracks.forEach(identify);resolveRandomState(s);for(const t of s.tracks)if(t.kind==='pattern')normalizeState({version:2,fps:s.fps,duration:s.duration,randomSeed:s.randomSeed,nativeTest:s.nativeTest,tracks:t.children},s);return s;
 }
 function bounce(u) {if(u<1/2.75)return 7.5625*u*u;if(u<2/2.75)return 7.5625*(u-1.5/2.75)**2+.75;if(u<2.5/2.75)return 7.5625*(u-2.25/2.75)**2+.9375;return 7.5625*(u-2.625/2.75)**2+.984375;}
 export function ease(e,u,p=3,period=.3) {
@@ -44,7 +45,7 @@ function valueCore(t,property,frame,context) {
   return value(keys.at(-1));
 }
 function positionAt(t,frame,context){
-  const value=p=>valueCore(t,p,frame,context);let x=value('x'),y=value('y');const dt=Math.max(0,frame-t.start);
+  const value=p=>valueCore(t,p,frame,context);let x=value('x'),y=value('y');const dt=Math.max(0,frame-(t.clockStart??t.start));
   if(t.motion==='velocity'){x+=value('velocityX')*dt+value('accelerationX')*dt*dt/2;y+=value('velocityY')*dt+value('accelerationY')*dt*dt/2;}
   if(t.motion==='orbit'){const angle=(value('orbitPhase')+value('orbitSpeed')*dt)*Math.PI/180;x+=Math.cos(angle)*value('orbitRadius');y-=Math.sin(angle)*value('orbitRadius');}
   if(t.motion==='parabola'){const u=Math.max(0,Math.min(1,value('pathProgress'))),v=1-u;for(const axis of ['X','Y']){const delta=v*v*value('pathStart'+axis)+2*v*u*(2*value('pathPeak'+axis)-(value('pathStart'+axis)+value('pathEnd'+axis))/2)+u*u*value('pathEnd'+axis);if(axis==='X')x+=delta;else y+=delta;}}
@@ -59,12 +60,16 @@ export function stateCode(t,time,context={}) {
     const code=[];blocks.set(field,code);
     const keys=t.keyframes.filter(k=>k.property===field).sort((a,b)=>a.frame-b.frame),base=t[field]??defaults[field];
     if(!keys.length){code.push(`rf_${field}=${parameter(t,field,base)};`);continue;}
+    if(t.motionPreset&&['x','y'].includes(field)&&keys.length>32){
+      const tree=(lo,hi)=>{if(hi-lo===1){const a=keys[lo],b=keys[hi];return `rf_u=rf_ease('${a.easing||t.easing||'linear'}',(${time}-(${num(a.frame)}))/${num(Math.max(1,b.frame-a.frame))},${parameter(t,'easePower',3)},${parameter(t,'easePeriod',.3)});rf_${field}=(${parameter(t,field,0,a)})+((${parameter(t,field,0,b)})-(${parameter(t,field,0,a)}))*rf_u;`;}const mid=Math.floor((lo+hi)/2);return `if ${time}<${num(keys[mid].frame)} {${tree(lo,mid)}}else {${tree(mid,hi)}}`;};
+      code.push(`if ${time}<=${num(keys[0].frame)} {rf_${field}=${parameter(t,field,0,keys[0])};}else if ${time}>=${num(keys.at(-1).frame)} {rf_${field}=${parameter(t,field,0,keys.at(-1))};}else {${tree(0,keys.length-1)}}`);continue;
+    }
     code.push(`if (${time}<=${num(keys[0].frame)}) {rf_${field}=${parameter(t,field,0,keys[0])};}`);
-    for(let i=1;i<keys.length;i++){const a=keys[i-1],b=keys[i];code.push(`else if (${time}<${num(b.frame)}) {rf_u=rf_ease('${a.easing||t.easing||'linear'}',(${time}-${num(a.frame)})/${num(Math.max(1,b.frame-a.frame))},${parameter(t,'easePower',3)},${parameter(t,'easePeriod',.3)});rf_${field}=${parameter(t,field,0,a)}+(${parameter(t,field,0,b)}-${parameter(t,field,0,a)})*rf_u;}`);}
+    for(let i=1;i<keys.length;i++){const a=keys[i-1],b=keys[i];code.push(`else if (${time}<${num(b.frame)}) {rf_u=rf_ease('${a.easing||t.easing||'linear'}',(${time}-(${num(a.frame)}))/${num(Math.max(1,b.frame-a.frame))},${parameter(t,'easePower',3)},${parameter(t,'easePeriod',.3)});rf_${field}=${parameter(t,field,0,a)}+(${parameter(t,field,0,b)}-${parameter(t,field,0,a)})*rf_u;}`);}
     code.push(`else {rf_${field}=${parameter(t,field,0,keys.at(-1))};}`);
   }
   const geometry=['x1','y1','x2','y2','x','y','orbitRadius','orbitPhase','pathStartX','pathStartY','pathEndX','pathEndY','pathPeakX','pathPeakY','pathProgress'];for(const field of geometry)out.push(...blocks.get(field));positioned=false;
-  const dt=`max(0,${time}-${num(t.start)})`;
+  const dt=`max(0,${time}-(${num(t.clockStart??t.start)}))`;
   if(t.motion==='velocity')out.push(`rf_x+=${parameter(t,'velocityX')}*${dt}+${parameter(t,'accelerationX')}*sqr(${dt})/2;rf_y+=${parameter(t,'velocityY')}*${dt}+${parameter(t,'accelerationY')}*sqr(${dt})/2;`);
   if(t.motion==='orbit')out.push(`rf_x+=lengthdir_x(rf_orbitRadius,rf_orbitPhase+${parameter(t,'orbitSpeed',1)}*${dt});rf_y+=lengthdir_y(rf_orbitRadius,rf_orbitPhase+${parameter(t,'orbitSpeed',1)}*${dt});`);
   if(t.motion==='parabola')out.push(`rf_u=max(0,min(1,rf_pathProgress));rf_x+=sqr(1-rf_u)*rf_pathStartX+2*(1-rf_u)*rf_u*(2*rf_pathPeakX-(rf_pathStartX+rf_pathEndX)/2)+sqr(rf_u)*rf_pathEndX;rf_y+=sqr(1-rf_u)*rf_pathStartY+2*(1-rf_u)*rf_u*(2*rf_pathPeakY-(rf_pathStartY+rf_pathEndY)/2)+sqr(rf_u)*rf_pathEndY;`);

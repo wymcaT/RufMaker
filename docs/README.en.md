@@ -1,6 +1,10 @@
 # RufMaker
 
-**2.0.0** reorganizes the native desktop interface: fixed command and transport bars, Assets/Presets browsing and Property/Behaviors/Statistics pages. Run `RufMaker.exe`; see the [release notes](releases/v2.0.0.md) and [detailed controls](beta-bullet-control.md).
+**2.2.0** adds editable motion path parameters with a position key on every frame, stable timeline dragging, same-track overwrite cuts and optional edge snapping across tracks (enabled by default). [Download the full portable app](https://github.com/wymcaT/RufMaker/releases/tag/v2.2.0), extract everything and run `RufMaker.exe`. Existing users can update in the app. See the [release notes](releases/v2.2.0.md) and [motion/timeline guide](motion-timeline-editing.md).
+
+In **Presets → Bullet generators**, drag a shape-preserving burst, equal-speed formation burst, 360° random shots, aimed shots or radial burst onto a source. Adjust interval, speed, count, lifetime mode and trails in Behaviors. **New bullet behaviors…** edits the spawned bullets' age actions. Ordinary objects repeat over their timeline span; emitters default to repeated shots from each moving bullet, with a Generation source switch. Radial bursts can randomize their phase each time or add a fixed angle per burst.
+
+Use **Add → Add global variable** to assign a named value at a timeline frame. An interval of zero assigns once; a positive interval resamples through the end frame. Values remain until reassigned. Expressions support `random`, `choose`, `floor`, `point_distance` and the existing math functions; reference them with `global.phase`. Defaults apply before the first assignment. Scrubbing reconstructs the same seeded history, including assignments before an F5 start point. Copying/presets carry variable dependencies and rename imported name conflicts.
 
 A native Windows timeline editor for **I Wanna avoidance games**, integrated with GameMaker 8.2.
 

@@ -11,7 +11,7 @@ internal sealed class TimelineView
     public int horizontal,vertical;
     public string[] expanded=new string[0];
     public string[] collapsedGenerationGroups=new string[0];
-    public bool focusGenerationGroups=true;
+    public bool focusGenerationGroups=true,clipSnap=true;
     public string audioDisplay="waveform";public int audioHeight=50;
     public System.Collections.Generic.Dictionary<string,int> rowHeights=new System.Collections.Generic.Dictionary<string,int>();
 }

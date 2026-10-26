@@ -34,8 +34,8 @@ internal static partial class Effects
             return split;
         }
         PreviewCache.History history;if(!cache.history.TryGetValue(t.id,out history)){history=new PreviewCache.History();cache.history[t.id]=history;}
-        int hold=Math.Max(1,Math.Min(12,t.fxStutter)),bucket=(frame-t.start)/hold;
-        if(history.image==null||history.image.Size!=source.Size||frame<history.frame||frame-history.frame>hold||(history.frame-t.start)/hold!=bucket){history.Dispose();history.image=(Bitmap)source.Clone();history.frame=frame;}
+        int hold=Math.Max(1,Math.Min(12,t.fxStutter)),bucket=(frame-TimelineLayout.ClockStart(t))/hold;
+        if(history.image==null||history.image.Size!=source.Size||frame<history.frame||frame-history.frame>hold||(history.frame-TimelineLayout.ClockStart(t))/hold!=bucket){history.Dispose();history.image=(Bitmap)source.Clone();history.frame=frame;}
         var result=Rgb(history.image,(int)Math.Round(Math.Cos(angle*Math.PI/180)*8*opacity),(int)Math.Round(-Math.Sin(angle*Math.PI/180)*8*opacity),1);
         using(var bands=(Bitmap)result.Clone())using(var g=Graphics.FromImage(result)){
             g.InterpolationMode=InterpolationMode.NearestNeighbor;g.PixelOffsetMode=PixelOffsetMode.Half;

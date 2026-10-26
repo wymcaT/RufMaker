@@ -21,9 +21,9 @@ internal sealed partial class MainForm
     private Track[] PresetDependencies(IEnumerable<Track> selected)
     {
         var original=new HashSet<Track>(WithGroupChildren(selected));var result=new HashSet<Track>(original);bool added;
-        do{added=false;foreach(var track in result.ToArray())foreach(var action in TemplateRuntime.Actions(track).Where(a=>a.type=="spawn"||a.type=="split")){
+        do{added=false;foreach(var dependency in state.tracks.Where(t=>t.kind=="variable"&&result.Any(row=>GlobalVariables.References(row).Contains(t.variableName))).ToArray())added|=result.Add(dependency);foreach(var track in result.ToArray())foreach(var action in TemplateRuntime.Actions(track).Where(a=>a.type=="spawn"||a.type=="split")){
             var target=state.tracks.FirstOrDefault(t=>t.id==action.templateId);if(target!=null)foreach(var dependency in WithGroupChildren(new[]{target}))added|=result.Add(dependency);
         }}while(added);
-        return state.tracks.Where(result.Contains).Select(t=>{var copy=t.Snapshot();if(!original.Contains(t)&&!result.Any(p=>!original.Contains(p)&&p.id==t.parentId))copy.templateOnly=true;return copy;}).ToArray();
+        return state.tracks.Where(result.Contains).Select(t=>{var copy=t.Snapshot();if(TemplateRuntime.Eligible(t)&&!original.Contains(t)&&!result.Any(p=>!original.Contains(p)&&p.id==t.parentId))copy.templateOnly=true;return copy;}).ToArray();
     }
 }

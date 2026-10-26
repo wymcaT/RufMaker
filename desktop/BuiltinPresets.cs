@@ -10,7 +10,7 @@ internal static class CameraPresets
         var p=Motion.At(t,frame);double z=Motion.Value(t,"cameraZoom",frame);
         foreach(string field in new[]{"x","y","angle","cameraZoom","cameraBlur","cameraBlurAngle","angularSpeed","orbitPhase","orbitRadius"}.Concat(MotionPresets.PathFields))t.expressions.Remove(field);
         t.keyframes.RemoveAll(k=>new[]{"x","y","angle","cameraZoom","cameraBlur","cameraBlurAngle","orbitPhase","orbitRadius"}.Contains(k.property)||MotionPresets.PathFields.Contains(k.property));
-        t.motion="keyframes";t.x=p.x;t.y=p.y;t.angle=p.angle;t.cameraZoom=z;t.angularSpeed=0;t.cameraStyle="";t.cameraIntensity=1;t.cameraMirror=false;t.cameraBlur=t.cameraBlurAngle=0;
+        MotionPresets.Manual(t);t.motion="keyframes";t.x=p.x;t.y=p.y;t.angle=p.angle;t.cameraZoom=z;t.angularSpeed=0;t.cameraStyle="";t.cameraIntensity=1;t.cameraMirror=false;t.cameraBlur=t.cameraBlurAngle=0;
         if(StylePresets.Cameras.Contains(name)){StylePresets.Camera(t,name,fps,p.x,p.y,z,p.angle);return;}
         Action<string,double,double,string> key=(field,u,value,ease)=>MotionPresets.Key(t,field,u,value,ease);
         if(name=="缓慢推进"||name=="缓慢拉远"){

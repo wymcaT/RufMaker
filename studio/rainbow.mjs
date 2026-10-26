@@ -8,7 +8,7 @@ export function normalizeRainbow(t) {
 }
 export function rainbowCode(t,sequence,time,{sampled=true}={}) {
   if(!t.rainbow)return '0';
-  return `rf_rainbow_index(${sequence},${time},${sampled?'rf_rainbowDensity':n(t.rainbowDensity,1)},${sampled?'rf_rainbowOffset':n(t.rainbowOffset)},${sampled?'rf_rainbowSpeed':n(t.rainbowSpeed,.25)},${n(t.start)},${t.rainbowDynamic?1:0},${t.rainbowReverse?1:0},32)`;
+  return `rf_rainbow_index(${sequence},${time},${sampled?'rf_rainbowDensity':n(t.rainbowDensity,1)},${sampled?'rf_rainbowOffset':n(t.rainbowOffset)},${sampled?'rf_rainbowSpeed':n(t.rainbowSpeed,.25)},${n(t.clockStart??t.start)},${t.rainbowDynamic?1:0},${t.rainbowReverse?1:0},32)`;
 }
 export function rodSequence(t,{rotation='0'}={}) {
   // Match the PointF preview at palette boundaries (one ten-thousandth of a color step).

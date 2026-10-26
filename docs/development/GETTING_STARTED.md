@@ -71,6 +71,8 @@ pwsh -NoProfile -File desktop/Test-EditorPerformance.ps1
 
 不要求每轮全跑：行为/分组改动优先第一项；公式改动优先前两项；复制/预设改动加第三项；UI 文案与布局改动加第四项。`Test-RandomTimeline.ps1` 包含撤销后的物件/关键帧/多选/房间实例选中恢复；`Test-FormationShapes.ps1` 检查形状几何、参数关键帧和预览/GML 参考坐标。其余 `Test-*.ps1` 按模块选择。部分测试会创建离屏原生控件并截图，不等于完整的交互试玩验收。
 
+`Test-MotionEditing.ps1` 验证14种逐帧动作、参数面板/撤销、密集路径索引、同轨覆盖裁剪（含分组与共用模板）、手持拖动稳定和跨轨吸附。生成的隔离夹具在build/motion-editing-check；设置RUFMAKER_TEST_BUILD=motion-editing-check、RUFMAKER_TEST_SAMPLER=MotionEditing.tests.exe后，可复用desktop/tests/verify-generation-gml.mjs核对真实GM运行，含裁剪后的负时间原点和循环片段。参数仅用于测试，不是产品启动参数。
+
 `Test-EditorPerformance.ps1` 检查属性表控件复用、重绑后的编辑/撤销、历史深复制与去重、保存后的房间比较，并记录合成场景的编辑/撤销耗时。`-ProfileOnly -Report NAME` 可单独记录数据，输出在 `build/editor-performance-check/`；绝对耗时不作为测试断言。此测试不测真实游戏 FPS。
 
 `Test-BulletSystem.ps1` 输出 `build/bullet-system-check/scene.json`、测试 EXE 和截图。数值导出接口属于这个测试 EXE：
@@ -82,6 +84,8 @@ pwsh -NoProfile -File desktop/Test-EditorPerformance.ps1
 先从当前源码编译测试 EXE，再使用该接口；不要把 `--sample` 当成产品 EXE 的参数。`INPUT.json`、`FRAME`、`OUTPUT.json` 是需要替换的占位值。
 
 ### GM8.2 验证
+
+2.1.0 的生成模板与全局变量定向入口：`desktop/Test-GenerationPresets.ps1`，通过后运行 `runtime/node.exe desktop/tests/verify-generation-gml.mjs`。前者覆盖5种循环模板、移动母弹、寿命/拖影/子弹行为入口、变量历史与复制预设；后者创建独立 GM 工程，对照弹幕状态、拖影参数、全局变量与 F5 中途启动。Node 的对应单元测试为 `studio/global-variables.test.mjs`。
 
 生成模板有单独的隔离验证入口，先运行 `Test-TemplateSystem.ps1`，再执行：
 

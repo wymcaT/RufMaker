@@ -20,7 +20,7 @@ internal sealed class ParameterInspector : UserControl
     private readonly HashSet<string> openSections=new HashSet<string>();
     private readonly HashSet<string> knownSections=new HashSet<string>();
     public bool Compact {get;set;}
-    private bool DefaultFolded(string category){return Compact&&new[]{"物件","形状","发射","弹幕寿命","分组与作用范围","外观","彩虹 Cherry","拖影","运动","整体对象","转转棒","发射器","发射阵列","生成模板","释放队形","生命周期"}.Contains(category);}
+    private bool DefaultFolded(string category){return Compact&&new[]{"物件","形状","发射","弹幕寿命","分组与作用范围","外观","彩虹 Cherry","拖影","运动","整体对象","转转棒","发射器","发射阵列","生成模板","释放队形","生命周期","新弹幕寿命","新弹幕拖影"}.Contains(category);}
     private void RememberSection(string category,bool folded){knownSections.Add(category);if(folded){collapsed.Add(category);openSections.Remove(category);}else{collapsed.Remove(category);openSections.Add(category);}}
     public string[] CaptureSections(){return collapsed.Concat(openSections.Select(k=>"!"+k)).ToArray();}
     public void RestoreSections(string[] values){collapsed.Clear();openSections.Clear();knownSections.Clear();foreach(string value in values??new string[0])RememberSection(value.StartsWith("!")?value.Substring(1):value,!value.StartsWith("!"));UpdateRows();}
@@ -90,7 +90,7 @@ internal sealed class ParameterInspector : UserControl
         }
         else
         {
-            var text=new TextBox{Dock=DockStyle.Fill,ReadOnly=p.IsReadOnly,TabStop=false,BorderStyle=BorderStyle.FixedSingle,BackColor=Theme.Raised,ForeColor=p.IsReadOnly?Theme.Muted:Theme.Text,Margin=new Padding(0,4,1,3),Text=Convert.ToString(get())};if(p.IsReadOnly&&new[]{"说明","提示","操作","操作提示","编辑方式","原生设置","导入方式","底片状态","兼容提示与建议","路径说明","排列方式"}.Contains(p.Name))Language.WatchText(text);
+            var text=new TextBox{Dock=DockStyle.Fill,ReadOnly=p.IsReadOnly,TabStop=false,BorderStyle=BorderStyle.FixedSingle,BackColor=Theme.Raised,ForeColor=p.IsReadOnly?Theme.Muted:Theme.Text,Margin=new Padding(0,4,1,3),Text=Convert.ToString(get())};if(p.IsReadOnly&&new[]{"说明","提示","操作","操作提示","编辑方式","原生设置","导入方式","底片状态","兼容提示与建议","路径说明","排列方式","生成方式"}.Contains(p.Name))Language.WatchText(text);
             binding.reverts[text]=()=>{text.Text=Convert.ToString(get());text.Modified=false;};
             text.Enter+=(s,e)=>Select(p);text.Validated+=(s,e)=>{if(!text.Modified)return;string value=text.Text;text.Modified=false;if(value!=Convert.ToString(get()))set(value);};text.KeyDown+=(s,e)=>{if(e.KeyCode==Keys.Enter){if(text.Modified){string value=text.Text;text.Modified=false;if(value!=Convert.ToString(get()))set(value);}ActiveControl=null;e.Handled=true;e.SuppressKeyPress=true;}else if(e.KeyCode==Keys.Escape){text.Text=Convert.ToString(get());text.Modified=false;ActiveControl=null;e.Handled=true;e.SuppressKeyPress=true;}};editor=text;binding.updates.Add(()=>{if(!text.ContainsFocus){text.Text=Convert.ToString(get());text.Modified=false;}});
         }
@@ -183,11 +183,11 @@ internal sealed class ScrubNumber : Control
         switch(property??""){
             case "trailScaleDecay":case "trailAlphaDecay":return .001;
             case "scale":case "alpha":case "cameraZoom":case "shapeAspect":case "shapeInner":case "pathProgress":case "fxOpacity":case "fxRetention":case "fxFlash":case "fxZoom":case "cameraIntensity":case "trailStartAlpha":case "rainbowDensity":case "easePeriod":case "fxFrequency":return .01;
-            case "accelerationX":case "accelerationY":return .01;
+            case "turns":case "hold":case "accelerationX":case "accelerationY":return .01;
             case "speed":case "velocityX":case "velocityY":case "rollSpeed":case "trailSpeed":case "angularSpeed":case "orbitSpeed":case "turnRate":case "rainbowSpeed":case "easePower":return .1;
         }
         if(!String.IsNullOrEmpty(property))return 1;
-        if(label.Contains("衰减"))return .001;
+        if(label.Contains("衰减"))return .001;if(label.Contains("圈数")||label.Contains("占比"))return .01;
         if(label.Contains("缩放")||label.Contains("透明")||label.Contains("比例")||label.Contains("周期")||label.Contains("频率")||label.Contains("重力")||label.Contains("加速度"))return .01;
         if(label.Contains("速度")||label.Contains("指数")||label.Contains("秒"))return .1;
         return 1;

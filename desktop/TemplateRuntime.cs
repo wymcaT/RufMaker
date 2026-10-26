@@ -48,7 +48,7 @@ internal sealed class TemplateRuntime
         var selected=new HashSet<string>{id};bool more;
         do{more=false;foreach(var t in world.State.tracks)if(selected.Contains(t.parentId))more|=selected.Add(t.id);}while(more);
         var tracks=world.State.tracks.Where(t=>selected.Contains(t.id)).Select(t=>t.Snapshot()).ToList();var root=tracks.First(t=>t.id==id);root.parentId="";root.enabled=true;root.templateOnly=false;
-        var scene=new EditorState{fps=world.State.fps,duration=world.State.duration,randomSeed=world.State.randomSeed,nativeTest=world.State.nativeTest,usePlayerTrace=world.State.usePlayerTrace,playerTrace=world.State.playerTrace,tracks=tracks};Motion.Normalize(scene);
+        var scene=new EditorState{globalSource=world.State,fps=world.State.fps,duration=world.State.duration,randomSeed=world.State.randomSeed,nativeTest=world.State.nativeTest,usePlayerTrace=world.State.usePlayerTrace,playerTrace=world.State.playerTrace,tracks=tracks};Motion.Normalize(scene);
         found=new TemplateDefinition{scene=scene,root=root,anchor=Motion.At(root,root.start)};definitions[id]=found;return found;
     }
     public TemplateSnapshot Capture(){return new TemplateSnapshot{serial=serial,instances=instances.Select(t=>t.Clone()).ToList(),hidden=new HashSet<string>(hidden)};}
@@ -60,7 +60,7 @@ internal sealed class TemplateRuntime
     private bool Generate(BulletAction action,int frame,double x,double y,double heading,int generation,double sourceX,double sourceY,int index,Track source,int age,BirthAppearance appearance)
     {
         var definition=Definition(action.templateId);if(definition==null)return false;
-        double rotation=(action.inheritAngle?heading:0)+action.spawnAngle+index*action.spawnAngleStep,a=rotation*Math.PI/180;
+        double rotation=(action.inheritAngle?heading:0)+GenerationPresets.Phase(action,source,age,index,frame)+index*action.spawnAngleStep,a=rotation*Math.PI/180;
         var instance=new TemplateInstance{serial=++serial,birth=frame,shift=frame-definition.root.start,generation=generation+1,x=x+action.spawnOffsetX*Math.Cos(a)+action.spawnOffsetY*Math.Sin(a),y=y-action.spawnOffsetX*Math.Sin(a)+action.spawnOffsetY*Math.Cos(a),rotation=rotation,sourceX=sourceX,sourceY=sourceY,definition=definition};
         if(action.inheritAppearance)instance.appearance=appearance.Clone();
         if(action.inheritScale)instance.scaleMultiplier=appearance.scale/Math.Max(.000001,definition.anchor.scale);
@@ -84,11 +84,11 @@ internal sealed class TemplateRuntime
             bool each=action.spawnOrigin=="each"&&track.kind=="rod";var points=each?Motion.RodPoints(track,time):new[]{new PointF((float)pose.x,(float)pose.y)};
             for(int i=0;i<points.Length;i++)
             {
-                int member=each?i:-1;if(!Visible(track,member,owner)||!Trigger(action,time-track.start,i,generation))continue;
+                int member=each?i:-1;if(!Visible(track,member,owner)||!Trigger(action,time-TimelineLayout.ClockStart(track),i,generation))continue;
                 var p=points[i];double heading=each?ExpressionContext.Direction(pose.x,pose.y,p.X,p.Y):pose.angle;var look=BirthAppearance.TrackAt(track,time,i,p,pose,instance==null?0:instance.rotation,points.Length);
                 if(instance!=null){look.scale*=instance.scaleMultiplier;if(instance.appearance!=null){look.sprite=instance.appearance.sprite;look.image=instance.appearance.image;look.color=instance.appearance.color;}if(instance.colorOverride.HasValue)look.color=instance.colorOverride.Value;}
                 if(instance!=null){p=instance.Point(p.X,p.Y);heading+=instance.rotation;}
-                if(Generate(action,frame,p.X,p.Y,heading,generation,center.X,center.Y,i,track,time-track.start,look)&&action.destroyParent)Hide(track,member,owner);
+                if(Generate(action,frame,p.X,p.Y,heading,generation,center.X,center.Y,i,track,time-TimelineLayout.ClockStart(track),look)&&action.destroyParent)Hide(track,member,owner);
             }
         }
     }
@@ -101,13 +101,13 @@ internal sealed class TemplateRuntime
     }
     private void StepInstance(TemplateInstance instance,int frame)
     {
-        if(instance.lastFrame==frame)return;instance.lastFrame=frame;int time=frame-instance.shift;var scene=instance.definition.scene;
+        if(instance.lastFrame==frame)return;instance.lastFrame=frame;int time=frame-instance.shift;var scene=instance.definition.scene;foreach(var child in scene.tracks)child.expressionWorldShift=instance.shift;
         foreach(var t in scene.tracks.Where(t=>Eligible(t)&&BulletSystem.Active(t,time)))TrackActions(t,time,frame,instance.serial,instance.generation,instance);
         foreach(var t in scene.tracks.Where(t=>Eligible(t)&&BulletSystem.Active(t,time)&&Visible(t,-1,instance.serial)))
         {
             if(t.kind=="emitter")
             {
-                int dt=time-t.start;if(dt%Math.Max(1,t.interval)!=0)continue;int n=Math.Max(1,Math.Min(300,BulletSystem.Round(Motion.Value(t,"count",time))));
+                int dt=time-TimelineLayout.ClockStart(t);if(dt%Math.Max(1,t.interval)!=0)continue;int n=Math.Max(1,Math.Min(300,BulletSystem.Round(Motion.Value(t,"count",time))));
                 for(int i=0;i<n;i++){var b=world.Spawn(t,frame+i*Math.Max(0,t.indexDelay),i,n,dt/Math.Max(1,t.interval),null,null,null,instance.generation,false,instance.shift,instance);world.TickNew(b,frame);}continue;
             }
             if(t.kind!="rod"&&t.kind!="object")continue;

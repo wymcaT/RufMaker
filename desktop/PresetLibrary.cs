@@ -15,7 +15,7 @@ internal sealed class TrackPreset
     {
         var result=new TrackPreset{name=name,fps=fps,tracks=selected.Select(t=>t.Snapshot()).ToList()};Validate(result);
         int origin=result.tracks.Min(t=>Math.Min(t.start,t.keyframes.Select(k=>k.frame).DefaultIfEmpty(t.start).Min()));
-        int firstLane=result.tracks.Min(t=>Math.Max(0,t.lane));foreach(var t in result.tracks){t.lane=Math.Max(0,t.lane-firstLane);t.start-=origin;t.end-=origin;if(t.releaseFrame>=0)t.releaseFrame-=origin;foreach(var k in t.keyframes)k.frame-=origin;}return result;
+        int firstLane=result.tracks.Min(t=>Math.Max(0,t.lane));foreach(var t in result.tracks){t.lane=Math.Max(0,t.lane-firstLane);t.start-=origin;t.end-=origin;TimelineLayout.ShiftClock(t,-origin);if(t.releaseFrame>=0)t.releaseFrame-=origin;foreach(var k in t.keyframes)k.frame-=origin;}return result;
     }
     public List<Track> Instantiate(int frame,int fps)
     {
@@ -24,17 +24,19 @@ internal sealed class TrackPreset
             foreach(var k in t.keyframes){k.frame=frame+(int)BulletSystem.Round(k.frame*ratio);if(k.property=="speed"||k.property=="rollSpeed"||k.property=="rainbowSpeed")k.value/=ratio;if(k.property=="life")k.value*=ratio;}
             t.velocityX/=ratio;t.velocityY/=ratio;t.accelerationX/=ratio*ratio;t.accelerationY/=ratio*ratio;t.angularSpeed/=ratio;t.orbitSpeed/=ratio;t.speed/=ratio;t.rollSpeed/=ratio;t.rainbowSpeed/=ratio;t.trailSpeed/=ratio;
             t.fxStutter=Math.Max(1,Math.Min(12,(int)BulletSystem.Round(t.fxStutter*ratio)));t.fxFrequency/=ratio;t.trailScaleDecay/=ratio;t.trailAlphaDecay/=ratio;t.interval=Math.Max(1,(int)BulletSystem.Round(t.interval*ratio));t.life=Math.Max(1,(int)BulletSystem.Round(t.life*ratio));t.deathFrames=Math.Max(0,BulletSystem.Round(t.deathFrames*ratio));t.trailInterval=Math.Max(1,(int)BulletSystem.Round(t.trailInterval*ratio));t.trailLife=Math.Max(1,(int)BulletSystem.Round(t.trailLife*ratio));
-            t.indexDelay=(int)BulletSystem.Round(t.indexDelay*ratio);t.indexSpeed/=ratio;t.repeatGap=(int)BulletSystem.Round(t.repeatGap*ratio);if(t.releaseFrame>=0)t.releaseFrame=frame+(int)BulletSystem.Round(t.releaseFrame*ratio);foreach(var a in TemplateRuntime.Actions(t)){a.spawnRepeat=(int)BulletSystem.Round(a.spawnRepeat*ratio);a.start=(int)BulletSystem.Round(a.start*ratio);a.duration=(int)BulletSystem.Round(a.duration*ratio);a.stagger=(int)BulletSystem.Round(a.stagger*ratio);a.childSpeed/=ratio;if(a.type=="speed"||a.type=="turn"){a.from/=ratio;a.to/=ratio;}if(a.type=="acceleration"){a.from/=ratio*ratio;a.to/=ratio*ratio;}}if(t.children.Count>0)t.children=new TrackPreset{fps=this.fps,tracks=t.children}.Instantiate(0,fps);
+            if(t.variableRepeat>0)t.variableRepeat=Math.Max(1,(int)BulletSystem.Round(t.variableRepeat*ratio));t.indexDelay=(int)BulletSystem.Round(t.indexDelay*ratio);t.indexSpeed/=ratio;t.repeatGap=(int)BulletSystem.Round(t.repeatGap*ratio);if(t.releaseFrame>=0)t.releaseFrame=frame+(int)BulletSystem.Round(t.releaseFrame*ratio);foreach(var a in TemplateRuntime.Actions(t)){a.spawnRepeat=(int)BulletSystem.Round(a.spawnRepeat*ratio);a.start=(int)BulletSystem.Round(a.start*ratio);a.duration=(int)BulletSystem.Round(a.duration*ratio);a.stagger=(int)BulletSystem.Round(a.stagger*ratio);a.childSpeed/=ratio;if(a.type=="speed"||a.type=="turn"){a.from/=ratio;a.to/=ratio;}if(a.type=="acceleration"){a.from/=ratio*ratio;a.to/=ratio*ratio;}}if(t.children.Count>0)t.children=new TrackPreset{fps=this.fps,tracks=t.children}.Instantiate(0,fps);
             t.keyframes=t.keyframes.GroupBy(k=>k.property+":"+k.frame).Select(g=>g.Last()).OrderBy(k=>k.frame).ToList();
+            if(t.clockStart.HasValue)t.clockStart=frame+BulletSystem.Round(t.clockStart.Value*ratio);if(t.clockEnd.HasValue)t.clockEnd=frame+BulletSystem.Round(t.clockEnd.Value*ratio);
+            if(MotionPresets.Bound(t)){t.motionPreset.start=frame+BulletSystem.Round(t.motionPreset.start*ratio);t.motionPreset.end=frame+BulletSystem.Round(t.motionPreset.end*ratio);MotionPresets.Bake(t);}
         }return copies;
     }
     public static void Validate(TrackPreset p)
     {
         if(p==null||p.version!=1||p.fps<15||p.fps>240||p.tracks==null||p.tracks.Count==0||p.tracks.Count>200)throw new InvalidDataException("不是受支持的 RufMaker 轨道预设。");
         foreach(var t in p.tracks){
-            if(t==null||!new[]{"emitter","rod","object","camera","effect","script","group","control","pattern"}.Contains(t.kind)||t.start<0||t.end<t.start||t.end>1000000||t.keyframes==null||t.keyframes.Count>10000)throw new InvalidDataException("预设轨道数据不完整。");
+            if(t==null||!new[]{"emitter","rod","object","camera","effect","script","group","control","pattern","variable"}.Contains(t.kind)||t.start<0||t.end<t.start||t.end>1000000||t.keyframes==null||t.keyframes.Count>(MotionPresets.Bound(t)?2010000:10000))throw new InvalidDataException("预设轨道数据不完整。");
             if(t.kind=="pattern")Validate(new TrackPreset{fps=p.fps,tracks=t.children});
-            foreach(var k in t.keyframes){var f=k==null||k.property==null?null:typeof(Track).GetField(k.property);if(f==null||(f.FieldType!=typeof(double)&&f.FieldType!=typeof(int))||k.frame<0||k.frame>1000000||Double.IsNaN(k.value)||Double.IsInfinity(k.value))throw new InvalidDataException("预设含有无效关键帧。");}
+            foreach(var k in t.keyframes){var f=k==null||k.property==null?null:typeof(Track).GetField(k.property);if(f==null||(f.FieldType!=typeof(double)&&f.FieldType!=typeof(int))||k.frame<(t.clockStart.HasValue?-1000000:0)||k.frame>1000000||Double.IsNaN(k.value)||Double.IsInfinity(k.value))throw new InvalidDataException("预设含有无效关键帧。");}
         }
     }
 }

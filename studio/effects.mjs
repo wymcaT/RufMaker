@@ -63,11 +63,11 @@ export function fxPassesGml(state) {
   for(let index=0;index<effects.length;index++) {
     const t=effects[index];
     parts.push(`if (rf_frame>=${n(t.start)} && rf_frame<=${n(t.end)}) {\n${stateCode(t,'rf_frame')}\nrf_strength=max(0,rf_strength);rf_fxOpacity=max(0,min(1,rf_fxOpacity));
-rf_u=rf_ease('${t.easing||'linear'}',(rf_frame-${n(t.start)})/${n(Math.max(1,t.end-t.start))},${parameter(t,'easePower',3)},${parameter(t,'easePeriod',.3)});
+rf_u=rf_ease('${t.easing||'linear'}',(rf_frame-(${n(t.clockStart??t.start)}))/${n(Math.max(1,(t.clockEnd??t.end)-(t.clockStart??t.start)))},${parameter(t,'easePower',3)},${parameter(t,'easePeriod',.3)});
 surface_set_target(rf_dst);draw_set_blend_mode(bm_normal);draw_set_alpha(1);draw_clear(c_black);`);
     const draw=(c='c_white',a='1',x='0',y='0')=>`draw_surface_ext(rf_src,${x},${y},1,1,0,${c},${a});`;
     if(t.effect==='rgb-impact'||t.effect==='glitch')parts.push(stylePass(t,index));
-    else if(t.effect==='shake')parts.push(`rf_age=rf_frame-${n(t.start)};rf_dx=round(sin(rf_age*${parameter(t,'fxFrequency',1)}*2.17)*rf_strength*rf_fxOpacity);rf_dy=round(cos(rf_age*${parameter(t,'fxFrequency',1)}*1.61)*rf_strength*rf_fxOpacity);${draw('c_white','1','rf_dx','rf_dy')}`);
+    else if(t.effect==='shake')parts.push(`rf_age=rf_frame-(${n(t.clockStart??t.start)});rf_dx=round(sin(rf_age*${parameter(t,'fxFrequency',1)}*2.17)*rf_strength*rf_fxOpacity);rf_dy=round(cos(rf_age*${parameter(t,'fxFrequency',1)}*1.61)*rf_strength*rf_fxOpacity);${draw('c_white','1','rf_dx','rf_dy')}`);
     else if(t.effect==='rgb')parts.push(`rf_dx=round(lengthdir_x(rf_strength,rf_fxAngle));rf_dy=round(lengthdir_y(rf_strength,rf_fxAngle));draw_set_blend_mode(bm_add);${draw('c_white','1-rf_fxOpacity')}${draw('c_red','rf_fxOpacity','rf_dx','rf_dy')}${draw('c_lime','rf_fxOpacity')}${draw('c_blue','rf_fxOpacity','-rf_dx','-rf_dy')}draw_set_blend_mode(bm_normal);`);
     else if(t.effect==='blur'||t.effect==='motion-blur') {
       parts.push(`rf_samples=${parameter(t,'fxSamples',6)};draw_set_blend_mode(bm_add);${draw('c_white','1-rf_fxOpacity')}

@@ -1,6 +1,6 @@
 # 当前协作交接
 
-更新日期：2026-10-25。集成者：Codex。此页记录阶段事实；任务占用以 [Codex](agents/codex.md) 与 [Argon4](agents/argon4.md) 各自的记录为准。
+更新日期：2026-10-26。集成者：Codex。此页记录阶段事实；任务占用以 [Codex](agents/codex.md) 与 [Argon4](agents/argon4.md) 各自的记录为准。
 
 ## 当前代码与产物
 
@@ -8,15 +8,25 @@
 | --- | --- |
 | 本机仓库 | `D:\rufmaker` |
 | 正式分支 | `main`；2.0.0 功能基线 `1f37928`，已推送远程；标签 `v2.0.0` 同指此提交 |
-| 功能版本 | 本地 `2.0.2`：右栏原地展开、模板双击完整编辑、暗色工具栏/菜单/输入修复，未推送；GitHub 正式版仍为 `2.0.0` |
-| 本机正式入口 | `RufMaker.exe`，ProductVersion `2.0.2`，1,157,632 bytes，已构建并安全替换；正在运行的旧进程需用户保存后重启 |
+| 功能版本 | `2.2.0` 发布进行中：用户确认保留原SHA256更新流程并推送/发布；含动作预设参数化逐帧铺键、稳定拖动/同轨裁剪、跨轨边缘吸附及2.1.x功能 |
+| 本机正式入口 | `RufMaker.exe`，ProductVersion `2.2.0`，1,212,928 bytes，已构建并安全替换；正在运行的旧进程需用户保存后重启 |
 | 历史测试入口 | 忽略文件 `RufMaker.Beta.exe` 可能仍是旧 Beta，不作为正式入口 |
 | 远程 | [v2.0.0](https://github.com/wymcaT/RufMaker/releases/tag/v2.0.0) 为 latest、非草稿/非预发布；Actions [40175140036](https://github.com/wymcaT/RufMaker/actions/runs/40175140036) 成功，完整便携包、更新包与两个 SHA256 均 uploaded |
 | 用户验收 | ShellLayout、Localization、EditorPerformance、RandomTimeline、TemplateSystem、Presets、PreviewPlayback、Updater 均通过；中英/窄窗口截图已检查。旧 1.13.1 更新器兼容本地最终包、线上 2.0.0 下载/校验/解压通过；尚无用户交互验收 |
 
 新文档或后续修复提交会使 HEAD 高于功能基线，请先执行 Git 状态检查。不要把“远程没有此分支”当成需要自动推送的理由。
 
+2026-10-26发布授权：用户明确选择“保留原更新方式，继续推送发布”。保留SHA256和原更新器兼容，相关取消尝试已全部撤回；仅提交应用产品，不提交用户工程/歌曲。本地完整包58,905,941 bytes（2647项）、更新包56,983,902 bytes（2617项）已检查；原2.0.0更新器已验证新包2616个清单文件，完整包可在无GM的隔离目录首次建空工程。当前等待精确提交和Actions发布，最终远端信息发布后补记。
+
+2.2.0（本地未提交/推送）：14种动作预设改为路径参数+逐帧XY键，绑定时隐藏原XY编辑，可转手动；长路径预览/导出使用二分查找。拖动冻结布局并绘制手持层，按用户明确选择裁剪同轨其他物件，保留未覆盖两端、原运动/发射/效果时钟和分组/模板关系，一次Undo恢复。跨轨边缘吸附默认开，可在吸附菜单关闭，Alt临时绕过，偏好保存。Test-MotionEditing及相关回归/Node20项/构建通过；GM201条状态、17帧变量与F5预热对照通过。根EXE2.2.0已更新，旧2.1.1留build备份，旧动作需重新应用一次才能参数化；用户项目保持，无push/Release。教程docs/motion-timeline-editing.md，详情与失败修正记录见Codex文档。
+
+2.1.1（本地未提交/推送）：预览点按重叠位置松开后显示原生暗色候选栏，支持下层轨道物件/房间实例、取消、多选与继续拖动。360随机模板改为逐颗及同帧实例独立随机，快捷页可填random_range/choose/固定角度；修正出生种子相邻值导致等差方向的相关性。仅新生成模板randomPerInstance启用混合，普通旧物件不变。C#定向、Node20/20、RandomTimeline/Localization及构建通过；2254条GM状态、17个变量历史时刻与F5第85帧恢复对照一致。根EXE2.1.1已更新，旧2.1.0在build/generation-presets-check备份，无push/Release；详见Codex记录和docs/releases/v2.1.1.md。
+
+2.1.0（本地未提交/推送）：左栏“预设 → 弹幕生成模板”可拖放或双击绑定5种循环生成；发射器默认由每颗移动弹幕循环，可切本体。右栏直接编辑数量/速度/间隔/子弹寿命模式，展开新弹幕拖影分组改完整参数，“新弹幕行为…”编辑后代年龄动作。新增variable轨道与global.name引用、带种子历史赋值、F5恢复；同帧变量先赋值后发射。新字段及C#/JS/GML、快照、复制、预设、循环片段和中英界面均处理；Build-Native显式源码已更新。Test-GenerationPresets及相关回归通过，GM最终对照1777条弹幕状态/拖影参数、17帧变量历史和F5第85帧预热一致。教程docs/generation-presets.md。根EXE2.1.0已更新，旧2.0.2在build/generation-presets-check备份；用户工程保持，无push/Release授权。详细接口与日志见Codex记录。
+
 2.0.2（本地未推送）：标题焦点与属性折叠期间保留滚动偏移，正常键盘参数聚焦滚动不变。模板引用双击直接打开关联来源/规则的完整行为窗口，与“展开编辑”共用入口；局部预览改用模板右键。统一 ToolStrip/菜单及动态子菜单的暗色边线和文字，数字框、可输入组合框与行为窗口按钮去除系统浅色边框。新增仅 UI 回调，无工程/后台/GML 变化。ShellLayout、EditorPerformance、Localization、TemplateSystem 与构建通过；系统滚动条未重写，待用户交互验收。详见 Codex 记录。
+
+2026-10-25 本地关卡交付：**最新编辑入口为 `projects/examples/Neko Pulse Mix/Neko Pulse Mix.rufmaker`**，使用用户《人是猫》MP3，136.28秒/50FPS/130个物件。原 Neko Pulse 时间轴在导出后被63物件旧状态回写，现保留原件并独立另存 Mix，真实桥接 load 核对130物件/13组随机层，与已验证配方逐项一致，重新编译对应 EXE（4,871,545 bytes）。高速、多弹型、多随机且全曲不断流；同目录 `游玩/Neko Pulse.exe`，便携 ZIP、README、GM 截图齐全。C#全曲逐帧演算、GM固定种子碰撞路线与R/死亡重试/CLEAR流程自动验证通过；探针冻结玩家物理，不冒称真人通关。未使用桌面控制修复、未改产品源码或编辑器版本，未提交/推送歌曲与关卡，无新发布授权。详情见 Codex 记录。
 
 2.0.1（本地未推送）：属性分组展开偏好不再随临时控件/物件类型切换丢失；默认布局恢复紧凑折叠，保留“变换”展开。吸附面板文字统一深色主题亮字，分音框按字体/语言测宽。只变 UI 与相同格式的工作区偏好，不改工程、吸附算法和 GML。ShellLayout、EditorPerformance、Localization 和构建通过，中英 125%/150% 字体截图已检查；未冒充真实多 DPI 屏幕验收。详情见 Codex 记录。
 

@@ -64,11 +64,11 @@ internal static partial class Effects
     {
         foreach(var t in state.tracks.Where(t=>t.enabled&&t.kind=="effect"&&frame>=t.start&&frame<=t.end))
         {
-            double u=(frame-t.start)/(double)Math.Max(1,t.end-t.start);u=Motion.Ease(t.easing,u,t.easePower,t.easePeriod);
+            double u=(frame-TimelineLayout.ClockStart(t))/(double)Math.Max(1,TimelineLayout.ClockEnd(t)-TimelineLayout.ClockStart(t));u=Motion.Ease(t.easing,u,t.easePower,t.easePeriod);
             double strength=Math.Max(0,Motion.Value(t,"strength",frame)),opacity=Unit(Motion.Value(t,"fxOpacity",frame)),angle=Motion.Value(t,"fxAngle",frame);Bitmap next=null;
             if(t.effect=="rgb-impact"||t.effect=="glitch")next=Style(image,t,state,frame,cache,strength,opacity,angle);
             else if(t.effect=="shake")
-            {double age=frame-t.start;next=Shift(image,(int)Math.Round(Math.Sin(age*t.fxFrequency*2.17)*strength*opacity),(int)Math.Round(Math.Cos(age*t.fxFrequency*1.61)*strength*opacity));}
+            {double age=frame-TimelineLayout.ClockStart(t);next=Shift(image,(int)Math.Round(Math.Sin(age*t.fxFrequency*2.17)*strength*opacity),(int)Math.Round(Math.Cos(age*t.fxFrequency*1.61)*strength*opacity));}
             else if(t.effect=="rgb")next=Rgb(image,(int)Math.Round(Math.Cos(angle*Math.PI/180)*strength),(int)Math.Round(-Math.Sin(angle*Math.PI/180)*strength),opacity);
             else if(t.effect=="blur"||t.effect=="motion-blur")
             {
