@@ -1,16 +1,27 @@
 # Codex 任务记录
 
-- 状态：`in_progress`
-- 任务：用户明确确认“保留原更新方式，继续推送发布”；发布main/v2.2.0，保留原SHA256与旧更新器兼容。
+- 状态：`completed`
+- 任务：main/v2.2.0已推送并正式发布，保留原SHA256与旧更新器兼容；线上更新与完整包验证通过。
 - 开始时基线：`b88164b`，分支 `main`；保留已有用户工程改动（12 文件，817 增/236 删）。
-- 当前占用文件：README中英文、v2.2.0说明、交接文档、RufMaker.exe及发布产物；集成此前已验证的全部2.1.x/2.2.0产品源码和测试。基线b88164b/main；保留用户工程。AGENTS.md、Package-Release.ps1与release.yml保持原流程，Updater.cs仅版本变化。
-- 本轮发布计划：重新构建两个ZIP，检查完整包/清单/旧更新器兼容；精确提交产品改动并推送main/v2.2.0，由Actions发布；最后验证线上附件下载与检测更新。当前尚未远程写入。公共API此前遭共享IP限速，必要时用GitHub网页和连接器查Actions。
+- 当前占用文件：无，已释放。57个产品文件已在b53abb9提交，main/v2.2.0推送成功；AGENTS.md、Package-Release.ps1与release.yml保持原流程，Updater.cs仅版本变化。用户工程全部保留。
+- 本轮发布结果：GitHub latest为v2.2.0（非草稿/非预发布），Actions40302243614成功；完整包59,955,673 bytes、更新包58,020,935 bytes及两个SHA256均uploaded。线上检测更新/下载/清单校验/解压和完整包无GM首次建工程/重开均通过。
 - 本轮约定：用户明确选择裁短被覆盖的其他物件；中间覆盖保留前后两段、全覆盖移出时间轴，同轨执行，跨轨仅吸附。验收含连续拖动稳定性/吸附开关/裁剪的时间历史与Undo，14种预设逐帧位置/参数/保存复制、C#/GM及构建。
 - 本轮验收计划：原生重叠选择候选/取消/房间实例/多选与拖动定向测试；独立方向和自定义范围分布、倒拖、C#/GML对照；中英文和本地EXE构建。
 - 本轮验收：五种拖放入口/快捷参数/循环与不同方向模式；变量赋值/重复/引用/初值/随机历史/倒拖/保存复制预设；C#/Node定向测试、隔离GM运行数值对照、中英布局、EXE构建。仅本地交付，无推送授权。
 - 验收结果：Test-MotionEditing及Presets/RandomTimeline/GenerationPresets/Localization/EditorPerformance/ShellLayout通过；Node20/20；本轮201条GM弹幕状态、17帧变量历史、F5第85帧恢复对照通过；2.2.0本地EXE构建通过。
-- 本轮发布：2.0.0 已正式发布；本轮继续工作默认本地，不自动追加 Git 推送或新 Release。
+- 本轮发布：2.2.0已正式发布；此后默认本地，不自动追加Git推送或新Release。
 - 本机产物：根目录 `RufMaker.exe`，ProductVersion `2.2.0`，FileVersion `2.2.0.0`，1,212,928 bytes；已构建并File.Replace安全替换，未结束用户进程。原2.1.1在build/motion-editing-check/RufMaker.2.1.1.previous.exe；用户须保存并重启旧进程使用新版。
+
+## 2026-10-26：2.2.0正式推送与发布（完成）
+
+- 授权：用户先要求不再用SHA256，得知会破坏旧更新器后明确选择“保留原更新方式，继续推送发布”。取消尝试已精确撤回，AGENTS/打包脚本/工作流保持原内容，Updater实现只含既有2.2.0版本变更。没有私自改变后续默认不推送规则。
+- 从b88164b/main接续，远端main为71a0982且是本地祖先；先验证发布包，再精确暂存57个产品源码/测试/文档/EXE文件，提交b53abb9242244cd5152e681bd2defe86f419e4a2。用户projects、歌曲、个人耐久、安装与缓存均未暂存。main与annotated tag v2.2.0原子推送成功。
+- GitHub Actions：40302243614，https://github.com/wymcaT/RufMaker/actions/runs/40302243614，head为b53abb9，completed/success。https://github.com/wymcaT/RufMaker/releases/tag/v2.2.0 为latest、draft=false、prerelease=false；四个附件均uploaded。
+- 线上附件：RufMaker-2.2.0-Windows-Portable.zip 59,955,673 bytes（SHA 18c44109b955f15a799ad01754e9e68405bbf31b2becfb798289d6145d94ed33）；RufMaker-2.2.0.zip 58,020,935 bytes；两份旁置SHA文本102/85 bytes。CI完整包解压EXE版本2.2.0、1,211,904 bytes。本地编译EXE1,212,928 bytes，本地ZIP58,905,941/56,983,902 bytes；编译器/压缩输出差异，以线上自身清单校验为准，不误认字节一致。
+- 本地验证：Package-Release构建成功；两个ZIP检查版本、必需文件、重复条目、个人数据排除与逐项散列通过。原v2.0.0的Updater.cs单独编译测试探针，直接接受新更新包并校验解压2616个文件。Test-Updater本地确认版本提示、保留工程/音乐/预设/安装、备份及隐藏重启通过。没有操作用户桌面。
+- 线上验证：Test-Updater.ps1 -Online -Version 2.2.0通过，实际使用产品更新逻辑请求latest、下载ZIP与SHA、逐清单校验/解压。实际下载线上完整包并核对SHA及GitHub资产digest，运行build/verify-portable-release.mjs，确认EXE/依赖/素材/文档/模板齐全、无个人工程，在隔离无GM环境首次创建空工程及重开通过。
+- 日志/产物：build/distribution/v2.2.0、build/release-check-2.2.0、build/motion-editing-check下package-release/package-check/old-updater-check/updater-release/updater-online日志、release-published.json与release-runs.json。早期只读API曾共享IP限速，带新鲜查询后恢复；便携包首次检测把HTTP Byte[]内容当成文本误判，ASCII解码后匹配旁置SHA及GitHub digest，产物无损坏。测试探针首次csc相对路径解析有误，改绝对路径后通过。
+- 发布说明汇总2.1.x及2.2.0功能，README中英文已指向2.2.0。当前仅补交接文档提交，不重打标签或重新发布二进制。无待办；用户原demo12文件817增236删仍保持，其他个人项目/例子未提交。后续工作仍需用户新授权才push。
 
 ## 2026-10-26：2.2.0逐帧动作与时间轴覆盖剪辑（完成，本地未推送）
 
