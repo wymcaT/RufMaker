@@ -20,10 +20,10 @@ internal sealed partial class MainForm
     private bool GetBehaviorSelection(out bool template,out int index){int row=behaviorList.SelectedIndex;template=row>=0&&row<behaviorModes.Count&&behaviorModes[row];index=row>=0&&row<behaviorIndices.Count?behaviorIndices[row]:-1;return selectedTrack!=null&&index>=0&&(template?selectedTrack.spawnActions:selectedTrack.bulletActions).Count>index;}
     private void ExpandBehaviorEditor()
     {bool template;int index;if(GetBehaviorSelection(out template,out index)){if(template)OpenTemplateBehavior(index);else OpenBulletBehavior(index);}else if(TemplateRuntime.Eligible(selectedTrack))OpenTemplateBehavior();}
-    private void FocusBehavior(bool template,int index){RefreshBehavior();int row=-1;for(int i=0;i<behaviorIndices.Count;i++)if(behaviorModes[i]==template&&behaviorIndices[i]==index){row=i;break;}if(row>=0)behaviorList.SelectedIndex=row;inspectorTabs.SelectedIndex=1;ShowInlineBehavior();}
+    private void FocusBehavior(bool template,int index){RefreshBehavior();int row=-1;for(int i=0;i<behaviorIndices.Count;i++)if(behaviorModes[i]==template&&behaviorIndices[i]==index){row=i;break;}if(row>=0)behaviorList.SelectedIndex=row;inspectorTabs.SelectedIndex=1;inspectorDock.Activate("general");ShowInlineBehavior();}
     private void AddInlineBehavior(bool template,string type)
     {
-        if(selectedTrack==null||!TemplateRuntime.Eligible(selectedTrack)||!template&&!new[]{"emitter","rod"}.Contains(selectedTrack.kind)){SetStatus("请先选中可编辑的物件或弹幕来源。");return;}if(type=="spawn"&&!state.tracks.Any(t=>t!=selectedTrack&&TemplateRuntime.Eligible(t))){SetStatus("请先创建一个生成模板。");return;}properties.CommitPending();behaviorProperties.CommitPending();PushUndo();var action=new BulletAction{type=type,inheritScale=true,duration=new[]{"spawn","split","clear","aim","collision"}.Contains(type)?0:state.fps};
+        if(selectedTrack==null||!TemplateRuntime.Eligible(selectedTrack)||!template&&!new[]{"emitter","rod"}.Contains(selectedTrack.kind)){SetStatus("请先选中可编辑的物件或弹幕来源。");return;}if(type=="spawn"&&!state.tracks.Any(t=>t!=selectedTrack&&TemplateRuntime.Eligible(t))){SetStatus("请先创建一个生成模板。");return;}CommitInspectorEdits();behaviorProperties.CommitPending();PushUndo();var action=new BulletAction{type=type,inheritScale=true,duration=new[]{"spawn","split","clear","aim","collision"}.Contains(type)?0:state.fps};
         if(type=="spawn"){var target=state.tracks.FirstOrDefault(t=>t!=selectedTrack&&TemplateRuntime.Eligible(t)&&t.templateOnly)??state.tracks.FirstOrDefault(t=>t!=selectedTrack&&TemplateRuntime.Eligible(t));action.templateId=target==null?"":target.id;}
         var actions=template?selectedTrack.spawnActions:selectedTrack.bulletActions;actions.Add(action);if(!template)selectedTrack.advancedBullets=true;MarkChanged();FocusBehavior(template,actions.Count-1);
     }
@@ -31,7 +31,7 @@ internal sealed partial class MainForm
     private void RefreshBehavior()
     {
         if(refreshingBehavior||behaviorList.Parent==null)return;refreshingBehavior=true;try{
-            bool same=selectedTrack!=null&&behaviorOwner==selectedTrack.id;int selected=same?behaviorList.SelectedIndex:-1;var labels=new List<string>();behaviorModes.Clear();behaviorIndices.Clear();if(selectedTrack!=null){foreach(bool template in new[]{true,false}){var actions=template?selectedTrack.spawnActions:selectedTrack.bulletActions;for(int i=0;i<actions.Count;i++){var a=actions[i];labels.Add((a.enabled?"":"× ")+Language.Text(template?"生成":"年龄")+" · "+a.start+"f · "+Language.Text(String.IsNullOrEmpty(a.generationPreset)?BulletSystem.ActionName(a.type):GenerationPresets.Name(a.generationPreset))+(a.type=="spawn"&&a.spawnRepeat>0?" / "+a.spawnRepeat+"f":""));behaviorModes.Add(template);behaviorIndices.Add(i);}}}
+            bool same=selectedTrack!=null&&behaviorOwner==selectedTrack.id;int selected=same?behaviorList.SelectedIndex:-1;var labels=new List<string>();behaviorModes.Clear();behaviorIndices.Clear();if(selectedTrack!=null){foreach(bool template in new[]{true,false}){var actions=template?selectedTrack.spawnActions:selectedTrack.bulletActions;for(int i=0;i<actions.Count;i++){var a=actions[i];labels.Add((a.enabled?"":"× ")+Language.Text(template?"生成":"年龄")+" · "+a.start+"f · "+Language.Text(String.IsNullOrEmpty(a.generationPreset)?BulletSystem.ActionName(a.type):GenerationPresets.Name(a.generationPreset))+(a.type=="spawn"&&a.spawnRepeat>0&&!(template&&a.generationPreset==CopyGeneration.Key&&a.copyLinked)?" / "+a.spawnRepeat+"f":""));behaviorModes.Add(template);behaviorIndices.Add(i);}}}
             if(!behaviorList.Items.Cast<string>().SequenceEqual(labels)){behaviorList.BeginUpdate();behaviorList.Items.Clear();behaviorList.Items.AddRange(labels.Cast<object>().ToArray());behaviorList.EndUpdate();}behaviorOwner=selectedTrack==null?null:selectedTrack.id;if(behaviorList.Items.Count>0)behaviorList.SelectedIndex=Math.Max(0,Math.Min(behaviorList.Items.Count-1,selected));
         }finally{refreshingBehavior=false;}ShowInlineBehavior();
     }
@@ -43,11 +43,12 @@ internal sealed partial class MainForm
         behaviorSummary.Text=Language.Text(template?"生成时间从来源物件开始计算；生成模板使用自己的局部时间。":"按每颗弹幕出生后的年龄执行。复杂筛选、公式和外观继承可在“展开编辑”中调整。");
         Action<Action> edit=change=>{PushUndo();change();if(!template)track.advancedBullets=true;MarkChanged();RefreshBehavior();};
         if(a.type=="spawn"&&!String.IsNullOrEmpty(a.generationPreset)){
+            if(template&&a.generationPreset==CopyGeneration.Key&&a.copyLinked){bag.Add("启用","复制obj",typeof(bool),()=>a.enabled,value=>edit(()=>a.enabled=(bool)value));GenerationPresets.Fields(bag,state,track,a,edit);bag.Add("首次发射延迟 / 帧","复制obj",typeof(int),()=>a.start,value=>edit(()=>a.start=Math.Max(0,(int)value)));behaviorSummary.Text=Language.Text("副本实时联动来源；修改来源物件即可更新全部副本。");behaviorProperties.SelectedObject=bag;return;}
             if(generatedBehaviorButton!=null)generatedBehaviorButton.Visible=state.tracks.Any(t=>t.id==a.templateId&&(t.kind=="emitter"||t.kind=="rod"));
             if(track.kind=="emitter")bag.Add("生成来源","循环生成",typeof(string),()=>template?"发射器本体":"发出的每颗弹幕",value=>SetGeneratorSource(track,a,(string)value=="发出的每颗弹幕"),new[]{"发射器本体","发出的每颗弹幕"});
             bag.Add("启用","循环生成",typeof(bool),()=>a.enabled,value=>edit(()=>a.enabled=(bool)value));
             bag.Add(a.generationPreset==CopyGeneration.Key?"复制间隔 / 帧（0仅一次）":"发射间隔 / 帧","循环生成",typeof(int),()=>a.spawnRepeat,value=>edit(()=>a.spawnRepeat=Math.Max(a.generationPreset==CopyGeneration.Key?0:1,(int)value)));
-            GenerationPresets.Fields(bag,state,track,a,edit);
+            GenerationPresets.Fields(bag,state,track,a,edit,template);
             bag.Add("首次发射延迟 / 帧","循环生成",typeof(int),()=>a.start,value=>edit(()=>a.start=Math.Max(0,(int)value)));
             bag.Add("继承出生贴图与颜色","生成外观",typeof(bool),()=>a.inheritAppearance,value=>edit(()=>a.inheritAppearance=(bool)value));
             behaviorSummary.Text=Language.Text("在来源生命周期内循环生成；复杂参数可点“展开编辑”。");behaviorProperties.SelectedObject=bag;return;
@@ -64,7 +65,7 @@ internal sealed partial class MainForm
         }else if(!new[]{"clear","split"}.Contains(a.type)){
             bag.Add("起始值","参数",typeof(double),()=>a.from,v=>edit(()=>a.from=(double)v));bag.Add("结束值","参数",typeof(double),()=>a.to,v=>edit(()=>a.to=(double)v));bag.Add("缓动","参数",typeof(string),()=>Motion.EaseNames[Math.Max(0,Array.IndexOf(Motion.EaseValues,a.easing))],v=>edit(()=>a.easing=Motion.EaseValues[Array.IndexOf(Motion.EaseNames,(string)v)]),Motion.EaseNames);
         }
-        GenerationPresets.Fields(bag,state,track,a,edit);
+        GenerationPresets.Fields(bag,state,track,a,edit,template);
         behaviorProperties.SelectedObject=bag;
     }
 }

@@ -82,7 +82,7 @@ internal sealed partial class MainForm
     }
     private void SaveSelectionAsPreset()
     {
-        if(state==null||selectedTrack==null)return;StopPlaying();properties.CommitPending();var selected=WithGroupChildren(state.tracks.Where(t=>t.kind!="native"&&(timeline.SelectedTracks.Contains(t)||t==selectedTrack))).ToArray();if(selected.Length==0)return;
+        if(state==null||selectedTrack==null)return;StopPlaying();CommitInspectorEdits();var selected=WithGroupChildren(state.tracks.Where(t=>t.kind!="native"&&(timeline.SelectedTracks.Contains(t)||t==selectedTrack))).ToArray();if(selected.Length==0)return;
         try{using(var dialog=new PresetNameForm("存为自定义预设",selected.Length==1?selected[0].name:"组合预设",presetFolder,Library.Folders(),"保存全部参数、关键帧及贴图。多选轨道按相对时间一起保存。手写 GML 继续引用目标工程中的脚本和对象。")){
             if(Language.ShowDialog(dialog,this)!=DialogResult.OK)return;Library.Save(dialog.Category,dialog.ResultName,TrackPreset.Capture(dialog.ResultName,PresetDependencies(selected),state.fps),document.project);resourceKind="custom-presets";presetFolder=dialog.Category;search.Clear();FillResources();SetStatus("已保存到公共预设库，其他工程可直接使用。");
         }}catch(Exception error){Error(error);}
@@ -102,7 +102,7 @@ internal sealed partial class MainForm
             if(kind=="event-presets"){AddEventPreset(name,at);return;}
             if(kind=="generation-presets"){ApplyGenerationPreset(name,target);return;}
             if(kind=="presets"){ApplyMotionPreset(name,target);return;}
-            StopPlaying();properties.CommitPending();
+            StopPlaying();CommitInspectorEdits();
             if(kind=="custom-presets"){
                 bool enabled=Enabled;SetBusy(true);Enabled=false;
                 try{if(state.tracks.Count+PresetLibrary.Read(Library.Resolve(name)).tracks.Count>200)throw new InvalidOperationException("添加此预设后会超过 200 条轨道。");var added=Library.Instantiate(name,document.project,Math.Max(0,at),state.fps);GlobalVariables.RemapCopies(added,state);int end=added.Max(t=>Math.Max(t.end,t.keyframes.Select(k=>k.frame).DefaultIfEmpty(t.end).Max()));if(end>1000000)throw new InvalidOperationException("预设超出工程支持的最大帧数。");var assets=await bridge.Call<ImportResult>("asset-info",new{});document.inventory=assets.inventory;document.spriteMeta=assets.spriteMeta;sprites.Metadata=assets.spriteMeta;PushUndo();int firstLane=added.Min(t=>Math.Max(0,t.lane)),baseLane=timeline.ActiveLane>=0?timeline.ActiveLane:Math.Max(0,state.laneCount-1);foreach(var t in added)t.lane=Math.Min(199,baseLane+Math.Max(0,t.lane-firstLane));RandomParameters.Resolve(new EditorState{fps=state.fps,duration=Math.Max(state.duration,end),randomSeed=state.randomSeed,nativeTest=state.nativeTest,tracks=state.tracks.Select(row=>row.Snapshot()).Concat(added).ToList()});state.tracks.AddRange(added);state.laneCount=Math.Max(state.laneCount,added.Max(t=>t.lane)+1);state.duration=Math.Max(state.duration,end);foreach(var t in added)timeline.Expand(t,true);timeline.SetTrackSelection(added,added[0]);MarkChanged();SetStatus("已添加自定义预设 · "+added.Count+" 个物件，关键帧按落点对齐。");}

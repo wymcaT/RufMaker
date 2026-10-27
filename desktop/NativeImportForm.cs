@@ -51,7 +51,7 @@ internal sealed partial class MainForm
         if(busy||bridge==null)return;StopPlaying();string parent=Path.Combine(root,"projects","imported");Directory.CreateDirectory(parent);
         using(var dialog=new NativeImportForm(Path.Combine(root,"non-ruf projects"),parent,p=>bridge.Call<NativeScan>("native-scan",p)))
         {
-            if(Language.ShowDialog(dialog,this)!=DialogResult.OK)return;properties.CommitPending();if(!await SaveNow(false))return;NativeImportResult result=null;SetBusy(true);Enabled=false;
+            if(Language.ShowDialog(dialog,this)!=DialogResult.OK)return;CommitInspectorEdits();if(!await SaveNow(false))return;NativeImportResult result=null;SetBusy(true);Enabled=false;
             try{SetStatus("正在复制原工程并建立 GM 原生轨道…");result=await bridge.Call<NativeImportResult>("native-import",dialog.Options);}catch(Exception error){Error(error);}finally{Enabled=true;SetBusy(false);}
             if(result==null)return;await SwitchProject(result.path);if(result.warnings.Length>0)Language.Message(this,"导入完成，识别到 "+result.events+" 个事件。"+Environment.NewLine+Environment.NewLine+String.Join(Environment.NewLine+Environment.NewLine,result.warnings),"原生工程兼容提示",MessageBoxButtons.OK,MessageBoxIcon.Information);
         }

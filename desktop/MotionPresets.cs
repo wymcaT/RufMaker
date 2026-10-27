@@ -78,13 +78,15 @@ internal sealed partial class MainForm
     private int SnapCursor(int value,double tolerance)
     {
         if(state==null||(ModifierKeys&Keys.Alt)!=0)return value;
-        return CursorSnapping.Snap(state,selectedTrack,value,tolerance,keySnap.Checked&&timeline.SelectedTracks.Count==1);
+        return CursorSnapping.Snap(state,selectedTrack,value,tolerance,keySnap.Checked);
     }
+    private Func<int,int?> CaptureCursorTargets(double tolerance)
+    {return state==null?(Func<int,int?>)(value=>null):CursorSnapping.Capture(state,selectedTrack,tolerance,keySnap.Checked);}
     private void ApplyMotionPreset(string name,Track target)
     {
         if(target==null||!Theme.Spatial(target.kind)||!MotionPresets.Names.Contains(name)){SetStatus("请将动作预设拖到拉镜、弹幕、整体对象或对象轨道上。");return;}
         if(target.end-target.start<2){SetStatus("物件时段至少需要 2 帧，才能导入运动预设。");return;}
-        StopPlaying();properties.CommitPending();PushUndo();MotionPresets.Apply(target,name,Math.Max(target.start,Math.Min(target.end,frame)));SelectTrack(target,null);timeline.Expand(target,true);MarkChanged();SetStatus("已应用 "+name+"；在动作预设参数中修改路径，每帧自动生成关键帧。");
+        StopPlaying();CommitInspectorEdits();PushUndo();MotionPresets.Apply(target,name,Math.Max(target.start,Math.Min(target.end,frame)));SelectTrack(target,null);timeline.Expand(target,true);MarkChanged();SetStatus("已应用 "+name+"；在动作预设参数中修改路径，每帧自动生成关键帧。");
     }
     private void MotionControls(NativeProperties bag,Track track)
     {

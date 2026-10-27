@@ -20,11 +20,13 @@ internal sealed class WorkspaceView
     public int version=2,x,y,width=1500,height=940,leftWidth=220,rightWidth=340,timelineHeight=300,frame;
     public double cameraZoom=1,cameraX,cameraY,previewRate=1;
     public bool positioned,maximized,grid=true,hitboxes,renderCamera,keySnap,objectStatistics;
+    public bool? cursorSnap;
     public string projectPath="";
     public string[] recentProjects=new string[0],collapsedSections=new string[0];
     public bool leftHidden,rightHidden;public int inspectorPage;
     public bool keyframesOpen=true;
     public int keyframesHeight=220;
+    public InspectorDockView inspectorDock;
     public string stretchKeys="sync";
     public string resourceKind="objects",search="",selectedTrack,selectedProperty="x";
     public TimelineView timeline=new TimelineView();

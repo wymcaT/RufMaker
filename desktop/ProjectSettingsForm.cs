@@ -8,7 +8,7 @@ internal sealed partial class MainForm
 {
     private void OpenProjectSettings()
     {
-        if(state==null||busy)return;StopPlaying();properties.CommitPending();
+        if(state==null||busy)return;StopPlaying();CommitInspectorEdits();
         var draft=Json.Read<EditorState>(Json.Write(state));if(draft.player==null)draft.player=new PlayerSettings();
         var bag=new NativeProperties();
         bag.Add("工程名称","工程",typeof(string),()=>draft.name,v=>draft.name=(string)v);

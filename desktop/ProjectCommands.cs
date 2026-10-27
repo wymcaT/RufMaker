@@ -39,7 +39,7 @@ internal sealed partial class MainForm
         if(busy||bridge==null)return;StopPlaying();
         using(var dialog=new NewProjectForm(Path.Combine(root,"projects"),o=>bridge.Call<TerrainLayout>("terrain-preview",o)))
         {
-            if(Language.ShowDialog(dialog,this)!=DialogResult.OK)return;StopPlaying();properties.CommitPending();if(!await SaveNow(false))return;
+            if(Language.ShowDialog(dialog,this)!=DialogResult.OK)return;StopPlaying();CommitInspectorEdits();if(!await SaveNow(false))return;
             SetBusy(true);Enabled=false;SetStatus("正在创建独立 RufMaker 工程…");ProjectPathResult result=null;
             try{result=await bridge.Call<ProjectPathResult>("new-project",dialog.Options);}catch(Exception error){Error(error);}finally{Enabled=true;SetBusy(false);}
             if(result!=null)await SwitchProject(result.path);
@@ -52,7 +52,7 @@ internal sealed partial class MainForm
     }
     private async Task SwitchProject(string path)
     {
-        if(busy)return;StopPlaying();properties.CommitPending();stage.Focus();if(!await SaveNow(false))return;
+        if(busy)return;StopPlaying();CommitInspectorEdits();stage.Focus();if(!await SaveNow(false))return;
         saveTimer.Stop();SetBusy(true);Enabled=false;NativeBridge candidate=null;
         try
         {
@@ -77,7 +77,7 @@ internal sealed partial class MainForm
     {
         if(state==null||busy)return;StopPlaying();using(var dialog=new OpenFileDialog{Title="选择并导入耐久歌曲",Filter="音频文件|*.ogg;*.mp3;*.wav;*.flac"})
         {
-            if(Language.ShowDialog(dialog,this)!=DialogResult.OK)return;StopPlaying();properties.CommitPending();saveTimer.Stop();SetBusy(true);Enabled=false;
+            if(Language.ShowDialog(dialog,this)!=DialogResult.OK)return;StopPlaying();CommitInspectorEdits();saveTimer.Stop();SetBusy(true);Enabled=false;
             try
             {
                 SetStatus("正在导入歌曲并生成波形…");var result=await bridge.Call<ProjectPathResult>("import-song",new{path=dialog.FileName});string file=Path.Combine(document.project,result.music.Replace('/',Path.DirectorySeparatorChar));

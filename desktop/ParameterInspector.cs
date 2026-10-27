@@ -20,6 +20,7 @@ internal sealed class ParameterInspector : UserControl
     private readonly HashSet<string> openSections=new HashSet<string>();
     private readonly HashSet<string> knownSections=new HashSet<string>();
     public bool Compact {get;set;}
+    public bool HelpVisible {get{return help.Visible;}set{help.Visible=value;}}
     private bool DefaultFolded(string category){return Compact&&new[]{"物件","形状","发射","弹幕寿命","分组与作用范围","外观","彩虹 Cherry","拖影","运动","整体对象","转转棒","发射器","发射阵列","生成模板","释放队形","生命周期","新弹幕寿命","新弹幕拖影"}.Contains(category);}
     private void RememberSection(string category,bool folded){knownSections.Add(category);if(folded){collapsed.Add(category);openSections.Remove(category);}else{collapsed.Remove(category);openSections.Add(category);}}
     public string[] CaptureSections(){return collapsed.Concat(openSections.Select(k=>"!"+k)).ToArray();}

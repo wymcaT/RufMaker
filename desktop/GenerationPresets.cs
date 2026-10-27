@@ -33,10 +33,10 @@ internal static class GenerationPresets
             phase+=RandomExpression.Evaluate("random(360)",source.expressionSeed,(source.randomId??source.id)+"|spawnAngle"+slot+"|base",new ExpressionContext{frame=frame,randomFrame=frame,randomOffset=wave*1009});
         }return phase;
     }
-    public static void Fields(NativeProperties bag,EditorState state,Track source,BulletAction action,Action<Action> edit)
+    public static void Fields(NativeProperties bag,EditorState state,Track source,BulletAction action,Action<Action> edit,bool wholeSource=true)
     {
         if(String.IsNullOrEmpty(action.generationPreset))return;var t=state.tracks.FirstOrDefault(row=>row.id==action.templateId);if(t==null)return;
-        if(action.generationPreset==CopyGeneration.Key){CopyGeneration.Fields(bag,state,source,action,edit);return;}
+        if(action.generationPreset==CopyGeneration.Key){CopyGeneration.Fields(bag,state,source,action,edit,wholeSource);return;}
         bag.Add("弹幕生成模板","快捷生成参数",typeof(string),()=>Language.Text(Name(action.generationPreset)),null);
         bag.Add(action.generationPreset==Keys[0]?"扩散速度（距中心100像素处）":"新弹幕速度","快捷生成参数",typeof(double),()=>t.speed,value=>edit(()=>t.speed=(double)value));
         if(!Formation(action.generationPreset))bag.Add("每次发射数量","快捷生成参数",typeof(int),()=>t.count,value=>edit(()=>t.count=Math.Max(1,Math.Min(300,(int)value))));
@@ -75,7 +75,7 @@ internal sealed partial class MainForm
     private void OpenGeneratedBulletBehavior()
     {
         bool template;int index;if(!GetBehaviorSelection(out template,out index))return;var source=selectedTrack;var action=(template?source.spawnActions:source.bulletActions)[index];var target=state.tracks.FirstOrDefault(t=>t.id==action.templateId);if(target==null||!new[]{"emitter","rod"}.Contains(target.kind))return;
-        StopPlaying();properties.CommitPending();behaviorProperties.CommitPending();using(var dialog=new BulletBehaviorForm(target,state,false,-1,4))if(Language.ShowDialog(dialog,this)==System.Windows.Forms.DialogResult.OK){PushUndo();target.bulletActions=dialog.Actions;target.advancedBullets=true;MarkChanged();RefreshBehavior();SetStatus("已更新新弹幕行为；来源物件保持选中。");}
+        StopPlaying();CommitInspectorEdits();behaviorProperties.CommitPending();using(var dialog=new BulletBehaviorForm(target,state,false,-1,4))if(Language.ShowDialog(dialog,this)==System.Windows.Forms.DialogResult.OK){PushUndo();target.bulletActions=dialog.Actions;target.advancedBullets=true;MarkChanged();RefreshBehavior();SetStatus("已更新新弹幕行为；来源物件保持选中。");}
     }
     private void ApplyGenerationPreset(string key,Track target)
     {
@@ -83,7 +83,7 @@ internal sealed partial class MainForm
             if(!TemplateRuntime.Eligible(target)){SetStatus("请将弹幕生成模板拖到物件、整体对象、发射器或分组上。");return;}
             if(GenerationPresets.Formation(key)&&target.kind!="rod"){SetStatus("整体扩散模板需要拖到整体对象上。");return;}
             if(state.tracks.Count>=200)throw new ArgumentException("工程物件数量已达上限。");
-            StopPlaying();properties.CommitPending();PushUndo();GenerationPresets.Apply(state,target,key);SelectTrack(target,null);timeline.Expand(target,true);MarkChanged();bool age=target.kind=="emitter"&&key!=CopyGeneration.Key;FocusBehavior(!age,(age?target.bulletActions:target.spawnActions).Count-1);SetStatus("已添加循环生成："+GenerationPresets.Name(key)+"；在右栏调整间隔、速度和数量。");
+            StopPlaying();CommitInspectorEdits();PushUndo();GenerationPresets.Apply(state,target,key);SelectTrack(target,null);timeline.Expand(target,true);MarkChanged();bool age=target.kind=="emitter"&&key!=CopyGeneration.Key;FocusBehavior(!age,(age?target.bulletActions:target.spawnActions).Count-1);SetStatus("已添加循环生成："+GenerationPresets.Name(key)+"；在右栏调整间隔、速度和数量。");
         }catch(Exception error){Error(error);}
     }
     private void SetGeneratorSource(Track source,BulletAction action,bool bullets)

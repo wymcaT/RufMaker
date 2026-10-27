@@ -17,7 +17,7 @@ internal static class Program
     private static void Main(string[] args)
     {
         if(args.Length==3&&args[0]=="--render-native-film"){Environment.ExitCode=NativeFilmBuilder.RunJobFile(args[1],args[2]);return;}
-        SetProcessDPIAware();Application.EnableVisualStyles();Application.SetCompatibleTextRenderingDefault(false);
+        SetProcessDPIAware();DarkScrollbars.Initialize();Application.EnableVisualStyles();Application.SetCompatibleTextRenderingDefault(false);
         if(args.Length>0&&args[0]=="--apply-update"){Updater.Apply(args);return;}
         string root=AppDomain.CurrentDomain.BaseDirectory.TrimEnd(Path.DirectorySeparatorChar);
         Directory.SetCurrentDirectory(root);

@@ -1,13 +1,76 @@
 # Codex 任务记录
 
-- 状态：`completed`（2.3.0已推送并正式发布）
-- 任务：“复制obj”模板、紧贴片段白线、整理时间轴、拉伸关键帧/密集预设循环；包含此前本地右栏关键帧与事件预设一起发布。
-- 基线：`2de5a96` / `main`，远端同基线；Argon4无占用。用户追加明确授权“做完推送git并且release”，选择2.3.0，保留原SHA256更新方式。
-- 当前占用：无，已完成并释放。
-- 产物：根RufMaker.exe已为2.3.0，原入口备份build/release-check-2.3.0/RufMaker.before-release.exe；包在build/distribution/v2.3.0。提交cea040920c9ac8c42c472989eea53114a9b17f59与标签v2.3.0已原子推送，GitHub Actions及正式附件发布成功。
-- 验证：CopyEditing、GenerationPresets、TemplateSystem、MotionEditing、RandomTimeline、EditorPerformance、ShellLayout、Localization、EventPresets及构建通过；Node定向20/20，后续copy/template/bullet/presets12/12。最终GM1487复制状态、17个特效值与F5启动一致；先前原生事件543状态/21帧及通用537状态/F5通过。
-- 包验证：完整包59,999,757 bytes/2654项，更新包58,047,147 bytes/2621项；版本/必需文件/重复路径/个人资料排除/逐清单SHA通过。原v2.0.0更新器解包2620文件通过，当前更新器提示与隐藏替换/保留用户资料/重启通过；完整包无GM首次新建及重开通过。线上工作流及实际下载验证均通过，详见下方发布记录。
-- 用户数据：demo仍12文件817增236删；个人工程/歌曲/底片未暂存或改写。尚无本轮用户交互验收。
+- 状态：`in_progress`
+- 任务：用户明确要求“推送并release”，将已完成的本地改动集成发布2.4.0。
+- 基线：`16f3297` / `main`；Argon4无占用，保留用户demo12文件817增236删及全部个人工程。
+- 占用：desktop/Updater.cs、发布说明/README/交接、desktop/Package-Release.ps1既有流程输出build/distribution与build/release-2.4.0-check、根EXE；精确暂存全部已完成应用源码，不暂存projects用户改动。
+- 发布前验证：两个本地ZIP逐文件/manifest/SHA256检查通过；当前更新器替换/保留用户数据/隐藏重启通过；原2.0.0更新器以32位CLR加载，接受2.4.0的2621个更新文件；完整便携包无GM首次创建空工程并重开通过。此前UI回归与GM15411状态/F5对照作为功能验证，未无故重跑游戏。根EXE已重建2.4.0/1,292,800 bytes。
+- 下一步：精确提交70个应用文件，不含用户工程，原子推送main/v2.4.0并等待Actions；线上验证后写回结果。匿名GitHub REST先遇限流，改用GitHub连接读取发布元数据，不改变应用更新逻辑。保留SHA256。
+
+## 2026-10-27：松手吸附预告与游标绘制（本地完成，未推送）
+
+- 用户本轮覆盖前一轮“停留160ms吸附”需求：拖动/停留始终raw，黄色虚线标出松手目标，只有松手提交。CursorScrub移除计时器，GuideChanged同步两处时间尺与右进度条标题；Alt立即隐藏候选且松手不追补。开始时Capture候选快照并排序一次，Move二分查询；关闭选项时不会显示假目标。保留所有物件起止/右边界/属性键及GM代码帧。
+- 根因：旧PlayheadMoved虽只失效窄条，OnPaint仍重算波形/频谱、刻度、全部可见行和键；同时Frame整数更新会导致放大后10px一级的游标跳动。新增TimelineRendering.cs将底图与游标/虚线覆盖层分开，游标-only invalidation不重建底图；拖动使用独立小数位置，像素变化而游戏Frame未变时仍请求同步Update。预览、显示帧数和实际工程继续50FPS整数时间。
+- 普通Invalidate、选择/数据/视口/大小变更重建底图；缩放/滚动仍需绘图，未做图块滚动缓存。手势结束清浮点位置、去虚线，覆盖旧指针列避免残影。Build-Native显式列表已加入TimelineRendering。
+- 右栏进度条保持原生操作，标题用箭头提示候选帧；其PrepareCursorTargets/GuideChanged与上下时间尺相连。下栏与关键帧尺在拖动中共享虚线。布局和工程保存格式本轮未变，无GML/弹幕语义变化。
+- 文件：desktop/PreviewPlayback.cs、TimelineRendering.cs（新）、TimelineCanvas.cs、TimelineAudio.cs、MotionPresets.cs、SelectionTimeControl.cs、EditorShell.cs、KeyframeWorkspace.cs、MainForm.cs、Build-Native.ps1；Test-CursorSnapping.ps1、tests/CursorSnappingTests.cs、tests/TimelineCursorRenderingTests.cs（新）；locale、README双语、动作/开发指南、本记录/STATUS和根EXE。
+- 验证：Test-CursorSnapping通过候选查找与旧Snap全范围对比、索引快照/每手势一次、停留不移动、松手命中虚线、Alt/捕获/换工程/偏好、多选/拉伸/接线及原生右滑条。自身不激活离屏窗口像素验证615处raw游标与610处金色虚线、松手到610且615无残影、Alt无金线。图片cursor-guide-held/released/alt.png已检查，位于build/cursor-snap-check。
+- 密集夹具20,002手工键与400,000波形采样：全底图平均12.916ms，输入+覆盖层离屏绘制1.455ms；240次同步绘制请求/离屏绘制，0次静态重建、每手势1次索引。数据在cursor-paint-profile.txt。该数据不代表屏幕刷新率或游戏FPS。初始测试将屏幕外Update误当实际WM_PAINT计数，已用请求计数+实际离屏绘图替代；初始失败日志保留，没有修改产品去强制画不可见窗口。
+- Test-KeyframeWorkspace、Test-MotionEditing、Test-Localization、Test-AudioStatistics均通过；日志build/cursor-guide-{paint,keys,motion,localization,audio}.log。Build-Native最终通过，build/cursor-guide-build-final.log；git diff --check通过。File.Replace已覆盖根EXE并备份旧入口，用户demo保持12文件817增236删。
+- 本轮未运行GM、未测用户复杂工程的实际屏幕Hz；游戏逻辑/导出未变。没有提交/推送/Release，远端v2.3.0仍不含本地后续修复。当前占用已释放，无其他必做待办，待用户实操反馈。
+
+## 2026-10-27：游标/片段磁吸与平滑拖动（本地完成，未推送）
+
+- CursorSnapping从选中单物件改成全部歌曲物件start/end/end+1和范围内所有属性keyframes、原生代码events；隐藏模板及其后代不混入歌曲时钟，选中模板可供局部预览使用。目标优先于BPM，直接输入帧数/逐帧/左右键保持原来精确导航。
+- CursorScrub位于原有PreviewPlayback.cs，Build-Native既有列表已包含；MouseMove只传raw frame并去重，不查找/排序吸附目标。160ms无移动或松手才吸附一次；移动后重新回到raw。Alt样本与停留/松手时的Alt均禁止补吸附，之后松开Alt不追补；已停住吸附后按Alt可恢复原raw位置。换工程、捕获丢失、Dispose均取消或结束计时。
+- TimelineCanvas（下栏与右栏关键帧尺）及SelectionTimeControl的进度条复用此逻辑。进度条也处理原生ValueChanged早于MouseDown的顺序，反馈SetFrame不重新启动吸附。SnapTolerance按实际进度条范围/宽度计算。
+- SnapClipDelta新增共享Frame为优先目标，按[start,end+1]可见边缘对齐，移动、左右拉伸和多选同量变化；保留同轨无缝衔接、跨轨边缘与关闭开关。Alt跳过这些目标，松手不再补吸附。移除了每对物件新建候选List的开销。
+- WorkspaceView新增nullable cursorSnap，仅保存UI；旧布局缺失时按本次需求默认开启，用户关闭后可保存恢复。旧keySnap字段继续写出兼容旧版；全局开关不再因没有选择/多选而禁用。中文/英文复选框和说明已更新。
+- 文件：desktop/PreviewPlayback.cs、TimelineCanvas.cs、TimelineAudio.cs、SelectionTimeControl.cs、MotionPresets.cs、EditorShell.cs、MainForm.cs、WorkspaceView.cs；新Test-CursorSnapping.ps1和tests/CursorSnappingTests.cs；现有PreviewPlaybackTests与LocalizationTests调整有效夹具/新文案；assets/locales/en.json、README双语、动作/开发指南、交接及根EXE。没有工程字段/GML/弹幕运行变化。
+- 定向：Test-CursorSnapping通过任意物件/隐藏局部排除/原生帧、连续raw事件、真正UI计时器、停留/松手/中途Alt/松Alt后不追补、捕获/换工程、主时间尺与右进度条、移动/双侧拉伸/多选/跨轨、偏好迁移/保存。Test-MotionEditing、Test-KeyframeWorkspace、Test-Localization、Test-PreviewPlayback均通过。原生控件以自身测试窗口/反射消息验证，不控制用户桌面；静音合成音频仅供既有播放回归。未测试实际复杂工程预览FPS，不将事件连续性写成FPS提升。
+- 日志build/cursor-snap-verified.log、cursor-snap-motion.log、cursor-snap-keys.log、cursor-snap-localization.log、cursor-snap-playback.log，初始测试日志保留。Build-Native最终通过（cursor-snap-build-final.log），File.Replace覆盖根EXE并备份。git diff --check通过；用户demo仍12文件817增236删，无新增测试写入用户资料。
+- 未进行本轮GM编译/试玩（纯编辑交互），未提交、推送或发布。当前EXE继续包含前述全部未发布本地改动，远端v2.3.0无此更新。无其他必做待办，待用户实操反馈。
+
+## 2026-10-27：实时联动复制与逐成员网格铺满（本地完成，未推送）
+
+- 新字段BulletAction.copyLinked默认true，C#字段初始化与JS copyDefaults一致，保存/快照/复制/预设保留。旧规则缺失字段时进入联动模式。关闭后仍走原有独立模板；弹幕年龄行为继续独立生成，当前联动入口是track.spawnActions。
+- TemplateRuntime按实际来源图和当前时钟建立一组链接，复用来源当前坐标、形状、数量、角度、外观与子物件动画。linkKey去重，来源结束/隐藏时清掉链接；保留owner serial和上下文，检查点恢复不依赖旧实例引用。独立模板继续使用原始anchor与出生时钟。
+- CopyGeneration.LivePlacements/GridPoint按实际房间中心、旋转后房间投影及最小宽高计算覆盖格点，对每个成员取模。无来源中心出屏裁剪；原成员位置处省略重复副本，避免叠加。最多300份，过密需增大间距。整体释放前先在原形状计算方向，再映射位置，保留副本颜色/大小，并省略原位置重复成员。
+- studio/linked-copy.mjs生成rf_copy_link_spawn/update/point；template-system的来源姿态、激活条件与shapeSetup同时保留原父级/生成实例上下文，防止父角度二次进入形状phase。更新函数显式传入当前帧，避免脚本局部时钟泄漏。rf_copy_started为普通GM数组，不引入DS映射；F5目标帧直接验证实际弹幕。
+- UI在行为页/展开编辑暴露“实时联动来源”，联动时隐藏独立模板/重复生成/出生继承设置。下栏显示链接生效条，收起失效的快照模板卡片；关掉链接后可继续编辑独立模板。同步中文、英文、README与复制教程，产品版本未变。
+- 改动：desktop/EditorCore.cs、CopyGeneration.cs、TemplateRuntime.cs、BulletSystem.cs、GenerationPresets.cs、BehaviorWorkspace.cs、BulletBehaviorForm.cs、SpawnTimeline.cs、tests/CopyEditingTests.cs；studio/copy-generation.mjs、linked-copy.mjs（新）、template-system.mjs、bullet-system.mjs、copy-generation.test.mjs；desktop/tests/verify-copy-gml.mjs；assets/locales/en.json、README/docs及本记录与根EXE。未改用户工程、原件、歌曲或底片。
+- 验证：Test-CopyEditing通过来源应用后编辑、当前半径/数量/角度/颜色、旋转与屏外逐成员覆盖、倒拖/200帧检查点、结束清理、JSON/预设及中英文参数UI。Test-TemplateSystem、Test-GenerationPresets、Test-Localization通过；Node copy/template 8/8及bullet/random/event 11/11。CopyEditing自身离屏参数图已检查。
+- GM：verify-copy-gml.mjs新增移到-1720的整体、数量/半径动画、旋转网格朝向/颜色/释放、父级旋转、生成实例内部链接及旧独立复制，逐条对照15,411状态、17特效值；F5 85帧进入后的实际弹幕与C#一致。隔离工程build/copy-editing-check/GM Copy 1793084904096/GameMaker.gm82。所有探针隐藏且错误弹窗关闭，失败日志保留，成功探针已退出。日志build/copy-live-gm-verified.log；初始时钟/父级/释放问题日志也保留。
+- 构建：Build-Native ->build/copy-live-check/RufMaker.exe通过，File.Replace已更新根入口并备份旧EXE；build/copy-live-build-final.log。当前根入口仍2.3.0开发修复版，不代表远端v2.3.0包含本轮修改。无本轮提交与推送。未验收用户真实工程交互及原生R存档恢复；已完成隔离GM/F5状态数值检查，无其他必做待办。
+
+## 2026-10-27：关键帧页内时间条与暗色滚动条（本地完成，未推送）
+
+- 用户截图指右栏上方共享时间条并追加白色滚动条反馈。BuildShellInspector由标题/共享时间/停靠区三行改为标题/停靠两行；BuildKeyframeProperties成为AutoSize时间条、工具栏、Fill列表/详情三行布局。没有新增时间控件或改播放头/起止事件，rightTime只有一份且直接挂在DockPage:keys内。
+- DarkScrollbars在Windows10 build18362及以上通过RtlGetVersion及动态uxtheme入口查询设置本进程ForceDark，AllowDarkModeForWindow+SetWindowTheme(DarkMode_Explorer)应用于实际原生滚动窗口。缺少入口/旧系统保留原生回退。只对AutoScroll=true的滚动面板及ScrollBar/ListBox/ListView/TreeView/TextBoxBase/ComboBox设置窗口主题，不给普通布局容器套原生主题。
+- Program在VisualStyles前初始化；MainForm构建后附加，Language.Attach覆盖所有应用弹窗；ConditionalWeakTable避免重复事件、句柄标识避免每次Layout重复应用，HandleCreated/Destroyed处理重建，ControlAdded覆盖动态属性。ComboBox原生列表/编辑句柄在建立和DropDown时分别应用。未改Windows全局主题设置，没有自绘或接管滚动交互。
+- 临时隔离ThemeProbe先确认原生暗色样式能覆盖控件，随后Test-ScrollbarTheme在自身不激活/屏幕外窗口核对横纵、Panel、ListBox、TreeView、资源ListView、GML横纵、动态TextBox与句柄重建，样图在build/scrollbar-theme-check。保留原生ValueChanged、AutoScrollPosition、TopIndex。
+- InspectorDocking新增rightTime祖先为DockPage:keys断言。DrawToBitmap对合并后的隐藏页面产生部分托管标签漏绘，改为在自己的离屏ImageForm用PrintWindow获取实际布局，证实Start/End标签、工具栏与关键帧详情完整；没有为截图问题改产品绘制。该测试不启动MainForm.Shown，也不读取/控制用户桌面或启动GM。
+- 日志build/scrollbar-theme-check下theme-final、docking-print、workspace、events、performance、localization、shell、build-final.log均通过，初始日志与native-theme.png保留；all-scrollbars及build/inspector-docking-check下更新的columns/tabs中英图已检查。性能回归仍保留常规控件，绝对耗时受并行影响，不用作游戏FPS结论。
+- 文件与用户数据边界如上，旧exe保留，版本仍2.3.0本地含未发布修改。未提交或推送；指南docs/inspector-layout.md描述时间条位置，开发入口记录系统版本边界和验证方式。无必做待办，等待用户保存重启后的实操反馈。
+
+## 2026-10-27：右栏可拖动停靠页面（本地完成，未推送）
+
+- 新增InspectorDockWorkspace，两个常驻Page控件在原生SplitContainer与页签容器间重新挂载，不Dispose或重建输入控件。鼠标从标题或页签捕获并检测拖动阈值，四边/中心有停靠区域预览；出界/Esc/捕获丢失取消。标题⋮与右键提供对应菜单和默认布局。停靠范围为右栏内；外层rightSplit仍决定整个右栏大小。
+- WorkspaceView新增可选inspectorDock={mode,first,active,rows,columns,details}，不进EditorState。上下/左右比例独立；旧keyframesHeight保留像素高度直到用户调整/保存，旧keyframesOpen=false迁移为页签。缩小窗口只约束实际Divider，不覆盖偏好；0高度隐藏时不设置无效距离。页面前后顺序与当前页签可恢复。
+- 常规inspectorTabs仍是属性0/行为1/统计2，以保留既有入口。选中帧的专用字段从properties移到独立keyProperties，通过NativeProperties.TryRebind/Reconcile复用。keySplit现在分关键帧列表/详情；无单选可动画物件时显示提示。关键帧属性名只翻译显示值。统计状态链接和生成规则聚焦会激活常规页，下栏关键帧入口激活关键帧页。
+- CommitInspectorEdits同时提交properties/keyProperties；各工程/预设/语言/引擎/模板/更新入口使用同一方法，Ctrl+S、F5和导出也提交当前输入。Ctrl+Z取消输入与焦点判断包含keyProperties，选帧刷新计时器同步两端。keyProperties数值上下拖动沿用原BeginScrub/EndScrub与参数步长。菜单上下文按来源选择正确关键帧属性。
+- 定向Test-InspectorDocking验证四边真实控件鼠标事件、从页签拖出、独立宽高比例、菜单共用DockPage路径、窗口缩放/0尺寸、出界/Esc、旧高度270/旧折叠迁移、工作区JSON恢复、布局不写工程/Undo、详情值修改和Undo后选中、切键重绑以及中英文900/1100/360px视图。新源文件已纳入Build-Native显式列表。
+- 既有KeyframeWorkspace/RandomTimeline/EditorPerformance测试的“数值”引用改到新keyProperties，保留原撤销、控件复用与步长验证含义。性能合成40物件6400键标量编辑中位2.66ms、撤销8.57ms，保留全部50个常规控件；并行验证测量不当作游戏FPS或与前轮的严格性能比较。
+- 初次Docking测试用JSON字符串比较因字段输出顺序不同失败；SceneComparison及完整解析后逐值对比确认无工程值变化，修正断言后通过。原失败docking-initial.log与layout-before/after.json保留。首次编译提示Capture方法遮蔽Control.Capture，改为CaptureView；最终构建无该警告。没有无人处理错误弹窗或用户进程被关闭，未用电脑控制技能。
+- 最终日志docking/localization/shell/lanes/copy-final.log、workspace/performance/event/random-initial.log（这些回归均通过）、build-final.log与inspector-columns-zh/en、rows-zh、tabs-zh、narrow-en等图在build/inspector-docking-check。完整旧状态与同轨互斥继续保留，教程与中英README说明本地功能，不冒称远端已发布。
+
+## 2026-10-27：同轨时间互斥（本地完成，未推送）
+
+- 时间边界包含首尾：49结束与50开始可同轨；重叠检测包括禁用的片段、独立模板和父子组成员，不处理原生轨道与已绑定生成组模板。打开工程先Motion.Normalize保留原先执行排序，再EnsureExclusive分轨、设置preserveTrackOrder并同步保存；重复打开不再移动。原有项目中的物件不会被删除、裁短或改动画。
+- MainForm.MarkChanged按主选择、其他选中、其余原顺序优先放置；先查是否冲突，仅冲突时分配空闲lane并保留当前执行顺序，覆盖新增、复制/粘贴、数值修改、右键改轨、多选、预设、分组与拆片段。LaneCount递增；最多200条同时物件可分别落在0..199轨。正常状态一次检测后不改lane或执行顺序。
+- TimelineCanvas去掉同一lane再分叠行的显示；拖放/拉伸仍走原CutOverlaps并在松手时裁掉被覆盖片段，自动分轨只补齐未裁剪的冲突。被引用模板保留生成组内行；这种行不是独立歌曲时段。
+- 旧RandomTimeline回归假设重叠叠行，改为先调用旧工程分轨并验证；原用例明确选keep关键帧模式以验证边界拖动，保留其不移动键的测试含义。两次针对旧期望的失败日志保留在build/lane-exclusivity-check/random-old-overlap-expectation.log与random-stretch-expectation.log，修正后通过。
+- 项目同步测试先设置RUFMAKER_ROOT/PROJECT再导入studio/project.mjs：build/lane-exclusivity-check/Lane Sync 1793041880298/GameMaker.gm82/rufmaker-demo.gm82；迁移前后同项目生成脚本与控制器完整一致。仅此隔离工程写入，未使用桌面控制或关闭用户进程。
 
 ## 2026-10-27：2.3.0发布验证（完成）
 

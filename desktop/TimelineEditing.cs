@@ -63,5 +63,5 @@ internal sealed partial class MainForm
         stretchKeys=restoredView!=null&&TimelineEditing.Modes.Contains(restoredView.stretchKeys)?restoredView.stretchKeys:"sync";timeline.StretchKeys=stretchKeys;var menu=new ToolStripDropDownButton("拉伸关键帧"){ForeColor=Theme.Text};
         for(int i=0;i<TimelineEditing.Modes.Length;i++){string mode=TimelineEditing.Modes[i];var item=new ToolStripMenuItem(TimelineEditing.Names[i]){Checked=mode==stretchKeys};item.Click+=(s,e)=>{stretchKeys=mode;timeline.StretchKeys=mode;foreach(ToolStripMenuItem choice in menu.DropDownItems)choice.Checked=choice==item;};menu.DropDownItems.Add(item);}return menu;
     }
-    private void OrganizeTimeline(){if(state==null)return;StopPlaying();properties.CommitPending();PushUndo();TimelineEditing.Organize(state);timeline.ActiveLane=selectedTrack==null?-1:selectedTrack.lane;MarkChanged();ShowProperties();SetStatus("已按种类和功能整理时间轴；时间、参数与执行顺序保持，Ctrl+Z可撤销。");}
+    private void OrganizeTimeline(){if(state==null)return;StopPlaying();CommitInspectorEdits();PushUndo();TimelineEditing.Organize(state);timeline.ActiveLane=selectedTrack==null?-1:selectedTrack.lane;MarkChanged();ShowProperties();SetStatus("已按种类和功能整理时间轴；时间、参数与执行顺序保持，Ctrl+Z可撤销。");}
 }

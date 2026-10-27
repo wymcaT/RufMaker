@@ -73,7 +73,7 @@ internal sealed partial class MainForm
     }
     private async Task ConfigureEngine()
     {
-        if(busy)return;StopPlaying();properties.CommitPending();if(bridge!=null&&!await SaveNow(false))return;
+        if(busy)return;StopPlaying();CommitInspectorEdits();if(bridge!=null&&!await SaveNow(false))return;
         using(var dialog=new EngineSetupForm(root))Language.ShowDialog(dialog,this);
         var found=EngineSetup.Find(root);if(!found.Ready||bridge==null||String.Equals(bridge.GameMakerPath,found.Exe,StringComparison.OrdinalIgnoreCase))return;NativeBridge candidate=null;SetBusy(true);
         try{candidate=new NativeBridge(root,currentProjectPath);await candidate.Call<LoadData>("load",new{});var previous=bridge;bridge=candidate;candidate=null;previous.Dispose();SetStatus("引擎设置已生效，可以继续试玩和导出。");}

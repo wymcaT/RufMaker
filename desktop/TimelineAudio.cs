@@ -86,5 +86,5 @@ internal sealed partial class TimelineCanvas
             Marshal.Copy(bytes,0,data.Scan0,bytes.Length);
         }finally{spectrumStrip.UnlockBits(data);}
     }
-    protected override void Dispose(bool disposing){if(disposing){ClearSpectrumStrip();if(audioMenu!=null)audioMenu.Dispose();tips.Dispose();}base.Dispose(disposing);}
+    protected override void Dispose(bool disposing){if(disposing){scrub.Dispose();ReleaseTimelineLayer();ClearSpectrumStrip();if(audioMenu!=null)audioMenu.Dispose();tips.Dispose();}base.Dispose(disposing);}
 }

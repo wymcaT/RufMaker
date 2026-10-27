@@ -87,7 +87,7 @@ internal sealed class CurvePoint {public double x,y;}
 internal sealed class BulletAction
 {
     public string copyMode="directions",copyFacing="keep",copyColorMode="inherit",copyColor="#FFFFFF";
-    public bool copyUp=true,copyDown=true,copyLeft=true,copyRight=true,copyCenter;public int copyCount=1;
+    public bool copyLinked=true,copyUp=true,copyDown=true,copyLeft=true,copyRight=true,copyCenter;public int copyCount=1;
     public double copySpacingX=128,copySpacingY=128,copyWidth=640,copyHeight=384,copyRadius=180,copyAngle,copyFacingAngle,copyHue,copyColorDensity=1;
     public string generationPreset="",spawnDirectionMode="fixed";public double spawnWaveAngleStep=15;
     public string type="speed",easing="linear",expression="",templateId="";public bool enabled=true,relative;

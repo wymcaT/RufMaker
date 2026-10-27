@@ -1,5 +1,5 @@
 import {gmlNumber as num} from './gml.mjs';
-export const copyDefaults={copyMode:'directions',copyFacing:'keep',copyColorMode:'inherit',copyColor:'#FFFFFF',copyUp:true,copyDown:true,copyLeft:true,copyRight:true,copyCenter:false,copyCount:1,copySpacingX:128,copySpacingY:128,copyWidth:640,copyHeight:384,copyRadius:180,copyAngle:0,copyFacingAngle:0,copyHue:0,copyColorDensity:1};
+export const copyDefaults={copyLinked:true,copyMode:'directions',copyFacing:'keep',copyColorMode:'inherit',copyColor:'#FFFFFF',copyUp:true,copyDown:true,copyLeft:true,copyRight:true,copyCenter:false,copyCount:1,copySpacingX:128,copySpacingY:128,copyWidth:640,copyHeight:384,copyRadius:180,copyAngle:0,copyFacingAngle:0,copyHue:0,copyColorDensity:1};
 const direction=(x,y)=>x===0&&y===0?0:(Math.atan2(-y,x)*180/Math.PI+360)%360;
 export function copyPlacements(a){const points=[];const add=(x,y)=>{if(!a.copyCenter&&Math.abs(x)<1e-6&&Math.abs(y)<1e-6)return;points.push({x,y,angle:direction(x,y)});};
   if(!Number.isInteger(a.copyCount)||a.copyCount<1||a.copyCount>300||!['copySpacingX','copySpacingY','copyWidth','copyHeight','copyRadius','copyAngle','copyFacingAngle','copyHue','copyColorDensity'].every(k=>Number.isFinite(a[k])))throw Error('复制参数无效');
@@ -16,3 +16,11 @@ export function copySpawnGml(a,target,c){return copyPlacements(a).map(p=>{
   if(a.copyColorMode==='rainbow'){tint=`rf_color_hue(${num(hue)})`;if(c.source.rainbow){lookSprite=c.lookSprite;image=String(Math.floor(((hue%360+360)%360)*32/360));lookColor='c_white';tint='c_white';}}
   return `rf_inst=rf_template_spawn(${target},rf_now,${c.x}+(${num(p.x)})+lengthdir_x(${num(a.spawnOffsetX)},${angle})+lengthdir_x(${num(a.spawnOffsetY)},${angle}-90),${c.y}+(${num(p.y)})+lengthdir_y(${num(a.spawnOffsetX)},${angle})+lengthdir_y(${num(a.spawnOffsetY)},${angle}-90),${angle},${c.generation}+1,${c.sourceX},${c.sourceY},${lookSprite},${lookColor},${image},${a.inheritScale?1:0},${c.lookScale},${tint});if instance_exists(rf_inst) {${c.after}}`;
 }).join('\n');}
+export function linkedCopyRules(s){return s.tracks.flatMap((source,sourceIndex)=>source.spawnActions.filter(a=>a.generationPreset==='copy-object'&&a.copyLinked!==false).map(action=>({source,sourceIndex,action})));}
+export function liveCopyPlacements(a,width,height){
+  if(a.copyMode!=='grid')return copyPlacements(a);copyPlacements(a);
+  const r=a.copyAngle*Math.PI/180,c=Math.abs(Math.cos(r)),s=Math.abs(Math.sin(r)),nx=Math.ceil(Math.max(a.copyWidth,width*c+height*s)/a.copySpacingX)+1,ny=Math.ceil(Math.max(a.copyHeight,width*s+height*c)/a.copySpacingY)+1;
+  if(nx*ny>300)throw Error('铺满房间最多复制300个物件，请增大网格间距。');
+  return Array.from({length:nx*ny},(_,i)=>{const x=(i%nx-Math.floor(nx/2))*a.copySpacingX,y=(Math.floor(i/nx)-Math.floor(ny/2))*a.copySpacingY;return {x,y,angle:direction(x,y)+a.copyAngle,index:i,count:nx*ny};});
+}
+export function copyGridPoint(a,cell,width,height,x,y){const r=a.copyAngle*Math.PI/180,c=Math.cos(r),s=Math.sin(r),dx=x-width/2,dy=y-height/2;let u=dx*c-dy*s,v=dx*s+dy*c;u=u-Math.floor(u/a.copySpacingX)*a.copySpacingX+cell.x;v=v-Math.floor(v/a.copySpacingY)*a.copySpacingY+cell.y;return {x:width/2+u*c+v*s,y:height/2-u*s+v*c};}

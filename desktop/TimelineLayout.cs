@@ -35,10 +35,23 @@ internal static class TimelineLayout
         foreach(var t in state.tracks)if(t.lane<0)t.lane=next++;
         state.laneCount=Math.Max(state.laneCount,state.tracks.Select(t=>t.lane+1).DefaultIfEmpty(1).Max());
     }
-    public static Dictionary<Track,int> Stack(IEnumerable<Track> tracks)
+    // Template definitions inside a generation group have local time, not song time.
+    // Other clips occupy inclusive frame ranges, including disabled clips and groups.
+    public static int EnsureExclusive(EditorState state,IEnumerable<Track> preferred=null)
     {
-        var ends=new List<int>();var result=new Dictionary<Track,int>();
-        foreach(var t in tracks.OrderBy(t=>t.start).ThenBy(t=>t.end)){int row=ends.FindIndex(end=>end<t.start);if(row<0){row=ends.Count;ends.Add(t.end);}else ends[row]=t.end;result[t]=row;}return result;
+        if(state==null||state.tracks.Count<2)return 0;var bound=BoundTemplates(state);
+        var visible=state.tracks.Where(t=>t.kind!="native"&&!bound.Contains(t.id)).ToList();
+        bool conflict=visible.GroupBy(t=>t.lane).Any(g=>{int end=-1;foreach(var t in g.OrderBy(t=>t.start).ThenBy(t=>t.end)){if(t.start<=end)return true;end=Math.Max(end,t.end);}return false;});
+        if(!conflict)return 0;
+        var eligible=new HashSet<Track>(visible);var priority=(preferred??Enumerable.Empty<Track>()).Where(eligible.Contains).Distinct().ToList();var first=new HashSet<Track>(priority);var ordered=priority.Concat(visible.Where(t=>!first.Contains(t))).ToList();
+        var placed=new Dictionary<int,List<Track>>();int moved=0;
+        foreach(var t in ordered){int lane=t.lane;List<Track> rows;
+            Func<int,bool> free=n=>!placed.TryGetValue(n,out rows)||!rows.Any(other=>t.start<=other.end&&other.start<=t.end);
+            if(!free(lane)){lane=0;while(!free(lane))lane++;t.lane=lane;moved++;}
+            if(!placed.TryGetValue(lane,out rows)){rows=new List<Track>();placed.Add(lane,rows);}rows.Add(t);
+        }
+        // Changing lane numbers must not reorder execution, seeded randomness or drawing.
+        state.preserveTrackOrder=true;state.laneCount=Math.Max(state.laneCount,visible.Select(t=>t.lane+1).DefaultIfEmpty(1).Max());return moved;
     }
     public static void Order(EditorState state){state.tracks=state.tracks.OrderBy(t=>t.kind=="native"?-1:state.preserveTrackOrder?0:t.lane).ToList();}
     public static bool HasGeneration(Track track){return track.spawnActions.Any(a=>a.type=="spawn")||track.bulletActions.Any(a=>a.type=="spawn");}

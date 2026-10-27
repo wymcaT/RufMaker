@@ -9,7 +9,7 @@ internal sealed partial class MainForm
     {if(state==null||timeline.SelectedTracks.Count==0)return;PushUndo();foreach(var t in timeline.SelectedTracks.Where(t=>t.kind!="native"))t.lane=lane;state.laneCount=Math.Max(state.laneCount,lane+1);timeline.ActiveLane=lane;MarkChanged();}
     private void RerollRandom()
     {
-        if(state==null||busy)return;StopPlaying();properties.CommitPending();PushUndo();
+        if(state==null||busy)return;StopPlaying();CommitInspectorEdits();PushUndo();
         using(var random=System.Security.Cryptography.RandomNumberGenerator.Create()){var bytes=new byte[4];random.GetBytes(bytes);state.randomSeed=(int)(BitConverter.ToUInt32(bytes,0)%2147483646);}
         RandomParameters.Resolve(state);MarkChanged();properties.Refresh();SetStatus("已重新随机 · 预览种子 "+state.randomSeed);
     }

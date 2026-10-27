@@ -22,7 +22,7 @@ internal static class PreviewPlaybackTests
     {
         var state=new EditorState{fps=50,duration=1000,bpm=120,beatDivision=4,beatSnap=true,nativeProject=new NativeProject{events=new[]{new NativeEvent{frame=101},new NativeEvent{frame=203},new NativeEvent{frame=203}}}};
         var native=new Track{kind="native"};Check(CursorSnapping.Snap(state,native,201,3,true)==203,"Native code markers take precedence over BPM");Check(CursorSnapping.Snap(state,native,201,1,true)==200,"Outside marker tolerance falls back to BPM");Check(CursorSnapping.Snap(state,native,201,3,false)==200,"Disabling key snap preserves BPM snapping");state.beatSnap=false;Check(CursorSnapping.Snap(state,native,201,1,true)==201,"No forced snap outside tolerance");
-        var track=new Track{kind="object"};track.keyframes.Add(new Keyframe{frame=202,property="x"});Check(CursorSnapping.Snap(state,track,201,3,true)==202,"RufMaker property keys remain supported");
+        var track=new Track{kind="object",end=1000};track.keyframes.Add(new Keyframe{frame=202,property="x"});Check(CursorSnapping.Snap(state,track,201,3,true)==202,"RufMaker property keys remain supported");
     }
     private static void KeyLifecycle(string folder)
     {

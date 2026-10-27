@@ -11,10 +11,10 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 
-[assembly:System.Reflection.AssemblyVersion("2.3.0.0")]
-[assembly:System.Reflection.AssemblyFileVersion("2.3.0.0")]
-[assembly:System.Reflection.AssemblyInformationalVersion("2.3.0")]
-internal static class AppVersion {public const string Current="2.3.0";}
+[assembly:System.Reflection.AssemblyVersion("2.4.0.0")]
+[assembly:System.Reflection.AssemblyFileVersion("2.4.0.0")]
+[assembly:System.Reflection.AssemblyInformationalVersion("2.4.0")]
+internal static class AppVersion {public const string Current="2.4.0";}
 #pragma warning disable 0649
 internal sealed class ReleaseAsset {public string name,browser_download_url;}
 internal sealed class GitRelease {public string tag_name;public ReleaseAsset[] assets;}
@@ -118,7 +118,7 @@ internal sealed partial class MainForm
                 string expected=(await client.DownloadStringTaskAsync(new Uri(checksum.browser_download_url))).Trim().Split(new[]{' ','\t','\r','\n'},StringSplitOptions.RemoveEmptyEntries)[0];if(!String.Equals(await Task.Run(()=>Updater.Hash(archive)),expected,StringComparison.OrdinalIgnoreCase))throw new InvalidDataException("更新包 SHA256 校验失败，请重新检测更新。");
             }
             SetStatus("正在校验更新文件…");await Task.Run(()=>Updater.Extract(archive,payload,version));
-            StopPlaying();properties.CommitPending();saveTimer.Stop();SaveWorkspaceView();if(!await SaveNow(false))return;
+            StopPlaying();CommitInspectorEdits();saveTimer.Stop();SaveWorkspaceView();if(!await SaveNow(false))return;
             string helper=Path.Combine(stage,"RufMaker.Update.exe");File.Copy(Application.ExecutablePath,helper,true);pendingUpdate=new UpdatePlan{root=root,payload=payload,helper=helper};SetStatus("工程已保存，正在安装更新并重启…");Close();
         }
         catch(Exception error){Error(new Exception("检测更新失败："+error.Message,error));}

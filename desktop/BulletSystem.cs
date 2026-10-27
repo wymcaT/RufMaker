@@ -96,7 +96,7 @@ internal sealed class BulletWorld
     public EditorState State;public int Frame=-1;public readonly List<SimBullet> bullets=new List<SimBullet>();
     private sealed class Checkpoint {public List<SimBullet> bullets;public TemplateSnapshot templates;}
     public readonly TemplateRuntime Templates;private List<Tuple<SimBullet,BulletAction>> pendingSplits;
-    private readonly RoomData lifetimeRoom;private readonly Func<int,NativeViewPose> nativeView;
+    private readonly RoomData lifetimeRoom;internal RoomData Room {get{return lifetimeRoom;}}private readonly Func<int,NativeViewPose> nativeView;
     private int lifetimeViewFrame=-1;private LifetimeBounds lifetimeView;
     private readonly SortedDictionary<int,Checkpoint> checkpoints=new SortedDictionary<int,Checkpoint>();
     private readonly Track[] eventTracks;private bool clearFlyingThisFrame;internal bool ClearDanmakuThisFrame {get;private set;}
@@ -121,7 +121,7 @@ internal sealed class BulletWorld
         if(t.emissionFacing=="radial")d=p.angle+ExpressionContext.Direction(0,0,local.X,local.Y)-(t.parent==null?0:Motion.At(t.parent,sampleTime).angle);
         if(t.emissionFacing=="tangent")d=p.angle+tangentAngle;
         double x=origin.HasValue?origin.Value.X:p.x+local.X,y=origin.HasValue?origin.Value.Y:p.y+local.Y;
-        if(instance!=null&&!origin.HasValue){var point=instance.Point(x,y);x=point.X;y=point.Y;d+=instance.rotation;}
+        if(instance!=null&&!origin.HasValue){var point=instance.Point(x,y);if(instance.OmitPoint(x,y,point))return null;x=point.X;y=point.Y;d+=instance.rotation;}
         if(t.emissionFacing=="aim"){var player=BulletSystem.PlayerAt(State,birth);d=ExpressionContext.Direction(x,y,player.x,player.y)+p.angle+(instance==null?0:instance.rotation)-(t.parent==null?0:Motion.At(t.parent,sampleTime).angle);}
         if(t.emissionFacing=="fixed")d=p.angle+(instance==null?0:instance.rotation)+i*t.indexAngle;
         var b=new SimBullet{clockShift=clockShift,source=t,behavior=plain?null:t,birth=birth,index=i,count=n,volley=volley,generation=generation,x=x,y=y,direction=angle??d,speed=speed??(Motion.SampleValue(t,"speed",sampleTime,context)+i*t.indexSpeed),scale=p.scale*(1+i*t.indexScale),alpha=p.alpha,life=(int)Motion.SampleValue(t,"life",sampleTime,context),color=t.rainbow?Color.White:Motion.ColorOf(t.color),sequence=volley*n+i,sourceX=sourceOrigin.HasValue?sourceOrigin.Value.X:instance==null?p.x:instance.sourceX,sourceY=sourceOrigin.HasValue?sourceOrigin.Value.Y:instance==null?p.y:instance.sourceY};
@@ -134,7 +134,7 @@ internal sealed class BulletWorld
     private double Expression(SimBullet b,int frame,string expression,string slot,double fallback,bool worldClock=false)
     {return String.IsNullOrWhiteSpace(expression)?fallback:RandomExpression.Evaluate(expression,b.source.expressionSeed,(b.source.randomId??b.source.id)+"|"+slot,ExpressionClock(b,frame,worldClock));}
     private ExpressionContext ExpressionClock(SimBullet b,int frame,bool global){var c=Context(b,frame);if(global)c.frame=frame;return c;}
-    internal void TickNew(SimBullet b,int frame){TickBullet(b,frame,pendingSplits);}
+    internal void TickNew(SimBullet b,int frame){if(b!=null)TickBullet(b,frame,pendingSplits);}
     private static bool Match(Track e,SimBullet b,int frame)
     {int age=frame-b.birth;return (String.IsNullOrEmpty(e.targetSource)||(e.targetSource==b.source.id||e.targetSource==b.source.clipSourceId))&&(String.IsNullOrEmpty(e.targetTag)||e.targetTag==b.source.tag)&&(e.targetVolley<0||e.targetVolley==b.volley)&&(e.targetParity=="all"||b.index%2==(e.targetParity=="even"?0:1))&&age>=e.targetMinAge&&age<=e.targetMaxAge;}
     private void Apply(SimBullet b,string type,double value)

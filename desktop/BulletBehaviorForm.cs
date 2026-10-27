@@ -33,6 +33,7 @@ internal sealed class BulletBehaviorForm : Form
         age.Selected=list.SelectedIndex;age.Invalidate();var bag=new NativeProperties();inspector.SelectedObject=bag;if(list.SelectedIndex<0)return;var a=Actions[list.SelectedIndex];
         Action refresh=()=>{age.Invalidate();};Action rebuild=()=>BeginInvoke(new Action(()=>RefreshList(list.SelectedIndex)));
         bag.Add("启用","行为",typeof(bool),()=>a.enabled,v=>{a.enabled=(bool)v;rebuild();});bag.Add("种类","行为",typeof(string),()=>BulletSystem.ActionName(a.type),v=>{a.type=actionTypes[Array.IndexOf(actionNames,(string)v)];if(new[]{"aim","clear","split","spawn","collision"}.Contains(a.type))a.duration=0;rebuild();},actionNames);
+        if(templateMode&&a.type=="spawn"&&a.generationPreset==CopyGeneration.Key&&a.copyLinked){bag.Add("开始年龄 / 帧","时间",typeof(int),()=>a.start,v=>{a.start=Math.Max(0,(int)v);refresh();});GenerationPresets.Fields(bag,state,track,a,change=>{change();rebuild();});inspector.SelectedObject=bag;return;}
         bag.Add("开始年龄 / 帧","时间",typeof(int),()=>a.start,v=>{a.start=Math.Max(0,(int)v);refresh();});bag.Add("持续帧数","时间",typeof(int),()=>a.duration,v=>{a.duration=Math.Max(0,(int)v);refresh();});bag.Add("每颗延迟 / 帧","时间",typeof(int),()=>a.stagger,v=>{a.stagger=Math.Max(0,(int)v);refresh();},null,"实际开始年龄 = 开始年龄 + i × 每颗延迟。");
         if(templateMode)bag.Add("首次触发歌曲帧","时间",typeof(int),()=>track.start+a.start,v=>{a.start=Math.Max(0,(int)v-track.start);refresh();},null,"原物件开始帧 + 开始年龄。逐成员延迟继续叠加；仅作模板时此处为局部参考时钟，实例按实际生成时刻平移。");
         if(a.type=="spawn"){SpawnFields(bag,a);GenerationPresets.DirectionFields(bag,a,change=>change());}
@@ -46,7 +47,7 @@ internal sealed class BulletBehaviorForm : Form
             bag.Add("公式（留空使用数值）","参数",typeof(string),()=>a.expression,v=>{string text=((string)v??"").Trim();if(text.Length>0)RandomExpression.Evaluate(text,state.randomSeed,track.id,ExpressionContext.For(track,track.start));a.expression=text;},null,"在行为生效期间执行。x/y 是本弹幕位置；source.x/y 是生成时来源中心的世界坐标快照。可用 i、n、u、volley、age、player.x/y、speed、direction。sin/cos 使用弧度。");
             if(a.type=="collision")bag.Add("说明","参数",typeof(string),()=>"0 关闭碰撞；1 开启碰撞。外观与碰撞独立。",null);
         }
-        inspector.SelectedObject=bag;
+        if(a.generationPreset==CopyGeneration.Key)GenerationPresets.Fields(bag,state,track,a,change=>{change();rebuild();},templateMode);inspector.SelectedObject=bag;
     }
     private void ValidateActions(){foreach(var a in Actions){if(a.type=="spawn"&&!state.tracks.Any(t=>t.id==a.templateId&&TemplateRuntime.Eligible(t)))throw new FormatException("请选择有效的生成模板。可先在时间轴制作物件或分组，并勾选“仅用作生成模板”。");if(!String.IsNullOrWhiteSpace(a.expression))RandomExpression.Evaluate(a.expression,state.randomSeed,track.id,ExpressionContext.For(track,track.start));}}
     private void SpawnFields(NativeProperties bag,BulletAction a)

@@ -37,13 +37,44 @@ internal sealed class PreviewTransport
 
 internal static class CursorSnapping
 {
+    public static Func<int,int?> Capture(EditorState state,Track selected,double tolerance,bool keys)
+    {
+        var frames=new System.Collections.Generic.HashSet<int>();Action<int> add=f=>{if(f>=0&&f<=state.duration)frames.Add(f);};
+        if(keys){foreach(var t in state.tracks){if(t.kind=="native"||t.templateOnly||InTemplate(t))continue;add(t.start);add(t.end);add(t.end+1);foreach(var k in t.keyframes)if(k.frame>=t.start&&k.frame<=t.end)add(k.frame);}
+            if(selected!=null&&(selected.templateOnly||!state.tracks.Contains(selected))){add(selected.start);add(selected.end);add(selected.end+1);foreach(var k in selected.keyframes)if(k.frame>=selected.start&&k.frame<=selected.end)add(k.frame);}
+            if(state.nativeProject!=null&&state.nativeProject.events!=null)foreach(var e in state.nativeProject.events)add(e.frame);}
+        int[] sorted=frames.OrderBy(f=>f).ToArray();var beat=new EditorState{fps=state.fps,duration=state.duration,bpm=state.bpm,beatDivision=state.beatDivision,beatOffsetMs=state.beatOffsetMs,beatSnap=state.beatSnap};
+        return value=>{int at=Array.BinarySearch(sorted,value);if(at>=0)return sorted[at];at=~at;int? target=null;if(at>0&&value-(double)sorted[at-1]<=tolerance)target=sorted[at-1];if(at<sorted.Length&&sorted[at]-(double)value<=tolerance&&(!target.HasValue||sorted[at]-(double)value<value-(double)target.Value))target=sorted[at];return target??(beat.beatSnap?(int?)BeatGrid.Snap(beat,value):null);};
+    }
     public static int Snap(EditorState state,Track track,int value,double tolerance,bool keys)
     {
-        if(keys&&track!=null){var frames=track.kind=="native"&&state.nativeProject!=null?state.nativeProject.events.Select(e=>e.frame):track.keyframes.Select(k=>k.frame);
-            var nearest=frames.Where(f=>f>=0&&f<=state.duration).Distinct().OrderBy(f=>Math.Abs((double)f-value)).ThenBy(f=>f).Select(f=>(int?)f).FirstOrDefault();
-            if(nearest.HasValue&&Math.Abs((double)nearest.Value-value)<=tolerance)return nearest.Value;}
+        if(keys){int nearest=value;double best=Double.MaxValue;Action<int> consider=f=>{if(f<0||f>state.duration)return;double distance=Math.Abs((double)f-value);if(distance<=tolerance&&(distance<best||distance==best&&f<nearest)){best=distance;nearest=f;}};
+            foreach(var t in state.tracks){if(t.kind=="native"||t.templateOnly||InTemplate(t))continue;consider(t.start);consider(t.end);consider(t.end+1);foreach(var k in t.keyframes)if(k.frame>=t.start&&k.frame<=t.end)consider(k.frame);if(best==0)return nearest;}
+            if(track!=null&&(track.templateOnly||!state.tracks.Contains(track))){consider(track.start);consider(track.end);consider(track.end+1);foreach(var k in track.keyframes)if(k.frame>=track.start&&k.frame<=track.end)consider(k.frame);}
+            if(state.nativeProject!=null&&state.nativeProject.events!=null)foreach(var e in state.nativeProject.events)consider(e.frame);
+            if(best<Double.MaxValue)return nearest;}
         return BeatGrid.Snap(state,value);
     }
+    private static bool InTemplate(Track track){for(var parent=track.parent;parent!=null;parent=parent.parent)if(parent.templateOnly)return true;return false;}
+}
+
+// The moving playhead is always raw. A cached search supplies a visual hint;
+// release commits the hint, while Alt suppresses both the hint and the snap.
+internal sealed class CursorScrub : IDisposable
+{
+    private int raw,last=-1;private bool bypassed;private Func<int,int?> targets;
+    public bool Active {get;private set;}
+    public int? Guide {get;private set;}
+    public Action<int> Seek;public Action<int?> GuideChanged;public Func<int,int> Snap;public Func<Func<int,int?>> PrepareTargets;
+    public void Begin(int frame,bool alt){Cancel();targets=PrepareTargets==null?null:PrepareTargets();Active=true;last=-1;Move(frame,alt);}
+    public void Move(int frame,bool alt){if(!Active)return;raw=frame;bypassed=alt;Settle(alt);Deliver(frame);}
+    public void BypassNow(){if(!Active)return;bypassed=true;SetGuide(null);}
+    private void Deliver(int frame){if(frame==last)return;last=frame;if(Seek!=null)Seek(frame);}
+    private void SetGuide(int? value){if(Guide==value)return;Guide=value;if(GuideChanged!=null)GuideChanged(value);}
+    internal void Settle(bool alt){if(!Active)return;SetGuide(bypassed||alt?null:targets!=null?targets(raw):Snap==null?null:(int?)Snap(raw));}
+    public void End(bool alt){if(!Active)return;Settle(alt);int frame=Guide??raw;Active=false;SetGuide(null);targets=null;Deliver(frame);}
+    public void Cancel(){Active=false;SetGuide(null);targets=null;}
+    public void Dispose(){Cancel();}
 }
 
 internal sealed partial class MainForm

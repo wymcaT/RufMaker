@@ -69,6 +69,7 @@ internal static class Language
     public static void Attach(Control control)
     {
         if(control==null)return;
+        DarkScrollbars.Attach(control);
         Binding existing;if(bindings.TryGetValue(control,out existing)){Apply(control);return;}
         if(control is Form||control is Label||control is ButtonBase||control is GroupBox)WatchText(control);
         else bindings.Add(control,new Binding{Apply=()=>{}});
@@ -117,6 +118,6 @@ internal sealed partial class MainForm
         bar.Controls.Add(new Label{Text="切换语言",AutoSize=true,ForeColor=Theme.Muted,Margin=new Padding(10,10,3,0)});
         languageChoice.DropDownStyle=ComboBoxStyle.DropDownList;languageChoice.Width=125;languageChoice.Margin=new Padding(3,6,5,0);languageChoice.BackColor=Theme.Raised;languageChoice.ForeColor=Theme.Text;
         languageChoice.Items.AddRange(new object[]{"简体中文","English"});languageChoice.SelectedIndex=Language.English?1:0;
-        languageChoice.SelectionChangeCommitted+=(s,e)=>{try{properties.CommitPending();Language.Select(root,languageChoice.SelectedIndex==1?"en":"zh-CN");RefreshLanguageUI();}catch(Exception error){Error(error);}};bar.Controls.Add(languageChoice);
+        languageChoice.SelectionChangeCommitted+=(s,e)=>{try{CommitInspectorEdits();Language.Select(root,languageChoice.SelectedIndex==1?"en":"zh-CN");RefreshLanguageUI();}catch(Exception error){Error(error);}};bar.Controls.Add(languageChoice);
     }
 }

@@ -15,7 +15,7 @@ internal sealed partial class MainForm
     private void OpenBulletBehavior(){OpenBulletBehavior(-1);}
     private void OpenBulletBehavior(int actionIndex)
     {
-        if(selectedTrack==null||!new[]{"emitter","rod"}.Contains(selectedTrack.kind)){SetStatus("请先选中弹幕发射器或整体对象。");return;}StopPlaying();properties.CommitPending();var t=selectedTrack;
+        if(selectedTrack==null||!new[]{"emitter","rod"}.Contains(selectedTrack.kind)){SetStatus("请先选中弹幕发射器或整体对象。");return;}StopPlaying();CommitInspectorEdits();var t=selectedTrack;
         using(var dialog=new BulletBehaviorForm(t,state,false,actionIndex))if(Language.ShowDialog(dialog,this)==DialogResult.OK){PushUndo();t.bulletActions=dialog.Actions;t.advancedBullets=true;MarkChanged();timeline.RefreshLayout();ShowProperties();SetStatus("已应用弹幕出生后的行为；时间单位为弹幕年龄。");}
     }
     private void AddBulletControl()

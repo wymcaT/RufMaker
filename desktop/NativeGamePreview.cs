@@ -92,7 +92,7 @@ internal sealed partial class MainForm
     {
         if(state==null||state.nativeProject==null||nativeFilmGenerating)return;if(!await EnsureEngine())return;bool wasBusy=busy;nativeFilmGenerating=true;StopPlaying();SetBusy(true);regenerateNativeFilm.Enabled=false;
         try{
-            properties.CommitPending();if(!await SaveNow(false))return;SetStatus("正在编译原生底片录制副本…");var job=await bridge.Call<NativeFilmJob>("native-film-prepare",new{});
+            CommitInspectorEdits();if(!await SaveNow(false))return;SetStatus("正在编译原生底片录制副本…");var job=await bridge.Call<NativeFilmJob>("native-film-prepare",new{});
             using(var dialog=new NativeFilmProgressForm(job)){
                 var result=Language.ShowDialog(dialog,this);if(result==DialogResult.OK){nativeFilmInfo=dialog.Result;nativeRender.Checked=true;ToggleNativeFilm();ShowProperties();SetStatus("原生底片已保存 · "+nativeFilmInfo.frameCount+" 帧 · 后续打开直接使用缓存。");}
                 else if(!String.IsNullOrEmpty(dialog.ErrorText))throw new IOException(dialog.ErrorText);else SetStatus("底片生成已取消，可稍后点击重新生成。");
@@ -112,7 +112,7 @@ internal sealed partial class MainForm
     private async Task EditNativeEvent()
     {
         if(state.nativeProject==null||selectedNativeEvent==null)return;var item=selectedNativeEvent;
-        try{StopPlaying();properties.CommitPending();if(!await SaveNow(false))return;bool saved=false;var source=await bridge.Call<SourceData>("native-event-read",new{ @event=item });using(var editor=new CodeForm("第 "+item.frame+" 帧 · "+item.expression+" · "+item.file,source.content,async text=>{await bridge.Call<object>("native-event-save",new{ @event=item,content=text,hash=source.hash });saved=true;}))Language.ShowDialog(editor,this);if(saved){await LoadProject();SetStatus("原生代码已保存，点击“重新生成原生底片”更新画面。");}}catch(Exception error){Error(error);}
+        try{StopPlaying();CommitInspectorEdits();if(!await SaveNow(false))return;bool saved=false;var source=await bridge.Call<SourceData>("native-event-read",new{ @event=item });using(var editor=new CodeForm("第 "+item.frame+" 帧 · "+item.expression+" · "+item.file,source.content,async text=>{await bridge.Call<object>("native-event-save",new{ @event=item,content=text,hash=source.hash });saved=true;}))Language.ShowDialog(editor,this);if(saved){await LoadProject();SetStatus("原生代码已保存，点击“重新生成原生底片”更新画面。");}}catch(Exception error){Error(error);}
     }
     private async Task EditNativeSource()
     {

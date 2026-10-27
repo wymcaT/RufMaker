@@ -33,11 +33,12 @@ internal sealed partial class MainForm
     private ObjectStatisticsSnapshot lastStatistics;
     private Control BuildInspectorTabs()
     {
-        inspectorTabs.AddPage("属性",BuildKeyframeProperties());inspectorTabs.AddPage("行为",BuildBehaviorWorkspace());inspectorTabs.AddPage("统计",objectStatistics);
+        inspectorTabs.AddPage("属性",properties);inspectorTabs.AddPage("行为",BuildBehaviorWorkspace());inspectorTabs.AddPage("统计",objectStatistics);
         inspectorTabs.SelectedIndex=restoredView!=null?(restoredView.objectStatistics?2:Math.Max(0,Math.Min(2,restoredView.inspectorPage))):0;
-        objectCount.Click+=(s,e)=>inspectorTabs.SelectedIndex=2;Language.ToolTip(tips,objectStatistics,"统计当前预览帧的实例数量；来源物件是分类明细，不重复计入总数。");
-        stage.StatisticsPending=PendingStatistics;stage.StatisticsReady=data=>{lastStatistics=data;objectStatistics.SetPending(data.frame);objectStatistics.ShowStatistics(data);objectCount.Text=(data.nativeMissing?"obj ≥ ":"obj: ")+data.total.ToString("N0");};return inspectorTabs;
+        inspectorDock.AddPage("general","常规设置",inspectorTabs);inspectorDock.AddPage("keys","关键帧",BuildKeyframeProperties());inspectorDock.BeforeLayoutChange=()=>{CommitInspectorEdits();behaviorProperties.CommitPending();};inspectorDock.Restore(restoredView==null?null:restoredView.inspectorDock,restoredView==null||restoredView.keyframesOpen,restoredView==null?0:restoredView.keyframesHeight);
+        objectCount.Click+=(s,e)=>{inspectorTabs.SelectedIndex=2;inspectorDock.Activate("general");};Language.ToolTip(tips,objectStatistics,"统计当前预览帧的实例数量；来源物件是分类明细，不重复计入总数。");
+        stage.StatisticsPending=PendingStatistics;stage.StatisticsReady=data=>{lastStatistics=data;objectStatistics.SetPending(data.frame);objectStatistics.ShowStatistics(data);objectCount.Text=(data.nativeMissing?"obj ≥ ":"obj: ")+data.total.ToString("N0");};return inspectorDock;
     }
     private void PendingStatistics(int at){objectStatistics.SetPending(at);if(lastStatistics==null)objectCount.Text="obj: …";}
-    private void RefreshStatisticsLanguage(){inspectorTabs.RefreshLanguage();RefreshKeyWorkspace();objectStatistics.RefreshLanguage();if(lastStatistics!=null)objectStatistics.ShowStatistics(lastStatistics);}
+    private void RefreshStatisticsLanguage(){inspectorTabs.RefreshLanguage();inspectorDock.RefreshLanguage();RefreshKeyWorkspace();objectStatistics.RefreshLanguage();if(lastStatistics!=null)objectStatistics.ShowStatistics(lastStatistics);}
 }

@@ -61,7 +61,7 @@ internal static class RandomTimelineTests
             Call(form,"ProcessCmdKey",msg,Keys.Control|Keys.Z);Check(currentTrack().enabled&&Get(form,"selectedTrack")==currentTrack(),"Third sequential Ctrl+Z lost track selection");
             var keyToSelect=currentTrack().keyframes.First(k=>k.property=="y");
             Call(form,"SelectTrack",currentTrack(),keyToSelect);
-            TypeDescriptor.GetProperties(inspector.SelectedObject)["数值"].SetValue(inspector.SelectedObject,456.0);
+            var details=(ParameterInspector)Get(form,"keyProperties");TypeDescriptor.GetProperties(details.SelectedObject)["数值"].SetValue(details.SelectedObject,456.0);
             Call(form,"ProcessCmdKey",msg,Keys.Control|Keys.Z);
             Check(Get(form,"selectedTrack")==currentTrack()&&Get(form,"selectedKey")!=null&&Math.Abs(((Keyframe)Get(form,"selectedKey")).value-304.0)<1e-9,"Ctrl+Z after editing a keyframe value lost keyframe or track selection");
             var second=new Track{id="second",kind="object",start=0,end=500,name="second",scale=1};((EditorState)Get(form,"state")).tracks.Add(second);
@@ -87,7 +87,8 @@ internal static class RandomTimelineTests
         var b=new Track{id="b",name="Fade B",kind="effect",lane=0,start=120,end=200};Motion.SetKey(b,"fxOpacity",120,0);Motion.SetKey(b,"fxOpacity",200,1);
         var c=new Track{id="c",name="Camera C",kind="camera",lane=0,start=60,end=160};var d=new Track{id="d",name="Object D",kind="object",lane=1,start=200,end=300};
         var state=new EditorState{duration=600,laneCount=3,tracks=new List<Track>{a,b,c,d}};
-        using(var timeline=new TimelineCanvas{Size=new Size(1250,600),State=state,PixelsPerSecond=100}){
+        Check(TimelineLayout.EnsureExclusive(state)==1&&a.lane==b.lane&&c.lane!=a.lane,"Overlapping clips were not separated into real tracks");
+        using(var timeline=new TimelineCanvas{Size=new Size(1250,600),State=state,PixelsPerSecond=100,StretchKeys="keep"}){
             timeline.SelectTrack=(t,k)=>{timeline.SelectedTrack=t;timeline.SelectedKey=k;};int changed=0;timeline.Changed=()=>changed++;timeline.RefreshLayout();
             Check(timeline.ClipBounds(a).Y==timeline.ClipBounds(b).Y,"Non-overlapping clips do not share a lane row");Check(timeline.ClipBounds(c).Y!=timeline.ClipBounds(a).Y,"Overlapping clips hide each other");
             timeline.Expand(a,true);timeline.Expand(b,true);var rows=((IEnumerable)Get(timeline,"lanes")).Cast<object>().ToArray();Check(rows.Count(row=>(string)row.GetType().GetField("property").GetValue(row)=="x")==1,"Expanded clip does not have its own keyed row");timeline.Expand(a,false);rows=((IEnumerable)Get(timeline,"lanes")).Cast<object>().ToArray();Check(rows.Any(row=>(string)row.GetType().GetField("property").GetValue(row)=="fxOpacity"),"Collapsing one clip collapsed a sibling");
@@ -97,7 +98,7 @@ internal static class RandomTimelineTests
             Check(changed==2,"Timeline gesture did not commit once per edit");
             timeline.Expand(a,true);timeline.Expand(b,true);using(var bitmap=new Bitmap(timeline.Width,timeline.Height)){timeline.DrawToBitmap(bitmap,new Rectangle(Point.Empty,bitmap.Size));bitmap.Save(image,System.Drawing.Imaging.ImageFormat.Png);}
         }
-        Console.WriteLine("PASS: mixed clips per lane, overlap stacking, independent expansion, drag between lanes, grouped trim and key offsets.");
+        Console.WriteLine("PASS: non-overlapping mixed clips per lane, overlap separation, independent expansion, drag between lanes, grouped trim and key offsets.");
     }
     private static Point KeyPoint(TimelineCanvas timeline,Track track,Keyframe key,bool expanded)
     {

@@ -85,9 +85,17 @@ pwsh -NoProfile -File desktop/Test-EditorPerformance.ps1
 
 `Test-KeyframeWorkspace.ps1` 验证产品下栏只显示当前物件的标记、旧展开布局不再露出属性子行，以及右栏逐属性编辑区的选帧/框选/边界拖动/单次Undo/加删键/数值绑定/时间同步。包括多选、共用模板、自动采样路径和中英文窄栏；所有夹具与截图位于build/keyframe-workspace-check，不加载用户工程。
 
+游标磁吸入口为PreviewPlayback.cs的CursorSnapping与CursorScrub：Capture在每次手势开始时收集歌曲边界/属性键/GM代码帧并排序一次，拖动时二分查找候选，松手才提交；没有停留自动吸附计时器。Alt隐藏候选并跳过松手吸附。TimelineRendering.cs缓存波形/频谱/刻度/轨道/关键帧静态层，PlayheadMoved和候选变化只标记窄条覆盖层；普通Invalidate、滚动、缩放、选择、数据、尺寸变化仍重建底图。拖动游标用独立的小数帧位置跟随鼠标像素，即使预览整数Frame没变也InvalidateCursor并同步Update，不能用游戏FPS限制输入反馈。Bitmap和手势在Dispose时释放，新增CS已列入Build-Native。下栏与右栏关键帧尺共享虚线；SelectionTimeControl通过箭头显示候选并同步两处虚线。WorkspaceView.cursorSnap是全局开关，旧布局null默认开，旧keySnap兼容写出。片段仍以[start,end+1]吸附共享Frame与其他片段。Test-CursorSnapping.ps1含输入、Alt、共享、像素图与稠密数据绘制计数/成本；图和cursor-paint-profile.txt在build/cursor-snap-check。离屏Update不会保证实际WM_PAINT，测试验证同步请求并用自身窗口PrintWindow/离屏OnPaint确认绘制，不能将此成本当屏幕Hz或游戏FPS。按变更选动作、关键帧、音频统计与语言回归；纯UI无需GM探针。
+
+右栏停靠由InspectorDockWorkspace.cs管理两个常驻页面，KeyframeWorkspace.cs负责列表及独立keyProperties。WorkspaceView.inspectorDock只存界面mode/first/active、rows/columns/details比例；旧keyframesHeight迁移为上下布局高度。CommitInspectorEdits同时提交常规和关键帧输入；键盘焦点、F5/导出/保存、切工程/语言均要覆盖两端。运行Test-InspectorDocking.ps1验证真实标题MouseDown/Move/Up的四向停靠、页签拆合、取消、旧/新布局恢复、独立详情/Undo及控件复用，截图在build/inspector-docking-check。无工程或GML语义变化。
+
+rightTime（SelectionTimeControl）属于关键帧页顶部，不挂在两个停靠页面的公共头部。暗色原生滚动条由DarkScrollbars.cs处理：仅Windows10 build18362以上动态查询uxtheme私有ordinal133/135，启用进程暗色偏好，再为原生滚动控件/AutoScroll面板/列表树/文本框及组合框列表调用[SetWindowTheme](https://learn.microsoft.com/en-us/windows/win32/api/uxtheme/nf-uxtheme-setwindowtheme)；旧系统或缺少入口时保留原生回退。Program提前初始化，MainForm与Language.Attach覆盖句柄重建和动态/弹窗控件；不替换滚动算法或修改系统设置。Test-ScrollbarTheme.ps1在不激活的离屏测试窗口检查横纵滚动条像素、动态控件、句柄重建及滚动值/事件，图与日志在build/scrollbar-theme-check。停靠页截图使用自身离屏窗口PrintWindow，避免DrawToBitmap对隐藏页签产生漏绘。
+
 ### GM8.2 验证
 
-复制obj与时间轴编辑入口为desktop/CopyGeneration.cs、TimelineEditing.cs和studio/copy-generation.mjs。先运行desktop/Test-CopyEditing.ps1，再用runtime/node.exe desktop/tests/verify-copy-gml.mjs核对独立GM工程；Node单元测试studio/copy-generation.test.mjs。夹具位于build/copy-editing-check，覆盖方向/旋转网格/圆周、朝向/混色/彩虹帧、带随机子发射器的分组、重复特效与F5。UI检查包括无缝接线、整理/Undo、拉伸模式与中英参数。项目新增preserveTrackOrder以让整理只改lane不改变执行；Track.keyframeCycle保存原样式长度/相对关键帧/编辑戳，快照需深复制。产品新增CS必须在Build-Native显式列出。
+独立轨道物件的时段互斥由desktop/TimelineLayout.cs的EnsureExclusive处理，仅用于编辑器的工程打开和改动提交，不用于展开后运行态。生成组内引用模板的局部时间不参与歌曲轨道冲突。检测到旧工程重叠时先保留原执行数组并设置preserveTrackOrder，再仅变更lane；拖动覆盖仍调用CutOverlaps裁剪。运行desktop/Test-LaneExclusivity.ps1后再运行runtime/node.exe desktop/tests/verify-lane-sync.mjs，隔离工程核对保存/重开、时间/父子关系/执行顺序和真实生成GML不变。
+
+复制obj与时间轴编辑入口为desktop/CopyGeneration.cs、TemplateRuntime.cs、TimelineEditing.cs及studio/copy-generation.mjs、linked-copy.mjs、template-system.mjs。BulletAction.copyLinked默认true；track级复制按实际来源图和当前局部时钟取样，一组链接持续到来源结束，不能每次触发再叠加整组。关掉copyLinked或使用弹幕年龄行为时仍走独立模板。联动网格逐成员在旋转格点坐标内取模，锚定实际房间中心、范围至少覆盖房间；禁止按整体中心出屏裁掉成员。shapeSetup与stateCode都要保留来源所在的父级/模板上下文，避免父角度重复进入形状phase。临时实例/位置字段只参与模拟快照；rf_copy_started用普通GM数组，F5重放及原生保存可恢复。先运行desktop/Test-CopyEditing.ps1，再用runtime/node.exe desktop/tests/verify-copy-gml.mjs核对独立GM工程；Node入口studio/copy-generation.test.mjs。夹具在build/copy-editing-check，覆盖来源后续编辑、数量/半径/角度、屏外成员/旋转网格、父级及生成实例内链接、颜色、释放、独立模式和实际F5目标帧状态。UI还覆盖无缝接线、整理/Undo、拉伸模式与中英文。preserveTrackOrder保留执行顺序；Track.keyframeCycle保存周期与独立快照。产品新增CS必须在Build-Native显式列出。
 
 事件预设入口为desktop/EventPresets.cs和studio/event-presets.mjs（复用control轨道，以eventPreset区分）。运行desktop/Test-EventPresets.ps1覆盖事件语义和高字号分隔条/时间按钮；随后用runtime/node.exe desktop/tests/verify-event-gml.mjs核对独立GM工程的弹幕、整体显隐及额外原生父子对象。Node单元测试为studio/event-presets.test.mjs。夹具均位于build/event-presets-check；测试对象事件头使用工程标准action_id/applies_to，不使用id/kind字段。
 
