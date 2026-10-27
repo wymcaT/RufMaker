@@ -1,11 +1,20 @@
 # Codex 任务记录
 
-- 状态：`in_progress`
-- 任务：用户明确要求“推送并release”，将已完成的本地改动集成发布2.4.0。
-- 基线：`16f3297` / `main`；Argon4无占用，保留用户demo12文件817增236删及全部个人工程。
-- 占用：desktop/Updater.cs、发布说明/README/交接、desktop/Package-Release.ps1既有流程输出build/distribution与build/release-2.4.0-check、根EXE；精确暂存全部已完成应用源码，不暂存projects用户改动。
-- 发布前验证：两个本地ZIP逐文件/manifest/SHA256检查通过；当前更新器替换/保留用户数据/隐藏重启通过；原2.0.0更新器以32位CLR加载，接受2.4.0的2621个更新文件；完整便携包无GM首次创建空工程并重开通过。此前UI回归与GM15411状态/F5对照作为功能验证，未无故重跑游戏。根EXE已重建2.4.0/1,292,800 bytes。
-- 下一步：精确提交70个应用文件，不含用户工程，原子推送main/v2.4.0并等待Actions；线上验证后写回结果。匿名GitHub REST先遇限流，改用GitHub连接读取发布元数据，不改变应用更新逻辑。保留SHA256。
+- 状态：`completed`
+- 任务：按用户“推送并release”发布2.4.0；功能提交`54ae8ce`，标签`v2.4.0`已与main原子推送。
+- 当前占用：无。Argon4无占用；用户demo12文件817增236删与个人项目保留，未提交。
+- 本机入口：RufMaker.exe，2.4.0/1,292,800 bytes；旧入口build/release-check-2.4.0/RufMaker.before-release.exe。
+- 远端：[v2.4.0](https://github.com/wymcaT/RufMaker/releases/tag/v2.4.0)，latest、非草稿/非预发布；Actions [40478077123](https://github.com/wymcaT/RufMaker/actions/runs/40478077123)成功。
+
+## 2026-10-27：2.4.0正式发布
+
+- 本轮用户明确授权推送和Release。AppVersion、AssemblyVersion/FileVersion/InformationalVersion统一2.4.0，README双语首页、复制/排版/时间轴说明及docs/releases/v2.4.0.md对应本版最终行为。保留旧SHA256与兼容包，不更改标签发布工作流。
+- 精确暂存70个应用源码/测试/文档/EXE文件，排除全部projects；提交54ae8ce4d12cfe0c5f84af524cce17798c117926。git push --atomic origin main refs/tags/v2.4.0成功。用户资料仍12个tracked文件817增236删，其余个人项目未跟踪。后续仅发布交接文档提交，不移动已发布标签。
+- 本地Package-Release生成完整包58,985,200 bytes、更新包57,026,051 bytes；逐条检查manifest/SHA256、无个人资料、无重复文件、EXE版本及新增studio/linked-copy.mjs。原2.0.0更新器由32位CLR直接加载其旧二进制，接受2.4.0并校验2621文件；当前更新器替换、保留用户数据、隐藏重启通过；完整便携包首次建空工程并重开通过，无GM安装或游戏启动。
+- 本版沿用各功能完成时已通过的UI/Node/真实GM数值对照，未在发布前无故重复游戏；更新器测试和发布包检查本轮重新运行。日志build/release-2.4.0-{package,package-check,updater-local,legacy-verified,portable-local}.log；本机根EXE使用同次Release构建。
+- GitHub Actions任务122101163194全部步骤success，自动上传并公开4个附件。GitHub连接确认latest=v2.4.0，draft=false、prerelease=false、全部uploaded：完整包60,035,823 bytes，更新包58,063,037 bytes，以及各自102/85-byte SHA256文件。服务端ZIP digests分别042f66cb2d64c78fb7a498d02f09db3ca1aace7152cd16c380ca6ecf59b79548 / d022a85ab668378105b2d52fc72b4d5882a9b5a46e0c2fa11aece85cdb9607ca。CI平台编译/行尾压缩差异导致与本地产物大小不同，不据此认定相同字节。
+- 在线验证边界：GitHub连接已确认发布元数据，公开附件HTTP302->200及长度正确。本机匿名REST/API和实际Updater.Latest返回403（rate limit），未通过在线更新检查；公开附件下载约60KB/s，curl90s只收到6,242,304/5,422,414 bytes后超时，不能宣称完整下载/SHA/解压通过。PowerShell下载校验长时间停滞，核对其具体命令与PID后停止了本轮build下的子进程；两个curl已超时退出，未留下下载任务。记录build/release-2.4.0-online-updater.log、published.log、download-headers.txt与published-curl的部分文件，未改应用网络逻辑或绕过校验。
+- 发布目标已完成；没有功能待办或运行中的验证进程。若需再做线上完整下载，待网络/匿名配额恢复后运行Test-Updater.ps1 -Online -Version 2.4.0。不要把在线测试未通过写成已通过。此前标注“本地未推送”的历史功能均已包含于此发布，以下文字保留实施过程。
 
 ## 2026-10-27：松手吸附预告与游标绘制（本地完成，未推送）
 
