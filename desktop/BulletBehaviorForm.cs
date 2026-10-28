@@ -36,13 +36,13 @@ internal sealed class BulletBehaviorForm : Form
         if(templateMode&&a.type=="spawn"&&a.generationPreset==CopyGeneration.Key&&a.copyLinked){bag.Add("开始年龄 / 帧","时间",typeof(int),()=>a.start,v=>{a.start=Math.Max(0,(int)v);refresh();});GenerationPresets.Fields(bag,state,track,a,change=>{change();rebuild();});inspector.SelectedObject=bag;return;}
         bag.Add("开始年龄 / 帧","时间",typeof(int),()=>a.start,v=>{a.start=Math.Max(0,(int)v);refresh();});bag.Add("持续帧数","时间",typeof(int),()=>a.duration,v=>{a.duration=Math.Max(0,(int)v);refresh();});bag.Add("每颗延迟 / 帧","时间",typeof(int),()=>a.stagger,v=>{a.stagger=Math.Max(0,(int)v);refresh();},null,"实际开始年龄 = 开始年龄 + i × 每颗延迟。");
         if(templateMode)bag.Add("首次触发歌曲帧","时间",typeof(int),()=>track.start+a.start,v=>{a.start=Math.Max(0,(int)v-track.start);refresh();},null,"原物件开始帧 + 开始年龄。逐成员延迟继续叠加；仅作模板时此处为局部参考时钟，实例按实际生成时刻平移。");
-        if(a.type=="spawn"){SpawnFields(bag,a);GenerationPresets.DirectionFields(bag,a,change=>change());}
+        if(a.type=="spawn"){SpawnFields(bag,a);GenerationPresets.DirectionFields(bag,state,track,a,change=>change());}
         else if(a.type=="split"){
             var templates=state.tracks.Where(t=>t.kind=="emitter").ToArray();var names=new[]{"继承本体外观（无后续行为）"}.Concat(templates.Select(t=>t.name+" · "+t.id.Substring(0,Math.Min(8,t.id.Length)))).ToArray();
             bag.Add("子弹模板","分裂",typeof(string),()=>names[Math.Max(0,Array.FindIndex(templates,t=>t.id==a.templateId)+1)],v=>{int i=Array.IndexOf(names,(string)v)-1;a.templateId=i<0?"":templates[i].id;},names);
-            bag.Add("子弹数量","分裂",typeof(int),()=>a.count,v=>a.count=Math.Max(1,Math.Min(300,(int)v)));bag.Add("子弹速度","分裂",typeof(double),()=>a.childSpeed,v=>a.childSpeed=(double)v);bag.Add("子弹角度间隔","分裂",typeof(double),()=>a.spread,v=>a.spread=(double)v);bag.Add("最多分裂代数","分裂",typeof(int),()=>a.maxGeneration,v=>a.maxGeneration=Math.Max(1,Math.Min(4,(int)v)));bag.Add("说明","分裂",typeof(string),()=>"母弹保留。子弹从母弹当时的位置发射，以母弹方向为中心；模板可禁用以仅供子发射器使用。",null);
+            bag.Add("子弹数量","分裂",typeof(int),()=>a.count,v=>a.count=Math.Max(1,Math.Min(300,(int)v)));ScalarExpressions.ActionField(bag,state,track,a,"childSpeed","子弹速度","分裂",change=>change());ScalarExpressions.ActionField(bag,state,track,a,"spread","子弹角度间隔","分裂",change=>change());bag.Add("最多分裂代数","分裂",typeof(int),()=>a.maxGeneration,v=>a.maxGeneration=Math.Max(1,Math.Min(4,(int)v)));bag.Add("说明","分裂",typeof(string),()=>"母弹保留。子弹从母弹当时的位置发射，以母弹方向为中心；模板可禁用以仅供子发射器使用。",null);
         }else if(a.type!="clear"){
-            if(a.type!="aim"){bag.Add("起始值","参数",typeof(double),()=>a.from,v=>a.from=(double)v);bag.Add("结束值","参数",typeof(double),()=>a.to,v=>a.to=(double)v);}else bag.Add("瞄准方向偏移 / 度","参数",typeof(double),()=>a.to,v=>{a.to=(double)v;a.from=a.to;});
+            if(a.type!="aim"){ScalarExpressions.ActionField(bag,state,track,a,"from","起始值","参数",change=>change());ScalarExpressions.ActionField(bag,state,track,a,"to","结束值","参数",change=>change());}else ScalarExpressions.ActionField(bag,state,track,a,"to","瞄准方向偏移 / 度","参数",change=>change());
             bag.Add("相对出生值","参数",typeof(bool),()=>a.relative,v=>a.relative=(bool)v,null,"方向、弹速为相加；大小、不透明度为相乘。");bag.Add("缓动","参数",typeof(string),()=>Motion.EaseNames[Math.Max(0,Array.IndexOf(Motion.EaseValues,a.easing))],v=>a.easing=Motion.EaseValues[Array.IndexOf(Motion.EaseNames,(string)v)],Motion.EaseNames);
             bag.Add("公式（留空使用数值）","参数",typeof(string),()=>a.expression,v=>{string text=((string)v??"").Trim();if(text.Length>0)RandomExpression.Evaluate(text,state.randomSeed,track.id,ExpressionContext.For(track,track.start));a.expression=text;},null,"在行为生效期间执行。x/y 是本弹幕位置；source.x/y 是生成时来源中心的世界坐标快照。可用 i、n、u、volley、age、player.x/y、speed、direction。sin/cos 使用弧度。");
             if(a.type=="collision")bag.Add("说明","参数",typeof(string),()=>"0 关闭碰撞；1 开启碰撞。外观与碰撞独立。",null);
@@ -63,8 +63,8 @@ internal sealed class BulletBehaviorForm : Form
         bag.Add("继承出生贴图与颜色","生成外观",typeof(bool),()=>a.inheritAppearance,v=>a.inheritAppearance=(bool)v,null,"保存发射瞬间母弹的贴图、颜色与彩虹帧，新弹后续不会跟着变色。运动仍使用模板。");
         bag.Add("继承母体大小","生成外观",typeof(bool),()=>a.inheritScale,v=>a.inheritScale=(bool)v,null,"按母体当前大小替换模板起始大小；模板后续的缩放动画继续按比例执行。");
         bag.Add("波次颜色公式（留空用原色）","生成外观",typeof(string),()=>a.spawnColorExpression,v=>{if(!String.IsNullOrWhiteSpace((string)v))SpawnColors.Evaluate((string)v,track,"spawnColor",track.start,0);a.spawnColorExpression=((string)v??"").Trim();},null,"random(360) 或 choose(\"#FF75AD\",\"#6DE8FF\")。同一轮成员共享颜色，出生后固定。会覆盖继承的混色；要显示任意颜色请选白色底图模板。");
-        bag.Add("初始生成方向 / 度","生成",typeof(double),()=>a.spawnAngle,v=>a.spawnAngle=(double)v);
-        bag.Add("每颗生成方向递增 / 度","生成",typeof(double),()=>a.spawnAngleStep,v=>a.spawnAngleStep=(double)v,null,"方向 = 初始生成方向 + 成员编号 × 递增值；开启继承时再叠加母体方向。编号从 0 开始。");
+        ScalarExpressions.ActionField(bag,state,track,a,"spawnAngle","初始生成方向 / 度","生成",change=>change());
+        ScalarExpressions.ActionField(bag,state,track,a,"spawnAngleStep","每颗生成方向递增 / 度","生成",change=>change());
         bag.Add("最大生成代数","生成",typeof(int),()=>a.maxGeneration,v=>a.maxGeneration=Math.Max(1,Math.Min(4,(int)v)),null,"原物件为第 0 代。生成物可继续生成下一代，最大 4 代。");
         bag.Add("说明","生成",typeof(string),()=>"生成物以当前位置为起点，从模板自己的开始帧执行关键帧和运动；生成后独立存在。整体中心销毁整件，各颗弹幕模式只销毁符合筛选的成员。",null);
     }

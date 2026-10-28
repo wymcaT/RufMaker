@@ -8,8 +8,8 @@ internal static class PreviewRenderer
     public static Bitmap Render(EditorState state,RoomData room,Dictionary<string,string> objectSprites,SpriteStore sprites,int frame,bool grid,bool hitboxes,PreviewCache cache=null,Matrix transform=null,int width=0,int height=0,RectangleF? displayClip=null,RectangleF? effectsFrame=null,string nativeFilmPath=null,CameraPose camera=null,bool applyEffects=true)
     {
         if(cache==null)using(var temporary=new PreviewCache())return Render(state,room,objectSprites,sprites,frame,grid,hitboxes,temporary,transform,width,height,displayClip,effectsFrame,nativeFilmPath,camera,applyEffects);
-        if(cache.expandedState==null){cache.expandedState=BulletSystem.Expand(state);BulletSystem.Attach(cache.expandedState);}state=cache.expandedState;
-        var film=cache.FilmFrame(nativeFilmPath,frame,state.fps);bool advanced=BulletSystem.Advanced(state);if(advanced){if(cache.bulletWorld==null)cache.bulletWorld=new BulletWorld(state,room,f=>cache.FilmInfo==null?null:cache.FilmInfo.View((int)Math.Round(f*cache.FilmInfo.fps/(double)Math.Max(1,state.fps))));cache.bulletWorld.Seek(frame);}
+        cache.ThrowIfCancelled();cache.UseScene(state,room);state=cache.expandedState;
+        var film=cache.FilmFrame(nativeFilmPath,frame,state.fps);bool advanced=BulletSystem.Advanced(state);if(advanced){if(cache.bulletWorld==null)cache.bulletWorld=new BulletWorld(state,room,f=>cache.FilmInfo==null?null:cache.FilmInfo.View((int)Math.Round(f*cache.FilmInfo.fps/(double)Math.Max(1,state.fps))));cache.bulletWorld.Seek(frame,cache.Cancelled);}cache.ThrowIfCancelled();
         if(camera!=null&&camera.Post){
             Bitmap processed;using(var scene=Render(state,room,objectSprites,sprites,frame,grid,hitboxes,cache,null,room.width,room.height,null,null,nativeFilmPath,null,false))processed=Effects.CameraFrame(scene,camera);
             if(applyEffects)processed=Effects.Apply(processed,state,frame,cache);
@@ -49,11 +49,12 @@ internal static class PreviewRenderer
                 g.InterpolationMode=InterpolationMode.NearestNeighbor;g.PixelOffsetMode=PixelOffsetMode.Half;
                 for(int pass=0;pass<2;pass++)
                 {
-                if(advanced)cache.bulletWorld.Draw(g,sprites,pass,hitboxes);
+                if(advanced)cache.bulletWorld.Draw(g,sprites,pass,hitboxes,cache.Cancelled);
                 if(pass==1)foreach(var instance in room.instances)
                 {if(baked!=null&&baked.Contains(instance.id))continue;string sprite;if(!objectSprites.TryGetValue(instance.name,out sprite)||String.IsNullOrEmpty(sprite))continue;sprites.Draw(g,sprite,instance.x,instance.y,1,0,1,Color.White);if(hitboxes)using(var pen=new Pen(Color.FromArgb(110,94,212,197))){var r=sprites.Bounds(sprite,instance.x,instance.y);g.DrawRectangle(pen,r.X,r.Y,r.Width,r.Height);}}
                 foreach(var track in state.tracks)
                 {
+                    cache.ThrowIfCancelled();
                     if(!track.enabled||track.templateOnly||advanced&&!cache.bulletWorld.Templates.Visible(track))continue;Color tint=track.rainbow?Color.White:Motion.ColorOf(track.color);
                     if(BulletSystem.Active(track,frame)&&(track.kind=="object"||track.kind=="rod"&&(track.releaseFrame<0||frame<track.releaseFrame)))
                     {
@@ -66,7 +67,7 @@ internal static class PreviewRenderer
                             else {var points=Motion.RodPoints(track,sample);for(int k=0;k<points.Length;k++)if(!advanced||cache.bulletWorld.Templates.Visible(track,k))Trails.Draw(g,sprites,track,sample*301+k,tail,points[k].X,points[k].Y,q.scale,Motion.Value(track,"spriteAngle",sample)+(track.rotateSprite?q.angle:0),q.alpha,tint,Rainbow.Index(track,Rainbow.RodSequence(track,k,points.Length,sample,points[k],q),sample));}
                         }
                         if(pass==1){if(track.kind=="object")sprites.Draw(g,track.sprite,p.x,p.y,p.scale,p.angle,p.alpha,tint,Rainbow.Index(track,0,frame));
-                        else {var points=Motion.RodPoints(track,frame);for(int k=0;k<points.Length;k++)if(!advanced||cache.bulletWorld.Templates.Visible(track,k))sprites.Draw(g,track.sprite,points[k].X,points[k].Y,p.scale,Motion.Value(track,"spriteAngle",frame)+(track.rotateSprite?p.angle:0),p.alpha,tint,Rainbow.Index(track,Rainbow.RodSequence(track,k,points.Length,frame,points[k],p),frame));}}
+                        else {var points=Motion.RodPoints(track,frame);for(int k=0;k<points.Length;k++)if(!advanced||cache.bulletWorld.Templates.Visible(track,k)){var look=advanced&&cache.bulletWorld.HasFormationProperties?cache.bulletWorld.FixedMember(track,k,frame):null;sprites.Draw(g,track.sprite,points[k].X,points[k].Y,look==null?p.scale:look.scale,Motion.Value(track,"spriteAngle",frame)+(track.rotateSprite?p.angle:0),look==null?p.alpha:look.alpha,look==null?tint:look.color,Rainbow.Index(track,Rainbow.RodSequence(track,k,points.Length,frame,points[k],p),frame));}}}
                     }
                     if(track.kind!="emitter")continue;
                     if(advanced)continue;
@@ -78,13 +79,14 @@ internal static class PreviewRenderer
                     double ordinal=0;
                     if(track.rainbow)
                     {if(Motion.HasKeys(track,"count")){for(int b=track.start;b<first;b+=interval)ordinal+=Math.Max(1,Math.Min(300,(int)Math.Round(Motion.Value(track,"count",b))));}else ordinal=(first-track.start)/interval*Math.Max(1,Math.Min(300,track.count));}
-                    for(int birth=first;birth<=Math.Min(frame,track.end)&&drawn<20000;birth+=interval)
+                    for(int birth=first;birth<=Math.Min(frame,track.end);birth+=interval)
                     {
                         int count=Math.Max(1,Math.Min(300,(int)Math.Round(Motion.Value(track,"count",birth))));double birthOrdinal=ordinal;ordinal+=count;
                         int age=frame-birth;if(age<0||age>=Motion.Value(track,"life",birth))continue;var p=Motion.At(track,birth);
                         double speed=Motion.Value(track,"speed",birth),spread=Motion.Value(track,"spread",birth);
-                        for(int j=0;j<count&&drawn<20000;j++,drawn++)
+                        for(int j=0;j<count;j++,drawn++)
                         {
+                            if((drawn&127)==0)cache.ThrowIfCancelled();
                             double angle=p.angle+(j-(count-1)/2.0)*spread,rad=angle*Math.PI/180,dx=Math.Cos(rad)*speed,dy=-Math.Sin(rad)*speed;
                             var path=BulletFlight.Curved(track)?BulletFlight.Path(track,birth,age,p.x,p.y,angle,speed,j):null;double x=path==null?p.x+dx*age:path[age].x,y=path==null?p.y+dy*age:path[age].y;
                             double sequence=birthOrdinal+j;
@@ -97,7 +99,7 @@ internal static class PreviewRenderer
                 }
                 }
                 // Descendants are above the held formations; use the same view transform.
-                if(advanced)cache.bulletWorld.Draw(g,sprites,2,hitboxes);
+                if(advanced)cache.bulletWorld.Draw(g,sprites,2,hitboxes,cache.Cancelled);
             }
             Bitmap result=bitmap;
             if(applyEffects&&effectsFrame.HasValue)

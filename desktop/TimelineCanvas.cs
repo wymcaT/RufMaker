@@ -34,9 +34,13 @@ internal sealed partial class TimelineCanvas : UserControl
     private int Names {get{return InspectorKeyframes?Math.Max(110,Font.Height*6):190;}}
     private int Row {get{return InspectorKeyframes?Math.Max(30,Font.Height+12):30;}}
     private string dragMode;private Point dragStart;private Track dragTrack;private Keyframe dragKey;
+    private const float EventRadius=7;
+    private const TextFormatFlags TimelineTextFlags=TextFormatFlags.Left|TextFormatFlags.VerticalCenter|TextFormatFlags.EndEllipsis|TextFormatFlags.PreserveGraphicsClipping;
+    private static bool EventMarker(Track track){return track!=null&&(track.kind=="control"||track.kind=="script");}
+    private static bool EventCanStretch(Track track){return track.kind=="control"&&track.eventPreset!="group-copy";}
     private readonly Dictionary<Keyframe,int> groupFrames=new Dictionary<Keyframe,int>();
     private Point keyDeltaBounds;
-    private sealed class BarState {public int start,end,lane,release,top,height;public int? clockStart,clockEnd;public MotionPresetData preset;public Dictionary<Keyframe,int> keys;}
+    private sealed class BarState {public int start,end,lane,release,top,height;public int? clockStart,clockEnd;public MotionPresetData preset;public CameraPresetData camera;public Dictionary<Keyframe,int> keys;}
     public bool ClipSnap=true;public string StretchKeys="sync";public Action<string> EditNotice;private int dragVisualRow;private int? clipSnapGuide;private bool paintingDragged;
     private readonly Dictionary<Track,BarState> bars=new Dictionary<Track,BarState>();
     private bool boxTracks;private HashSet<Track> boxTrackInitial=new HashSet<Track>();
@@ -101,7 +105,7 @@ internal sealed partial class TimelineCanvas : UserControl
     {
         if(dragMode=="bar"&&bars.Count>0){Invalidate();return;}
         if(horizontal==null||vertical==null)return;lanes.Clear();
-        if(State!=null&&InspectorKeyframes){if(SelectedTrack!=null&&State.tracks.Contains(SelectedTrack))foreach(string property in Motion.Fields(SelectedTrack).Where(p=>Motion.HasKeys(SelectedTrack,p)&&!MotionPresets.Generated(SelectedTrack,p)))lanes.Add(new Lane{track=SelectedTrack,property=property});}
+        if(State!=null&&InspectorKeyframes){if(SelectedTrack!=null&&State.tracks.Contains(SelectedTrack))foreach(string property in Motion.Fields(SelectedTrack).Where(p=>Motion.HasKeys(SelectedTrack,p)||MotionPresets.Generated(SelectedTrack,p)))lanes.Add(new Lane{track=SelectedTrack,property=property});}
         else if(State!=null){ActiveLane=Math.Min(ActiveLane,State.laneCount-1);
             foreach(var native in State.tracks.Where(t=>t.kind=="native")){lanes.Add(new Lane{track=native});if(IsExpanded(native)&&State.nativeProject!=null)foreach(string file in State.nativeProject.events.Select(e=>e.file).Distinct())lanes.Add(new Lane{track=native,property="@gm:"+file});}
             var bound=TimelineLayout.BoundTemplates(State);
@@ -162,8 +166,9 @@ internal sealed partial class TimelineCanvas : UserControl
             var lane=lanes[i];var t=lane.track;int y=Header+lane.top-vertical.Value;if(y>=height)break;var saved=g.Save();g.SetClip(new Rectangle(0,Header,width,height-Header));
             bool chosen=t!=null&&(SelectedTracks.Contains(t)||t==SelectedTrack)&&(lane.property==null||lane.property==SelectedProperty||lane.property=="@item");
             using(var bg=new SolidBrush(chosen?Color.FromArgb(47,44,62):lane.property!=null?Color.FromArgb(23,29,39):lane.index%2==0?Theme.Panel:Color.FromArgb(29,35,47)))g.FillRectangle(bg,0,y,width,lane.height);
-            if(lane.clips!=null){if(lane.stack==0)Theme.Label(g,Language.Text("轨道")+" "+(lane.index+1),new Rectangle(8,y,Names-16,lane.height),ActiveLane==lane.index?Theme.Accent:Theme.Text,localize:false);}
-            else {string title=TemplateLane(lane)?"    ▣ "+lane.track.name:SpawnLane(lane)?SpawnTitle(lane):lane.property==null?(IsExpanded(t)?"▾ ":"▸ ")+t.name:lane.property=="@item"?"▾ "+t.name:"    ◇ "+(lane.property.StartsWith("@gm:")?System.IO.Path.GetFileNameWithoutExtension(lane.property.Substring(4)):Language.Text(Motion.Name(lane.property)));Theme.Label(g,title,new Rectangle(8,y,Names-14,lane.height),chosen?Theme.Accent:Theme.Muted,InspectorKeyframes?Font:lane.property=="@item"?Theme.Font:Theme.Small,localize:false);}
+            var group=TimelineGroups.At(State,lane.index);if(group!=null){using(var groupBrush=new SolidBrush(TimelineGroups.Background(group,chosen)))g.FillRectangle(groupBrush,0,y,width,lane.height);using(var stripe=new SolidBrush(Motion.ColorOf(group.color)))g.FillRectangle(stripe,0,y,4,lane.height);}
+            if(lane.clips!=null){if(lane.stack==0)Theme.Label(g,Language.Text("轨道")+" "+(lane.index+1)+(group==null?"":" · "+group.name),new Rectangle(8,y,Names-16,lane.height),ActiveLane==lane.index?Theme.Accent:Theme.Text,flags:TimelineTextFlags,localize:false);}
+            else {string title=TemplateLane(lane)?"    ▣ "+lane.track.name:SpawnLane(lane)?SpawnTitle(lane):lane.property==null?(IsExpanded(t)?"▾ ":"▸ ")+t.name:lane.property=="@item"?"▾ "+t.name:"    ◇ "+(lane.property.StartsWith("@gm:")?System.IO.Path.GetFileNameWithoutExtension(lane.property.Substring(4)):Language.Text(Motion.Name(lane.property)));Theme.Label(g,title,new Rectangle(8,y,Names-14,lane.height),chosen?Theme.Accent:Theme.Muted,InspectorKeyframes?Font:lane.property=="@item"?Theme.Font:Theme.Small,TimelineTextFlags,false);}
             if(lane.bindingKey!=null)using(var pen=new Pen(Color.FromArgb(90,119,220,221),2))g.DrawLine(pen,9+Math.Min(5,lane.indent)*8,y+3,9+Math.Min(5,lane.indent)*8,y+lane.height-3);
             g.SetClip(new Rectangle(Names,Header,width-Names,height-Header));
             if(lane.clips!=null)foreach(var item in lane.clips)DrawItem(g,item,null,y,width,lane.height);
@@ -186,16 +191,42 @@ internal sealed partial class TimelineCanvas : UserControl
     {
         if(dragMode=="bar"&&dragChanged&&bars.ContainsKey(t)&&!paintingDragged)return;
         bool chosen=SelectedTracks.Contains(t)||t==SelectedTrack;Color color=t.enabled?Theme.TrackColor(t.kind):Color.FromArgb(80,87,100);float x=X(t.start),end=X(t.end+1);
+        if(property==null&&EventMarker(t)){DrawEvent(g,t,y,width,rowHeight,chosen,color,x,end);return;}
         if(property==null){using(var brush=new SolidBrush(Color.FromArgb(chosen?225:155,color)))g.FillRectangle(brush,x,y+3,Math.Max(5,end-x),rowHeight-6);
-            var saved=g.Save();g.SetClip(new RectangleF(x,y+3,Math.Max(5,end-x),rowHeight-6),CombineMode.Intersect);Theme.Label(g,(SelectionKeyframesOnly&&!TimelineLayout.HasGeneration(t)?"":IsExpanded(t)?"▾ ":"▸ ")+(t.templateOnly?Language.Text("模板 · 局部时间 · "):"")+t.name,new Rectangle((int)x+10,y+(rowHeight-20)/2,Math.Max(20,(int)(end-x)-13),20),Color.White,Theme.Small,localize:false);g.Restore(saved);
+            float barRight=x+Math.Max(5,end-x),visibleLeft=Math.Max(Names,x),visibleRight=Math.Min(width,barRight);int labelLeft=(int)Math.Ceiling(visibleLeft)+10,labelRight=(int)Math.Floor(visibleRight)-3;
+            if(labelRight>labelLeft){var saved=g.Save();g.SetClip(new RectangleF(visibleLeft,y+3,visibleRight-visibleLeft,rowHeight-6),CombineMode.Intersect);Theme.Label(g,(SelectionKeyframesOnly&&!TimelineLayout.HasGeneration(t)?"":IsExpanded(t)?"▾ ":"▸ ")+(t.templateOnly?Language.Text("模板 · 局部时间 · "):"")+t.name,new Rectangle(labelLeft,y+(rowHeight-20)/2,labelRight-labelLeft,20),Color.White,Theme.Small,TimelineTextFlags,false);g.Restore(saved);}
             if(t==hoverTrack&&hoverEdge!=null)using(var pen=new Pen(Color.White,2)){float edge=hoverEdge=="left"?x:end;g.DrawLine(pen,edge,y+2,edge,y+rowHeight-2);g.DrawLine(pen,edge-5,y+rowHeight/2,edge+5,y+rowHeight/2);g.DrawLine(pen,edge-5,y+rowHeight/2,edge-2,y+rowHeight/2-3);g.DrawLine(pen,edge+5,y+rowHeight/2,edge+2,y+rowHeight/2+3);}
-            if(State.tracks.Any(other=>other!=t&&other.kind!="native"&&other.lane==t.lane&&other.end+1==t.start&&Math.Abs(ClipBounds(other).Y-(y+3))<1))using(var seam=new Pen(Color.White,1))g.DrawLine(seam,x,y+4,x,y+rowHeight-4);
-        }else using(var pen=new Pen(Color.FromArgb(80,color)))g.DrawLine(pen,x,y+rowHeight/2,end,y+rowHeight/2);
+            if(State.tracks.Any(other=>other!=t&&other.kind!="native"&&!EventMarker(other)&&other.lane==t.lane&&other.end+1==t.start&&Math.Abs(ClipBounds(other).Y-(y+3))<1))using(var seam=new Pen(Color.White,1))g.DrawLine(seam,x,y+4,x,y+rowHeight-4);
+        }else {using(var pen=new Pen(Color.FromArgb(80,color)))g.DrawLine(pen,x,y+rowHeight/2,end,y+rowHeight/2);if(InspectorKeyframes&&MotionPresets.Generated(t,property))Theme.Label(g,"由预设控制",new Rectangle(Names+10,y,Math.Max(0,width-Names-20),rowHeight),Theme.Muted,Theme.Small,TimelineTextFlags);}
         if(t.kind=="native"&&(!SelectionKeyframesOnly||t==SelectedTrack))foreach(var item in NativeEvents(new Lane{track=t,property=property})){float at=X(item.frame);if(at<Names||at>width)continue;using(var pen=new Pen(Color.FromArgb(255,205,110),2))g.DrawLine(pen,at,y+rowHeight/2-8,at,y+rowHeight/2+8);}
         if(SelectionKeyframesOnly&&t!=SelectedTrack)return;
         foreach(var key in t.keyframes){if(key.frame<t.start||key.frame>t.end||SelectionKeyframesOnly&&MotionPresets.Generated(t,key.property)||property==null&&!SelectionKeyframesOnly&&IsExpanded(t)||property!=null&&key.property!=property)continue;float kx=X(key.frame);if(kx<Names-7||kx>width+7)continue;int ky=property==null?y+rowHeight-6:y+rowHeight/2;float size=property==null?3:5;
             var points=new[]{new PointF(kx,ky-size),new PointF(kx+size,ky),new PointF(kx,ky+size),new PointF(kx-size,ky)};using(var brush=new SolidBrush(SelectedKeys.Contains(key)?Color.White:Color.FromArgb(255,218,137)))g.FillPolygon(brush,points);if(SelectedKeys.Contains(key))using(var pen=new Pen(Theme.Accent))g.DrawPolygon(pen,points);
         }
+    }
+    private Rectangle EventLabelBounds(Track t,int y,int width,int rowHeight)
+    {
+        float x=X(t.start),end=X(t.end+1);bool span=EventCanStretch(t)&&t.end>t.start;
+        if(x-EventRadius>=width||(!span&&x+EventRadius<Names)||(span&&Math.Max(x+EventRadius,end)<Names))return Rectangle.Empty;
+        int left=(int)Math.Ceiling(Math.Max(Names+4,x+EventRadius+6)),right=width-4;
+        foreach(var other in State.tracks.Where(o=>o!=t&&o.kind!="native"&&!o.templateOnly&&o.lane==t.lane&&o.start>t.start)){
+            int candidate=(int)Math.Floor(X(other.start)-(EventMarker(other)?EventRadius+2:2));if(candidate>=right)continue;
+            var bounds=ClipBounds(other);if(bounds.IsEmpty||Math.Abs(bounds.Y-(y+3))>=1)continue;
+            right=candidate;if(right<=left)return Rectangle.Empty;
+        }
+        if(right<=left||String.IsNullOrEmpty(t.name))return Rectangle.Empty;
+        int measured=TextRenderer.MeasureText(t.name,Theme.Small,Size.Empty,TextFormatFlags.SingleLine|TextFormatFlags.NoPrefix).Width;
+        return new Rectangle(left,y+(rowHeight-20)/2,Math.Min(right-left,measured+2),20);
+    }
+    private void DrawEvent(Graphics g,Track t,int y,int width,int rowHeight,bool chosen,Color color,float x,float end)
+    {
+        float center=y+rowHeight/2f;
+        if(EventCanStretch(t)&&t.end>t.start)using(var pen=new Pen(Color.FromArgb(chosen?210:135,color),2)){g.DrawLine(pen,x,center,end,center);g.DrawLine(pen,end,center-5,end,center+5);}
+        var smoothing=g.SmoothingMode;g.SmoothingMode=SmoothingMode.AntiAlias;
+        using(var brush=new SolidBrush(Color.FromArgb(chosen?240:205,color)))g.FillEllipse(brush,x-EventRadius,center-EventRadius,EventRadius*2,EventRadius*2);
+        using(var pen=new Pen(chosen?Theme.Accent:Color.FromArgb(180,color),chosen?2:1))g.DrawEllipse(pen,x-EventRadius,center-EventRadius,EventRadius*2,EventRadius*2);g.SmoothingMode=smoothing;
+        var label=EventLabelBounds(t,y,width,rowHeight);if(!label.IsEmpty)Theme.Label(g,t.name,label,Color.White,Theme.Small,TimelineTextFlags,false);
+        if(t==hoverTrack&&hoverEdge!=null){float edge=hoverEdge=="left"?x-EventRadius:Math.Max(end,x+EventRadius+2);using(var pen=new Pen(Color.White,2)){g.DrawLine(pen,edge,center-7,edge,center+7);g.DrawLine(pen,edge-4,center,edge+4,center);}}
     }
     public RectangleF ClipBounds(Track track)
     {if(dragMode=="bar"&&dragChanged&&bars.ContainsKey(track))return DraggedBounds(track);int row=lanes.FindIndex(l=>l.clips!=null&&l.clips.Contains(track)||l.track==track&&(l.property==null||l.property=="@item"&&TimelineLayout.HasGeneration(track)));if(row<0){row=lanes.FindIndex(l=>l.track==track&&l.property=="@template");return row<0?RectangleF.Empty:TemplateCardBounds(lanes[row],Header+lanes[row].top-vertical.Value,Width-vertical.Width);}
@@ -230,7 +261,7 @@ internal sealed partial class TimelineCanvas : UserControl
             if(t!=null){if(e.X<27&&(lane.property==null||lane.property=="@item")){Expand(t,!IsExpanded(t));return;}if(lane.property!=null&&!lane.property.StartsWith("@"))SelectedProperty=lane.property;PickTrack(t,additive);}
             else if(lane!=null&&lane.clips!=null){SetTrackSelection(State.tracks.Where(item=>item.kind!="native"&&item.lane==lane.index));KeyboardPreviewNavigation=true;}return;
         }
-        else if(t!=null&&(lane.property==null||lane.property=="@item")&&e.X>=X(t.start)+9&&e.X<X(t.start)+25&&(!SelectionKeyframesOnly||TimelineLayout.HasGeneration(t))){PickTrack(t,additive);Expand(t,!IsExpanded(t));return;}
+        else if(t!=null&&!EventMarker(t)&&(lane.property==null||lane.property=="@item")&&e.X>=X(t.start)+9&&e.X<X(t.start)+25&&(!SelectionKeyframesOnly||TimelineLayout.HasGeneration(t))){PickTrack(t,additive);Expand(t,!IsExpanded(t));return;}
         else if(edge!=null){if(!SelectedTracks.Contains(t))PickTrack(t,additive);else{ClearKeySelection();NotifySelection(t,null);}PrepareBar(t,edge);}
         else if(key!=null){SelectedTracks.Clear();SelectedTracks.Add(t);if(additive&&SelectedKeys.Contains(key)){SelectedKeys.Remove(key);var remaining=SelectedKeys.FirstOrDefault();NotifySelection(remaining==null?t:Owner(remaining),remaining);return;}if(!SelectedKeys.Contains(key)){if(!additive)SelectedKeys.Clear();SelectedKeys.Add(key);}if(lane.property!=null)SelectedProperty=lane.property;NotifySelection(t,key);if(SelectionKeyframesOnly){if(Seek!=null)Seek(key.frame);if(EditKeyframes!=null)EditKeyframes(t);return;}dragTrack=t;dragKey=key;dragMode="key";groupFrames.Clear();foreach(var selected in SelectedKeys)groupFrames[selected]=selected.frame;keyDeltaBounds=KeyMoveBounds(groupFrames);}
         else if(t!=null&&lane.property==null){if(additive){if(!PickTrack(t,true))return;}else if(!SelectedTracks.Contains(t))PickTrack(t,false);else{ClearKeySelection();NotifySelection(t,null);}PrepareBar(t,"bar");}
@@ -247,10 +278,14 @@ internal sealed partial class TimelineCanvas : UserControl
     private Lane LaneAt(Point point)
     {
         int i=RowIndex(point.Y-Header+vertical.Value);if(point.Y<Header||i<0||i>=lanes.Count)return null;var lane=lanes[i];if(lane.clips==null||point.X<Names)return lane;
-        var inside=lane.clips.Where(item=>point.X>=X(item.start)&&point.X<=X(item.end+1)).ToArray();var t=inside.FirstOrDefault(item=>item==SelectedTrack)??inside.FirstOrDefault()??lane.clips.FirstOrDefault(item=>point.X>=X(item.start)-8&&point.X<=X(item.end+1)+8);return t==null?lane:new Lane{track=t,index=lane.index,stack=lane.stack,top=lane.top,height=lane.height};
+        var marker=lane.clips.Where(item=>EventMarker(item)&&Math.Abs(point.X-X(item.start))<=EventRadius+6).OrderBy(item=>Math.Abs(point.X-X(item.start))).ThenBy(item=>item==SelectedTrack?0:1).FirstOrDefault();
+        Func<Track,bool> eventEnd=item=>EventMarker(item)&&EventCanStretch(item)&&point.X>=X(item.start)+EventRadius&&Math.Abs(point.X-Math.Max(X(item.end+1),X(item.start)+EventRadius+2))<=3;
+        var inside=lane.clips.Where(item=>(!EventMarker(item)||EventCanStretch(item)&&item.end>item.start)&&point.X>=X(item.start)&&point.X<=X(item.end+1)).ToArray();int y=Header+lane.top-vertical.Value;
+        var t=marker??lane.clips.FirstOrDefault(item=>item==SelectedTrack&&eventEnd(item))??inside.FirstOrDefault(item=>item==SelectedTrack)??inside.FirstOrDefault()??lane.clips.FirstOrDefault(eventEnd)??lane.clips.FirstOrDefault(item=>EventMarker(item)&&EventLabelBounds(item,y,Width-vertical.Width,lane.height).Contains(point))??lane.clips.FirstOrDefault(item=>!EventMarker(item)&&point.X>=X(item.start)-8&&point.X<=X(item.end+1)+8);
+        return t==null?lane:new Lane{track=t,index=lane.index,stack=lane.stack,top=lane.top,height=lane.height};
     }
     private string EdgeAt(Lane lane,Point point)
-    {if(lane==null||lane.track==null||lane.track.kind=="native"||lane.property!=null&&lane.property!="@item"||point.X<Names)return null;double left=Math.Abs(point.X-X(lane.track.start)),right=Math.Abs(point.X-X(lane.track.end+1));if(Math.Min(left,right)>8)return null;return left<right?"left":"right";}
+    {if(lane==null||lane.track==null||lane.track.kind=="native"||lane.property!=null&&lane.property!="@item"||point.X<Names)return null;var t=lane.track;float x=X(t.start),end=X(t.end+1);if(EventMarker(t)){if(!EventCanStretch(t))return null;float right=Math.Max(end,x+EventRadius+2);if(point.X>=x+EventRadius&&Math.Abs(point.X-right)<=3)return "right";if(t.end>t.start&&point.X<=x-EventRadius+1&&Math.Abs(point.X-(x-EventRadius))<=4)return "left";return null;}double left=Math.Abs(point.X-x),distance=Math.Abs(point.X-end);if(Math.Min(left,distance)>8)return null;return left<distance?"left":"right";}
     private IEnumerable<NativeEvent> NativeEvents(Lane lane){if(State.nativeProject==null)return new NativeEvent[0];return State.nativeProject.events.Where(e=>lane.property==null||lane.property=="@gm:"+e.file);}
     private NativeEvent NativeAt(Lane lane,int x){return NativeEvents(lane).OrderBy(e=>Math.Abs(X(e.frame)-x)).FirstOrDefault(e=>Math.Abs(X(e.frame)-x)<8);}
     private Keyframe KeyAt(Lane lane,Point point)
@@ -259,7 +294,7 @@ internal sealed partial class TimelineCanvas : UserControl
     {
         dragTrack=track;dragMode=mode;bars.Clear();dragRowLanes=lanes.Select(l=>l.index).ToArray();dragRowTops=lanes.Select(l=>l.top).ToArray();dragRowHeights=lanes.Select(l=>l.height).ToArray();dragLaneCount=State.laneCount;
         dragVisualRow=Math.Max(0,lanes.FindIndex(l=>l.track==track&&(l.property==null||l.property=="@item")||l.clips!=null&&l.clips.Contains(track)));
-        foreach(var t in mode=="bar"?ExpandedSelection():SelectedTracks){int row=lanes.FindIndex(l=>l.track==t&&(l.property==null||l.property=="@item")||l.clips!=null&&l.clips.Contains(t));bars[t]=new BarState{start=t.start,end=t.end,lane=t.lane,release=t.releaseFrame,clockStart=t.clockStart,clockEnd=t.clockEnd,preset=t.motionPreset==null?null:t.motionPreset.Snapshot(),top=row<0?lanes[dragVisualRow].top:lanes[row].top,height=row<0?Row:lanes[row].height,keys=t.keyframes.ToDictionary(k=>k,k=>k.frame)};}
+        foreach(var t in mode=="bar"?ExpandedSelection():SelectedTracks){int row=lanes.FindIndex(l=>l.track==t&&(l.property==null||l.property=="@item")||l.clips!=null&&l.clips.Contains(t));bars[t]=new BarState{start=t.start,end=t.end,lane=t.lane,release=t.releaseFrame,clockStart=t.clockStart,clockEnd=t.clockEnd,preset=t.motionPreset==null?null:t.motionPreset.Snapshot(),camera=t.cameraPreset==null?null:t.cameraPreset.Snapshot(),top=row<0?lanes[dragVisualRow].top:lanes[row].top,height=row<0?Row:lanes[row].height,keys=t.keyframes.ToDictionary(k=>k,k=>k.frame)};}
     }
     private RectangleF DraggedBounds(Track track)
     {var b=bars[track];int top=dragVisualRow<dragRowTops.Length?dragRowTops[dragVisualRow]:dragRowTops.Last()+dragRowHeights.Last()+Row*(dragVisualRow-dragRowTops.Length);return new RectangleF(X(track.start),Header+top+b.top-bars[dragTrack].top-vertical.Value+3,Math.Max(5,X(track.end+1)-X(track.start)),b.height-6);}
@@ -284,12 +319,15 @@ internal sealed partial class TimelineCanvas : UserControl
     private void UpdateBox(Point point)
     {
         boxEnd=ContentPoint(point);var rect=BoxRectangle();SelectedKeys.Clear();SelectedKeys.UnionWith(boxInitial);if(boxTracks){SelectedTracks.Clear();SelectedTracks.UnionWith(boxTrackInitial);}
-        for(int i=0;i<lanes.Count;i++){var lane=lanes[i];float y=lane.top+lane.height/2;if(y<rect.Top||y>rect.Bottom)continue;
-            if(boxTracks){if(lane.clips!=null)foreach(var t in lane.clips)if(t.start/(float)State.fps*PixelsPerSecond<=rect.Right&&t.end/(float)State.fps*PixelsPerSecond>=rect.Left)SelectedTracks.Add(t);if(lane.property=="@item"&&lane.track.start/(float)State.fps*PixelsPerSecond<=rect.Right&&lane.track.end/(float)State.fps*PixelsPerSecond>=rect.Left)SelectedTracks.Add(lane.track);continue;}
+        for(int i=0;i<lanes.Count;i++){var lane=lanes[i];float y=lane.top+lane.height/2;bool centerInside=y>=rect.Top&&y<=rect.Bottom;
+            if(boxTracks){if(lane.clips!=null)foreach(var t in lane.clips)if((centerInside||EventMarker(t)&&y+EventRadius>=rect.Top&&y-EventRadius<=rect.Bottom)&&BoxIntersects(t,rect))SelectedTracks.Add(t);if(centerInside&&lane.property=="@item"&&BoxIntersects(lane.track,rect))SelectedTracks.Add(lane.track);continue;}
+            if(!centerInside)continue;
             if(lane.track==null||lane.track.kind=="native"||lane.property==null||lane.property.StartsWith("@"))continue;
             foreach(var key in lane.track.keyframes){if(key.property!=lane.property||MotionPresets.Generated(lane.track,key.property)||key.frame<lane.track.start||key.frame>lane.track.end)continue;float x=key.frame/(float)State.fps*PixelsPerSecond;if(x>=rect.Left&&x<=rect.Right)SelectedKeys.Add(key);}
         }Invalidate();
     }
+    private bool BoxIntersects(Track track,RectangleF bounds)
+    {float left=track.start/(float)State.fps*PixelsPerSecond,right=(EventMarker(track)&&!EventCanStretch(track)?track.start:track.end)/(float)State.fps*PixelsPerSecond;if(EventMarker(track)){left-=EventRadius;right+=EventRadius;}return left<=bounds.Right&&right>=bounds.Left;}
     protected override void OnMouseDoubleClick(MouseEventArgs e)
     {
         base.OnMouseDoubleClick(e);if(State==null)return;string boundary=HeightBoundary(e.Location);if(boundary!=null){if(boundary=="@audio")SetAudioHeight(audioDisplay=="spectrogram"?180:50);else SetRowHeight(boundary,Row);return;}if(e.X<Names||e.Y<Header)return;var lane=LaneAt(e.Location);if(lane==null||lane.track==null)return;
@@ -316,7 +354,7 @@ internal sealed partial class TimelineCanvas : UserControl
         if(!dragChanged&&Math.Abs(e.X-dragStart.X)+Math.Abs(e.Y-dragStart.Y)<3)return;
         if(!dragChanged){if(BeginEdit!=null)BeginEdit();dragChanged=true;}
         int delta=(int)Math.Round((e.X+horizontal.Value-dragStartX)/PixelsPerSecond*State.fps);
-        if(bars.Count>0){if(dragMode=="bar"){dragVisualRow=DragRow(e.Y);int target=dragVisualRow<dragRowLanes.Length?dragRowLanes[dragVisualRow]:dragLaneCount+dragVisualRow-dragRowLanes.Length;if(target>=0){int laneDelta=Math.Max(-bars.Values.Min(v=>v.lane),Math.Min(199-bars.Values.Max(v=>v.lane),target-bars[dragTrack].lane));foreach(var pair in bars)pair.Key.lane=pair.Value.lane+laneDelta;}}delta=SnapClipDelta(delta,dragMode);}
+        if(bars.Count>0){if(dragMode=="bar"){dragVisualRow=DragRow(e.Y);int target=dragVisualRow<dragRowLanes.Length?dragRowLanes[dragVisualRow]:dragLaneCount+dragVisualRow-dragRowLanes.Length;if(target>=0){int laneDelta=Math.Max(-bars.Values.Min(v=>v.lane),target-bars[dragTrack].lane);foreach(var pair in bars)pair.Key.lane=pair.Value.lane+laneDelta;}}delta=SnapClipDelta(delta,dragMode);}
         if(dragMode=="key")
         {delta=Math.Max(keyDeltaBounds.X,Math.Min(keyDeltaBounds.Y,delta));foreach(var pair in groupFrames)pair.Key.frame=pair.Value+delta;if(Seek!=null)Seek(dragKey.frame);}
         else if(bars.Count>0)
@@ -326,10 +364,10 @@ internal sealed partial class TimelineCanvas : UserControl
             else if(dragMode=="left")delta=Math.Max(-bars.Values.Min(v=>v.start),Math.Min(bars.Values.Min(v=>v.end-v.start),delta));
             else delta=Math.Max(bars.Values.Max(v=>v.start-v.end),Math.Min(State.duration-bars.Values.Max(v=>v.end),delta));
             foreach(var pair in bars)
-            {var t=pair.Key;var v=pair.Value;t.start=v.start+(dragMode=="right"?0:delta);t.end=v.end+(dragMode=="left"?0:delta);if(dragMode=="bar"){foreach(var k in v.keys)k.Key.frame=k.Value+delta;if(v.release>=0)t.releaseFrame=v.release+delta;t.clockStart=v.clockStart.HasValue?v.clockStart+delta:null;t.clockEnd=v.clockEnd.HasValue?v.clockEnd+delta:null;if(v.preset!=null){t.motionPreset=v.preset.Snapshot();MotionPresets.Shift(t,delta);}}}
+            {var t=pair.Key;var v=pair.Value;t.start=v.start+(dragMode=="right"?0:delta);t.end=v.end+(dragMode=="left"?0:delta);if(dragMode=="bar"){foreach(var k in v.keys)k.Key.frame=k.Value+delta;if(v.release>=0)t.releaseFrame=v.release+delta;t.clockStart=v.clockStart.HasValue?v.clockStart+delta:null;t.clockEnd=v.clockEnd.HasValue?v.clockEnd+delta:null;if(v.preset!=null)t.motionPreset=v.preset.Snapshot();if(v.camera!=null)t.cameraPreset=v.camera.Snapshot();if(v.preset!=null||v.camera!=null)MotionPresets.Shift(t,delta);}}
         }
         if(dragMode=="bar"&&bars.Count>0){int row=DragRow(e.Y),target=row<dragRowLanes.Length?dragRowLanes[row]:dragLaneCount+row-dragRowLanes.Length;
-            if(target>=0){int laneDelta=target-bars[dragTrack].lane;laneDelta=Math.Max(-bars.Values.Min(v=>v.lane),Math.Min(199-bars.Values.Max(v=>v.lane),laneDelta));foreach(var pair in bars)pair.Key.lane=pair.Value.lane+laneDelta;ActiveLane=dragTrack.lane;State.laneCount=Math.Max(State.laneCount,bars.Keys.Max(t=>t.lane)+1);}RefreshLayout();}
+            if(target>=0){int laneDelta=target-bars[dragTrack].lane;laneDelta=Math.Max(-bars.Values.Min(v=>v.lane),laneDelta);foreach(var pair in bars)pair.Key.lane=pair.Value.lane+laneDelta;ActiveLane=dragTrack.lane;State.laneCount=Math.Max(State.laneCount,bars.Keys.Max(t=>t.lane)+1);}RefreshLayout();}
         if(PreviewChanged!=null)PreviewChanged();Invalidate();
     }
     protected override void OnMouseUp(MouseEventArgs e)

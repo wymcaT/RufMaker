@@ -22,8 +22,8 @@ internal static class CopyGeneration
         }else for(int layer=1;layer<=a.copyCount;layer++){double distance=layer*a.copySpacingX;if(a.copyUp)add(0,-distance);if(a.copyDown)add(0,distance);if(a.copyLeft)add(-distance,0);if(a.copyRight)add(distance,0);}
         if(points.Count>300)throw new ArgumentException("每轮最多复制300个物件，请减少复制数量。");for(int i=0;i<points.Count;i++){points[i].index=i;points[i].count=points.Count;}return points;
     }
-    public static double Rotation(BulletAction a,CopyPlacement p,double heading,double anchorAngle)
-    {return a.copyFacing=="keep"?heading+a.copyFacingAngle-anchorAngle:a.copyFacing=="fixed"?a.copyFacingAngle-anchorAngle:p.angle+(a.copyFacing=="inward"?180:a.copyFacing=="tangent"?90:0)+a.copyFacingAngle-anchorAngle;}
+    public static double Rotation(BulletAction a,CopyPlacement p,double heading,double anchorAngle,Track source=null,int frame=0,bool worldTime=false)
+    {var context=source==null?null:ExpressionContext.For(source,frame,worldTime);if(context!=null){context.i=p.index;context.n=p.count;context.direction=heading;}double offset=source==null?a.copyFacingAngle:ScalarExpressions.ActionValue(source,a,"copyFacingAngle",context);return a.copyFacing=="keep"?heading+offset-anchorAngle:a.copyFacing=="fixed"?offset-anchorAngle:p.angle+(a.copyFacing=="inward"?180:a.copyFacing=="tangent"?90:0)+offset-anchorAngle;}
     public static Color? Tint(BulletAction a,CopyPlacement p)
     {return a.copyColorMode=="fixed"?(Color?)Motion.ColorOf(a.copyColor):a.copyColorMode=="rainbow"?(Color?)SpawnColors.Hue(a.copyHue+360*p.index/(double)Math.Max(1,p.count)*a.copyColorDensity):null;}
     public static List<CopyPlacement> LivePlacements(BulletAction a,RoomData room)
@@ -43,7 +43,7 @@ internal static class CopyGeneration
     public static BulletAction Apply(EditorState state,Track source)
     {
         var graph=new List<Track>{source};bool more;do{more=false;foreach(var t in state.tracks)if(graph.Any(p=>p.id==t.parentId)&&!graph.Contains(t)){graph.Add(t);more=true;}}while(more);
-        if(state.tracks.Count+graph.Count>200)throw new ArgumentException("复制模板会超过工程200个物件的上限。");var clones=BulletSystem.CloneTracks(graph);var target=clones[0];target.parentId="";target.templateOnly=true;target.name="模板 · 复制 · "+source.name;
+        var clones=BulletSystem.CloneTracks(graph);var target=clones[0];target.parentId="";target.templateOnly=true;target.name="模板 · 复制 · "+source.name;
         state.tracks.AddRange(clones);
         var action=new BulletAction{type="spawn",generationPreset=Key,templateId=target.id,spawnRepeat=Math.Max(1,state.fps),maxGeneration=4,inheritAppearance=source.kind!="group",inheritScale=true};source.spawnActions.Add(action);source.advancedBullets=true;RandomParameters.Attach(state);return action;
     }
@@ -60,7 +60,7 @@ internal static class CopyGeneration
             field("网格宽度 / 像素",typeof(double),()=>a.copyWidth,(target,v)=>target.copyWidth=Math.Max(0,(double)v),null);field("网格高度 / 像素",typeof(double),()=>a.copyHeight,(target,v)=>target.copyHeight=Math.Max(0,(double)v),null);field("网格旋转 / 度",typeof(double),()=>a.copyAngle,(target,v)=>target.copyAngle=(double)v,null);
         }else{field("圆周复制数量",typeof(int),()=>a.copyCount,(target,v)=>target.copyCount=Math.Max(1,Math.Min(300,(int)v)),null);field("圆周复制半径",typeof(double),()=>a.copyRadius,(target,v)=>target.copyRadius=Math.Max(0,(double)v),null);field("圆周起始角 / 度",typeof(double),()=>a.copyAngle,(target,v)=>target.copyAngle=(double)v,null);}
         field("包含中心格点",typeof(bool),()=>a.copyCenter,(target,v)=>target.copyCenter=(bool)v,null);
-        field("副本朝向",typeof(string),()=>FacingNames[Math.Max(0,Array.IndexOf(Facings,a.copyFacing))],(target,v)=>target.copyFacing=Facings[Array.IndexOf(FacingNames,(string)v)],FacingNames);field("副本朝向偏移 / 度",typeof(double),()=>a.copyFacingAngle,(target,v)=>target.copyFacingAngle=(double)v,null);
+        field("副本朝向",typeof(string),()=>FacingNames[Math.Max(0,Array.IndexOf(Facings,a.copyFacing))],(target,v)=>target.copyFacing=Facings[Array.IndexOf(FacingNames,(string)v)],FacingNames);ScalarExpressions.ActionField(bag,state,source,a,"copyFacingAngle","副本朝向偏移 / 度","复制obj",edit);
         field("副本配色",typeof(string),()=>ColorNames[Math.Max(0,Array.IndexOf(Colors,a.copyColorMode))],(target,v)=>target.copyColorMode=Colors[Array.IndexOf(ColorNames,(string)v)],ColorNames);
         if(a.copyColorMode=="fixed")field("副本固定颜色",typeof(Color),()=>Motion.ColorOf(a.copyColor),(target,v)=>{var color=(Color)v;target.copyColor=String.Format("#{0:X2}{1:X2}{2:X2}",color.R,color.G,color.B);},null);
         if(a.copyColorMode=="rainbow"){field("副本彩虹起始色相",typeof(double),()=>a.copyHue,(target,v)=>target.copyHue=(double)v,null);field("副本彩虹颜色密度",typeof(double),()=>a.copyColorDensity,(target,v)=>target.copyColorDensity=(double)v,null);}

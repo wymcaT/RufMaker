@@ -1,8 +1,27 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {evaluateExpression,isDynamic,expressionScripts,expressionCall,parameterCode,randomInitialization} from './random-parameters.mjs';
+import {evaluateExpression,isDynamic,expressionScripts,expressionCall,parameterCode,randomInitialization,playerAt,expressionContext} from './random-parameters.mjs';
 import {normalizeState,valueAt,stateCode} from './motion.mjs';
 import {bulletFlightGml,flightSpawn} from './bullet-flight.mjs';
+import {bulletSystemScripts} from './bullet-system.mjs';
+
+test('player expressions sample the enabled trace at the current song frame',()=>{
+  const t={id:'trace-aim',kind:'emitter',start:0,end:50,x:200,y:180,expressions:{angle:'point_direction(x,y,player.x,player.y)'},keyframes:[]};
+  const state=normalizeState({version:2,fps:50,duration:100,nativeTest:{x:400,y:304},usePlayerTrace:true,playerTrace:[{frame:0,x:600,y:100},{frame:10,x:100,y:500},{frame:20,x:700,y:300}],tracks:[t]});
+  for(const frame of [0,3,5,10,15,20]){const player=playerAt(state,frame);assert.equal(expressionContext(t,frame)['player.x'],player.x);assert.equal(expressionContext(t,frame)['player.y'],player.y);assert.ok(Math.abs(valueAt(t,'angle',frame)-evaluateExpression('point_direction(200,180,player.x,player.y)',1,'expected',{'player.x':player.x,'player.y':player.y}))<1e-9);}
+  assert.deepEqual(playerAt(state,5),{x:350,y:300});assert.deepEqual(playerAt(state,25),state.nativeTest);state.usePlayerTrace=false;assert.deepEqual(playerAt(state,10),state.nativeTest);
+});
+
+test('aimed emission samples live player again at the actual birth of a delayed bullet',()=>{
+  const state=normalizeState({version:2,fps:50,duration:100,tracks:[{id:'delayed-aim',kind:'emitter',start:0,end:20,advancedBullets:true,indexDelay:3,emissionFacing:'aim',keyframes:[]}]});
+  const scripts=Object.fromEntries(bulletSystemScripts(state));assert.match(scripts.rf_pattern_spawn,/rf_result\.rf_birth_aim=1/);assert.match(scripts.rf_pattern_tick,/if rf_age=0 && rf_birth_aim/);assert.match(scripts.rf_pattern_tick,/rf_dir=point_direction\(x,y,rf_expression_player\(0\),rf_expression_player\(1\)\)\+rf_aim_offset/);
+  const lookup=Object.fromEntries(expressionScripts(state,['player'])).rf_expression_player;assert.match(lookup,/return rf_p\.x;return rf_p\.y/);
+});
+
+test('single age aim applies the target offset at its trigger even with a nonzero duration',()=>{
+  const state=normalizeState({version:2,fps:50,duration:100,tracks:[{id:'age-aim',kind:'emitter',start:0,end:0,advancedBullets:true,keyframes:[],bulletActions:[{type:'aim',start:10,duration:30,from:0,to:3}]}]});
+  const code=Object.fromEntries(bulletSystemScripts(state)).rf_pattern_tick;assert.match(code,/rf_value=3;if rf_at=0 \{rf_dir=point_direction\(x,y,rf_expression_player\(0\),rf_expression_player\(1\)\)\+rf_value;/);
+});
 
 test('player coordinates, geometry, degree directions and bounded turning',()=>{
   const context={'player.x':400,'player.y':304,x:400,y:404,frame:50,fps:50};

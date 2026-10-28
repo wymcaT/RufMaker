@@ -16,6 +16,8 @@ internal static class TimelineEditing
     private static string Stamp(IEnumerable<Keyframe> keys,int origin)
     {uint hash=2166136261;foreach(var k in keys.OrderBy(k=>k.frame).ThenBy(k=>k.property)){string s=(k.frame-origin)+"|"+k.property+"|"+k.value.ToString("R",CultureInfo.InvariantCulture)+"|"+k.easing+"|"+k.expression+"|"+k.randomId;foreach(char c in s){hash^=c;hash*=16777619;}}return hash.ToString("X8");}
     private static bool Dense(Track t){return (t.kind=="camera"||t.kind=="effect")&&t.keyframes.GroupBy(k=>k.property).Any(g=>g.Count()>=8);}
+    public static void RemoveControlledCycleKeys(Track t)
+    {if(t.keyframeCycle==null)return;if(t.keyframeCycle.keys.RemoveAll(k=>MotionPresets.Generated(t,k.property))>0){if(t.keyframeCycle.keys.Count==0)t.keyframeCycle=null;else t.keyframeCycle.stamp="";}}
     private static Keyframe Sample(Track track,IEnumerable<Keyframe> source,string property,int at)
     {var keys=source.Where(k=>k.property==property).OrderBy(k=>k.frame).ToArray();var before=keys.LastOrDefault(k=>k.frame<=at)??keys[0];var after=keys.FirstOrDefault(k=>k.frame>=at)??keys[keys.Length-1];double u=after.frame==before.frame?0:Motion.Ease(String.IsNullOrEmpty(before.easing)?track.easing:before.easing,(at-before.frame)/(double)(after.frame-before.frame),track.easePower,track.easePeriod);var key=before.Snapshot();key.frame=at;key.value=before.value+(after.value-before.value)*u;key.expression="";return key;}
     private static KeyframeCycle Capture(Track track,int start,int end)
@@ -28,6 +30,7 @@ internal static class TimelineEditing
         if(bound)t.keyframes.RemoveAll(k=>MotionPresets.Generated(t,k.property));
         ResizeKeys(t,oldStart,oldEnd,start,end,mode);
         if(bound){t.motionPreset.start=t.start;t.motionPreset.end=t.end;MotionPresets.Bake(t);}
+        CameraPresets.FitRange(t);
     }
     private static void ResizeKeys(Track t,int oldStart,int oldEnd,int start,int end,string mode)
     {
@@ -48,11 +51,11 @@ internal static class TimelineEditing
     private static string Class(Track t){return t.kind=="control"?(EventPresets.IsEvent(t)?"01事件":"02控制/"+t.controlAction):t.kind=="variable"?"00变量":t.kind=="camera"?"03拉镜":t.kind=="effect"?"04特效/"+t.effect:t.kind=="script"?"05脚本":t.kind=="group"?"06分组":t.kind=="emitter"?"07发射器/"+t.emissionShape+"/"+t.flightMode:t.kind=="rod"?"08整体/"+t.shape:"09对象";}
     public static void Organize(EditorState state)
     {
-        state.preserveTrackOrder=true;var bound=TimelineLayout.BoundTemplates(state);var visible=state.tracks.Where(t=>t.kind!="native"&&!bound.Contains(t.id)).ToList();int lane=0;
-        foreach(var category in visible.GroupBy(t=>Class(t)).OrderBy(g=>g.Key,StringComparer.Ordinal)){
+        state.preserveTrackOrder=true;var oldGroups=state.tracks.ToDictionary(t=>t.id,t=>TimelineGroups.At(state,t.lane));var bound=TimelineLayout.BoundTemplates(state);var visible=state.tracks.Where(t=>t.kind!="native"&&!bound.Contains(t.id)).ToList();int lane=0;
+        foreach(var category in visible.GroupBy(t=>TimelineGroups.Id(t)+"|"+Class(t)).OrderBy(g=>g.Key,StringComparer.Ordinal)){
             var ends=new List<int>();int first=lane;foreach(var t in category.OrderBy(t=>t.start).ThenBy(t=>t.end)){int at=ends.FindIndex(end=>end<t.start);if(at<0){at=ends.Count;ends.Add(t.end);}else ends[at]=t.end;t.lane=first+at;}lane+=ends.Count;
         }
-        foreach(var t in state.tracks.Where(t=>bound.Contains(t.id))){var owners=TimelineLayout.TemplateDisplayLanes(state,t);if(owners.Length>0)t.lane=owners[0];}state.laneCount=Math.Max(1,lane);
+        foreach(var t in state.tracks.Where(t=>bound.Contains(t.id))){var owners=TimelineLayout.TemplateDisplayLanes(state,t);if(owners.Length>0)t.lane=owners[0];}foreach(var g in state.timelineGroups)g.lanes=visible.Where(t=>oldGroups[t.id]==g).Select(t=>t.lane).Distinct().ToList();state.laneCount=Math.Max(1,lane);
     }
 }
 internal sealed partial class MainForm

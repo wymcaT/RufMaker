@@ -45,9 +45,12 @@ internal static class BulletLifetime
 }
 internal sealed partial class MainForm
 {
+    private void LifetimeModeField(NativeProperties bag,Track t,string category,string label="寿命模式")
+    {Field(bag,label,category,()=>BulletLifetime.ModeNames[Array.IndexOf(BulletLifetime.Modes,BulletLifetime.Mode(t))],value=>{t.lifetimeMode=BulletLifetime.Modes[Array.IndexOf(BulletLifetime.ModeNames,value)];QueueInspectorUpdate();},BulletLifetime.ModeNames,"固定寿命按帧；出屏幕按房间边界；出视野按当前游戏镜头。出界模式不受固定寿命限制，出生即在外也会销毁。");}
     private void LifetimeFields(NativeProperties bag,Track t)
     {
-        Field(bag,"寿命模式","弹幕寿命",()=>BulletLifetime.ModeNames[Array.IndexOf(BulletLifetime.Modes,BulletLifetime.Mode(t))],value=>{t.lifetimeMode=BulletLifetime.Modes[Array.IndexOf(BulletLifetime.ModeNames,value)];QueueInspectorUpdate();},BulletLifetime.ModeNames,"用于发射后的弹幕与释放后的成员。出屏幕按房间边界；出视野按游戏镜头。边界按弹幕中心判断，出生即在外也会触发。");
+        LifetimeModeField(bag,t,"弹幕寿命");
+        if(t.kind=="rod"&&BulletLifetime.Mode(t)=="fixed")Field(bag,"释放后寿命 / 帧","弹幕寿命",()=>t.life,value=>t.life=Math.Max(1,value));
         if(BulletLifetime.Mode(t)!="fixed")Field(bag,"出界余量 / 像素","弹幕寿命",()=>t.despawnMargin,value=>t.despawnMargin=value,null,"正值放宽边界；负值提前在范围内触发，可让销毁过渡在画面内可见。出界模式不受固定寿命限制。");
         Field(bag,"销毁过渡","弹幕寿命",()=>BulletLifetime.EffectNames[Array.IndexOf(BulletLifetime.Effects,BulletLifetime.Effect(t))],value=>{t.deathEffect=BulletLifetime.Effects[Array.IndexOf(BulletLifetime.EffectNames,value)];QueueInspectorUpdate();},BulletLifetime.EffectNames,"固定寿命在结束前播放过渡；出界或销毁行为触发后播放过渡，结束才移除。触发销毁后不再碰撞或继续生成。");
         if(BulletLifetime.Effect(t)!="none")Field(bag,"过渡帧数","弹幕寿命",()=>t.deathFrames,value=>t.deathFrames=Math.Max(0,value));

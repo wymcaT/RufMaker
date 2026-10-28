@@ -27,7 +27,7 @@ internal static class TimelineLayout
                 }
             }
         }
-        if(result.Count>200)return false;state.tracks=result;return true;
+        state.tracks=result;return true;
     }
     public static void Normalize(EditorState state)
     {
@@ -47,7 +47,7 @@ internal static class TimelineLayout
         var placed=new Dictionary<int,List<Track>>();int moved=0;
         foreach(var t in ordered){int lane=t.lane;List<Track> rows;
             Func<int,bool> free=n=>!placed.TryGetValue(n,out rows)||!rows.Any(other=>t.start<=other.end&&other.start<=t.end);
-            if(!free(lane)){lane=0;while(!free(lane))lane++;t.lane=lane;moved++;}
+            if(!free(lane)){var group=TimelineGroups.At(state,lane);lane=0;while(lane<state.laneCount&&(!free(lane)||TimelineGroups.At(state,lane)!=group))lane++;while(!free(lane))lane++;if(group!=null&&!group.lanes.Contains(lane))group.lanes.Add(lane);t.lane=lane;moved++;}
             if(!placed.TryGetValue(lane,out rows)){rows=new List<Track>();placed.Add(lane,rows);}rows.Add(t);
         }
         // Changing lane numbers must not reorder execution, seeded randomness or drawing.

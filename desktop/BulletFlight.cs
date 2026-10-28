@@ -9,7 +9,7 @@ internal static class BulletFlight
     {
         double turn=Motion.Value(t,"turnRate",birth),delay=Motion.Value(t,"homingDelay",birth);var points=new FlightPoint[age+1];points[0]=new FlightPoint{x=x,y=y,angle=angle};
         for(int at=1;at<=age;at++){
-            if(at>delay){double target=ExpressionContext.Direction(x,y,t.expressionPlayerX,t.expressionPlayerY);
+            if(at>delay){var player=ExpressionContext.PlayerAt(t,birth+at);double target=ExpressionContext.Direction(x,y,player.x,player.y);
                 if(t.flightMode=="aim")angle=target;
                 else if(t.flightMode=="turn")angle=ExpressionContext.Turn(angle,target,turn);
                 else if(t.flightMode=="expression"){var context=ExpressionContext.For(t,birth+at);context.x=x;context.y=y;context.age=at;context.direction=angle;context.speed=speed;angle=RandomExpression.Evaluate("("+t.flightExpression+")+0*frame",t.expressionSeed,t.randomId+"|flight|base",context);}}

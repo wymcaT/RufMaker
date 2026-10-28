@@ -56,8 +56,8 @@ internal sealed partial class TimelineCanvas
         using(var brush=new SolidBrush(chosen?Color.FromArgb(57,48,71):Theme.Raised))g.FillRectangle(brush,rect);
         using(var pen=new Pen(chosen?Theme.Accent:accent))g.DrawRectangle(pen,rect);
         string arrow=TimelineLayout.HasGeneration(lane.track)||lane.track.keyframes.Count>0?(IsExpanded(lane.track)?"▾ ":"▸ "):"▣ ";
-        Theme.Label(g,arrow+Language.Text("模板")+" · "+lane.track.name,new Rectangle(rect.X+10,rect.Y+3,rect.Width-20,21),Theme.Text,Theme.Bold,localize:false);
-        Theme.Label(g,TemplateSummary(lane.track),new Rectangle(rect.X+10,rect.Y+25,rect.Width-20,18),Theme.Muted,Theme.Small,localize:false);
+        Theme.Label(g,arrow+Language.Text("模板")+" · "+lane.track.name,new Rectangle(rect.X+10,rect.Y+3,rect.Width-20,21),Theme.Text,Theme.Bold,TimelineTextFlags,false);
+        Theme.Label(g,TemplateSummary(lane.track),new Rectangle(rect.X+10,rect.Y+25,rect.Width-20,18),Theme.Muted,Theme.Small,TimelineTextFlags,false);
         if(SelectionKeyframesOnly&&SelectedTrack==lane.track)foreach(var key in lane.track.keyframes.Where(k=>k.frame>=lane.track.start&&k.frame<=lane.track.end&&!MotionPresets.Generated(lane.track,k.property))){float x=rect.X+12+(rect.Width-24)*(key.frame-lane.track.start)/(float)Math.Max(1,lane.track.end-lane.track.start),yKey=rect.Bottom-3;using(var brush=new SolidBrush(SelectedKeys.Contains(key)?Color.White:Color.FromArgb(255,218,137)))g.FillPolygon(brush,new[]{new PointF(x,yKey-2),new PointF(x+2,yKey),new PointF(x,yKey+2),new PointF(x-2,yKey)});}
     }
     private void SelectTemplateCard(Lane lane,bool edit)

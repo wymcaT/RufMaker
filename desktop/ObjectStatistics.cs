@@ -20,7 +20,7 @@ internal static class ObjectStatistics
         else {result.roomEstimate=true;foreach(var instance in room.instances){if(instance.name.StartsWith("objRuf",StringComparison.Ordinal))continue;result.Type(instance.name=="playerStart"?"player":instance.name,1);}}
         bool layers=!imported||state.tracks.Any(t=>t.kind!="native");if(layers){result.Type("objRufController",1);result.Type("objRufTrails",1);if(!imported&&state.tracks.Any(t=>t.enabled&&(t.kind=="effect"||t.kind=="camera"))){result.Type("objRufFxBegin",1);result.Type("objRufFxEnd",1);}}
         var world=cache.bulletWorld;
-        if(world!=null&&world.Frame==frame){foreach(var b in world.bullets.Where(b=>!b.dead)){result.Type("objRufBullet",1);result.Source(b.source,1);}result.Type("objRufTemplate",world.Templates.InstanceCount);}
+        if(world!=null&&world.Frame==frame){var names=new Dictionary<string,Track>();foreach(var item in state.tracks)names[item.id]=item;foreach(var b in world.bullets.Where(b=>!b.dead)){Track current;result.Type("objRufBullet",1);result.Source(names.TryGetValue(b.source.id,out current)?current:b.source,1);}result.Type("objRufTemplate",world.Templates.InstanceCount);}
         foreach(var t in state.tracks)
         {
             bool visible=BulletSystem.Active(t,frame)&&(world==null||world.Templates.Visible(t));

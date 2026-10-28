@@ -83,7 +83,8 @@ internal sealed partial class MainForm
         var timing=new ToolStripMenuItem("工程时长");AddMenu(timing,Command("工程设置…",OpenProjectSettings),Command("增加 60 秒",()=>ChangeDuration(state==null?60:state.duration/(double)state.fps+60)),Command("按音乐长度",()=>{if(document!=null)ChangeDuration(document.waveform.duration);}));
         AddMenu(project,Command("工程设置…",OpenProjectSettings),timing,Command("在 GameMaker 中打开",async()=>{try{if(!await EnsureEngine())return;await SaveNow(false);await bridge.Call<object>("open-native",new{});}catch(Exception error){Error(error);}}),Command("同步并重新读取",async()=>{if(await SaveNow(false))await LoadProject();}),Command("原生底片管理…",ShowFilmManager));
         var language=new ToolStripMenuItem("切换语言");AddMenu(language,Command("简体中文",()=>ChangeShellLanguage("zh-CN")),Command("English",()=>ChangeShellLanguage("en")));
-        AddMenu(tools,Command("重新随机",RerollRandom),Command("引擎设置…",async()=>await ConfigureEngine()),language);
+        var undoMemory=new ToolStripMenuItem("撤销内存预算");foreach(int size in new[]{32,64,128,256}){int value=size;var choice=new ToolStripMenuItem(size+" MiB"){Checked=history.LimitBytes==size*1024L*1024};choice.Click+=(s,e)=>{history.LimitBytes=value*1024L*1024;foreach(ToolStripMenuItem item in undoMemory.DropDownItems)item.Checked=item==choice;SaveWorkspaceView();SetStatus(Language.Text("撤销内存预算已更新；超出预算时淘汰最早的历史。"));};undoMemory.DropDownItems.Add(choice);}
+        AddMenu(tools,Command("重新随机",RerollRandom),Command("引擎设置…",async()=>await ConfigureEngine()),language,undoMemory);
         AddMenu(help,Command("使用教程",()=>OpenLocalReadme()),Command("检测更新",async()=>await CheckUpdates()),Command("关于 RufMaker",()=>Language.Message(this,"RufMaker "+AppVersion.Current+"\r\nWindows · GameMaker 8.2","RufMaker")));
         mainTools=NewStrip("MainTools");var add=new ToolStripDropDownButton("＋ 添加"){ForeColor=Theme.Text,Padding=new Padding(9,3,9,3)};FillAddMenu(add);mainTools.Items.Add(add);shellUndo=Tool("撤销",()=>Undo(false));shellRedo=Tool("重做",()=>Undo(true));mainTools.Items.Add(shellUndo);mainTools.Items.Add(shellRedo);mainTools.Items.Add(new ToolStripSeparator());shellProject=new ToolStripLabel("RufMaker"){ForeColor=Theme.Muted,AutoSize=false,Width=320,TextAlign=ContentAlignment.MiddleLeft,Overflow=ToolStripItemOverflow.Never};Language.PreserveText(shellProject);mainTools.Items.Add(shellProject);
         runButton=Button("试玩 F5",async()=>await RunGame(),false,100);exportButton=Button("导出游戏",async()=>await ExportGame(),true,100);var export=Host(exportButton,Math.Max(110,exportButton.MinimumSize.Width));export.Alignment=ToolStripItemAlignment.Right;export.Overflow=ToolStripItemOverflow.Never;mainTools.Items.Add(export);var run=Host(runButton,Math.Max(110,runButton.MinimumSize.Width));run.Alignment=ToolStripItemAlignment.Right;run.Overflow=ToolStripItemOverflow.Never;mainTools.Items.Add(run);mainTools.Resize+=(s,e)=>shellProject.Width=Math.Max(80,Math.Min(420,mainTools.Width-570));layout.Controls.Add(mainTools,0,1);
@@ -159,6 +160,7 @@ internal sealed partial class MainForm
     }
     private static string ParameterCategory(Track track,string property)
     {
+        if(property=="life")return "弹幕寿命";
         if(new[]{"x","y","scale","angle","cameraZoom"}.Contains(property))return "变换";
         if(new[]{"alpha","imageAngle"}.Contains(property))return "外观";
         if(property=="life")return "生命周期";

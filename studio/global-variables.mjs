@@ -1,4 +1,4 @@
-import {parseExpression,evaluateExpression,expressionCall} from './random-parameters.mjs';
+import {parseExpression,evaluateExpression,expressionCall,playerAt} from './random-parameters.mjs';
 import {expandPatterns} from './bullet-schema.mjs';
 import {gmlNumber as num} from './gml.mjs';
 export const globalReference=name=>/^global\.[a-z_][a-z0-9_]*$/.test(name);
@@ -18,7 +18,7 @@ class GlobalTimeline{
   }
   at(frame){if(frame===this.cachedFrame)return this.cached;
     while(true){this.events.sort((a,b)=>a.frame-b.frame||a.index-b.index);const e=this.events[0];if(!e||e.frame>frame)break;this.events.shift();const t=this.tracks[e.index];let parent=this.state.tracks.find(p=>p.id===t.parentId&&p.kind==='group'),active=true;while(parent){active&&=parent.enabled!==false&&e.frame>=parent.start&&e.frame<=parent.end;parent=this.state.tracks.find(p=>p.id===parent.parentId&&p.kind==='group');}
-      if(active){let px=this.state.nativeTest?.x??400,py=this.state.nativeTest?.y??304;const trace=this.state.playerTrace||[];if(this.state.usePlayerTrace&&trace.length&&e.frame>=trace[0].frame&&e.frame<=trace.at(-1).frame){let lo=0,hi=trace.length-1;while(lo<hi){const mid=Math.ceil((lo+hi)/2);if(trace[mid].frame<=e.frame)lo=mid;else hi=mid-1;}const a=trace[lo],b=trace[Math.min(lo+1,trace.length-1)],u=(e.frame-a.frame)/Math.max(1,b.frame-a.frame);px=a.x+(b.x-a.x)*u;py=a.y+(b.y-a.y)*u;}const c={globals:this.current,'player.x':px,'player.y':py,x:t.x??400,y:t.y??304,'source.x':t.x??400,'source.y':t.y??304,x1:t.x1??280,y1:t.y1??304,x2:t.x2??520,y2:t.y2??304,direction:t.angle??0,speed:t.speed??3,frame:e.frame,age:e.frame-(t.clockStart??t.start),fps:this.state.fps,randomFrame:e.frame};const value=evaluateExpression(t.variableExpression,this.state.randomSeed??12345,`${t.randomId||t.id}|variable|base`,c);this.current[t.variableName]=value;this.history[t.variableName].push({frame:e.frame,value});}
+      if(active){const player=playerAt(this.state,e.frame);const c={globals:this.current,'player.x':player.x,'player.y':player.y,x:t.x??400,y:t.y??304,'source.x':t.x??400,'source.y':t.y??304,x1:t.x1??280,y1:t.y1??304,x2:t.x2??520,y2:t.y2??304,direction:t.angle??0,speed:t.speed??3,frame:e.frame,age:e.frame-(t.clockStart??t.start),fps:this.state.fps,randomFrame:e.frame};const value=evaluateExpression(t.variableExpression,this.state.randomSeed??12345,`${t.randomId||t.id}|variable|base`,c);this.current[t.variableName]=value;this.history[t.variableName].push({frame:e.frame,value});}
       if(t.variableRepeat>0&&e.frame+t.variableRepeat<=Math.min(t.end,this.state.duration))this.events.push({frame:e.frame+t.variableRepeat,index:e.index});
     }
     const result={};for(const [name,list] of Object.entries(this.history)){let lo=0,hi=list.length-1;while(lo<hi){const mid=Math.ceil((lo+hi)/2);if(list[mid].frame<=frame)lo=mid;else hi=mid-1;}result[name]=list[lo].value;}this.cachedFrame=frame;return this.cached=result;

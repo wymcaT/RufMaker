@@ -1,10 +1,10 @@
 using System;
 using System.Linq;
 
-internal static class CameraPresets
+internal static partial class CameraPresets
 {
     public static readonly string[] Names={"变速推拉","甩镜过渡","旋转回弹","自然手持漂移","柔和摇摆","呼吸拉镜","缓慢推进","缓慢拉远","旋转缩放过渡","横向甩镜过渡","冲击回弹","轻微手持"};
-    public static void Apply(Track t,string name,int frame,int fps)
+    private static void ApplyLegacy(Track t,string name,int frame,int fps)
     {
         if(t.kind!="camera"||!Names.Contains(name))throw new ArgumentException("请选择拉镜预设和拉镜轨道。");
         var p=Motion.At(t,frame);double z=Motion.Value(t,"cameraZoom",frame);

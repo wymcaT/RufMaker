@@ -32,6 +32,7 @@ internal sealed partial class StageCanvas : Control
     private bool selectingBox;private PointF boxFirst,boxLast;private HashSet<Track> boxInitial;
     private readonly Dictionary<Track,Dictionary<string,double>> positions=new Dictionary<Track,Dictionary<string,double>>();
     private readonly Dictionary<Track,MotionPresetData> motionPositions=new Dictionary<Track,MotionPresetData>();
+    private readonly Dictionary<Track,CameraPresetData> cameraPositions=new Dictionary<Track,CameraPresetData>();
     private PointF pointerDown;
     public Track SelectedTrack;public Keyframe SelectedKey;public RoomInstance SelectedInstance;
     public int Frame;public bool Grid=true,Hitboxes,RenderCamera;
@@ -49,9 +50,13 @@ internal sealed partial class StageCanvas : Control
     private Point down;private bool moved;
     private sealed class PickTarget {public Track track;public RoomInstance instance;}
     private List<PickTarget> pendingPicks;private bool pendingAdditive;private ContextMenuStrip pickMenu;
-    private EditorState renderState,workerSceneState;private RoomData renderRoom;private System.Collections.Generic.Dictionary<string,string> renderObjects;
+    private EditorState renderState;private RoomData renderRoom;private System.Collections.Generic.Dictionary<string,string> renderObjects;
     private string renderProject;private System.Collections.Generic.Dictionary<string,SpriteMeta> renderMetadata;
     private Bitmap image;private bool rendering;private int serial,finished=-1;
+    private System.Threading.CancellationTokenSource renderCancellation;
+    private string lastRenderFailure;
+    public Action<Exception> RenderFailed;
+    public int DisplayedFrame {get;private set;}
     private SpriteStore workerSprites;private readonly PreviewCache previewCache=new PreviewCache();
     private SpriteStore assetOwner;private int assetVersion,workerAssetVersion=-1;
     public Action<ObjectStatisticsSnapshot> StatisticsReady;public Action<int> StatisticsPending;
@@ -62,26 +67,28 @@ internal sealed partial class StageCanvas : Control
         if(State==null||Room==null||Sprites==null)return;
         RandomParameters.Attach(State);
         if(assetOwner!=Sprites){assetOwner=Sprites;assetVersion++;}
-        renderState=new EditorState{nativeProject=State.nativeProject,version=State.version,fps=State.fps,bpm=State.bpm,duration=State.duration,room=State.room,music=State.music,timelineInitialized=State.timelineInitialized,randomSeed=State.randomSeed,usePlayerTrace=State.usePlayerTrace,playerTrace=State.playerTrace.Select(p=>new PlayerTracePoint{frame=p.frame,x=p.x,y=p.y}).ToList(),nativeTest=new NativeTestPosition{x=State.nativeTest.x,y=State.nativeTest.y},tracks=State.tracks.Select(t=>t.Snapshot()).ToList()};
+        renderState=new EditorState{timelineGroups=State.timelineGroups.Select(g=>g.Snapshot()).ToList(),nativeProject=State.nativeProject==null?null:State.nativeProject.Snapshot(),version=State.version,fps=State.fps,bpm=State.bpm,duration=State.duration,room=State.room,music=State.music,timelineInitialized=State.timelineInitialized,randomSeed=State.randomSeed,usePlayerTrace=State.usePlayerTrace,playerTrace=State.playerTrace.Select(p=>new PlayerTracePoint{frame=p.frame,x=p.x,y=p.y}).ToList(),nativeTest=new NativeTestPosition{x=State.nativeTest.x,y=State.nativeTest.y},tracks=State.tracks.Select(t=>t.Snapshot()).ToList()};
         if(!String.IsNullOrEmpty(TemplatePreviewId)){renderState.nativeProject=null;var visible=new HashSet<string>{TemplatePreviewId};bool added;do{added=false;foreach(var child in renderState.tracks)if(visible.Contains(child.parentId))added|=visible.Add(child.id);}while(added);foreach(var track in renderState.tracks){track.templateOnly=!visible.Contains(track.id);if(track.templateOnly&&(track.kind=="camera"||track.kind=="effect"))track.enabled=false;if(track.id==TemplatePreviewId){track.enabled=true;track.parentId="";}}}
-        renderState=BulletSystem.Expand(renderState);RandomParameters.Attach(renderState);renderRoom=Room.Snapshot();renderObjects=ObjectSprites;renderProject=Sprites.Project;renderMetadata=Sprites.Metadata;serial++;QueueRender();Invalidate();
+        renderState=BulletSystem.Expand(renderState);RandomParameters.Attach(renderState);renderRoom=Room.Snapshot();renderObjects=ObjectSprites;renderProject=Sprites.Project;renderMetadata=Sprites.Metadata;RequestRender();
     }
-    public void ShowFrame(int frame){if(Frame==frame&&image!=null)return;Frame=frame;serial++;QueueRender();Invalidate();}
-    public void DisplayOptionsChanged(){serial++;QueueRender();Invalidate();}
+    private void RequestRender(){serial++;if(renderCancellation!=null)renderCancellation.Cancel();QueueRender();Invalidate();}
+    public void ShowFrame(int frame){if(Frame==frame&&image!=null)return;Frame=frame;RequestRender();}
+    public void DisplayOptionsChanged(){RequestRender();}
     private async void QueueRender()
     {
         if(rendering||renderState==null||!IsHandleCreated||IsDisposed||finished==serial)return;
         if(StatisticsPending!=null)StatisticsPending(Frame);ObjectStatisticsSnapshot statistics=null;
         rendering=true;int request=serial,frame=Frame,assets=assetVersion;var state=renderState;var room=renderRoom;var objects=renderObjects;string project=renderProject,film=String.IsNullOrEmpty(TemplatePreviewId)?NativeFilmPath:null;var metadata=renderMetadata;bool grid=Grid,hitboxes=Hitboxes;var cameraPose=RenderCamera?Camera.At(Camera.Active(state,frame),frame,room):null;Fit();var transform=DisplayMatrix();int width=Math.Max(1,Width),height=Math.Max(1,Height);RectangleF frameBounds=view;RectangleF? clip=RenderCamera?(RectangleF?)view:null;
-        var clock=System.Diagnostics.Stopwatch.StartNew();
+        var clock=System.Diagnostics.Stopwatch.StartNew();var cancellation=new System.Threading.CancellationTokenSource();renderCancellation=cancellation;
         try
         {
-            var next=await System.Threading.Tasks.Task.Run(()=>{if(workerSprites==null||workerSprites.Project!=project||workerAssetVersion!=assets){if(workerSprites!=null)workerSprites.Dispose();workerSprites=new SpriteStore{Project=project};workerAssetVersion=assets;previewCache.Clear();}workerSprites.Metadata=metadata;if(workerSceneState!=state){previewCache.ClearHistory();workerSceneState=state;}var bitmap=PreviewRenderer.Render(state,room,objects,workerSprites,frame,grid,hitboxes,previewCache,transform,width,height,clip,frameBounds,film,cameraPose);try{statistics=ObjectStatistics.Capture(state,room,frame,previewCache);return bitmap;}catch{bitmap.Dispose();throw;}});
+            var next=await System.Threading.Tasks.Task.Run(()=>{previewCache.Cancelled=()=>cancellation.IsCancellationRequested;previewCache.ThrowIfCancelled();if(workerSprites==null||workerSprites.Project!=project||workerAssetVersion!=assets){if(workerSprites!=null)workerSprites.Dispose();workerSprites=new SpriteStore{Project=project};workerAssetVersion=assets;previewCache.Clear();}workerSprites.Metadata=metadata;var bitmap=PreviewRenderer.Render(state,room,objects,workerSprites,frame,grid,hitboxes,previewCache,transform,width,height,clip,frameBounds,film,cameraPose);try{previewCache.ThrowIfCancelled();statistics=ObjectStatistics.Capture(state,room,frame,previewCache);return bitmap;}catch{bitmap.Dispose();throw;}});
             LastRenderMilliseconds=clock.Elapsed.TotalMilliseconds;
-            if(IsDisposed){next.Dispose();return;}if(state==renderState&&StatisticsReady!=null)StatisticsReady(statistics);var previous=image;image=next;if(previous!=null)previous.Dispose();finished=request;Invalidate();
+            if(IsDisposed||cancellation.IsCancellationRequested||request!=serial||state!=renderState||frame!=Frame){next.Dispose();finished=request;return;}lastRenderFailure=null;if(StatisticsReady!=null)StatisticsReady(statistics);var previous=image;image=next;DisplayedFrame=frame;if(previous!=null)previous.Dispose();finished=request;Invalidate();
         }
-        catch(Exception error){if(!IsDisposed){System.Diagnostics.Debug.WriteLine(error);finished=request;}}
-        finally{transform.Dispose();rendering=false;if(IsDisposed){if(workerSprites!=null){workerSprites.Dispose();workerSprites=null;}previewCache.Dispose();}else if(finished!=serial)QueueRender();}
+        catch(OperationCanceledException){finished=request;}
+        catch(Exception error){previewCache.ClearHistory();if(!IsDisposed){System.Diagnostics.Debug.WriteLine(error);finished=request;string key=error.GetType().FullName+error.Message;if(request==serial&&key!=lastRenderFailure){lastRenderFailure=key;if(RenderFailed!=null)RenderFailed(error);}}}
+        finally{transform.Dispose();renderCancellation=null;cancellation.Dispose();rendering=false;if(IsDisposed){if(workerSprites!=null){workerSprites.Dispose();workerSprites=null;}previewCache.Dispose();}else if(finished!=serial)QueueRender();}
     }
     private void Fit()
     {
@@ -184,7 +191,7 @@ internal sealed partial class StageCanvas : Control
             else if(confirm||!SelectedTracks.Contains(t)){if(SelectTrack!=null)SelectTrack(t,null);}
             if(drag&&SelectedTracks.Contains(t)){
                 draggingTrack=t;handle="center";
-                foreach(var item in SelectedTracks.Where(item=>Theme.Spatial(item.kind)&&!HasSelectedParent(item))){positions[item]=new[]{"x","y","x1","y1","x2","y2"}.ToDictionary(field=>field,field=>Motion.Value(item,field,Frame));if(MotionPresets.Bound(item))motionPositions[item]=item.motionPreset.Snapshot();}
+                foreach(var item in SelectedTracks.Where(item=>Theme.Spatial(item.kind)&&!HasSelectedParent(item))){positions[item]=new[]{"x","y","x1","y1","x2","y2"}.ToDictionary(field=>field,field=>Motion.Value(item,field,Frame));if(MotionPresets.Bound(item))motionPositions[item]=item.motionPreset.Snapshot();if(CameraPresets.Bound(item))cameraPositions[item]=item.cameraPreset.Snapshot();}
                 Capture=true;
             }
         }else if(Room!=null&&Room.instances.Contains(hit.instance)){
@@ -209,7 +216,7 @@ internal sealed partial class StageCanvas : Control
     }
     protected override void OnMouseDown(MouseEventArgs e)
     {
-        base.OnMouseDown(e);if(State==null||Room==null)return;Focus();pendingPicks=null;if(e.Button==MouseButtons.Middle){panning=true;panStart=e.Location;panX=ViewX;panY=ViewY;Cursor=Cursors.Hand;Capture=true;return;}var p=Position(e.Location);down=e.Location;pointerDown=p;moved=false;positions.Clear();motionPositions.Clear();
+        base.OnMouseDown(e);if(State==null||Room==null)return;Focus();pendingPicks=null;if(e.Button==MouseButtons.Middle){panning=true;panStart=e.Location;panX=ViewX;panY=ViewY;Cursor=Cursors.Hand;Capture=true;return;}var p=Position(e.Location);down=e.Location;pointerDown=p;moved=false;positions.Clear();motionPositions.Clear();cameraPositions.Clear();
         if(EditNativeTest&&e.Button==MouseButtons.Left){if(BeginEdit!=null)BeginEdit();draggingNativeTest=true;Capture=true;PlaceNativeTest(p);return;}
         if(e.Button==MouseButtons.Left&&BeginCurve(p))return;
         if(SelectedTracks.Count<=1&&SelectedTrack!=null&&SelectedTrack.kind=="rod"&&SelectedTrack.shape=="rod")
@@ -241,7 +248,7 @@ internal sealed partial class StageCanvas : Control
             if(handle=="center")
             {
                 foreach(var pair in positions)
-                {var item=pair.Key;var current=ParentLocalPoint(item,TrackPoint(item,p));var first=ParentLocalPoint(item,TrackPoint(item,pointerDown));double dx=Math.Round(current.X-first.X),dy=Math.Round(current.Y-first.Y);if((ModifierKeys&Keys.Shift)!=0){dx=Math.Round(dx/16)*16;dy=Math.Round(dy/16)*16;}if(MotionPresets.Bound(item)&&motionPositions.ContainsKey(item)){item.motionPreset=motionPositions[item].Snapshot();MotionPresets.Translate(item,dx,dy);continue;}string[] fields=item.kind=="rod"&&item.shape=="rod"&&item.rodMode=="endpoints"?new[]{"x1","y1","x2","y2"}:item.kind=="rod"&&item.shape=="rod"&&item.rodMode=="anchor"?new[]{"x","y","x2","y2"}:new[]{"x","y"};foreach(string field in fields)Motion.EditValue(item,field,Frame,pair.Value[field]+(field.StartsWith("x")?dx:dy));}
+                {var item=pair.Key;var current=ParentLocalPoint(item,TrackPoint(item,p));var first=ParentLocalPoint(item,TrackPoint(item,pointerDown));double dx=Math.Round(current.X-first.X),dy=Math.Round(current.Y-first.Y);if((ModifierKeys&Keys.Shift)!=0){dx=Math.Round(dx/16)*16;dy=Math.Round(dy/16)*16;}bool controlled=false;if(MotionPresets.Bound(item)&&motionPositions.ContainsKey(item)){item.motionPreset=motionPositions[item].Snapshot();MotionPresets.Translate(item,dx,dy);controlled=true;}if(CameraPresets.Bound(item)&&cameraPositions.ContainsKey(item)){item.cameraPreset=cameraPositions[item].Snapshot();CameraPresets.Translate(item,dx,dy);controlled=true;}if(controlled)continue;string[] fields=item.kind=="rod"&&item.shape=="rod"&&item.rodMode=="endpoints"?new[]{"x1","y1","x2","y2"}:item.kind=="rod"&&item.shape=="rod"&&item.rodMode=="anchor"?new[]{"x","y","x2","y2"}:new[]{"x","y"};foreach(string field in fields)Motion.EditValue(item,field,Frame,pair.Value[field]+(field.StartsWith("x")?dx:dy));}
             }
             else if(t.rodMode=="center")
             {var center=Motion.At(t,Frame);double dx=x-center.x,dy=y-center.y;Motion.EditValue(t,"length",Frame,2*Math.Sqrt(dx*dx+dy*dy));Motion.EditValue(t,"angle",Frame,Math.Atan2(-dy,dx)*180/Math.PI+(handle=="first"?180:0)-t.angularSpeed*Math.Max(0,Frame-TimelineLayout.ClockStart(t)));}
@@ -257,5 +264,5 @@ internal sealed partial class StageCanvas : Control
     protected override void OnMouseCaptureChanged(EventArgs e){base.OnMouseCaptureChanged(e);if(!Capture)pendingPicks=null;if(!Capture&&draggingNativeTest)FinishNativeTest();if(!Capture&&panning){panning=false;Cursor=Cursors.Default;}}
     protected override void OnDragEnter(DragEventArgs e){if(e.Data.GetDataPresent(DataFormats.Text))e.Effect=DragDropEffects.Copy;}
     protected override void OnDragDrop(DragEventArgs e){var text=e.Data.GetData(DataFormats.Text) as string;if(text==null||ResourceDropped==null)return;var parts=text.Split('|');if(parts.Length==2)ResourceDropped(parts[0],parts[1],Position(PointToClient(new Point(e.X,e.Y))));}
-    protected override void Dispose(bool disposing){if(disposing){if(pickMenu!=null){pickMenu.Dispose();pickMenu=null;}if(image!=null){image.Dispose();image=null;}if(!rendering){if(workerSprites!=null){workerSprites.Dispose();workerSprites=null;}previewCache.Dispose();}}base.Dispose(disposing);}
+    protected override void Dispose(bool disposing){if(disposing){if(renderCancellation!=null)renderCancellation.Cancel();if(pickMenu!=null){pickMenu.Dispose();pickMenu=null;}if(image!=null){image.Dispose();image=null;}if(!rendering){if(workerSprites!=null){workerSprites.Dispose();workerSprites=null;}previewCache.Dispose();}}base.Dispose(disposing);}
 }

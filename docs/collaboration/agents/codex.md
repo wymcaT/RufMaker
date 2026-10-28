@@ -1,10 +1,103 @@
 # Codex 任务记录
 
-- 状态：`completed`
-- 任务：按用户“推送并release”发布2.4.0；功能提交`54ae8ce`，标签`v2.4.0`已与main原子推送。
-- 当前占用：无。Argon4无占用；用户demo12文件817增236删与个人项目保留，未提交。
-- 本机入口：RufMaker.exe，2.4.0/1,292,800 bytes；旧入口build/release-check-2.4.0/RufMaker.before-release.exe。
-- 远端：[v2.4.0](https://github.com/wymcaT/RufMaker/releases/tag/v2.4.0)，latest、非草稿/非预发布；Actions [40478077123](https://github.com/wymcaT/RufMaker/actions/runs/40478077123)成功。
+- 状态：`in_progress`（用户明确要求“推送发布”）
+- 任务：将已验收的本地改动发布为2.5.0，核对本体/更新包、旧更新器兼容、版本/标签一致，精确暂存应用文件，SSH推送并检查Actions/Release。
+- 基线：main / a0491ba及全部既有本地改动；用户本轮已授权推送和正式Release，远端目前v2.4.0。保护全部projects与本地资料。
+- 当前占用：desktop/Updater.cs、RufMaker.exe、README双语、docs/releases/v2.5.0.md、docs/performance-and-saving.md、docs/timeline-groups.md、docs/development/OPTIMIZATION-STAGE-2026-10-28.md、本记录/STATUS；build/release-check-2.5.0、build/distribution与build/RufMaker.release.exe由Codex集成。应用改动精确暂存，不含projects。
+- 本机入口：RufMaker.exe，ProductVersion2.5.0；旧入口备份build/release-check-2.5.0/RufMaker.before-release.exe。
+
+## 2026-10-28：2.5.0正式发布（进行中）
+
+- 用户明确授权推送/Release。集成本地共享组/组事件与公式、复制销毁及寿命统一、事件标记和名称裁剪、参数化运动/拉镜预设、实时玩家自机狙及五类性能/保存优化；保护所有projects。
+- 版本四处来源已同步到2.5.0；双语README和docs/releases/v2.5.0.md按最终范围重写。旧阶段文档保留历史，性能指南改为正式版本说明。
+- Package-Release在build/distribution/v2.5.0输出本体59,064,930 bytes/2671文件、兼容更新包57,073,456 bytes/2631文件及两个SHA256；包内逐文件/manifest/版本/私有目录排除检查通过。原2.0.0更新器接受2630文件；首次x64 PowerShell加载x86旧程序集格式不匹配，改x86宿主成功，失败日志保留。当前Test-Updater通过提示文本、版本比较、实际替换/保留/备份及隐藏重启。
+- 完整包在隔离目录无GM首次建空工程、重新打开通过。语义与真实GM沿用此前已通过记录，未无关重跑。根EXE更新为2.5.0并备份；git diff --check通过。
+- 远端SSH核实main仍a0491ba且无v2.5.0标签；使用Windows OpenSSH绕过Git自带MSYS在受限环境的IPC失败。GitHub连接器无Release操作，沿用既有SSH与标签Actions流程；线上结果待核对。
+
+## 2026-10-28：优化续做与最终交付（本地完成）
+
+- 用户明确继续；沿用main/a0491ba和暂停时源码，Argon4无占用，没有新远程授权。
+- 完成暂停清单：测试新增高编号轨道原生多选拖动、索引末尾换行、错误去重/修复恢复，均通过。首个拖动探针反射标记错误导致测试自身空引用，改公开ClipBounds入口通过；失败日志保留。相关产品代码无须再改。
+- Node组/模板/预设/复制/全局变量/保存22项通过；保存事务新增用例后6项通过。C# Optimizations、CopyEditing、GenerationPresets、TemplateSystem、PlayerAim、Localization、ShellLayout通过；原有EditorPerformance/RandomTimeline/LaneExclusivity阶段结果有效，未无关重跑。
+- GM：61帧1502条实时玩家状态与C#一致；1000物件真实编译/启动/Draw；Verse3隔离导入的纯原生无副作用保存、overlay及lane300分组保存重开/原生控制器保留/真实编译通过。未重新完整录制底片/试玩。初次受限环境编译器3221225794退出，随后自动审核允许隐藏隔离执行通过；未使用电脑控制，未遗留测试进程错误窗。
+- 文件：desktop/tests/OptimizationTests.cs、studio/project-sync.test.mjs补最终边界；新增desktop/tests/verify-optimization-gml.mjs；双语README、docs/performance-and-saving.md、开发入口/评估/阶段记录及本记录/STATUS。产品优化代码仍为暂停版本；新增产品CS显式构建清单已核对。
+- 最新cache-profile冷定位1268ms、改名12.47ms/0步、后段改键239ms/1200步；不作为真实游戏FPS。完整结果与工程路径见阶段记录。
+- Build-Native最终通过，File.Replace备份并更新根EXE为2.4.0/1,362,944 bytes；git diff --check通过。根EXE旧版本1,349,632 bytes备份如上。用户demo12文件817增236删保持，其他projects未操作；未提交/推送/Release。当前五类优化无未完成必做项；未来全量参数架构/CI等仍为候选，不擅自展开。
+
+## 2026-10-28：实施评估优化（用户要求阶段收尾，待续）
+
+- 基线main/a0491ba及全部既有本地功能，根EXE2.4.0/1,349,632 bytes。保护用户projects和前轮实时自机狙，用户授权实施评估结论，没有推送/Release授权。
+- 范围：工程保存预检查/分阶段提交/失败回滚与恢复；旧帧不提交及取消过时模拟；按依赖复用预览世界与分层检查点；取消静默20k绘制/200物件保存限制；Undo/Redo可配置内存预算。保持既有JSON和GM语义，不做UI框架或引擎重写。
+- 验收：build隔离工程的正常/失效歌曲/中途失败/恢复与201+物件同步；可确定的场景修订/缓存复用/参数和镜头依赖/倒拖数值对照；密集弹幕完整绘制；Undo预算/选择/控件复用；定向CS/Node与真实GM必要对照，最后构建并更新本机EXE、记录前后性能。
+- 阶段交接：docs/development/OPTIMIZATION-STAGE-2026-10-28.md。五类优化均已有源码，主要定向检查通过；最终真实GM、部分最终细节回归及用户文档尚未完成。没有将整个优化任务标成已完成，也没有替换根EXE。
+- 文件：studio/project-sync.mjs及test（新）、project.mjs、plain-room.mjs、timeline-groups.mjs；desktop/UndoHistory.cs、PreviewRevision.cs（新，已入Build-Native），MainForm/EditorCore/EditorCanvas/PreviewEffects/PreviewRenderer/BulletSystem/ObjectStatistics/WorkspaceView/EditorShell、TimelineCanvas/TimelineLayout/TimelineGroups/GenerationPresets/CopyGeneration/PresetLibrary/PresetBrowser；新Test-Optimizations.ps1、tests/OptimizationTests.cs和verify-project-sync.mjs；英文词条、本记录/STATUS与阶段文档。
+- 已通过：保存事务5项，真实隔离工程失效歌曲不改任何文件/正常重试/201和1000物件及高编号组保存重开；C#优化用例包含共享Undo预算、取消恢复、局部重算/镜头依赖与冷重算一致、48检查点32MiB估算预算、联动动作引用/全局变量、202物件剪裁及预设、48000颗完整预览、异步Stage只提交最新帧。EditorPerformance、RandomTimeline、LaneExclusivity通过；Node相关3文件16项通过。日志全在build/optimization-check。
+- 测量：7000帧冷定位1256ms，改名复用12ms/0新增模拟步，后段关键帧修改257ms/1200重算步；40物件6400键普通编辑1.39ms/Undo3.93ms、控件保留，加键89.30ms无明显提升。仅合成隔离测量，不是实际游戏FPS。
+- 构建：最新源码Build-Native通过，build/optimization-check/RufMaker.stage.exe=1,362,944 bytes/2.4.0，仅构建产物不含运行依赖。根RufMaker.exe仍前轮1,349,632 bytes。早期方法组Sum重载编译错误已修，最终diff检查两处空行尾空格已清理。
+- 待续：最后轨道拖动199上界取消/错误去重/无末尾换行索引的最终回归；补相关模板/复制/生成/语言与真实GM（含原生导入）验证，再完善说明、备份并更新根EXE。无推送/Release授权，无提交/推送/发布；用户projects保持原样。源码后台已在工作区，不应声称整个目录回退成旧版。
+
+## 2026-10-28：性能/架构评估与自机狙实时玩家取样（本地完成）
+
+- 基线main/a0491ba，含此前未提交的本地功能；仅评估和定向诊断，不扩展为实施全部优化。本轮无推送授权。
+- 范围：编辑/撤销/保存链路、预览排队及模拟缓存、预览/GML双端维护、工程数据和打包测试；报告区分确认问题、性能设计限制与建议。
+- 验证：源码路径/行号、已有定向测量及必要的隔离复现；不加载用户工程。
+- 用户追加：所有自机狙统一使用实时玩家坐标；发射/释放按出生当帧，持续追踪按当前帧，编辑器按启用的试玩轨迹或编辑玩家位置，GML按真实玩家。同步审查C#/JS/GML，不把一次瞄准改为持续追踪。其余审查发现先交付评估，不顺带修复。
+- 评估报告：docs/development/REVIEW-2026-10-28.md。隔离复现音乐失效时GML已改而JSON未改、200/201物件保存边界；源码确认过时渲染仍提交、每次编辑清历史、8个200帧检查点、简化预览单发射器20k绘制上限与完整统计不一致、Undo无内存预算。以上除自机狙外均未修改；未声称已发生用户数据损坏或测得实际复杂耐久FPS。
+- 测量：240存活弹幕，6000帧历史首次定位891.8ms/下一帧0.1375ms/重建定位890.9ms；6001倒拖2000需301.9ms。40物件6400键保留64份Undo约34.6MiB托管内存；独立UI测量普通编辑1.97ms/Undo7.21ms/加键92.44ms，已有参数控件保留。日志及一次性探针build/review-20261028；不把冷启动重算与日常帧耗时混为FPS。
+- 实现：根整体对象释放朝玩家与简化BulletFlight改按当帧玩家；ExpressionContext区分模板局部时间/歌曲时间，Motion表达式、生成相位、复制朝向正确映射到玩家轨迹。JS expressionContext和全局变量复用playerAt插值。GML延迟逐颗自机狙在实际出生第0帧再读取真实玩家，保持原方向偏移；Create初始化rf_birth_aim/rf_aim_offset，强制方向分裂/释放不覆写。一发瞄准继续单次，持续/限速追踪逐帧。GM数值对照发现并修复aim行为duration非零时GML插值起点与C#目标偏移不一致的问题。
+- 接口：ExpressionContext.For/PlayerAt增加可选worldTime，CopyGeneration.Rotation同样传递时钟域；GenerationPresets.Phase明确接歌曲时间。没有新增持久字段或改变工程格式；旧工程、Undo/预设数据沿原链路。原生底片固定400,304规则保留。
+- 文件：desktop/BulletSystem.cs、ExpressionContext.cs、BulletFlight.cs、TemplateRuntime.cs、GenerationPresets.cs、CopyGeneration.cs；studio/random-parameters.mjs、global-variables.mjs、bullet-system.mjs、project.mjs、player-expressions.test.mjs；新增desktop/Test-PlayerAim.ps1、tests/PlayerAimTests.cs、verify-player-aim-gml.mjs；README双语、生成教程、评估报告、本记录/STATUS与根EXE。没有新产品CS，原显式构建清单已涵盖全部改动。
+- 验证：Test-PlayerAim覆盖移动玩家、逐颗延迟、根/模板释放、局部/世界时钟、嵌套生成、连续/限速/单次/全局瞄准、手工位置与倒拖；Test-PlayerExpressions、TemplateSystem、GenerationPresets通过；相关4个Node文件18项通过。最终真实GM隔离项目build/player-aim-check/GM Player Aim 1793162510053/GameMaker.gm82，61帧共1502条弹幕状态（位置/方向/速度）与C#容差0.002内一致。日志player-aim-gm-verified.log；不是用户实操验收。
+- 早期验证：首次探针在with中读到控制器同名局部值，改用self字段；随后发现并修复产品aim目标偏移差异，1466条状态通过；追加嵌套生成用例后最终1502条通过。失败日志均保留。GM编译/运行使用获自动审核允许的隔离隐藏进程，没有桌面控制或遗留测试错误窗。
+- 构建：Build-Native最终通过，File.Replace更新RufMaker.exe为2.4.0/1,349,632 bytes，旧入口build/player-aim-check/RufMaker.before-player-aim.exe；未关闭用户进程。定向git diff --check通过，用户demo仍12文件817增236删，未写用户projects。未本地提交、推送或发布。
+
+## 2026-10-28：运动与拉镜预设参数驱动（本地完成）
+
+- 基线：main / a0491ba，包含此前未提交的组事件、寿命和时间轴修复；保护所有用户 projects。本轮无远程授权。
+- 目标：不再为运动/拉镜预设生成逐帧关键帧；预览和游戏按参数计算，右栏明确显示由预设控制并开放中心、幅度、速度、时长等适合预设的参数。兼容旧预设数据，保留非预设属性的手动关键帧及吸附。
+- 实现：14种动作直接计算X/Y；12种拉镜直接按CameraPresetData计算位置、角度、缩放、模糊。右栏对应字段和关键帧页显示“由预设控制”，其他属性如镜头强度仍可单独加键；右键公式/全部加键/粘贴不会覆盖受控属性，游标吸附排除预设内部采样。动作提供持续时间、圈数/每秒速度，拉镜提供中心、基础缩放/角度、速度、时长及适用的水平/垂直、旋转、缩放、模糊幅度；中英文词条已补。手动模式保留当前取景/位置，不隐式生成大量关键帧。
+- 兼容：旧动作逐帧X/Y先核对连续性、表达式和数值，未改动则转为参数计算；检测到用户改动则解除预设绑定并保留手动键。旧拉镜有可靠预设名称、曲线和中心完全匹配时才转换；旧曲线实际采样由不可序列化缓存和导出时的兼容曲线计算还原，时间轴不产生/吸附这些点。旧曲线被修改、有重复周期或无法确认时保留，不自动覆盖；右栏提示可重新应用预设。LegacyTime记录移动、裁剪缩放及跨FPS变换，快照深复制，缓存只读共享且修改后失效。修复时间轴拖动只有拉镜预设时其预设时间不跟随的问题，合并动作/拉镜时分别同步；密集周期清理只移除受控字段，保留其他手动键。
+- 代码：desktop/MotionPresets.cs、Motion.cs、BuiltinPresets.cs、CameraPresetMotion.cs（新）、EditorCore.cs、MainForm.cs、EditorCanvas.cs、TimelineCanvas.cs、TimelineEditing.cs、PreviewPlayback.cs、PresetBrowser.cs、PresetLibrary.cs、BulletSystem.cs、Build-Native.ps1；studio/motion.mjs、motion-presets.mjs（新）、camera-presets.mjs（新）、bullet-schema.mjs；Test-PresetParameters.ps1及tests/PresetParameterTests.cs、verify-preset-numeric.mjs、verify-preset-gml.mjs（新），MotionEditing/KeyframeWorkspace/CopyEditing/StylePreset测试更新，studio/motion-presets.test.mjs（新）；assets/locales/en.json、README双语及时间轴教程、本记录/STATUS和根EXE。新CS已入显式构建列表，新MJS会随现有打包规则收录。
+- 验证：Test-PresetParameters覆盖12种旧拉镜、9种时长和转折、用户改键/改中心保留、跨FPS复制、时间轴拖动、参数、缓存、JSON/Undo/关键帧/吸附；旧曲线最大误差5.69e-14。Test-MotionEditing、KeyframeWorkspace、CopyEditing、StylePresets、CursorSnapping、TimelineEventMarkers、Localization、ShellLayout、TemplateSystem通过；Node 6文件16项通过，C#/JS共768个预设姿态对照通过。日志build/preset-parameters-check/，含早期失败日志。
+- 真实GM：在build/preset-parameters-check/GM Presets 1793156338384/GameMaker.gm82隔离工程，隐藏编译/运行并输出24帧×32轨道共768个姿态，14种动作、12种新拉镜、3种旧拉镜、2种旧拉镜变速复制和叠加动作均与C#对照，位置/角度/缩放/模糊/镜头强度误差阈值0.002，gm-final.log。首次沙箱内编译器等待60秒超时并已退出，后在允许的隔离运行环境成功；未控制用户桌面或改用户工程。
+- Build-Native通过，File.Replace已替换根EXE并备份旧入口；git diff --check通过。tracked用户demo仍12文件817增236删；未提交、推送或发布，未声称用户实操验收。当前占用已释放。
+
+## 2026-10-28：事件圆点与可视范围内的物件名称（本地完成）
+
+- 基线：main / a0491ba，保留上一轮未提交产品改动和所有用户 projects；本轮没有推送授权。
+- 目标：事件显示为时间点圆形与右侧名称；物件名称随可见左边缘移动，保持在物件范围内，处理横向滚动和裁剪；保留事件单击、拖动、长事件拉伸、缩放与多选。
+- 实现：控制事件及GML事件以圆点中心标识开始帧，名称在右侧；可持续的控制事件显示细线及末端调整柄，单次组复制/GML仅显示圆点。圆点、名称与选框可选中、移动；相邻圆点按最近时间命中。普通物件名跟随视口内片段左缘并裁剪在片段内，垂直/水平越界时文字保留绘图裁剪；持续事件起点离屏后仍能看到范围和名称。没有改变项目数据、游戏语义或生成GML。
+- 文件：desktop/TimelineCanvas.cs、desktop/SpawnTimeline.cs、desktop/tests/TimelineEventMarkerTests.cs（新）、desktop/Test-TimelineEventMarkers.ps1（新）、desktop/tests/ShellLayoutTests.cs、docs/event-presets.md、docs/motion-timeline-editing.md、本记录、STATUS及根EXE。ShellLayout原断言只检查菜单第一层，之前精简菜单已将模板局部预览移入子菜单，因此改为递归检查，保留该功能的验证。
+- 验证：Test-TimelineEventMarkers（离屏像素、时间对齐、横纵滚动裁剪、点击/拖动/框选、相邻圆点、持续事件两端拉伸）、Test-KeyframeWorkspace、Test-MotionEditing、Test-CursorSnapping、Test-EventPresets、Test-CopyEditing及修正后的Test-ShellLayout全部通过；日志和截图在build/timeline-event-markers/。Build-Native.ps1构建通过，已用File.Replace更新根EXE并保留旧版；git diff --check通过。离屏测试不是用户验收；本轮纯UI，无GM试玩或新FPS结论。
+- 未提交、未推送、未发布；用户demo仍12文件817增236删，未写入用户工程。当前占用已释放。
+
+## 2026-10-27：组复制销毁原弹幕与统一寿命（本地完成）
+
+- 基线main/a0491ba，保留上一轮未提交组功能与用户projects；本轮无远程授权，未提交/推送/发布。
+- 新Track.eventCopyDestroyOriginal=false进入模型和JS默认/布尔校验，旧工程复制默认保留原弹幕；Snapshot/复制/预设/Undo沿用原持久字段链。
+- GroupEvents在创建副本后按原快照逐个销毁：飞行弹直接移除，未释放原始/模板/联动成员用TemplateRuntime.DestroyMember记录精确source/index/owner隐藏。不会把副本、未来发射、其他组一并清除。GML对系统实例和解析生成的原始整体成员分别处理，复用rf_template_hide，默认false分支保留原行为。
+- 副本复用标准lifetimeMode/despawnMargin，默认fixed，出屏幕room/出视野view忽略eventCopyLife。C#副本在出生第0帧检查边界；GML复用lifetimeSpawn和rf_lifetime_tick（复制仍无原销毁过渡）。旋转/缩放镜头与普通弹幕共用判断。没有新增另一套坐标或寿命公式。
+- UI：副本寿命模式/固定帧数或出界余量；普通发射器life数值移到弹幕寿命，与模式放一起；释放后寿命同类；生成快捷页只在fixed显示帧数，出界显示余量，三种模式均可设置。拖影是绘制样本，不改变其时长规则。
+- 文件：desktop/EditorCore.cs、GroupEvents.cs、TemplateRuntime.cs、BulletLifetime.cs、BulletTools.cs、EditorShell.cs、GenerationPresets.cs；studio/group-events.mjs、bullet-schema.mjs；TimelineGroupTests、verify-groups-gml、timeline-groups.test、locale、使用说明与根EXE。没有新增CS，现有显式Build-Native已覆盖。
+- 测试通过：Test-TimelineGroups扩展三模式/替换/出生即越界、普通/模板/命名分裂/实时联动、原成员不重生、其他组与未来发射、倒拖/保存/预设换FPS、实际UI模式/开关/Undo及入口分类。三种夹具第6帧副本数fixed31、room28、view13，固定副本第8帧到期，边界副本忽略2帧设定。Test-GenerationPresets、Test-Presets、Test-Localization通过；Node相关6文件23项通过。日志build/copy-lifetime-check。
+- 实际GM：用RUFMAKER_GROUP_FIXTURE选择copy-lifecycle-{fixed,room,view}.json，verify-groups-gml在build隔离工程通过各26时间点：fixed739、room957、view807条状态，总2,503；每份应用Create/F5预热第30帧28条一致。项目后缀分别1793114127306、1793114136128、1793114005304，gm-fixed/room/view.log。所有进程已退出，无用户桌面控制。
+- 早期夹具的zoom2让所有房间内副本恰好也在视野内，区分断言失败；改为zoom2.5后显式覆盖视野内外，产品代码未因测试修改公式。早期日志保留。
+- 正式Build-Native通过，根RufMaker.exe为2.4.0/1,324,544 bytes，File.Replace替换并备份旧入口build/copy-lifetime-check/RufMaker.before-lifetime.exe，没有关闭用户进程。用户demo仍12文件817增236删，无用户工程写入；无本轮用户验收结论。
+- 当前占用：无。完成后默认继续不推送。
+
+## 2026-10-27：轨道共享组与组事件（本地完成）
+
+- EditorState.timelineGroups保存稳定id/name/color/lanes，每条轨道只属于一个组，轨道内所有物件共享。可多选轨道归组、改名、改色、解散/选择全部。TimelineCanvas绘制组底色与组名；普通物件移动采用目标轨道分组，自动分离重叠/整理时间轴保持分组。旧parentId坐标变换保留并标为旧工程，删除未使用的GroupSelection创建入口。
+- 新TimelineGroups.cs与studio/timeline-groups.mjs负责归属；快照深复制、StageCanvas.SceneChanged后台场景、模式/嵌套模式展开、模板（含实时联动复制）和命名/默认分裂后代均保留scopeGroup。右键主菜单最多约10项，生成/预设/改轨/片段等收进子菜单；保留右栏详细关键帧上下文。
+- 左栏事件新增group-copy/group-clear/group-set：目标默认事件轨道组，可显式选其他组。无组/已删除组不会作用于别组。复制在当前帧生成/控制/移动之后仅于start取快照，包括根整体成员、实例整体成员、联动副本及飞行弹幕；保留位置/贴图帧/颜色/大小/透明度，无原年龄运动/生成行为，速度默认0，可独设速度/方向/加速/转向、固定寿命与来源拖影。副本属于原组。清除保留发射器与未来出场内容；组设置支持速度/方向/加速/转向/scale/alpha/hue，未释放队形仍受自身位置动画控制。
+- GroupEvents.cs/studio/group-events.mjs同步实现；静态队形属性按历史时刻重建，几何按帧缓存，避免每成员重复计算整组坐标。组复制使用成员快照，GM用临时DS list避免新副本再次参与当次复制。原生底片与普通装饰不属于组弹幕。全局事件的额外原生对象行为保留，组事件不会执行切换类型前遗留的nativeObjects。
+- ScalarExpressions.cs/studio/scalar-expressions.mjs与BulletAction.expressions扩展运动输入：重设、全局控制起止、年龄行为起止、子弹速度/分裂间隔角、生成角/逐颗角/每波角、新弹幕速度/拖影方向及复制朝向支持random/choose/基础表达式。RandomParameters的JS字段/表达式脚本收录同步；按已有种子控制，组事件按目标弹幕取样；动作表达式和新事件的跨FPS/片段单位转换同步。事件输入使用适当拖动步长；同结构属性页继续复用。
+- 主要改动：EditorCore/Motion/RandomParameterUI/MainForm/BulletSystem/TemplateRuntime/PreviewRenderer/EditorCanvas/BulletTools/TimelineCanvas/TimelineLayout/TimelineEditing、行为与生成/复制参数入口、PresetLibrary、Build-Native显式新CS清单及对应studio schema/bullet/template/copy/linked-copy/event/random/project模块；英文词条、双语README、docs/timeline-groups.md、event-presets/开发入口；新Test-TimelineGroups与CS/JS/GM定向测试。完整文件范围以git diff/status为准，所有projects不是本轮改动。
+- 验证通过：Test-TimelineGroups（共享归组、隔离、静态/模板/联动/命名分裂复制、随机、清除未来、历史/倒拖、快照/保存/整理/FPS、实际Stage快照、菜单、属性公式与Undo）；Node相关6文件22项；Test-EventPresets、Test-BulletSystem、Test-Presets、Test-Localization、Test-CopyEditing、Test-CursorSnapping、Test-RandomTimeline。Cursor稠密夹具14.179ms全层/2.000ms输入覆盖层，仅离屏CPU成本，不代表屏幕Hz。
+- 真实GM最终：desktop/tests/verify-groups-gml.mjs通过24时间点999条完整状态（含颜色、缩放、随机方向/速度/加速、source坐标、联动、模板/命名分裂归组），原应用Create/F5预热第30帧27条状态一致。最终项目build/timeline-group-check/GM Groups 1793111707165/GameMaker.gm82，日志gm-appearance-final.log。默认沙箱首次退出3221225794后改用提权隔离运行；没有用户桌面操作或留下测试窗口。
+- 验证过程修正：新夹具加入同lane隐藏模板后索引假设失效，改按稳定ID；F5测试拼接多出括号，已修正并最终通过。RandomTimeline旧测试预期自由拖动30帧，却因先前已有的边缘磁吸落29帧；归档a0491ba源码在build/baseline只读复现同样失败，现为此原始拖动用例设置ClipSnap=false；磁吸另由CursorSnapping完整覆盖，未改产品吸附语义。早期失败日志保留。
+- 正式Build-Native最终通过，File.Replace已更新根EXE并保留备份，没有关闭用户进程。未操作用户工程，tracked demo仍817增236删；没有本地提交或远程推送。尚无用户实操验收。
+- 具体边界：未释放队形的速度方向不会代替它自身位置动画；属性重设不自动抹去后续年龄行为。自定义预设可保存事件参数/动作公式，跨工程显式组ID需重选目标组或跟随目标轨道；不是原生底片的视频后期改色/清除。
 
 ## 2026-10-27：2.4.0正式发布
 

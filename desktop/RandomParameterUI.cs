@@ -38,7 +38,7 @@ internal sealed partial class MainForm
     private string NumericProperty(string name)
     {
         foreach(string p in new[]{"x","y","scale","alpha"})if(name=="统一"+Motion.Name(p)||name=="整组 "+p.ToUpper()+" · 主物件")return p;
-        var extra=new Dictionary<string,string>{{"最大转弯 / 度每帧","turnRate"},{"开始跟踪前等待 / 帧","homingDelay"},{"发射间隔","interval"},{"Power 指数","easePower"},{"ExpSin 周期","easePeriod"},{"震动频率","fxFrequency"},{"模糊采样数","fxSamples"},{"X 速度","velocityX"},{"Y 速度","velocityY"},{"X 加速度","accelerationX"},{"Y 加速度","accelerationY"},{"镜头旋转速度 °/帧","angularSpeed"},{"自转速度 °/帧","angularSpeed"},{"公转速度 °/帧","orbitSpeed"},{"生成间隔 / 帧","trailInterval"},{"拖影寿命 / 帧","trailLife"},{"初始不透明度","trailStartAlpha"},{"大小衰减 / 帧","trailScaleDecay"},{"不透明度衰减 / 帧","trailAlphaDecay"},{"移动速度 / 像素每帧","trailSpeed"},{"移动方向 / 度","trailDirection"}};
+        var extra=new Dictionary<string,string>{{"释放弹速","speed"},{"每颗弹速递增","indexSpeed"},{"每颗方向递增","indexAngle"},{"每颗大小比例递增","indexScale"},{"起始值","controlFrom"},{"结束值","controlValue"},{"最大转弯 / 度每帧","turnRate"},{"开始跟踪前等待 / 帧","homingDelay"},{"发射间隔","interval"},{"Power 指数","easePower"},{"ExpSin 周期","easePeriod"},{"震动频率","fxFrequency"},{"模糊采样数","fxSamples"},{"X 速度","velocityX"},{"Y 速度","velocityY"},{"X 加速度","accelerationX"},{"Y 加速度","accelerationY"},{"镜头旋转速度 °/帧","angularSpeed"},{"自转速度 °/帧","angularSpeed"},{"公转速度 °/帧","orbitSpeed"},{"生成间隔 / 帧","trailInterval"},{"拖影寿命 / 帧","trailLife"},{"初始不透明度","trailStartAlpha"},{"大小衰减 / 帧","trailScaleDecay"},{"不透明度衰减 / 帧","trailAlphaDecay"},{"移动速度 / 像素每帧","trailSpeed"},{"移动方向 / 度","trailDirection"}};
         string property;return extra.TryGetValue(name,out property)?property:null;
     }
 }

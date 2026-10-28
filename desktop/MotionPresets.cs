@@ -18,7 +18,17 @@ internal static class MotionPresets
     public static readonly string[] Names={"抛物线运动","圆周运动","水平往返","垂直往返","水平滑入","水平滑出","向上漂浮","下坠弹跳","斜向穿越","S 形穿行","螺旋扩散","螺旋收束","八字运动","停顿后冲刺"};
     public static readonly string[] PathFields={"pathStartX","pathStartY","pathPeakX","pathPeakY","pathEndX","pathEndY","pathProgress"};
     public static bool Bound(Track t){return t!=null&&t.motionPreset!=null&&Names.Contains(t.motionPreset.name);}
-    public static bool Generated(Track t,string field){return Bound(t)&&(field=="x"||field=="y");}
+    public static bool Generated(Track t,string field){return Bound(t)&&(field=="x"||field=="y")||CameraPresets.Generated(t,field);}
+    public static bool LegacyKeysMatch(Track t)
+    {
+        if(!Bound(t))return true;var x=t.keyframes.Where(k=>k.property=="x").OrderBy(k=>k.frame).ToArray();var y=t.keyframes.Where(k=>k.property=="y").OrderBy(k=>k.frame).ToArray();
+        if(t.expressions.ContainsKey("x")||t.expressions.ContainsKey("y")||t.keyframeCycle!=null&&t.keyframeCycle.keys.Any(k=>k.property=="x"||k.property=="y"))return false;
+        if(x.Length==0&&y.Length==0)return true;
+        if(x.Length!=y.Length)return false;
+        for(int i=0;i<x.Length;i++){if(x[i].frame!=y[i].frame||i>0&&x[i].frame!=x[i-1].frame+1)return false;var p=Point(t.motionPreset,x[i].frame);if(!LegacyKeyMatches(x[i],p.X)||!LegacyKeyMatches(y[i],p.Y))return false;}
+        return true;
+    }
+    private static bool LegacyKeyMatches(Keyframe k,double value){return String.IsNullOrEmpty(k.expression)&&k.easing=="linear"&&Math.Abs(k.value-value)<=Math.Max(.0001,Math.Abs(value)*.0000001);}
     public static PointF Point(MotionPresetData d,double frame)
     {
         double u=Math.Max(0,Math.Min(1,(frame-d.start)/Math.Max(1.0,d.end-d.start))),v=1-u,a=2*Math.PI*d.turns*u+d.phase*Math.PI/180,x=d.startX,y=d.startY;
@@ -39,13 +49,12 @@ internal static class MotionPresets
     {
         if(!Bound(t))return;t.motion="keyframes";t.velocityX=t.velocityY=t.accelerationX=t.accelerationY=0;
         t.expressions.Remove("x");t.expressions.Remove("y");t.keyframes.RemoveAll(k=>k.property=="x"||k.property=="y");
-        for(int f=t.start;f<=t.end;f++){var p=Point(t.motionPreset,f);t.keyframes.Add(new Keyframe{property="x",frame=f,value=p.X,easing="linear"});t.keyframes.Add(new Keyframe{property="y",frame=f,value=p.Y,easing="linear"});}
-        var first=Point(t.motionPreset,t.start);t.x=first.X;t.y=first.Y;t.keyframes=t.keyframes.OrderBy(k=>k.frame).ToList();t.keyIndex=null;
+        var first=Point(t.motionPreset,t.start);t.x=first.X;t.y=first.Y;t.keyIndex=null;TimelineEditing.RemoveControlledCycleKeys(t);
     }
-    public static void Shift(Track t,int delta){if(Bound(t)){t.motionPreset.start+=delta;t.motionPreset.end+=delta;}}
+    public static void Shift(Track t,int delta){if(Bound(t)){t.motionPreset.start+=delta;t.motionPreset.end+=delta;}CameraPresets.Shift(t,delta);}
     public static void Translate(Track t,double dx,double dy)
     {if(!Bound(t))return;var d=t.motionPreset;d.startX+=dx;d.endX+=dx;d.peakX+=dx;d.centerX+=dx;d.startY+=dy;d.endY+=dy;d.peakY+=dy;d.centerY+=dy;Bake(t);}
-    public static void Manual(Track t){t.motionPreset=null;t.keyIndex=null;}
+    public static void Manual(Track t,double frame=Double.NaN){if(Bound(t)){var p=Point(t.motionPreset,Double.IsNaN(frame)?t.start:frame);t.x=p.X;t.y=p.Y;}t.motionPreset=null;t.keyIndex=null;}
     public static void FitRange(Track t){if(Bound(t)){t.motionPreset.start=t.start;t.motionPreset.end=t.end;Bake(t);}}
     public static void Apply(Track t,string name,int frame)
     {
@@ -86,14 +95,15 @@ internal sealed partial class MainForm
     {
         if(target==null||!Theme.Spatial(target.kind)||!MotionPresets.Names.Contains(name)){SetStatus("请将动作预设拖到拉镜、弹幕、整体对象或对象轨道上。");return;}
         if(target.end-target.start<2){SetStatus("物件时段至少需要 2 帧，才能导入运动预设。");return;}
-        StopPlaying();CommitInspectorEdits();PushUndo();MotionPresets.Apply(target,name,Math.Max(target.start,Math.Min(target.end,frame)));SelectTrack(target,null);timeline.Expand(target,true);MarkChanged();SetStatus("已应用 "+name+"；在动作预设参数中修改路径，每帧自动生成关键帧。");
+        StopPlaying();CommitInspectorEdits();PushUndo();MotionPresets.Apply(target,name,Math.Max(target.start,Math.Min(target.end,frame)));SelectTrack(target,null);timeline.Expand(target,true);MarkChanged();SetStatus("已应用 "+name+"；位置由预设控制，可在右栏调整参数。");
     }
     private void MotionControls(NativeProperties bag,Track track)
     {
         if(MotionPresets.Bound(track)){
             var d=track.motionPreset;string[] choices=new[]{"手动关键帧"}.Concat(MotionPresets.Names).ToArray();
-            Field(bag,"动作预设","动作预设参数",()=>track.motionPreset.name,value=>{if(value=="手动关键帧")MotionPresets.Manual(track);else MotionPresets.Apply(track,value,Math.Max(track.start,Math.Min(track.end,frame)));QueueInspectorUpdate();},choices);
-            bag.Add("生成方式","动作预设参数",typeof(string),()=>"每帧采样，参数修改后重建。",null);
+            Field(bag,"动作预设","动作预设参数",()=>track.motionPreset.name,value=>{if(value=="手动关键帧")MotionPresets.Manual(track,frame);else MotionPresets.Apply(track,value,Math.Max(track.start,Math.Min(track.end,frame)));QueueInspectorUpdate();},choices);
+            bag.Add("生成方式","动作预设参数",typeof(string),()=>"由预设控制；切换手动时保留当前位置。",null);
+            bag.Add("预设持续时间 / 帧","动作预设参数",typeof(int),()=>Math.Max(1,track.motionPreset.end-track.motionPreset.start),value=>{PushUndo();track.motionPreset.end=track.motionPreset.start+Math.Max(1,Math.Min(1000000,(int)value));MotionPresets.Bake(track);MarkChanged();});
             Action<string,string> number=(label,field)=>bag.Add(label,"动作预设参数",typeof(double),()=>typeof(MotionPresetData).GetField(field).GetValue(track.motionPreset),value=>{PushUndo();typeof(MotionPresetData).GetField(field).SetValue(track.motionPreset,field=="hold"?Math.Max(0,Math.Min(.99,(double)value)):(double)value);MotionPresets.Bake(track);if(selectedKey!=null&&MotionPresets.Generated(track,selectedKey.property)){selectedKey=null;timeline.ClearKeySelection();}MarkChanged();});
             bool circle=d.name=="圆周运动"||d.name=="螺旋扩散"||d.name=="螺旋收束",eight=d.name=="八字运动",back=d.name=="水平往返"||d.name=="垂直往返";
             if(circle||eight){number("运动中心 X","centerX");number("运动中心 Y","centerY");}
@@ -103,7 +113,7 @@ internal sealed partial class MainForm
             else if(circle){number("起始半径","radiusStart");number("结束半径","radiusEnd");}
             if(back||eight||d.name=="向上漂浮")number("水平振幅","amplitudeX");
             if(back||eight||d.name=="S 形穿行")number("垂直振幅","amplitudeY");
-            if(circle||eight||back||d.name=="向上漂浮"||d.name=="S 形穿行"){number("运动圈数","turns");number("运动初相角","phase");}
+            if(circle||eight||back||d.name=="向上漂浮"||d.name=="S 形穿行"){number("运动圈数","turns");bag.Add("运动速度 / 圈每秒","动作预设参数",typeof(double),()=>track.motionPreset.turns*state.fps/Math.Max(1.0,track.motionPreset.end-track.motionPreset.start),value=>{PushUndo();track.motionPreset.turns=(double)value*Math.Max(1.0,track.motionPreset.end-track.motionPreset.start)/state.fps;MotionPresets.Bake(track);MarkChanged();});number("运动初相角","phase");}
             if(d.name=="停顿后冲刺")number("停顿占比 0–1","hold");
             if(!circle&&!eight&&!back&&d.name!="抛物线运动")Field(bag,"路径缓动","动作预设参数",()=>Motion.EaseNames[Math.Max(0,Array.IndexOf(Motion.EaseValues,d.easing))],value=>{d.easing=Motion.EaseValues[Array.IndexOf(Motion.EaseNames,value)];MotionPresets.Bake(track);},Motion.EaseNames);
             Field(bag,track.kind=="camera"?"镜头旋转速度 °/帧":"自转速度 °/帧","运动",()=>track.angularSpeed,value=>track.angularSpeed=value);return;

@@ -63,7 +63,7 @@ internal sealed partial class MainForm
             if(template&&track.kind=="rod")bag.Add("生成位置","生成",typeof(string),()=>a.spawnOrigin=="each"?"各颗弹幕":"整体中心",v=>edit(()=>a.spawnOrigin=(string)v=="各颗弹幕"?"each":"center"),new[]{"整体中心","各颗弹幕"});
             bag.Add("生成后销毁母体","生成",typeof(bool),()=>a.destroyParent,v=>edit(()=>a.destroyParent=(bool)v));bag.Add("继承出生贴图与颜色","生成外观",typeof(bool),()=>a.inheritAppearance,v=>edit(()=>a.inheritAppearance=(bool)v));bag.Add("继承母体大小","生成外观",typeof(bool),()=>a.inheritScale,v=>edit(()=>a.inheritScale=(bool)v));
         }else if(!new[]{"clear","split"}.Contains(a.type)){
-            bag.Add("起始值","参数",typeof(double),()=>a.from,v=>edit(()=>a.from=(double)v));bag.Add("结束值","参数",typeof(double),()=>a.to,v=>edit(()=>a.to=(double)v));bag.Add("缓动","参数",typeof(string),()=>Motion.EaseNames[Math.Max(0,Array.IndexOf(Motion.EaseValues,a.easing))],v=>edit(()=>a.easing=Motion.EaseValues[Array.IndexOf(Motion.EaseNames,(string)v)]),Motion.EaseNames);
+            ScalarExpressions.ActionField(bag,state,track,a,"from","起始值","参数",edit);ScalarExpressions.ActionField(bag,state,track,a,"to","结束值","参数",edit);bag.Add("缓动","参数",typeof(string),()=>Motion.EaseNames[Math.Max(0,Array.IndexOf(Motion.EaseValues,a.easing))],v=>edit(()=>a.easing=Motion.EaseValues[Array.IndexOf(Motion.EaseNames,(string)v)]),Motion.EaseNames);
         }
         GenerationPresets.Fields(bag,state,track,a,edit,template);
         behaviorProperties.SelectedObject=bag;

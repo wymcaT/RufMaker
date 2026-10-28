@@ -1,3 +1,5 @@
+import {actionValue} from './scalar-expressions.mjs';
+import {groupIndex} from './timeline-groups.mjs';
 import {gmlNumber as num} from './gml.mjs';
 import {stateCode,fields} from './motion.mjs';
 import {activeCode} from './bullet-schema.mjs';
@@ -7,7 +9,7 @@ import {copyPlacements,linkedCopyRules} from './copy-generation.mjs';
 // independent template remains available when copyLinked is disabled.
 export function linkedCopyScripts(s,poseCode=stateCode,activeFor=(t,time)=>`rf_copy_active=(${activeCode(t,time,s.tracks)});`){
   const rules=linkedCopyRules(s);if(!rules.length)return [['rf_copy_point','return 0;']];
-  const create=(rule,source,cell)=>`rf_new=instance_create(0,0,objRufTemplate);rf_new.rf_template_source=${source};rf_new.rf_birth=argument2;rf_new.rf_copy_rule=${rule};rf_new.rf_copy_owner=argument1;rf_new.rf_generation=1;if instance_exists(argument1) rf_new.rf_generation=argument1.rf_generation+1;${cell}global.rf_template_serial+=1;rf_new.rf_template_serial=global.rf_template_serial;global.rf_template_world=argument2;with(rf_new){if !rf_template_prepare() instance_destroy();else rf_template_instance_step(global.rf_template_world);}`;
+  const create=(rule,source,cell)=>`rf_new=instance_create(0,0,objRufTemplate);rf_new.rf_scope_group=${groupIndex(s,s.tracks[source])};if instance_exists(argument1)rf_new.rf_scope_group=argument1.rf_scope_group;rf_new.rf_template_source=${source};rf_new.rf_birth=argument2;rf_new.rf_copy_rule=${rule};rf_new.rf_copy_owner=argument1;rf_new.rf_generation=1;if instance_exists(argument1) rf_new.rf_generation=argument1.rf_generation+1;${cell}global.rf_template_serial+=1;rf_new.rf_template_serial=global.rf_template_serial;global.rf_template_world=argument2;with(rf_new){if !rf_template_prepare() instance_destroy();else rf_template_instance_step(global.rf_template_world);}`;
   const spawn=`var rf_new,rf_nx,rf_ny,rf_c,rf_s,rf_ix,rf_iy;
 if instance_exists(argument1){if argument1.rf_copy_started[argument0] return 0;argument1.rf_copy_started[argument0]=1;}else {if global.rf_copy_started[argument0] return 0;global.rf_copy_started[argument0]=1;}
 switch(argument0){${rules.map(({sourceIndex,action:a},i)=>{
@@ -19,7 +21,8 @@ for(rf_iy=0;rf_iy<rf_ny;rf_iy+=1)for(rf_ix=0;rf_ix<rf_nx;rf_ix+=1){${create(i,so
   const vars=fields.map(f=>'rf_'+f).concat(['rf_u','rf_heading','rf_cx','rf_cy']).join(',');
   const update=`var ${vars},rf_clock,rf_copy_active;if rf_copy_owner!=noone {if !instance_exists(rf_copy_owner) return 0;rf_shift=rf_copy_owner.rf_shift;}else rf_shift=0;rf_clock=argument0-rf_shift;
 switch(rf_copy_rule){${rules.map(({source:t,sourceIndex,action:a},i)=>{
-    const facing=a.copyFacing==='keep'?`rf_heading+${num(a.copyFacingAngle)}`:a.copyFacing==='fixed'?num(a.copyFacingAngle):`rf_copy_pa+${num((a.copyFacing==='inward'?180:a.copyFacing==='tangent'?90:0)+a.copyFacingAngle)}`;
+    const offset=actionValue(t,a,'copyFacingAngle',{frame:'rf_clock',i:'rf_copy_i',n:'rf_copy_n',direction:'rf_heading',x:'rf_x',y:'rf_y'});
+    const facing=a.copyFacing==='keep'?`rf_heading+${offset}`:a.copyFacing==='fixed'?offset:`rf_copy_pa+${num(a.copyFacing==='inward'?180:a.copyFacing==='tangent'?90:0)}+${offset}`;
     let tint='rf_color_override=-1;rf_inherit_sprite=-1;';
     if(a.copyColorMode==='fixed'){const h=a.copyColor.slice(1);tint=`rf_color_override=make_color_rgb(${parseInt(h.slice(0,2),16)},${parseInt(h.slice(2,4),16)},${parseInt(h.slice(4,6),16)});`;}
     if(a.copyColorMode==='rainbow'){const hue=`(${num(a.copyHue)}+360*rf_copy_i/max(1,rf_copy_n)*${num(a.copyColorDensity)})`;tint=t.rainbow?`rf_inherit_sprite=${t.sprite};rf_inherit_color=c_white;rf_inherit_image=floor(((${hue} mod 360+360) mod 360)*32/360);rf_color_override=c_white;`:`rf_color_override=rf_color_hue(${hue});`;}

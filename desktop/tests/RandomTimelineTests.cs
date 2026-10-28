@@ -88,7 +88,7 @@ internal static class RandomTimelineTests
         var c=new Track{id="c",name="Camera C",kind="camera",lane=0,start=60,end=160};var d=new Track{id="d",name="Object D",kind="object",lane=1,start=200,end=300};
         var state=new EditorState{duration=600,laneCount=3,tracks=new List<Track>{a,b,c,d}};
         Check(TimelineLayout.EnsureExclusive(state)==1&&a.lane==b.lane&&c.lane!=a.lane,"Overlapping clips were not separated into real tracks");
-        using(var timeline=new TimelineCanvas{Size=new Size(1250,600),State=state,PixelsPerSecond=100,StretchKeys="keep"}){
+        using(var timeline=new TimelineCanvas{Size=new Size(1250,600),State=state,PixelsPerSecond=100,StretchKeys="keep",ClipSnap=false}){
             timeline.SelectTrack=(t,k)=>{timeline.SelectedTrack=t;timeline.SelectedKey=k;};int changed=0;timeline.Changed=()=>changed++;timeline.RefreshLayout();
             Check(timeline.ClipBounds(a).Y==timeline.ClipBounds(b).Y,"Non-overlapping clips do not share a lane row");Check(timeline.ClipBounds(c).Y!=timeline.ClipBounds(a).Y,"Overlapping clips hide each other");
             timeline.Expand(a,true);timeline.Expand(b,true);var rows=((IEnumerable)Get(timeline,"lanes")).Cast<object>().ToArray();Check(rows.Count(row=>(string)row.GetType().GetField("property").GetValue(row)=="x")==1,"Expanded clip does not have its own keyed row");timeline.Expand(a,false);rows=((IEnumerable)Get(timeline,"lanes")).Cast<object>().ToArray();Check(rows.Any(row=>(string)row.GetType().GetField("property").GetValue(row)=="fxOpacity"),"Collapsing one clip collapsed a sibling");

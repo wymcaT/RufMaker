@@ -2,6 +2,8 @@ import {normalizeRainbow} from './rainbow.mjs';
 import {normalizeBulletState,groupTransformCode} from './bullet-schema.mjs';
 import {gmlNumber as num} from './gml.mjs';
 import {resolveRandomState,parameterCode as parameterBase,evaluateExpression,isDynamic,clampParameter,expressionContext} from './random-parameters.mjs';
+import {motionBound,motionLegacyKeysMatch,motionPoint,motionPresetCode} from './motion-presets.mjs';
+import {cameraBound,cameraPresetFields,cameraSample,cameraPresetCode} from './camera-presets.mjs';
 export const basic=['x','y','angle','scale','alpha'];
 export const fields=['emitWidth','emitHeight','emitArc','emitPhase','emitRotation','emitWaves','x','y','angle','scale','alpha','speed','spread','count','life','x1','y1','x2','y2','length','rollSpeed','rainbowDensity','rainbowOffset','rainbowSpeed','spriteAngle','strength','fxOpacity','fxAngle','fxRetention','radius','orientation','sides','shapeAspect','shapeInner','cameraZoom','orbitRadius','orbitPhase','pathStartX','pathStartY','pathEndX','pathEndY','pathPeakX','pathPeakY','pathProgress','cameraIntensity','cameraBlur','cameraBlurAngle','fxZoom','fxFlash'];
 export const defaults={emitWidth:240,emitHeight:160,emitArc:360,emitPhase:0,emitRotation:0,emitWaves:1,cameraIntensity:1,cameraBlur:0,cameraBlurAngle:0,fxZoom:1.13,fxFlash:.18,radius:120,orientation:0,sides:5,shapeAspect:1,shapeInner:.45,cameraZoom:1,x:400,y:304,angle:0,scale:1,alpha:1,speed:3,spread:30,count:12,life:160,x1:280,y1:304,x2:520,y2:304,length:240,rollSpeed:2,rainbowDensity:1,rainbowOffset:0,rainbowSpeed:.25,spriteAngle:0,strength:6,fxOpacity:1,fxAngle:0,fxRetention:.5};
@@ -13,6 +15,10 @@ export function normalizeState(s,globalSource=null) {
   }
   for(const t of s.tracks)Object.assign(t,Object.fromEntries(Object.entries({motion:'keyframes',flightMode:'straight',flightExpression:'point_direction(x,y,player.x,player.y)',turnRate:3,homingDelay:0,shape:'rod',rodMode:'center',easePower:3,easePeriod:.3,velocityX:0,velocityY:0,accelerationX:0,accelerationY:0,angularSpeed:0,orbitRadius:100,orbitSpeed:1,orbitPhase:0,rolling:false,fxSamples:6,fxFrequency:1,cameraMirror:false,fxSlices:11,fxStutter:2,...defaults}).filter(([key])=>t[key]===undefined)));
   for(const t of s.tracks) {
+    if(motionBound(t)&&!motionLegacyKeysMatch(t,ease))t.motionPreset=null;
+    if(motionBound(t)){t.keyframes=t.keyframes.filter(k=>k.property!=='x'&&k.property!=='y');if(t.expressions){delete t.expressions.x;delete t.expressions.y;}t.motion='keyframes';t.velocityX=t.velocityY=t.accelerationX=t.accelerationY=0;}
+    if(cameraBound(t)){const d=t.cameraPreset;t.cameraStyle=d.name;t.x=t.cameraOriginX=d.centerX;t.y=t.cameraOriginY=d.centerY;t.angle=t.cameraOriginAngle=d.baseAngle;t.cameraZoom=t.cameraOriginZoom=d.baseZoom;t.keyframes=t.keyframes.filter(k=>!cameraPresetFields.includes(k.property));if(t.expressions)for(const field of cameraPresetFields)delete t.expressions[field];}
+    if(t.keyframeCycle&&(motionBound(t)||cameraBound(t))){const before=t.keyframeCycle.keys.length;t.keyframeCycle.keys=t.keyframeCycle.keys.filter(k=>!(motionBound(t)&&(k.property==='x'||k.property==='y'))&&!(cameraBound(t)&&cameraPresetFields.includes(k.property)));if(t.keyframeCycle.keys.length!==before){if(!t.keyframeCycle.keys.length)t.keyframeCycle=null;else t.keyframeCycle.stamp='';}}
     normalizeRainbow(t);
     if(t.trailMode===undefined||t.trailMode==='legacy')t.trailMode=t.trail?'fade':'off';
     t.trail=t.trailMode!=='off';
@@ -38,6 +44,8 @@ export function ease(e,u,p=3,period=.3) {
   }
 }
 function valueCore(t,property,frame,context) {
+  if(motionBound(t)&&(property==='x'||property==='y'))return motionPoint(t.motionPreset,frame,ease)[property];
+  if(cameraBound(t)&&cameraPresetFields.includes(property))return cameraSample(t.cameraPreset,frame,t._expressionContext?.fps??50,ease)[property];
   const keys=t.keyframes.filter(k=>k.property===property).sort((a,b)=>a.frame-b.frame);
   const value=k=>{const expr=k?.expression||!k&&t.expressions?.[property],fallback=k?k.value:t[property]??defaults[property]??0;return expr&&isDynamic(expr)?clampParameter(property,evaluateExpression(expr,t._expressionContext?.seed??12345,(t.randomId||t.id)+'|'+property+'|'+(k?.randomId||'base'),context)):fallback;};
   if(!keys.length)return value(null);if(frame<=keys[0].frame)return value(keys[0]);
@@ -58,7 +66,8 @@ export function stateCode(t,time,context={}) {
   for(const field of fields) {
     positioned=!['x1','y1','x2','y2','x','y','orbitRadius','orbitPhase','pathStartX','pathStartY','pathEndX','pathEndY','pathPeakX','pathPeakY','pathProgress'].includes(field);
     const code=[];blocks.set(field,code);
-    const keys=t.keyframes.filter(k=>k.property===field).sort((a,b)=>a.frame-b.frame),base=t[field]??defaults[field];
+    if(cameraBound(t)&&cameraPresetFields.includes(field))continue;
+    const keys=motionBound(t)&&(field==='x'||field==='y')?[]:t.keyframes.filter(k=>k.property===field).sort((a,b)=>a.frame-b.frame),base=t[field]??defaults[field];
     if(!keys.length){code.push(`rf_${field}=${parameter(t,field,base)};`);continue;}
     if(keys.length>32){
       const tree=(lo,hi)=>{if(hi-lo===1){const a=keys[lo],b=keys[hi];return `rf_u=rf_ease('${a.easing||t.easing||'linear'}',(${time}-(${num(a.frame)}))/${num(Math.max(1,b.frame-a.frame))},${parameter(t,'easePower',3)},${parameter(t,'easePeriod',.3)});rf_${field}=(${parameter(t,field,0,a)})+((${parameter(t,field,0,b)})-(${parameter(t,field,0,a)}))*rf_u;`;}const mid=Math.floor((lo+hi)/2);return `if ${time}<${num(keys[mid].frame)} {${tree(lo,mid)}}else {${tree(mid,hi)}}`;};
@@ -69,6 +78,8 @@ export function stateCode(t,time,context={}) {
     code.push(`else {rf_${field}=${parameter(t,field,0,keys.at(-1))};}`);
   }
   const geometry=['x1','y1','x2','y2','x','y','orbitRadius','orbitPhase','pathStartX','pathStartY','pathEndX','pathEndY','pathPeakX','pathPeakY','pathProgress'];for(const field of geometry)out.push(...blocks.get(field));positioned=false;
+  if(cameraBound(t))out.push(cameraPresetCode(t,time,ease));
+  if(motionBound(t))out.push(motionPresetCode(t,time));
   const dt=`max(0,${time}-(${num(t.clockStart??t.start)}))`;
   if(t.motion==='velocity')out.push(`rf_x+=${parameter(t,'velocityX')}*${dt}+${parameter(t,'accelerationX')}*sqr(${dt})/2;rf_y+=${parameter(t,'velocityY')}*${dt}+${parameter(t,'accelerationY')}*sqr(${dt})/2;`);
   if(t.motion==='orbit')out.push(`rf_x+=lengthdir_x(rf_orbitRadius,rf_orbitPhase+${parameter(t,'orbitSpeed',1)}*${dt});rf_y+=lengthdir_y(rf_orbitRadius,rf_orbitPhase+${parameter(t,'orbitSpeed',1)}*${dt});`);

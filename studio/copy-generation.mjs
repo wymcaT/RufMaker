@@ -1,3 +1,4 @@
+import {actionValue} from './scalar-expressions.mjs';
 import {gmlNumber as num} from './gml.mjs';
 export const copyDefaults={copyLinked:true,copyMode:'directions',copyFacing:'keep',copyColorMode:'inherit',copyColor:'#FFFFFF',copyUp:true,copyDown:true,copyLeft:true,copyRight:true,copyCenter:false,copyCount:1,copySpacingX:128,copySpacingY:128,copyWidth:640,copyHeight:384,copyRadius:180,copyAngle:0,copyFacingAngle:0,copyHue:0,copyColorDensity:1};
 const direction=(x,y)=>x===0&&y===0?0:(Math.atan2(-y,x)*180/Math.PI+360)%360;
@@ -9,7 +10,8 @@ export function copyPlacements(a){const points=[];const add=(x,y)=>{if(!a.copyCe
   if(points.length>300)throw Error('每轮最多复制300个物件，请减少复制数量。');return points.map((p,index)=>({...p,index,count:points.length}));
 }
 export function copySpawnGml(a,target,c){return copyPlacements(a).map(p=>{
-  const facing=a.copyFacing==='keep'?`(${c.heading}+${num(a.copyFacingAngle)})`:a.copyFacing==='fixed'?num(a.copyFacingAngle):num(p.angle+(a.copyFacing==='inward'?180:a.copyFacing==='tangent'?90:0)+a.copyFacingAngle);
+  const offset=actionValue(c.source,a,'copyFacingAngle',{frame:'rf_now',i:String(p.index),n:String(p.count),direction:c.heading,x:c.x,y:c.y});
+  const facing=a.copyFacing==='keep'?`(${c.heading}+${offset})`:a.copyFacing==='fixed'?offset:`(${num(p.angle+(a.copyFacing==='inward'?180:a.copyFacing==='tangent'?90:0))}+${offset})`;
   const angle=`(${facing}-rf_copy_anchor_angle(${target}))`,hue=a.copyHue+360*p.index/Math.max(1,p.count)*a.copyColorDensity;
   let tint=c.color,image=c.lookImage,lookColor=c.lookColor,lookSprite=a.inheritAppearance?c.lookSprite:'-1';if(c.source.rainbow&&a.copyColorMode==='inherit')lookSprite='-1';
   if(a.copyColorMode==='fixed'){const v=/^#[0-9a-f]{6}$/i.test(a.copyColor)?a.copyColor.slice(1):'ffffff';tint=`make_color_rgb(${parseInt(v.slice(0,2),16)},${parseInt(v.slice(2,4),16)},${parseInt(v.slice(4,6),16)})`;}

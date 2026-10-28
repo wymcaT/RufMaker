@@ -75,7 +75,7 @@ internal static class ShellLayoutTests
         var button=Items(All(form).OfType<ToolStrip>().Single(s=>s.Name=="BehaviorTools")).Single(i=>i.Text=="展开编辑");ExpectBehaviorEditor(()=>button.PerformClick(),source,true,0);
         timeline.RefreshLayout();var bulletReference=((System.Collections.IEnumerable)Get(timeline,"lanes")).Cast<object>().First(l=>(string)field(l,"property")=="@template"&&field(l,"generationSource")==source&&(string)field(l,"generationRule")=="@bullet:1");int bulletY=header+(int)field(bulletReference,"top")+20;var bulletBounds=(Rectangle)Call(timeline,"TemplateCardBounds",bulletReference,header+(int)field(bulletReference,"top"),1083);
         ExpectBehaviorEditor(()=>Call(timeline,"OnMouseDoubleClick",new MouseEventArgs(MouseButtons.Left,2,bulletBounds.Left+70,bulletY,0)),source,false,1);Check((int)Get(form,"frame")==500,"Bullet-rule editor moved song time");
-        Call(form,"SelectTrack",template,null);var menu=(ContextMenuStrip)Call(form,"CreateContext",false);using(menu){Call(menu,"OnOpening",new System.ComponentModel.CancelEventArgs());Check(menu.Items.Cast<ToolStripItem>().Any(i=>i.Text=="预览模板局部动画"),"Local preview entry was removed");}
+        Call(form,"SelectTrack",template,null);var menu=(ContextMenuStrip)Call(form,"CreateContext",false);using(menu){Call(menu,"OnOpening",new System.ComponentModel.CancelEventArgs());Check(Items(menu).Any(i=>i.Text=="预览模板局部动画"),"Local preview entry was removed");}
     }
     private static void SnapBounds(MainForm form,string root)
     {

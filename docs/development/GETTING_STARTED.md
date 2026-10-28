@@ -142,7 +142,13 @@ const project = await import('./studio/project.mjs');
 
 当前三次 GM 数值对照的详情和未入库工具问题，见协作状态。一次编译成功不能替代运行检查；运行时需检查错误日志、完成标记和实际数值。
 
+轨道共享组由TimelineGroups.cs与studio/timeline-groups.mjs管理，EditorState.timelineGroups保存稳定id/name/color/lanes；lane是归属的唯一来源，父子parentId仍是旧坐标变换。模式展开用scopeGroup/_scopeGroup继承外层轨道，模板与分裂后代保存来源scope。StageCanvas.SceneChanged必须复制组定义。GroupEvents.cs与studio/group-events.mjs负责组内快照复制、清除和属性设置；复制在当前帧普通生成/控制/移动之后取快照，每个事件只在start执行一次。ScalarExpressions.cs与studio/scalar-expressions.mjs处理行为数值公式与换FPS单位，BulletAction.expressions进入快照、预设和导出。Test-TimelineGroups.ps1及Node timeline-groups.test.mjs为定向入口；verify-groups-gml.mjs在build隔离工程核对实际GM及Create/F5预热。使用说明见[轨道组](../timeline-groups.md)。
+
 ## 5. 从哪里改
+
+本地保存/预览/历史优化见[使用说明](../performance-and-saving.md)及[验证记录](OPTIMIZATION-STAGE-2026-10-28.md)。保存由`studio/project-sync.mjs`准备文件计划、提交和恢复，`project.mjs`与`plain-room.mjs`通过其虚拟文件入口生成；不要在计划期间直接写真实工程。预览修订由`PreviewRevision.cs`判定受影响时间，`PreviewCache.UseScene`保留世界并从早期检查点重算；保持未修改生成动作的引用身份。`UndoHistory.cs`管理共享估算预算，不能在压入另一端后再弹出当前端，以免预算淘汰待恢复记录。
+
+定向入口为`desktop/Test-Optimizations.ps1`、`runtime/node.exe --test studio/project-sync.test.mjs`和`runtime/node.exe desktop/tests/verify-project-sync.mjs`。后者产生build/optimization-check/save-project.json；随后`verify-optimization-gml.mjs large`核对1000物件真实Draw，`verify-optimization-gml.mjs native`使用本机non-ruf projects/Verse3原件的只读导入副本做同步/编译兼容检查。实时自机狙先跑Test-PlayerAim.ps1，再跑verify-player-aim-gml.mjs。运行器探针设置隐藏窗口、错误写日志并自动中止，保留失败日志。新增UndoHistory/PreviewRevision已进入显式构建清单。
 
 - UI/渲染：读 `desktop/AGENTS.md` 的入口表。
 - 后台/GML/原生导入：读 `studio/AGENTS.md` 的入口表。

@@ -10,6 +10,7 @@ internal static class Motion
     public static readonly string[] EaseNames={"线性","二次缓入","二次缓出","平滑","Sin 缓入","Sin 缓出","Sin 缓入缓出","Circle 缓入","Circle 缓出","Circle 缓入缓出","Power 缓入","Power 缓出","Power 缓入缓出","Expo 缓入","Expo 缓出","Expo 缓入缓出","弹跳缓出","弹跳缓入","弹跳缓入缓出","ExpSin 弹性","Back 回退","保持 / 跳变","剪辑 · 柔和进出","剪辑 · 快进慢停","剪辑 · 过冲回弹","剪辑 · 弹性落位"};
     public static string Name(string property)
     {
+        switch(property){case "controlValue":return "事件值";case "controlFrom":return "事件方向";case "eventAcceleration":return "事件加速度";case "eventTurn":return "事件转向";case "from":return "起始值";case "to":return "结束值";case "childSpeed":return "子弹速度";case "spawnAngle":return "生成方向";case "spawnAngleStep":return "每颗生成方向递增 / 度";case "spawnWaveAngleStep":return "每轮递增角度 / 度";case "copyFacingAngle":return "副本朝向偏移 / 度";}
         switch(property){case "cameraIntensity":return "预设运动强度";case "cameraBlur":return "拉镜模糊强度";case "cameraBlurAngle":return "拉镜模糊方向";case "fxZoom":return "冲击缩放";case "fxFlash":return "闪光强度";case "pathStartX":return "起点 X";case "pathStartY":return "起点 Y";case "pathEndX":return "终点 X";case "pathEndY":return "终点 Y";case "pathPeakX":return "峰 X";case "pathPeakY":return "峰 Y";case "pathProgress":return "路径进度 0–1";case "orbitRadius":return "公转半径";case "orbitPhase":return "公转初相角";}
         switch(property){case "emitWidth":return "阵列宽度";case "emitHeight":return "阵列高度";case "emitArc":return "圆弧角度";case "emitPhase":return "阵列相位 / 度";case "emitRotation":return "阵列旋转 / 度";case "emitWaves":return "波形周期数";case "radius":return "半径";case "shapeAspect":return "轮廓高度比例";case "shapeInner":return "内凹比例";case "orientation":return "轮廓朝向";case "sides":return "边数 / 尖角数";case "cameraZoom":return "镜头缩放";case "rainbowDensity":return "颜色密度";case "rainbowOffset":return "起始色相 / 帧";case "rainbowSpeed":return "色彩流动速度 / 帧每帧";case "spriteAngle":return "贴图角度";case "x":return "X";case "y":return "Y";case "angle":return "角度";case "scale":return "缩放";case "alpha":return "透明度";case "x1":return "端点1 X";case "y1":return "端点1 Y";case "x2":return "端点2 X";case "y2":return "端点2 Y";case "length":return "棒长";case "rollSpeed":return "滚动速度";case "speed":return "弹速";case "spread":return "角度间隔";case "count":return "弹幕数量";case "interval":return "发射间隔";case "life":return "寿命";case "strength":return "效果强度";case "fxOpacity":return "效果透明度";case "fxAngle":return "效果方向";case "fxRetention":return "帧混合比例";default:return property;}
     }
@@ -30,6 +31,7 @@ internal static class Motion
     public static void Normalize(EditorState state)
     {
         if(state.nativeTest==null)state.nativeTest=new NativeTestPosition();
+        TimelineGroups.Normalize(state);
         TimelineLayout.Normalize(state);
         TimelineLayout.Order(state);
         foreach(var t in state.tracks)
@@ -44,6 +46,7 @@ internal static class Motion
                 foreach(string field in Basic)converted.Add(new Keyframe{frame=key.frame,property=field,value=Convert.ToDouble(typeof(Keyframe).GetField(field).GetValue(key))});
             }
             t.keyframes=converted.OrderBy(k=>k.frame).ToList();
+            NormalizePresets(t,state.fps);
             if(t.trailMode=="legacy")Trails.SetMode(t,t.trail?"fade":"off");
             if(t.kind=="effect"&&t.effect!="flash"&&t.name=="闪屏")t.name=Effects.Name(t.effect);
         }
@@ -51,6 +54,8 @@ internal static class Motion
         RandomParameters.Resolve(state);
         BulletSystem.Attach(state);
     }
+    private static void NormalizePresets(Track t,int fps)
+    {if(MotionPresets.Bound(t)){if(MotionPresets.LegacyKeysMatch(t))MotionPresets.Bake(t);else {t.motionPreset=null;t.keyIndex=null;}}CameraPresets.MigrateLegacy(t,fps);if(CameraPresets.Bound(t))CameraPresets.Refresh(t);foreach(var child in t.children)NormalizePresets(child,fps);}
     private static ExpressionContext GeometryContext(Track t,double frame)
     {var raw=ExpressionContext.For(t,frame);var context=ExpressionContext.For(t,frame);context.x1=ValueCore(t,"x1",frame,raw);context.y1=ValueCore(t,"y1",frame,raw);context.x2=ValueCore(t,"x2",frame,raw);context.y2=ValueCore(t,"y2",frame,raw);return context;}
     public static double Value(Track t,string property,double frame)
@@ -65,6 +70,8 @@ internal static class Motion
     public static double SampleValue(Track t,string property,double frame,ExpressionContext context){return ValueCore(t,property,frame,context);}
     private static double ValueCore(Track t,string property,double frame,ExpressionContext context)
     {
+        if(MotionPresets.Bound(t)&&(property=="x"||property=="y")){var point=MotionPresets.Point(t.motionPreset,frame);return property=="x"?point.X:point.Y;}
+        if(CameraPresets.Generated(t,property))return CameraPresets.Value(t,property,frame);
         Keyframe before=null,after=null;
         if(MotionPresets.Bound(t)||t.keyframeCycle!=null){
             if(t.keyIndex==null)t.keyIndex=t.keyframes.GroupBy(k=>k.property).ToDictionary(g=>g.Key,g=>g.OrderBy(k=>k.frame).ToArray());

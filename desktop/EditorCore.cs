@@ -24,9 +24,10 @@ internal sealed class EditorState
     public NativeProject nativeProject;
     public NativeTestPosition nativeTest=new NativeTestPosition();
     public List<Track> tracks=new List<Track>();
+    public List<TimelineGroup> timelineGroups=new List<TimelineGroup>();
     public EditorState Snapshot()
     {
-        var copy=(EditorState)MemberwiseClone();copy.variableTimeline=null;copy.globalSource=null;copy.tracks=tracks.Select(t=>t.Snapshot()).ToList();copy.playerTrace=playerTrace.Select(p=>new PlayerTracePoint{frame=p.frame,x=p.x,y=p.y}).ToList();copy.plainRooms=plainRooms==null?null:(string[])plainRooms.Clone();
+        var copy=(EditorState)MemberwiseClone();copy.variableTimeline=null;copy.globalSource=null;copy.tracks=tracks.Select(t=>t.Snapshot()).ToList();copy.timelineGroups=(timelineGroups??new List<TimelineGroup>()).Select(g=>g.Snapshot()).ToList();copy.playerTrace=playerTrace.Select(p=>new PlayerTracePoint{frame=p.frame,x=p.x,y=p.y}).ToList();copy.plainRooms=plainRooms==null?null:(string[])plainRooms.Clone();
         copy.nativeTest=nativeTest==null?null:new NativeTestPosition{x=nativeTest.x,y=nativeTest.y};copy.player=player==null?null:player.Snapshot();copy.nativeProject=nativeProject==null?null:nativeProject.Snapshot();copy.terrain=terrain==null?null:Json.Read<object>(Json.Write(terrain));return copy;
     }
 }
@@ -48,7 +49,9 @@ internal sealed class Track
     public int targetVolley=-1,targetMinAge,targetMaxAge=1000000;public bool includeFuture;
     public double controlFrom,controlValue;public string controlColor="#FFFFFF";
     public string eventPreset="",eventNativeObjects="";public bool eventRestoreBirth=true,eventDisableMotion=true;public double eventAcceleration,eventTurn;
+    public string eventGroup="",eventProperty="speed";public int eventCopyLife=160;public bool eventCopyTrail,eventCopyDestroyOriginal;
     [ScriptIgnore] public Track parent;[ScriptIgnore] public EditorState owner;
+    [ScriptIgnore] public string scopeGroup;
     public int lane=-1;public string randomId="";public Dictionary<string,string> expressions=new Dictionary<string,string>();
     public string id, name, kind, sprite="sprBullet", easing="linear", color="#ff6d91", effect="flash", code="", rodMode="center", motion="keyframes";
     public bool enabled=true, trail, rolling, rotateSprite, trailRandom;
@@ -76,12 +79,12 @@ internal sealed class Track
     public double x=400,y=304,scale=1,alpha=1,x1=280,y1=304,x2=520,y2=304,length=240,rollSpeed=2,easePower=3,easePeriod=.3;
     public double velocityX,velocityY,accelerationX,accelerationY,angularSpeed,orbitRadius=100,orbitSpeed=1,orbitPhase;
     public double pathStartX,pathStartY,pathEndX,pathEndY,pathPeakX,pathPeakY,pathProgress;
-    public MotionPresetData motionPreset;public KeyframeCycle keyframeCycle;public int? clockStart,clockEnd;public string clipSourceId="";
+    public MotionPresetData motionPreset;public CameraPresetData cameraPreset;public KeyframeCycle keyframeCycle;public int? clockStart,clockEnd;public string clipSourceId="";
     [ScriptIgnore] public Dictionary<string,Keyframe[]> keyIndex;
     public double fxOpacity=1,fxAngle,fxRetention=.5,fxFrequency=1;
     public int fxSamples=6;
     public List<Keyframe> keyframes=new List<Keyframe>();
-    public Track Snapshot(){var copy=(Track)MemberwiseClone();copy.keyframes=keyframes.Select(k=>k.Snapshot()).ToList();copy.expressions=new Dictionary<string,string>(expressions??new Dictionary<string,string>());copy.bulletActions=(bulletActions??new List<BulletAction>()).Select(a=>a.Snapshot()).ToList();copy.spawnActions=(spawnActions??new List<BulletAction>()).Select(a=>a.Snapshot()).ToList();copy.curvePoints=(curvePoints??new List<CurvePoint>()).Select(p=>new CurvePoint{x=p.x,y=p.y}).ToList();copy.children=(children??new List<Track>()).Select(t=>t.Snapshot()).ToList();copy.motionPreset=motionPreset==null?null:motionPreset.Snapshot();copy.keyframeCycle=keyframeCycle==null?null:keyframeCycle.Snapshot();copy.keyIndex=null;copy.parent=null;copy.owner=null;return copy;}
+    public Track Snapshot(){var copy=(Track)MemberwiseClone();copy.keyframes=keyframes.Select(k=>k.Snapshot()).ToList();copy.expressions=new Dictionary<string,string>(expressions??new Dictionary<string,string>());copy.bulletActions=(bulletActions??new List<BulletAction>()).Select(a=>a.Snapshot()).ToList();copy.spawnActions=(spawnActions??new List<BulletAction>()).Select(a=>a.Snapshot()).ToList();copy.curvePoints=(curvePoints??new List<CurvePoint>()).Select(p=>new CurvePoint{x=p.x,y=p.y}).ToList();copy.children=(children??new List<Track>()).Select(t=>t.Snapshot()).ToList();copy.motionPreset=motionPreset==null?null:motionPreset.Snapshot();copy.cameraPreset=cameraPreset==null?null:cameraPreset.Snapshot();copy.keyframeCycle=keyframeCycle==null?null:keyframeCycle.Snapshot();copy.keyIndex=null;copy.parent=null;copy.owner=null;return copy;}
 }
 internal sealed class CurvePoint {public double x,y;}
 internal sealed class BulletAction
@@ -96,7 +99,8 @@ internal sealed class BulletAction
     public bool inheritAppearance,inheritScale;
     public string spawnColorExpression="";
     public int start,duration=30,stagger,count=5,maxGeneration=1;public double from,to=3,spread=20,childSpeed=3;
-    public BulletAction Snapshot(){return (BulletAction)MemberwiseClone();}
+    public Dictionary<string,string> expressions=new Dictionary<string,string>();
+    public BulletAction Snapshot(){var copy=(BulletAction)MemberwiseClone();copy.expressions=new Dictionary<string,string>(expressions??new Dictionary<string,string>());return copy;}
 }
 internal sealed class Keyframe
 {
@@ -134,9 +138,11 @@ internal sealed class UndoSnapshot
 internal sealed class UndoEntry
 {
     private readonly UndoSnapshot snapshot;
+    public long EstimatedBytes {get;private set;}
     public UndoEntry(UndoSnapshot source)
     {
         snapshot=Copy(source);
+        EstimatedBytes=SnapshotSize.Estimate(snapshot);
     }
     private static UndoSnapshot Copy(UndoSnapshot source)
     {

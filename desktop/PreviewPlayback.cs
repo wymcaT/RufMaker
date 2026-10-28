@@ -40,8 +40,8 @@ internal static class CursorSnapping
     public static Func<int,int?> Capture(EditorState state,Track selected,double tolerance,bool keys)
     {
         var frames=new System.Collections.Generic.HashSet<int>();Action<int> add=f=>{if(f>=0&&f<=state.duration)frames.Add(f);};
-        if(keys){foreach(var t in state.tracks){if(t.kind=="native"||t.templateOnly||InTemplate(t))continue;add(t.start);add(t.end);add(t.end+1);foreach(var k in t.keyframes)if(k.frame>=t.start&&k.frame<=t.end)add(k.frame);}
-            if(selected!=null&&(selected.templateOnly||!state.tracks.Contains(selected))){add(selected.start);add(selected.end);add(selected.end+1);foreach(var k in selected.keyframes)if(k.frame>=selected.start&&k.frame<=selected.end)add(k.frame);}
+        if(keys){foreach(var t in state.tracks){if(t.kind=="native"||t.templateOnly||InTemplate(t))continue;add(t.start);add(t.end);add(t.end+1);foreach(var k in t.keyframes)if(k.frame>=t.start&&k.frame<=t.end&&!MotionPresets.Generated(t,k.property))add(k.frame);}
+            if(selected!=null&&(selected.templateOnly||!state.tracks.Contains(selected))){add(selected.start);add(selected.end);add(selected.end+1);foreach(var k in selected.keyframes)if(k.frame>=selected.start&&k.frame<=selected.end&&!MotionPresets.Generated(selected,k.property))add(k.frame);}
             if(state.nativeProject!=null&&state.nativeProject.events!=null)foreach(var e in state.nativeProject.events)add(e.frame);}
         int[] sorted=frames.OrderBy(f=>f).ToArray();var beat=new EditorState{fps=state.fps,duration=state.duration,bpm=state.bpm,beatDivision=state.beatDivision,beatOffsetMs=state.beatOffsetMs,beatSnap=state.beatSnap};
         return value=>{int at=Array.BinarySearch(sorted,value);if(at>=0)return sorted[at];at=~at;int? target=null;if(at>0&&value-(double)sorted[at-1]<=tolerance)target=sorted[at-1];if(at<sorted.Length&&sorted[at]-(double)value<=tolerance&&(!target.HasValue||sorted[at]-(double)value<value-(double)target.Value))target=sorted[at];return target??(beat.beatSnap?(int?)BeatGrid.Snap(beat,value):null);};
@@ -49,8 +49,8 @@ internal static class CursorSnapping
     public static int Snap(EditorState state,Track track,int value,double tolerance,bool keys)
     {
         if(keys){int nearest=value;double best=Double.MaxValue;Action<int> consider=f=>{if(f<0||f>state.duration)return;double distance=Math.Abs((double)f-value);if(distance<=tolerance&&(distance<best||distance==best&&f<nearest)){best=distance;nearest=f;}};
-            foreach(var t in state.tracks){if(t.kind=="native"||t.templateOnly||InTemplate(t))continue;consider(t.start);consider(t.end);consider(t.end+1);foreach(var k in t.keyframes)if(k.frame>=t.start&&k.frame<=t.end)consider(k.frame);if(best==0)return nearest;}
-            if(track!=null&&(track.templateOnly||!state.tracks.Contains(track))){consider(track.start);consider(track.end);consider(track.end+1);foreach(var k in track.keyframes)if(k.frame>=track.start&&k.frame<=track.end)consider(k.frame);}
+            foreach(var t in state.tracks){if(t.kind=="native"||t.templateOnly||InTemplate(t))continue;consider(t.start);consider(t.end);consider(t.end+1);foreach(var k in t.keyframes)if(k.frame>=t.start&&k.frame<=t.end&&!MotionPresets.Generated(t,k.property))consider(k.frame);if(best==0)return nearest;}
+            if(track!=null&&(track.templateOnly||!state.tracks.Contains(track))){consider(track.start);consider(track.end);consider(track.end+1);foreach(var k in track.keyframes)if(k.frame>=track.start&&k.frame<=track.end&&!MotionPresets.Generated(track,k.property))consider(k.frame);}
             if(state.nativeProject!=null&&state.nativeProject.events!=null)foreach(var e in state.nativeProject.events)consider(e.frame);
             if(best<Double.MaxValue)return nearest;}
         return BeatGrid.Snap(state,value);

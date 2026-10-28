@@ -9,7 +9,7 @@ internal sealed class TemplateDefinition
 }
 internal sealed class TemplateInstance
 {
-    public int serial,birth,generation,shift,lastFrame=-1;public double x,y,rotation,sourceX,sourceY,scaleMultiplier=1,anchorX,anchorY;public BirthAppearance appearance;public Color? colorOverride;public TemplateDefinition definition;
+    public string scopeGroup="";public int serial,birth,generation,shift,lastFrame=-1;public double x,y,rotation,sourceX,sourceY,scaleMultiplier=1,anchorX,anchorY;public BirthAppearance appearance;public Color? colorOverride;public TemplateDefinition definition;
     public string linkKey;public int linkedOwner;public Track linkedSource;public BulletAction linkedAction;public CopyPlacement placement;public RoomData room;public TemplateInstance sourceInstance;public bool ended;
     public TemplateInstance Clone(){return (TemplateInstance)MemberwiseClone();}
     public PointF Point(double px,double py)
@@ -44,11 +44,14 @@ internal sealed class TemplateRuntime
         return index<0||!hidden.Contains(Key(owner,track,index));
     }
     private void Hide(Track track,int index,int owner){hidden.Add(Key(owner,track,index));}
+    public void DestroyMember(SimBullet b){if(b.kinematic)Hide(b.source,b.index,b.templateOwner);b.dead=true;}
     public void ClearDanmaku(int frame)
     {
         foreach(var t in world.State.tracks.Where(t=>(t.kind=="rod"||t.kind=="object")&&BulletSystem.Active(t,frame)))Hide(t,-1,0);
         foreach(var instance in instances)foreach(var t in instance.definition.scene.tracks.Where(t=>(t.kind=="rod"||t.kind=="object")&&BulletSystem.Active(t,frame-instance.shift)))Hide(t,-1,instance.serial);
     }
+    public void ClearGroup(int frame,string group)
+    {foreach(var t in world.State.tracks.Where(t=>t.kind=="rod"&&BulletSystem.Active(t,frame)&&TimelineGroups.Id(t)==group))Hide(t,-1,0);foreach(var instance in instances.Where(i=>i.scopeGroup==group))foreach(var t in instance.definition.scene.tracks.Where(t=>t.kind=="rod"&&BulletSystem.Active(t,frame-instance.shift)))Hide(t,-1,instance.serial);}
     private TemplateDefinition Definition(string id,bool linked=false,Track context=null,int owner=0)
     {
         string cacheKey=(linked?"linked|"+owner+"|":"")+id;TemplateDefinition found;if(definitions.TryGetValue(cacheKey,out found))return found;
@@ -56,7 +59,7 @@ internal sealed class TemplateRuntime
         var selected=new HashSet<string>{id};bool more;
         do{more=false;foreach(var t in world.State.tracks)if(selected.Contains(t.parentId))more|=selected.Add(t.id);}while(more);
         var tracks=world.State.tracks.Where(t=>selected.Contains(t.id)).Select(t=>t.Snapshot()).ToList();var root=tracks.First(t=>t.id==id);root.parentId="";root.enabled=true;root.templateOnly=false;
-        var scene=new EditorState{preserveTrackOrder=world.State.preserveTrackOrder,globalSource=world.State,fps=world.State.fps,duration=world.State.duration,randomSeed=world.State.randomSeed,nativeTest=world.State.nativeTest,usePlayerTrace=world.State.usePlayerTrace,playerTrace=world.State.playerTrace,tracks=tracks};Motion.Normalize(scene);
+        var scene=new EditorState{timelineGroups=world.State.timelineGroups.Select(g=>g.Snapshot()).ToList(),preserveTrackOrder=world.State.preserveTrackOrder,globalSource=world.State,fps=world.State.fps,duration=world.State.duration,randomSeed=world.State.randomSeed,nativeTest=world.State.nativeTest,usePlayerTrace=world.State.usePlayerTrace,playerTrace=world.State.playerTrace,tracks=tracks};Motion.Normalize(scene);
         if(linked)root.parent=source.parent;
         found=new TemplateDefinition{scene=scene,root=root,anchor=Motion.At(root,root.start)};definitions[cacheKey]=found;return found;
     }
@@ -66,24 +69,26 @@ internal sealed class TemplateRuntime
         instances.Clear();hidden=snapshot==null?new HashSet<string>():new HashSet<string>(snapshot.hidden);serial=snapshot==null?0:snapshot.serial;
         if(snapshot!=null)instances.AddRange(snapshot.instances.Select(t=>t.Clone()));fixedBullets.Clear();foreach(var b in world.bullets.Where(b=>b.kinematic))fixedBullets[Key(b.templateOwner,b.source,b.index)]=b;
     }
-    private bool Generate(BulletAction action,int frame,double x,double y,double heading,int generation,double sourceX,double sourceY,int index,Track source,int age,BirthAppearance appearance,TemplateInstance owner=null,bool trackAction=false)
+    private bool Generate(BulletAction action,int frame,double x,double y,double heading,int generation,double sourceX,double sourceY,int index,Track source,int age,BirthAppearance appearance,TemplateInstance owner=null,bool trackAction=false,string scope=null)
     {
-        if(action.generationPreset!=CopyGeneration.Key)return GenerateOne(action,frame,x,y,heading,generation,sourceX,sourceY,index,source,age,appearance,null);
+        scope=scope??(owner==null?TimelineGroups.Id(source):owner.scopeGroup);
+        if(action.generationPreset!=CopyGeneration.Key)return GenerateOne(action,frame,x,y,heading,generation,sourceX,sourceY,index,source,age,appearance,null,scope);
         if(action.copyLinked&&trackAction){
             string key=(owner==null?0:owner.serial)+"|"+source.id+"|"+source.spawnActions.IndexOf(action)+"|"+index;if(instances.Any(t=>t.linkKey==key))return false;
             var definition=Definition(source.id,true,source,owner==null?0:owner.serial);if(definition==null)return false;
             foreach(var p in CopyGeneration.LivePlacements(action,world.Room)){
-                var instance=new TemplateInstance{serial=++serial,birth=frame,generation=generation+1,definition=definition,linkedSource=source,linkedOwner=owner==null?0:owner.serial,linkedAction=action,placement=p,room=world.Room,linkKey=key};instances.Add(instance);StepInstance(instance,frame);
+                var instance=new TemplateInstance{scopeGroup=scope,serial=++serial,birth=frame,generation=generation+1,definition=definition,linkedSource=source,linkedOwner=owner==null?0:owner.serial,linkedAction=action,placement=p,room=world.Room,linkKey=key};instances.Add(instance);StepInstance(instance,frame);
             }return true;
         }
-        bool generated=false;foreach(var copy in CopyGeneration.Placements(action))generated|=GenerateOne(action,frame,x,y,heading,generation,sourceX,sourceY,index,source,age,appearance,copy);return generated;
+        bool generated=false;foreach(var copy in CopyGeneration.Placements(action))generated|=GenerateOne(action,frame,x,y,heading,generation,sourceX,sourceY,index,source,age,appearance,copy,scope);return generated;
     }
-    private bool GenerateOne(BulletAction action,int frame,double x,double y,double heading,int generation,double sourceX,double sourceY,int index,Track source,int age,BirthAppearance appearance,CopyPlacement copy)
+    private bool GenerateOne(BulletAction action,int frame,double x,double y,double heading,int generation,double sourceX,double sourceY,int index,Track source,int age,BirthAppearance appearance,CopyPlacement copy,string scope)
     {
         var definition=Definition(action.templateId);if(definition==null)return false;
-        double rotation=copy==null?(action.inheritAngle?heading:0)+GenerationPresets.Phase(action,source,age,index,frame)+index*action.spawnAngleStep:CopyGeneration.Rotation(action,copy,heading,definition.anchor.angle),a=rotation*Math.PI/180;
+        var context=ExpressionContext.For(source,frame,true);context.age=age;context.i=index;
+        double rotation=copy==null?(action.inheritAngle?heading:0)+GenerationPresets.Phase(action,source,age,index,frame)+index*ScalarExpressions.ActionValue(source,action,"spawnAngleStep",context):CopyGeneration.Rotation(action,copy,heading,definition.anchor.angle,source,frame,true),a=rotation*Math.PI/180;
         if(copy!=null){x+=copy.x;y+=copy.y;}
-        var instance=new TemplateInstance{serial=++serial,birth=frame,shift=frame-definition.root.start,generation=generation+1,x=x+action.spawnOffsetX*Math.Cos(a)+action.spawnOffsetY*Math.Sin(a),y=y-action.spawnOffsetX*Math.Sin(a)+action.spawnOffsetY*Math.Cos(a),rotation=rotation,sourceX=sourceX,sourceY=sourceY,definition=definition,anchorX=definition.anchor.x,anchorY=definition.anchor.y};
+        var instance=new TemplateInstance{scopeGroup=scope,serial=++serial,birth=frame,shift=frame-definition.root.start,generation=generation+1,x=x+action.spawnOffsetX*Math.Cos(a)+action.spawnOffsetY*Math.Sin(a),y=y-action.spawnOffsetX*Math.Sin(a)+action.spawnOffsetY*Math.Cos(a),rotation=rotation,sourceX=sourceX,sourceY=sourceY,definition=definition,anchorX=definition.anchor.x,anchorY=definition.anchor.y};
         if(action.inheritAppearance)instance.appearance=appearance.Clone();
         if(action.inheritScale)instance.scaleMultiplier=appearance.scale/Math.Max(.000001,definition.anchor.scale);
         if(!String.IsNullOrWhiteSpace(action.spawnColorExpression)){int at=age-action.start-index*action.stagger,wave=action.spawnRepeat>0?at/action.spawnRepeat:0;instance.colorOverride=SpawnColors.Evaluate(action.spawnColorExpression,source,"spawnColor"+source.spawnActions.Concat(source.bulletActions).ToList().IndexOf(action),frame,wave);}
@@ -96,7 +101,7 @@ internal sealed class TemplateRuntime
         if(bullet.behavior==null)return;
         bool destroy=false;
         foreach(var a in bullet.behavior.bulletActions.Where(a=>a.type=="spawn"))if(Trigger(a,frame-bullet.birth,bullet.index,bullet.generation))
-            if(Generate(a,frame,bullet.x,bullet.y,bullet.direction,bullet.generation,bullet.x,bullet.y,bullet.index,bullet.behavior,frame-bullet.birth,BirthAppearance.BulletAt(bullet,frame)))destroy|=a.destroyParent;
+            if(Generate(a,frame,bullet.x,bullet.y,bullet.direction,bullet.generation,bullet.x,bullet.y,bullet.index,bullet.behavior,frame-bullet.birth,BirthAppearance.BulletAt(bullet,frame),null,false,bullet.scopeGroup))destroy|=a.destroyParent;
         if(destroy)bullet.dead=true;
     }
     private void TrackActions(Track track,int time,int frame,int owner,int generation,TemplateInstance instance)
@@ -132,7 +137,7 @@ internal sealed class TemplateRuntime
             instance.shift=owner==null?0:owner.shift;int sourceTime=frame-instance.shift;
             if(instance.linkedOwner!=0&&(owner==null||owner.ended)||!BulletSystem.Active(instance.linkedSource,sourceTime)||!Visible(instance.linkedSource,-1,instance.linkedOwner)){instance.ended=true;return;}
             var pose=Motion.At(instance.linkedSource,sourceTime);var center=owner==null?new PointF((float)pose.x,(float)pose.y):owner.Point(pose.x,pose.y);double heading=pose.angle+(owner==null?0:owner.rotation);
-            instance.anchorX=pose.x;instance.anchorY=pose.y;instance.rotation=CopyGeneration.Rotation(instance.linkedAction,instance.placement,heading,pose.angle);
+            instance.anchorX=pose.x;instance.anchorY=pose.y;instance.rotation=CopyGeneration.Rotation(instance.linkedAction,instance.placement,heading,pose.angle,instance.linkedSource,sourceTime);
             double r=instance.rotation*Math.PI/180;bool grid=instance.linkedAction.copyMode=="grid";instance.x=center.X+(grid?0:instance.placement.x)+instance.linkedAction.spawnOffsetX*Math.Cos(r)+instance.linkedAction.spawnOffsetY*Math.Sin(r);instance.y=center.Y+(grid?0:instance.placement.y)-instance.linkedAction.spawnOffsetX*Math.Sin(r)+instance.linkedAction.spawnOffsetY*Math.Cos(r);instance.sourceX=center.X;instance.sourceY=center.Y;instance.scaleMultiplier=owner==null?1:owner.scaleMultiplier;
             instance.colorOverride=CopyGeneration.Tint(instance.linkedAction,instance.placement);
             if(instance.linkedSource.rainbow&&instance.linkedAction.copyColorMode=="rainbow") {var look=BirthAppearance.TrackAt(instance.linkedSource,sourceTime,0,center,pose,0,1);look.color=Color.White;double hue=instance.linkedAction.copyHue+360*instance.placement.index/(double)Math.Max(1,instance.placement.count)*instance.linkedAction.copyColorDensity;look.image=(int)Math.Floor(((hue%360+360)%360)*32/360);instance.appearance=look;instance.colorOverride=Color.White;}
@@ -154,7 +159,7 @@ internal sealed class TemplateRuntime
                 if(time==t.releaseFrame)for(int i=0;i<points.Length;i++)if(Visible(t,i,instance.serial))
                 {
                     var p=instance.Point(points[i].X,points[i].Y);if(instance.OmitPoint(points[i].X,points[i].Y,p))continue;var center=instance.Point(pose.x,pose.y);
-                    double direction=t.releaseDirection=="fixed"?pose.angle+instance.rotation:t.releaseDirection=="aim"?ExpressionContext.Direction(p.X,p.Y,BulletSystem.PlayerAt(world.State,frame).x,BulletSystem.PlayerAt(world.State,frame).y):ExpressionContext.Direction(pose.x,pose.y,points[i].X,points[i].Y)+instance.rotation+(t.releaseDirection=="tangent"?90:0);
+                    var player=BulletSystem.PlayerAt(world.State,frame);double direction=t.releaseDirection=="fixed"?pose.angle+instance.rotation:t.releaseDirection=="aim"?ExpressionContext.Direction(p.X,p.Y,player.x,player.y):ExpressionContext.Direction(pose.x,pose.y,points[i].X,points[i].Y)+instance.rotation+(t.releaseDirection=="tangent"?90:0);
                     var b=world.Spawn(t,frame,i,points.Length,0,p,direction,Motion.Value(t,"speed",time),instance.generation,false,instance.shift,instance,center);if(t.rainbow&&Rainbow.Mode(t)!="sequence")b.sequence=Rainbow.RodSequence(t,i,points.Length,time,points[i],pose,instance.rotation);world.TickNew(b,frame);
                 }continue;
             }
@@ -162,11 +167,12 @@ internal sealed class TemplateRuntime
             {
                 if(!Visible(t,t.kind=="rod"?i:-1,instance.serial))continue;string key=Key(instance.serial,t,i);SimBullet b;
                 if(!fixedBullets.TryGetValue(key,out b)||b.dead)
-                {b=new SimBullet{source=t,birth=t.start+instance.shift,index=i,count=points.Length,kinematic=true,templateOwner=instance.serial,generation=instance.generation,clockShift=instance.shift,life=t.end-t.start+1,collision=t.kind=="rod"};fixedBullets[key]=b;world.bullets.Add(b);}
-                var p=instance.Point(points[i].X,points[i].Y);if(instance.OmitPoint(points[i].X,points[i].Y,p))continue;b.x=p.X;b.y=p.Y;b.scale=pose.scale*instance.scaleMultiplier;b.alpha=pose.alpha;b.color=t.rainbow?Color.White:Motion.ColorOf(t.color);b.visualAngle=t.kind=="object"?pose.angle+instance.rotation:Motion.Value(t,"spriteAngle",time)+(t.rotateSprite?pose.angle+instance.rotation:0);b.sequence=t.kind=="rod"?Rainbow.RodSequence(t,i,points.Length,time,points[i],pose,instance.rotation):0;b.count=points.Length;b.seenFrame=frame;Inherit(b,instance);world.TickNew(b,frame);
+                {b=new SimBullet{scopeGroup=instance.scopeGroup,source=t,birth=t.start+instance.shift,index=i,count=points.Length,kinematic=true,templateOwner=instance.serial,generation=instance.generation,clockShift=instance.shift,life=t.end-t.start+1,collision=t.kind=="rod"};fixedBullets[key]=b;world.bullets.Add(b);}
+                var p=instance.Point(points[i].X,points[i].Y);if(instance.OmitPoint(points[i].X,points[i].Y,p))continue;b.sourceX=instance.sourceX;b.sourceY=instance.sourceY;b.x=p.X;b.y=p.Y;b.scale=pose.scale*instance.scaleMultiplier;b.alpha=pose.alpha;b.color=t.rainbow?Color.White:Motion.ColorOf(t.color);b.visualAngle=t.kind=="object"?pose.angle+instance.rotation:Motion.Value(t,"spriteAngle",time)+(t.rotateSprite?pose.angle+instance.rotation:0);b.sequence=t.kind=="rod"?Rainbow.RodSequence(t,i,points.Length,time,points[i],pose,instance.rotation):0;b.count=points.Length;b.seenFrame=frame;Inherit(b,instance);world.TickNew(b,frame);
             }
         }
     }
+    public PointF SampleMember(SimBullet b,int frame){var instance=instances.FirstOrDefault(i=>i.serial==b.templateOwner);if(instance==null)return new PointF((float)b.x,(float)b.y);int time=frame-instance.shift;var points=Motion.RodPoints(b.source,time);return b.index<points.Length?instance.Point(points[b.index].X,points[b.index].Y):new PointF((float)b.x,(float)b.y);}
     public bool FixedAlive(SimBullet b,int frame)
     {return b.seenFrame==frame&&Visible(b.source,b.source.kind=="rod"?b.index:-1,b.templateOwner);}
     public static void Inherit(SimBullet b,TemplateInstance instance)
