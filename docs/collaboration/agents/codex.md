@@ -1,18 +1,21 @@
 # Codex 任务记录
 
-- 状态：`in_progress`（用户明确要求“推送发布”）
-- 任务：将已验收的本地改动发布为2.5.0，核对本体/更新包、旧更新器兼容、版本/标签一致，精确暂存应用文件，SSH推送并检查Actions/Release。
-- 基线：main / a0491ba及全部既有本地改动；用户本轮已授权推送和正式Release，远端目前v2.4.0。保护全部projects与本地资料。
-- 当前占用：desktop/Updater.cs、RufMaker.exe、README双语、docs/releases/v2.5.0.md、docs/performance-and-saving.md、docs/timeline-groups.md、docs/development/OPTIMIZATION-STAGE-2026-10-28.md、本记录/STATUS；build/release-check-2.5.0、build/distribution与build/RufMaker.release.exe由Codex集成。应用改动精确暂存，不含projects。
+- 状态：`completed`（2.5.0已正式推送发布，线上更新与完整包检查通过）
+- 任务：发布已完成，保护全部projects和本地资料；没有待补的发布操作。
+- 基线：main功能提交8c13c7c、标签v2.5.0已推送；发布记录另作后续文档提交。用户本轮授权已执行，之后仍按默认不自动推送。
+- 当前占用：无（发布完成后释放）。工作区仅保留用户projects改动。
 - 本机入口：RufMaker.exe，ProductVersion2.5.0；旧入口备份build/release-check-2.5.0/RufMaker.before-release.exe。
 
-## 2026-10-28：2.5.0正式发布（进行中）
+## 2026-10-28：2.5.0正式发布（已完成）
 
 - 用户明确授权推送/Release。集成本地共享组/组事件与公式、复制销毁及寿命统一、事件标记和名称裁剪、参数化运动/拉镜预设、实时玩家自机狙及五类性能/保存优化；保护所有projects。
 - 版本四处来源已同步到2.5.0；双语README和docs/releases/v2.5.0.md按最终范围重写。旧阶段文档保留历史，性能指南改为正式版本说明。
 - Package-Release在build/distribution/v2.5.0输出本体59,064,930 bytes/2671文件、兼容更新包57,073,456 bytes/2631文件及两个SHA256；包内逐文件/manifest/版本/私有目录排除检查通过。原2.0.0更新器接受2630文件；首次x64 PowerShell加载x86旧程序集格式不匹配，改x86宿主成功，失败日志保留。当前Test-Updater通过提示文本、版本比较、实际替换/保留/备份及隐藏重启。
 - 完整包在隔离目录无GM首次建空工程、重新打开通过。语义与真实GM沿用此前已通过记录，未无关重跑。根EXE更新为2.5.0并备份；git diff --check通过。
-- 远端SSH核实main仍a0491ba且无v2.5.0标签；使用Windows OpenSSH绕过Git自带MSYS在受限环境的IPC失败。GitHub连接器无Release操作，沿用既有SSH与标签Actions流程；线上结果待核对。
+- 精确暂存99个应用文件后提交8c13c7c，与v2.5.0原子SSH推送成功；不含任何projects。使用Windows OpenSSH绕过Git自带MSYS在受限环境的IPC失败。GitHub连接器无Release操作，沿用既有SSH与标签Actions流程。
+- Actions40672949198成功，https://github.com/wymcaT/RufMaker/releases/tag/v2.5.0 为latest、非草稿/非预发布；本体60,120,152 bytes、更新包58,113,612 bytes及两个SHA256均uploaded。线上CI打包的压缩字节不同于本地包，按各自公开校验值核对，不混用。
+- 线上Test-Updater实际latest查询、公开更新ZIP下载、SHA256及全部清单解包通过；另实际下载完整便携包、核对公开SHA256/版本/必要文件/个人资料排除，并无GM首次建空工程与重开通过。日志build/release-check-2.5.0/updater-online.log、portable-online.log和release.json。
+- root EXE2.5.0/1,362,944 bytes；用户demo仍12文件817增236删，其余本地工程完整保留，未遗留测试进程。发布记录另提交，不移动已发布标签。
 
 ## 2026-10-28：优化续做与最终交付（本地完成）
 
