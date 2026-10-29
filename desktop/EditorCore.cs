@@ -53,7 +53,7 @@ internal sealed class Track
     [ScriptIgnore] public Track parent;[ScriptIgnore] public EditorState owner;
     [ScriptIgnore] public string scopeGroup;
     public int lane=-1;public string randomId="";public Dictionary<string,string> expressions=new Dictionary<string,string>();
-    public string id, name, kind, sprite="sprBullet", easing="linear", color="#ff6d91", effect="flash", code="", rodMode="center", motion="keyframes";
+    public string id, name, kind, sprite="sprBullet", easing="linear", color="#FFFFFF", effect="flash", code="", rodMode="center", motion="keyframes";
     public bool enabled=true, trail, rolling, rotateSprite, trailRandom;
     [ScriptIgnore] public int expressionSeed=12345,expressionFps=50;
     [ScriptIgnore] public bool liveExpressions;
@@ -68,10 +68,10 @@ internal sealed class Track
     public string trailMode="legacy";
     public string lifetimeMode="fixed",deathEffect="none";
     public string colorMode="fixed",colorExpression="random(360)",colorScope="wave";
-    public int deathFrames=15;public double despawnMargin;
+    public int deathFrames=15,fadeInFrames;public double despawnMargin;
     public int trailInterval=3,trailLife=18;
     public double spriteAngle,trailScaleDecay=.035,trailAlphaDecay=.035,trailStartAlpha=.55,trailSpeed,trailDirection;
-    public bool rainbow,rainbowReverse,rainbowDynamic;
+    public bool rainbow,rainbowReverse,rainbowDynamic,rainbowRandom;
     public string rainbowSourceSprite="",rainbowSourceColor="",rainbowSprite="",rainbowMode="sequence";
     public double rainbowDensity=1,rainbowOffset,rainbowSpeed=.25;
     public int start, end, interval=25, count=12, life=160;
@@ -96,7 +96,7 @@ internal sealed class BulletAction
     public string type="speed",easing="linear",expression="",templateId="";public bool enabled=true,relative;
     public string spawnOrigin="center",spawnParity="all";public int spawnRepeat,spawnIndexFrom,spawnIndexTo=-1;
     public double spawnOffsetX,spawnOffsetY,spawnAngle,spawnAngleStep;public bool inheritAngle,destroyParent;
-    public bool inheritAppearance,inheritScale;
+    public bool inheritAppearance,inheritScale,spawnAtWorld;
     public string spawnColorExpression="";
     public int start,duration=30,stagger,count=5,maxGeneration=1;public double from,to=3,spread=20,childSpeed=3;
     public Dictionary<string,string> expressions=new Dictionary<string,string>();

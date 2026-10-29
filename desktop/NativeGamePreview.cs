@@ -39,7 +39,8 @@ internal sealed class NativeReplayProgressForm:LocalizedForm
     {
         if(polling||finished||Cancelled)return;polling=true;
         try{var progress=await bridge.Call<NativeRunProgress>("run-progress",new{});if(finished||IsDisposed||Cancelled||progress==null)return;
-            if(progress.phase=="replay"){bar.Style=ProgressBarStyle.Continuous;bar.Maximum=Math.Max(1,progress.target);bar.Value=Math.Max(0,Math.Min(bar.Maximum,progress.frame));label.Text="正在重放至播放头 · "+progress.frame+" / "+progress.target+" 帧\r\n画面复杂时可能较慢；有帧进度就会继续等待。";}
+            if(progress.phase=="launch"){bar.Style=ProgressBarStyle.Marquee;label.Text=Language.Text("正在启动游戏运行器…");}
+            else if(progress.phase=="replay"){bar.Style=ProgressBarStyle.Continuous;bar.Maximum=Math.Max(1,progress.target);bar.Value=Math.Max(0,Math.Min(bar.Maximum,progress.frame));label.Text="正在重放至播放头 · "+progress.frame+" / "+progress.target+" 帧\r\n画面复杂时可能较慢；有帧进度就会继续等待。";}
         }catch{ /* The run request reports bridge failures. */ }finally{polling=false;}
     }
     private async void CancelReplay()

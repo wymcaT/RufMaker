@@ -5,9 +5,10 @@ import crypto from 'node:crypto';
 import {codeOnly} from './native-import.mjs';
 import {gmlNumber} from './gml.mjs';
 import {checkpointScripts} from './native-checkpoint.mjs';
+import {retryParticleCleanup,guardPendingDeath} from './retry-particles.mjs';
 
 const action=`/*"/*'/**//* YYD ACTION\nlib_id=1\naction_id=603\napplies_to=self\n*/`;
-const generator=crypto.createHash('sha256').update(fs.readFileSync(new URL(import.meta.url))).update(fs.readFileSync(new URL('./native-import.mjs',import.meta.url))).update(fs.readFileSync(new URL('./native-checkpoint.mjs',import.meta.url))).digest('hex');
+const generator=crypto.createHash('sha256').update(fs.readFileSync(new URL(import.meta.url))).update(fs.readFileSync(new URL('./native-import.mjs',import.meta.url))).update(fs.readFileSync(new URL('./native-checkpoint.mjs',import.meta.url))).update(fs.readFileSync(new URL('./retry-particles.mjs',import.meta.url))).digest('hex');
 const section=(event,code)=>`#define ${event}\n${action}\n${code}\n`;
 const write=(f,text)=>fs.writeFileSync(f,text,'utf8');
 function append(file,line){const source=fs.readFileSync(file,'utf8');if(!source.split(/\r?\n/).includes(line))fs.appendFileSync(file,(source.endsWith('\n')?'':'\n')+line+'\n');}
@@ -89,7 +90,7 @@ export function writeNativeHarness(project,state,{playable=false}={}){
     const players=nativePlayers(project);if(!players.length)throw new Error('未识别玩家对象，无法设置试玩起点。');
     scripts.rf_native_place=players.map(name=>`with(${name}) {if !variable_local_exists('rf_native_gravity') rf_native_gravity=gravity;x=objRufNativePreview.rf_test_x;y=objRufNativePreview.rf_test_y;hspeed=0;vspeed=0;gravity=0;}`).join('\n')+'\nreturn 0;';
     scripts.rf_native_release=players.map(name=>`with(${name}) {if variable_local_exists('rf_native_gravity') gravity=rf_native_gravity;}`).join('\n')+'\nreturn 0;';
-    Object.assign(scripts,checkpointScripts(state));
+    Object.assign(scripts,checkpointScripts(state,retryParticleCleanup(project)));
     for(const file of fs.readdirSync(path.join(project,'objects')).filter(f=>f.endsWith('.gml'))){const target=path.join(project,'objects',file);write(target,patchTestPlayerEvents(fs.readFileSync(target,'utf8'),players.includes(file.slice(0,-4))));}
     for(const file of fs.readdirSync(path.join(project,'scripts')).filter(f=>/^(?:loadGame|scrLoadGame)\.gml$/i.test(f))){const target=path.join(project,'scripts',file);write(target,"if instance_exists(objRufNativePreview) {if objRufNativePreview.rf_playable && objRufNativePreview.rf_presented {with(objRufNativePreview) rf_native_retry();return 0;}}\n"+fs.readFileSync(target,'utf8'));}
   }
@@ -114,7 +115,7 @@ export function writeNativeHarness(project,state,{playable=false}={}){
   for(const file of allFiles(project).filter(f=>f.endsWith('.gml')&&!/^(objRufNativePreview|rf_native_\w+)\.gml$/.test(path.basename(f)))){
     const source=fs.readFileSync(file,'utf8'),result=rewriteNativeRuntime(source,state);if(result!==source)write(file,result);
   }
-  for(const file of fs.readdirSync(path.join(project,'scripts')).filter(name=>/^(killPlayer|scrKillPlayer)\.gml$/i.test(name))){const f=path.join(project,'scripts',file);write(f,"if variable_global_exists('rf_native_preview') {if global.rf_native_preview {if instance_exists(objRufNativePreview) {if !objRufNativePreview.rf_playable || global.rf_native_frame<=objRufNativePreview.rf_target return 0;}}}\n"+fs.readFileSync(f,'utf8'));}
+  for(const file of fs.readdirSync(path.join(project,'scripts')).filter(name=>/^(killPlayer|scrKillPlayer)\.gml$/i.test(name))){const f=path.join(project,'scripts',file);write(f,(playable?guardPendingDeath('',true):'')+"if variable_global_exists('rf_native_preview') {if global.rf_native_preview {if instance_exists(objRufNativePreview) {if !objRufNativePreview.rf_playable || global.rf_native_frame<=objRufNativePreview.rf_target return 0;}}}\n"+fs.readFileSync(f,'utf8'));}
 }
 let building=null;
 export async function prepareNativeSession({project,projectFile,buildDir,cacheDir,gameMaker,state,frame=0,playable=false}) {

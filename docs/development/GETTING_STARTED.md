@@ -93,6 +93,8 @@ rightTime（SelectionTimeControl）属于关键帧页顶部，不挂在两个停
 
 ### GM8.2 验证
 
+区域随机生成/出生淡入/随机彩虹的定向入口为`desktop/Test-RegionGeneration.ps1`，夹具位于build/region-generation-check。通过后，设置RUFMAKER_TEST_BUILD=region-generation-check、RUFMAKER_TEST_SAMPLER=RegionGeneration.tests.exe、RUFMAKER_TEST_FRAMES=0,1,2,4,7,8,13,14,20,21,28,29,35,40,55,65,80,105，再运行`runtime/node.exe desktop/tests/verify-template-gml.mjs`进行真实GM完整状态对照。参数只供探针使用；未设环境参数时保留原模板/gallery路径。产品新字段和使用方法见[生成模板说明](../generation-presets.md)。
+
 独立轨道物件的时段互斥由desktop/TimelineLayout.cs的EnsureExclusive处理，仅用于编辑器的工程打开和改动提交，不用于展开后运行态。生成组内引用模板的局部时间不参与歌曲轨道冲突。检测到旧工程重叠时先保留原执行数组并设置preserveTrackOrder，再仅变更lane；拖动覆盖仍调用CutOverlaps裁剪。运行desktop/Test-LaneExclusivity.ps1后再运行runtime/node.exe desktop/tests/verify-lane-sync.mjs，隔离工程核对保存/重开、时间/父子关系/执行顺序和真实生成GML不变。
 
 复制obj与时间轴编辑入口为desktop/CopyGeneration.cs、TemplateRuntime.cs、TimelineEditing.cs及studio/copy-generation.mjs、linked-copy.mjs、template-system.mjs。BulletAction.copyLinked默认true；track级复制按实际来源图和当前局部时钟取样，一组链接持续到来源结束，不能每次触发再叠加整组。关掉copyLinked或使用弹幕年龄行为时仍走独立模板。联动网格逐成员在旋转格点坐标内取模，锚定实际房间中心、范围至少覆盖房间；禁止按整体中心出屏裁掉成员。shapeSetup与stateCode都要保留来源所在的父级/模板上下文，避免父角度重复进入形状phase。临时实例/位置字段只参与模拟快照；rf_copy_started用普通GM数组，F5重放及原生保存可恢复。先运行desktop/Test-CopyEditing.ps1，再用runtime/node.exe desktop/tests/verify-copy-gml.mjs核对独立GM工程；Node入口studio/copy-generation.test.mjs。夹具在build/copy-editing-check，覆盖来源后续编辑、数量/半径/角度、屏外成员/旋转网格、父级及生成实例内链接、颜色、释放、独立模式和实际F5目标帧状态。UI还覆盖无缝接线、整理/Undo、拉伸模式与中英文。preserveTrackOrder保留执行顺序；Track.keyframeCycle保存周期与独立快照。产品新增CS必须在Build-Native显式列出。
@@ -145,6 +147,8 @@ const project = await import('./studio/project.mjs');
 轨道共享组由TimelineGroups.cs与studio/timeline-groups.mjs管理，EditorState.timelineGroups保存稳定id/name/color/lanes；lane是归属的唯一来源，父子parentId仍是旧坐标变换。模式展开用scopeGroup/_scopeGroup继承外层轨道，模板与分裂后代保存来源scope。StageCanvas.SceneChanged必须复制组定义。GroupEvents.cs与studio/group-events.mjs负责组内快照复制、清除和属性设置；复制在当前帧普通生成/控制/移动之后取快照，每个事件只在start执行一次。ScalarExpressions.cs与studio/scalar-expressions.mjs处理行为数值公式与换FPS单位，BulletAction.expressions进入快照、预设和导出。Test-TimelineGroups.ps1及Node timeline-groups.test.mjs为定向入口；verify-groups-gml.mjs在build隔离工程核对实际GM及Create/F5预热。使用说明见[轨道组](../timeline-groups.md)。
 
 ## 5. 从哪里改
+
+F5/复制后续性能与R快照见[实施记录](PLAY-COPY-PERFORMANCE-2026-10-29.md)。plainCheckpointScripts/plainRetryEvents在studio/native-checkpoint.mjs，普通F5首次Begin Step保存，R仅game_load；不要在恢复中调用Create、rf_template_init或历史重放。随机模式只换未来种子，不重跑静态绑定。项目同步把条件守卫接入R事件与loadGame，导出保留原引擎行为。运行studio/play-checkpoint.test.mjs及desktop/tests/verify-play-checkpoint-gml.mjs；完整/优化重放对照为verify-play-replay-gml.mjs，普通进度/ready/取消为verify-plain-play.mjs（可传build内工程入口）。geometry缓存按来源、上下文、世界帧和局部时间区分，数量关键帧需考虑超调，不可只按端点缩小容量。
 
 本地保存/预览/历史优化见[使用说明](../performance-and-saving.md)及[验证记录](OPTIMIZATION-STAGE-2026-10-28.md)。保存由`studio/project-sync.mjs`准备文件计划、提交和恢复，`project.mjs`与`plain-room.mjs`通过其虚拟文件入口生成；不要在计划期间直接写真实工程。预览修订由`PreviewRevision.cs`判定受影响时间，`PreviewCache.UseScene`保留世界并从早期检查点重算；保持未修改生成动作的引用身份。`UndoHistory.cs`管理共享估算预算，不能在压入另一端后再弹出当前端，以免预算淘汰待恢复记录。
 

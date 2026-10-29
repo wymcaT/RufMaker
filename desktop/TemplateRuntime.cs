@@ -9,11 +9,11 @@ internal sealed class TemplateDefinition
 }
 internal sealed class TemplateInstance
 {
-    public string scopeGroup="";public int serial,birth,generation,shift,lastFrame=-1;public double x,y,rotation,sourceX,sourceY,scaleMultiplier=1,anchorX,anchorY;public BirthAppearance appearance;public Color? colorOverride;public TemplateDefinition definition;
+    public string scopeGroup="";public int serial,birth,generation,shift,lastFrame=-1;public double x,y,sourceX,sourceY,scaleMultiplier=1,anchorX,anchorY;private double rotationValue,rotationCos=1,rotationSin;public double rotation {get{return rotationValue;}set{rotationValue=value;double a=value*Math.PI/180;rotationCos=Math.Cos(a);rotationSin=Math.Sin(a);}}public BirthAppearance appearance;public Color? colorOverride;public TemplateDefinition definition;
     public string linkKey;public int linkedOwner;public Track linkedSource;public BulletAction linkedAction;public CopyPlacement placement;public RoomData room;public TemplateInstance sourceInstance;public bool ended;
     public TemplateInstance Clone(){return (TemplateInstance)MemberwiseClone();}
     public PointF Point(double px,double py)
-    {double a=rotation*Math.PI/180,dx=px-anchorX,dy=py-anchorY;var p=new PointF((float)(x+dx*Math.Cos(a)+dy*Math.Sin(a)),(float)(y-dx*Math.Sin(a)+dy*Math.Cos(a)));return linkedAction!=null&&linkedAction.copyMode=="grid"?CopyGeneration.GridPoint(linkedAction,placement,room,p.X,p.Y):p;}
+    {double dx=px-anchorX,dy=py-anchorY;var p=new PointF((float)(x+dx*rotationCos+dy*rotationSin),(float)(y-dx*rotationSin+dy*rotationCos));return linkedAction!=null&&linkedAction.copyMode=="grid"?CopyGeneration.GridPoint(linkedAction,placement,room,p.X,p.Y):p;}
     public bool OmitPoint(double px,double py,PointF result)
     {if(linkedAction==null||linkedAction.copyMode!="grid"||linkedAction.copyCenter)return false;var original=sourceInstance==null?new PointF((float)px,(float)py):sourceInstance.Point(px,py);return Math.Abs(original.X-result.X)<.01&&Math.Abs(original.Y-result.Y)<.01;}
 }
@@ -26,6 +26,9 @@ internal sealed class TemplateRuntime
     private readonly BulletWorld world;private readonly Dictionary<string,TemplateDefinition> definitions=new Dictionary<string,TemplateDefinition>();
     private readonly Dictionary<string,SimBullet> fixedBullets=new Dictionary<string,SimBullet>();
     private readonly List<TemplateInstance> instances=new List<TemplateInstance>();private HashSet<string> hidden=new HashSet<string>();private int serial;
+    private sealed class Geometry {public int time,shift;public Keyframe pose;public PointF[] points;}
+    private readonly Dictionary<Track,Geometry> geometry=new Dictionary<Track,Geometry>();private int geometryFrame=-1;
+    private Geometry ShapeAt(Track track,int time,int frame){if(geometryFrame!=frame){geometry.Clear();geometryFrame=frame;}Geometry value;if(geometry.TryGetValue(track,out value)&&value.time==time&&value.shift==track.expressionWorldShift)return value;var pose=Motion.At(track,time);value=new Geometry{time=time,shift=track.expressionWorldShift,pose=pose,points=track.kind=="rod"?Motion.RodPoints(track,time):new[]{new PointF((float)pose.x,(float)pose.y)}};geometry[track]=value;return value;}
     public TemplateRuntime(BulletWorld world){this.world=world;}
     public int InstanceCount {get{return instances.Count;}}
     public static bool Eligible(Track t){return t!=null&&new[]{"object","rod","emitter","group"}.Contains(t.kind);}
@@ -66,6 +69,7 @@ internal sealed class TemplateRuntime
     public TemplateSnapshot Capture(){return new TemplateSnapshot{serial=serial,instances=instances.Select(t=>t.Clone()).ToList(),hidden=new HashSet<string>(hidden)};}
     public void Restore(TemplateSnapshot snapshot)
     {
+        geometry.Clear();geometryFrame=-1;
         instances.Clear();hidden=snapshot==null?new HashSet<string>():new HashSet<string>(snapshot.hidden);serial=snapshot==null?0:snapshot.serial;
         if(snapshot!=null)instances.AddRange(snapshot.instances.Select(t=>t.Clone()));fixedBullets.Clear();foreach(var b in world.bullets.Where(b=>b.kinematic))fixedBullets[Key(b.templateOwner,b.source,b.index)]=b;
     }
@@ -88,7 +92,9 @@ internal sealed class TemplateRuntime
         var context=ExpressionContext.For(source,frame,true);context.age=age;context.i=index;
         double rotation=copy==null?(action.inheritAngle?heading:0)+GenerationPresets.Phase(action,source,age,index,frame)+index*ScalarExpressions.ActionValue(source,action,"spawnAngleStep",context):CopyGeneration.Rotation(action,copy,heading,definition.anchor.angle,source,frame,true),a=rotation*Math.PI/180;
         if(copy!=null){x+=copy.x;y+=copy.y;}
-        var instance=new TemplateInstance{scopeGroup=scope,serial=++serial,birth=frame,shift=frame-definition.root.start,generation=generation+1,x=x+action.spawnOffsetX*Math.Cos(a)+action.spawnOffsetY*Math.Sin(a),y=y-action.spawnOffsetX*Math.Sin(a)+action.spawnOffsetY*Math.Cos(a),rotation=rotation,sourceX=sourceX,sourceY=sourceY,definition=definition,anchorX=definition.anchor.x,anchorY=definition.anchor.y};
+        if(action.spawnAtWorld){x=0;y=0;}
+        double offsetX=ScalarExpressions.ActionValue(source,action,"spawnOffsetX",context),offsetY=ScalarExpressions.ActionValue(source,action,"spawnOffsetY",context);
+        var instance=new TemplateInstance{scopeGroup=scope,serial=++serial,birth=frame,shift=frame-definition.root.start,generation=generation+1,x=x+offsetX*Math.Cos(a)+offsetY*Math.Sin(a),y=y-offsetX*Math.Sin(a)+offsetY*Math.Cos(a),rotation=rotation,sourceX=sourceX,sourceY=sourceY,definition=definition,anchorX=definition.anchor.x,anchorY=definition.anchor.y};
         if(action.inheritAppearance)instance.appearance=appearance.Clone();
         if(action.inheritScale)instance.scaleMultiplier=appearance.scale/Math.Max(.000001,definition.anchor.scale);
         if(!String.IsNullOrWhiteSpace(action.spawnColorExpression)){int at=age-action.start-index*action.stagger,wave=action.spawnRepeat>0?at/action.spawnRepeat:0;instance.colorOverride=SpawnColors.Evaluate(action.spawnColorExpression,source,"spawnColor"+source.spawnActions.Concat(source.bulletActions).ToList().IndexOf(action),frame,wave);}
@@ -153,7 +159,7 @@ internal sealed class TemplateRuntime
                 for(int i=0;i<n;i++){var b=world.Spawn(t,frame+i*Math.Max(0,t.indexDelay),i,n,dt/Math.Max(1,t.interval),null,null,null,instance.generation,false,instance.shift,instance);world.TickNew(b,frame);}continue;
             }
             if(t.kind!="rod"&&t.kind!="object")continue;
-            var pose=Motion.At(t,time);var points=t.kind=="rod"?Motion.RodPoints(t,time):new[]{new PointF((float)pose.x,(float)pose.y)};
+            var shape=ShapeAt(t,time,frame);var pose=shape.pose;var points=shape.points;
             if(t.kind=="rod"&&t.releaseFrame>=0&&time>=t.releaseFrame)
             {
                 if(time==t.releaseFrame)for(int i=0;i<points.Length;i++)if(Visible(t,i,instance.serial))

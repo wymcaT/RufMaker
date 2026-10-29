@@ -15,8 +15,22 @@ internal sealed partial class StageCanvas
     }
     private void PaintCurve(Graphics g)
     {
+        PaintGenerationRegions(g);
         var t=SelectedTrack;if(t==null||t.kind!="emitter"||t.emissionShape!="bezier")return;var points=CurveHandles(t);using(var pen=new Pen(Color.FromArgb(150,Theme.Accent),1)){pen.DashStyle=System.Drawing.Drawing2D.DashStyle.Dash;g.DrawLines(pen,points);}using(var pen=new Pen(Color.Cyan,1.5f))g.DrawBezier(pen,points[0],points[1],points[2],points[3]);
         for(int i=0;i<points.Length;i++){var p=points[i];g.FillRectangle(Brushes.White,p.X-5,p.Y-5,10,10);using(var pen=new Pen(Theme.Accent,1))g.DrawRectangle(pen,p.X-6,p.Y-6,12,12);using(var brush=new SolidBrush(Theme.Text))g.DrawString("P"+i,Theme.Small,brush,p.X+9,p.Y-13);}
+    }
+    private void PaintGenerationRegions(Graphics g)
+    {
+        if(State==null||SelectedTrack==null)return;
+        var source=SelectedTrack;var pose=Motion.At(source,Frame);
+        foreach(var action in source.spawnActions.Concat(source.bulletActions).Where(a=>a.enabled&&a.generationPreset==GenerationPresets.Region)){
+            var t=State.tracks.FirstOrDefault(row=>row.id==action.templateId);if(t==null)continue;
+            var context=ExpressionContext.For(source,Frame);double x=ScalarExpressions.ActionValue(source,action,"spawnOffsetX",context),y=ScalarExpressions.ActionValue(source,action,"spawnOffsetY",context);
+            double angle=(action.inheritAngle?pose.angle:0)+GenerationPresets.Phase(action,source,Math.Max(0,Frame-TimelineLayout.ClockStart(source)),0,Frame),r=angle*Math.PI/180;
+            double cx=(action.spawnAtWorld?0:pose.x)+x*Math.Cos(r)+y*Math.Sin(r),cy=(action.spawnAtWorld?0:pose.y)-x*Math.Sin(r)+y*Math.Cos(r),w=Math.Abs(Motion.Value(t,"emitWidth",t.start)),h=Math.Abs(Motion.Value(t,"emitHeight",t.start));
+            double rotation=r+Motion.Value(t,"emitRotation",t.start)*Math.PI/180;var points=new[]{new PointF((float)-w/2,(float)-h/2),new PointF((float)w/2,(float)-h/2),new PointF((float)w/2,(float)h/2),new PointF((float)-w/2,(float)h/2)}.Select(p=>new PointF((float)(cx+p.X*Math.Cos(rotation)+p.Y*Math.Sin(rotation)),(float)(cy-p.X*Math.Sin(rotation)+p.Y*Math.Cos(rotation)))).ToArray();
+            using(var pen=new Pen(Color.Cyan,1.5f)){pen.DashStyle=System.Drawing.Drawing2D.DashStyle.Dash;g.DrawPolygon(pen,points);}using(var brush=new SolidBrush(Color.Cyan))g.DrawString(Language.Text("生成区域"),Theme.Small,brush,points[0]);
+        }
     }
     private bool BeginCurve(PointF point)
     {

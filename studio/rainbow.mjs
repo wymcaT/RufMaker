@@ -1,16 +1,21 @@
 import {gmlNumber as n} from './gml.mjs';
+import {expressionCall} from './random-parameters.mjs';
 export const rainbowSprite='sprrainbowcherry';
 export function normalizeRainbow(t) {
-  const defaults={rainbow:false,rainbowReverse:false,rainbowDynamic:false,rainbowSourceSprite:'',rainbowSourceColor:'',rainbowSprite:'',rainbowMode:'sequence',rainbowDensity:1,rainbowOffset:0,rainbowSpeed:.25};
+  const defaults={rainbow:false,rainbowReverse:false,rainbowDynamic:false,rainbowRandom:false,rainbowSourceSprite:'',rainbowSourceColor:'',rainbowSprite:'',rainbowMode:'sequence',rainbowDensity:1,rainbowOffset:0,rainbowSpeed:.25};
   for(const [key,value] of Object.entries(defaults))if(t[key]===undefined)t[key]=value;
   if(!['sequence','distance','angle'].includes(t.rainbowMode))t.rainbowMode='sequence';
   if(t.rainbow){t.sprite=t.rainbowSprite||rainbowSprite;t.color='#FFFFFF';}
 }
-export function rainbowCode(t,sequence,time,{sampled=true}={}) {
+export function rainbowCode(t,sequence,time,{sampled=true,randomSampled=false}={}) {
   if(!t.rainbow)return '0';
+  if(t.rainbowRandom&&!randomSampled&&t.kind!=='emitter')sequence=randomRainbowSequence(t,{randomOffset:`(${sequence}*9176)`});
   return `rf_rainbow_index(${sequence},${time},${sampled?'rf_rainbowDensity':n(t.rainbowDensity,1)},${sampled?'rf_rainbowOffset':n(t.rainbowOffset)},${sampled?'rf_rainbowSpeed':n(t.rainbowSpeed,.25)},${n(t.clockStart??t.start)},${t.rainbowDynamic?1:0},${t.rainbowReverse?1:0},32)`;
 }
+// Fixed formations keep their initial palette when R rerolls future emissions.
+export function randomRainbowSequence(t,context={}){return `floor(${expressionCall('random(32)',t,'rainbowColor',null,{seed:t.kind==='emitter'?'objRufController.rf_random_seed':'objRufController.rf_rainbow_seed',...context,randomFrame:'0',randomMix:true})})`;}
 export function rodSequence(t,{rotation='0'}={}) {
+  if(t.rainbowRandom)return 'rf_j';
   // Match the PointF preview at palette boundaries (one ten-thousandth of a color step).
   if(t.rainbowMode==='distance')return '(round(point_distance(rf_x,rf_y,rf_px,rf_py)*10000)/10000)';
   if(t.rainbowMode==='angle')return `(round((((point_direction(rf_x,rf_y,rf_px,rf_py)+${rotation}) mod 360+360) mod 360)*32/360*10000)/10000)`;
@@ -18,7 +23,7 @@ export function rodSequence(t,{rotation='0'}={}) {
 }
 export const spatialRainbow=t=>t.rainbow&&['distance','angle'].includes(t.rainbowMode);
 export function releasedRainbow(t,time,target='rf_inst') {
-  return spatialRainbow(t)?`if instance_exists(${target}) {${target}.rf_r_sequence=rf_color_sequence;${target}.image_index=${rainbowCode(t,'rf_color_sequence',time)};}`:'';
+  return spatialRainbow(t)&&!t.rainbowRandom?`if instance_exists(${target}) {${target}.rf_r_sequence=rf_color_sequence;${target}.image_index=${rainbowCode(t,'rf_color_sequence',time)};}`:'';
 }
 export const rainbowGml=`// sequence, timeline frame, density, phase, speed, start, dynamic, reverse, frame count
 var p,n;p=argument0*argument2+argument3;

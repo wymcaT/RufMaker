@@ -479,6 +479,7 @@ internal sealed partial class MainForm : LocalizedForm
         if(!group.All(Rainbow.IsCherry))return;var t=group[0];
         Field(bag,"彩虹","彩虹 Cherry",()=>group.All(track=>track.rainbow),value=>{foreach(var track in group)Rainbow.Enable(track,value);QueueInspectorUpdate();},null,"使用 sprrainbowcherry，固定白色与 image_speed=0。中心转转棒按离中心的距离分配颜色。");
         if(!group.All(track=>track.rainbow))return;
+        Field(bag,"随机彩虹颜色","彩虹 Cherry",()=>t.rainbowRandom,value=>{foreach(var track in group)track.rainbowRandom=value;},null,"每颗弹幕随机选择彩虹贴图的一帧；出生后保持，开启动态色彩时从该颜色继续变化。支持固定种子和重新随机。");
         if(group.All(track=>track.kind=="rod"))Field(bag,"彩虹分配方式","彩虹 Cherry",()=>Rainbow.ModeNames[Array.IndexOf(Rainbow.Modes,Rainbow.Mode(t))],value=>{foreach(var track in group)track.rainbowMode=Rainbow.Modes[Array.IndexOf(Rainbow.ModeNames,value)];QueueInspectorUpdate();},Rainbow.ModeNames,"中心使用整体对象的 X/Y。距离模式每像素推进一个颜色帧；角度模式绕中心一圈为一轮彩虹。颜色密度控制重复次数，支持反转和动态色彩。");
         Field(bag,"反转","彩虹 Cherry",()=>t.rainbowReverse,value=>{foreach(var track in group)track.rainbowReverse=value;});
         Field(bag,"动态色彩","彩虹 Cherry",()=>t.rainbowDynamic,value=>{foreach(var track in group)track.rainbowDynamic=value;});
@@ -589,8 +590,7 @@ internal sealed partial class MainForm : LocalizedForm
         if(state==null||busy)return;CommitInspectorEdits();if(templateEditing!=null)ExitTemplateContext();if(!await EnsureEngine())return;StopPlaying();saveTimer.Stop();SetBusy(true);SetStatus("正在同步、编译并进入原生试玩…");int target=frame,current=revision;
         try{
             var payload=new{state=Json.Read<EditorState>(Json.Write(state)),frame=target};BuildResult result;
-            if(state.nativeProject!=null){using(var dialog=new NativeReplayProgressForm(bridge,payload,target)){Language.ShowDialog(dialog,this);if(dialog.Cancelled){SetStatus("原生试玩重放已取消。");return;}if(dialog.ErrorText!=null)throw new IOException(dialog.ErrorText);result=dialog.Result;}}
-            else result=await bridge.Call<BuildResult>("run",payload);
+            using(var dialog=new NativeReplayProgressForm(bridge,payload,target)){Language.ShowDialog(dialog,this);if(dialog.Cancelled){SetStatus("原生试玩重放已取消。");return;}if(dialog.ErrorText!=null)throw new IOException(dialog.ErrorText);result=dialog.Result;}
             if(current==revision)dirty=false;SetStatus(result.ready?"原生试玩已进入 "+result.status["room"]+" · 第 "+result.status["frame"]+" 帧":"游戏已启动，请查看游戏窗口");if(state.nativeProject!=null){nativePhase="";nativeWatch.Start();}
             // A modal progress window reactivates its editor owner when it closes.
             // Transfer input after that modal loop and the busy state have ended.

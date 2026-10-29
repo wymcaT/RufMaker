@@ -19,6 +19,7 @@ internal static class Rainbow
     public static void SetSprite(Track t,string sprite){if(t.rainbow&&sprite!=(String.IsNullOrEmpty(t.rainbowSprite)?Sprite:t.rainbowSprite))Enable(t,false);t.sprite=sprite;}
     public static double RodSequence(Track t,int index,int count,double frame,PointF? point=null,Keyframe center=null,double rotation=0)
     {
+        if(t.rainbowRandom)return index;
         string mode=Mode(t);
         if(mode!="sequence")
         {
@@ -33,9 +34,12 @@ internal static class Rainbow
         if(t.rolling){var ends=Motion.Endpoints(t,frame);double dx=ends[1].X-ends[0].X,dy=ends[1].Y-ends[0].Y,len=Math.Sqrt(dx*dx+dy*dy);if(len>.001)u+=(frame-TimelineLayout.ClockStart(t))*Motion.Value(t,"rollSpeed",frame)/len;u-=Math.Floor(u);}
         return Math.Abs(u-.5)*(count-1);
     }
+    public static double SampleSequence(Track t,ExpressionContext context)
+    {var c=context.Clone();c.randomMix=true;c.randomFrame=0;return Math.Floor(RandomExpression.Evaluate("random(32)",t.expressionSeed,(t.randomId??t.id)+"|rainbowColor|base",c));}
     public static int Index(Track t,double sequence,double time,double sampleTime=-1)
     {
         if(!t.rainbow)return 0;if(sampleTime<0)sampleTime=time;
+        if(t.rainbowRandom&&t.kind!="emitter")sequence=SampleSequence(t,new ExpressionContext{randomOffset=sequence*9176});
         double phase=Motion.Value(t,"rainbowOffset",sampleTime)+sequence*Motion.Value(t,"rainbowDensity",sampleTime);
         if(t.rainbowDynamic)phase+=(time-TimelineLayout.ClockStart(t))*Motion.Value(t,"rainbowSpeed",sampleTime);
         if(t.rainbowReverse)phase=-phase;

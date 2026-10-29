@@ -1,6 +1,6 @@
 # RufMaker
 
-**2.5.0**：新增轨道共享组与组事件，动作和拉镜预设直接编辑参数；自机狙统一使用实时玩家坐标，并改善保存恢复、预览重算与撤销内存。[下载完整便携版](https://github.com/wymcaT/RufMaker/releases/tag/v2.5.0)，完整解压后运行 `RufMaker.exe`；已有版本可使用“检测更新”。[本版更新说明](docs/releases/v2.5.0.md) · [右栏排版](docs/inspector-layout.md) · [复制与剪辑教程](docs/copy-and-timeline-editing.md) · [动作与时间轴教程](docs/motion-timeline-editing.md)。
+**2.6.0**：新增区域内随机生成、出生淡入和随机彩虹颜色，新弹幕默认白色；改善复制弹幕与中途 F5 的性能，按 R 直接恢复测试快照，并修复快速重试后的血粒子残留。[下载完整便携版](https://github.com/wymcaT/RufMaker/releases/tag/v2.6.0)，完整解压后运行 `RufMaker.exe`；已有版本可使用“检测更新”。[本版更新说明](docs/releases/v2.6.0.md) · [弹幕生成模板](docs/generation-presets.md) · [性能与保存](docs/performance-and-saving.md)。
 
 [轨道共享组与组事件](docs/timeline-groups.md)：可跨轨道归组、用底色区分，并按组复制、清除或设置弹幕属性；运动数值框支持随机与选择表达式。
 

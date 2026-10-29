@@ -1,10 +1,49 @@
 # Codex 任务记录
 
-- 状态：`completed`（2.5.0已正式推送发布，线上更新与完整包检查通过）
-- 任务：发布已完成，保护全部projects和本地资料；没有待补的发布操作。
-- 基线：main功能提交8c13c7c、标签v2.5.0已推送；发布记录另作后续文档提交。用户本轮授权已执行，之后仍按默认不自动推送。
-- 当前占用：无（发布完成后释放）。工作区仅保留用户projects改动。
-- 本机入口：RufMaker.exe，ProductVersion2.5.0；旧入口备份build/release-check-2.5.0/RufMaker.before-release.exe。
+- 状态：`in_progress`
+- 任务：按用户“推送release一下”授权，集成本地未发布修改，发布2.6.0完整便携版和兼容更新包。
+- 基线：main/92bd058，v2.5.0已发布；继承下述区域生成及F5/复制/R的未提交实现与用户projects改动。本轮用户已明确授权推送和Release。
+- 当前占用：desktop/Updater.cs、README.md、docs/releases/v2.6.0.md、协作记录/STATUS、根EXE和build/release-check-2.6.0、build/distribution/v2.6.0；精确提交本地应用修改，排除所有用户projects。沿用既有标签Actions发布流程，先核对版本/打包/更新器。
+- 本机入口：RufMaker.exe，ProductVersion2.6.0，1,371,136 bytes；旧入口备份build/release-check-2.6.0/RufMaker.before-release.exe。
+
+## 2026-10-29：2.6.0发布（准备与本地验收完成）
+
+- 用户明确授权“推送release一下”。发布范围为此前未提交的F5/复制性能、R快照和快速重试血粒子修复，以及区域生成/淡入/默认白色/随机彩虹。没有新增额外产品功能，保护所有projects及用户资料。
+- AppVersion及三个程序集版本同步2.6.0，双语README和docs/releases/v2.6.0.md按最终内容整理，性能指南转为正式版本说明。沿用SSH main/tag与Actions正式发布，连接器无创建Release操作。
+- 本地Package-Release输出build/distribution/v2.6.0，完整包59,088,252 bytes/2677文件，兼容更新包57,083,963 bytes/2635文件及两个SHA256。ZIP唯一条目、必要文件、EXE/manifest版本、更新包逐文件SHA256、排除个人资料检查通过。实际原2.0.0更新器接受2634文件，当前更新器提示/替换/保留/备份/隐藏重启通过；完整包隔离无GM首次新建与重开通过。
+- 功能与真实GM沿用上面各任务已通过的定向结果；没有在版本字符串修改后无关重跑全部模拟测试。根EXE已备份并更新为2.6.0/1,371,136 bytes。
+- 待执行：精确暂存/提交应用文件，推送main及v2.6.0，确认Actions和Release资产，再验证公开更新与完整便携包。当前尚未声称远程发布成功；日志均在build/release-check-2.6.0。
+
+## 2026-10-29：区域随机生成与随机彩虹（本地完成）
+
+- 新模板random-region拖到来源后，默认按来源生命周期每25帧触发，覆盖当前房间；每颗独立矩形取样。可编辑中心/宽高、跟随来源、间隔/数量、速度/方向公式、出生淡入、固定/房间/视野寿命、销毁过渡、拖影及后续行为。选中来源绘制青色区域虚线。发射器来源默认整件触发，避免按所有已发弹幕成倍叠加；仍可主动切换来源模式。
+- 新Track默认混色白色；新生成模板不再默认继承来源混色，显式继承/复制仍保留用户选择，既有颜色不改。彩虹增加rainbowRandom，发射弹出生时存一次调色板序号，动态颜色从该序号继续；整体对象按稳定成员索引取样，释放保持颜色。整体配色使用初始rf_rainbow_seed，R重新随机未来发射时不改变已有整体的配色。
+- 字段：Track.fadeInFrames默认0、rainbowRandom默认false；BulletAction.spawnAtWorld默认false。区域模板设spawnAtWorld=true，中心复用spawnOffsetX/Y，矩形复用emitWidth/Height，新增emissionShape=rectangle。快照/复制/JSON沿用字段机制，出生淡入参与片段/FPS/预设缩放；组复制显式取事件fadeInFrames，保持C#/GML一致。模板普通偏移公式两端统一取样。
+- 产品文件：desktop/GenerationPresets、EditorCore、ExpressionContext、BulletLifetime、BulletSystem、TemplateRuntime、MainForm、Rainbow、CurveControls、BulletBehaviorForm、Motion、PresetLibrary、GroupEvents；studio/bullet-schema、bullet-system、template-system、rainbow、bullet-lifetime、random-parameters；英文词条和根EXE。没有新增产品CS，不需变更显式构建清单。
+- 新定向测试desktop/Test-RegionGeneration.ps1、tests/RegionGenerationTests.cs及studio/region-generation.test.mjs；现有GM模板探针增加可选build/sampler/frames环境参数，保留原gallery入口。既有生成测试文案改为7种。用户说明docs/generation-presets.md，开发入口/本记录/STATUS更新。
+- 验证：C#区域测试覆盖分布/间隔/固定与跟随坐标、淡入中点、随机/倒拖/快照/预设FPS/白色默认/双语字段及区域线框；GenerationPresets、TemplateSystem、Localization、TimelineGroups通过。Node相关四文件15/15通过。最终真实GM18时刻2532条完整状态与C#一致，含三类寿命、静态/动态随机彩虹及整体释放。日志build/region-generation-check/gm-final.log，工程Template GM 1793238725395/GameMaker.gm82；不把构建或离屏UI检查当用户验收。
+- Build-Native成功并File.Replace更新根EXE，备份路径见顶部。修正了开发中的room局部变量/测试编译及离屏截图问题；虚线角点断言改为检查整条预期边。诊断说明verification-notes.txt，最终日志均在build/region-generation-check；无遗留测试进程/错误窗。用户demo仍12文件817增236删，未操作用户工程。
+- 未提交、推送或发布；重启本机RufMaker后生效，当前占用释放。
+
+## 2026-10-29：快速R后死亡粒子残留（本地完成）
+
+- 原因：bloodEmitter实例在game_load后消失，但其part_system/part_type独立资源未被释放；同帧R跳过原Step清理，以及恢复等待期间再次死亡，会留下持续喷血的系统。
+- 文件：新增studio/retry-particles.mjs及test、desktop/tests/verify-retry-particles-gml.mjs；修改studio/native-checkpoint.mjs、project.mjs、native-preview.mjs、性能说明及本记录/STATUS。retryParticleCleanup仅识别bloodEmitter及常见obj前缀对象创建的粒子系统/类型，先执行实例Destroy再回收仍存在的资源；不清空场景装饰粒子。guardPendingDeath在恢复标记存在时阻止killPlayer/scrKillPlayer重复生成死亡特效。普通和原生试玩均接入，原生生成器摘要包含新模块使旧缓存失效；原生重试另加重复请求保护。
+- 接口：plainCheckpointScripts新增可选第三参particles，checkpointScripts新增可选第二参particles；无工程字段/桥接协议变化，不改变预览或弹幕公式。只有F5测试期间启用死亡保护。
+- 验证：实际GM隔离工程先复现8轮快速死亡/R后持续喷发，再验证修复后8轮连续重试及等待恢复时第二次死亡/R；结束120帧后死亡系统/类型/粒子均0，装饰粒子保留。最终日志build/retry-particles-check/fixed-final.log。R原回归固定/随机两模式均两次恢复34条状态，无Create/预热重跑，未来种子策略正确，checkpoint-regression.log。Node四文件12/12通过，unit.log；Build-Native输出RufMaker.check.exe成功，build.log；git diff --check通过。
+- 实际GM本轮验证普通F5；原生接入有生成组合/定向测试，未重复完整原生导入试玩。基线失败与全部日志保留在build/retry-particles-check，无遗留测试进程或错误窗。
+- 根EXE保持前轮2.5.0/1,363,456 bytes；此次后台源码更新，重启RufMaker后重新F5才会生成修复后的测试游戏。未提交、推送或发布，文件占用已释放。
+
+## 2026-10-29：F5/复制性能与R直接恢复（本地完成）
+
+- 用户报告中途F5等待和复制obj游玩卡顿，追加R不重算、不重新随机已有弹幕。基线92bd058；无本轮远程授权，保护用户工程与存档。
+- 改动：studio/template-system.mjs、bullet-system.mjs、project.mjs、native.mjs、native-checkpoint.mjs；desktop/BulletSystem.cs、TemplateRuntime.cs、MainForm.cs、NativeGamePreview.cs；assets/locales/en.json；新studio/play-checkpoint.test.mjs、desktop/tests/verify-play-replay-gml.mjs、verify-plain-play.mjs、verify-play-checkpoint-gml.mjs，性能说明/开发入口/本记录与STATUS，根EXE。没有新产品CS；显式构建列表已包含现有文件。
+- 实现和边界详见docs/development/PLAY-COPY-PERFORMANCE-2026-10-29.md。F5只跳过确定死亡且不影响后代/组复制的末端历史；成员数量键/表达式容量仍300。普通F5首次Begin Step保存，R在原进程game_load，不跑Create/模板初始化/预热；过去随机绑定/全局历史保留，随机模式只换未来种子，固定模式恢复序列。原生导入沿用已有快照并同步未来种子策略，其生成器摘要自动失效。
+- 测量：同一1800成员60帧GM计算7156ms→3968ms（约45%减少），最终1800条位置/外观与基准相同。当前工程隔离副本第1899帧已编译F5 12322.6→8685.2ms；初次编译约2.3秒另计，运行器加载约6秒仍存在，非FPS保证。早期无收益的姿态缓存/depth检查/试玩文件复用均已撤去。
+- 验证：CopyEditing/TemplateSystem/Optimizations/NativeDialogs/Localization通过；Node复制/模板/原生重放17项、R/保存相关14项通过。最终实际GM/C#复制15411状态+17特效/F5帧85一致；完整/优化重放9时刻2275行一致，含组复制、重设、分裂、三种寿命、数量超调与变量；普通F5真实进度/ready/取消在接入快照前后通过。
+- R实际验证：原world KeyPress_82事件触发两次，固定/随机两模式均恢复34条已有弹幕/玩家/全局状态；Create文件计数始终1，历史预热文件计数始终41；固定未来随机一致、随机模式未来重采样。包括活动震屏表面与音乐恢复，无GM错误。checkpoint-gm-fixed.log。
+- 诊断失败保留：600帧压力超时已结束；初次计时探针误改事件魔术头，导致用户截图的objRufController syntax error，仅build副本，已修正且原文件头完整。新夹具缺keyframes、GML探针other轮次误读、文本测试多算换行已修复，未遗留错误窗口或测试进程。没有将失败探针写进用户工程。
+- Build-Native与diff检查通过，备份后File.Replace更新根EXE2.5.0/1,363,456 bytes；程序重启及新F5后生效。未提交、推送或发布，本轮占用释放。
 
 ## 2026-10-28：2.5.0正式发布（已完成）
 

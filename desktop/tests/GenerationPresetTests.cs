@@ -95,7 +95,7 @@ internal static class GenerationPresetTests
                 var timeline=(TimelineCanvas)Get(form,"timeline");var data=new DataObject(DataFormats.Text,"generation-presets|random-360");var drag=new DragEventArgs(data,0,0,0,DragDropEffects.Copy,DragDropEffects.None);Call(timeline,"OnDragEnter",drag);Check(drag.Effect==DragDropEffects.Copy,"Timeline rejects generation drop");Call(form,"SelectTrack",phase,null);Check(((ParameterInspector)Get(form,"properties")).SelectedObject!=null,"Variable inspector absent");RenderControl((ParameterInspector)Get(form,"properties"),Path.Combine(folder,"variable-zh.png"));
             }
             CheckPicking(folder);
-            Console.WriteLine("PASS: six generators, independent per-bullet/per-instance random directions and custom ranges, overlap picker/room instance/cancel/multiselect/drag/zoom, periodic lifetime, shape/speed, splash phase, reverse seek, historical variables, snapshots, preset scaling/remapping, native UI and fixture export.");return 0;
+            Console.WriteLine("PASS: seven generators, independent per-bullet/per-instance random directions and custom ranges, overlap picker/room instance/cancel/multiselect/drag/zoom, periodic lifetime, shape/speed, splash phase, reverse seek, historical variables, snapshots, preset scaling/remapping, native UI and fixture export.");return 0;
         }catch(Exception e){Console.Error.WriteLine(e);return 1;}
     }
 }

@@ -1,6 +1,6 @@
 # RufMaker
 
-**2.5.0** adds shared track groups and group events, parameter-driven motion/camera presets, live player aiming and faster preview history reuse, with recoverable saves and an Undo memory budget. [Download the full portable app](https://github.com/wymcaT/RufMaker/releases/tag/v2.5.0), extract everything and run `RufMaker.exe`. Existing users can update in the app. See the [release notes](releases/v2.5.0.md), [inspector layout guide](inspector-layout.md) and [copy/timeline guide](copy-and-timeline-editing.md).
+**2.6.0** adds random spawns inside a rectangle, birth fade-in and random rainbow colors. New bullets default to white. Copies and F5 starts are faster; R restores the test checkpoint directly, with a fix for lingering blood particles after rapid retries. [Download the full portable app](https://github.com/wymcaT/RufMaker/releases/tag/v2.6.0), extract everything and run `RufMaker.exe`. Existing users can update in the app. See the [release notes](releases/v2.6.0.md) and [generation templates guide](generation-presets.md).
 
 The previous 200-item/lane limit and 20,000-bullet cutoff in simple preview rendering have been removed. **Tools → Undo memory budget** selects an estimated shared Undo/Redo budget (128 MiB by default). See the [performance and saving guide](performance-and-saving.md) (Chinese).
 

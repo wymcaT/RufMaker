@@ -5,6 +5,7 @@ import crypto from 'node:crypto';
 import { root, project, projectFile, makerFile, gameMaker, buildDir, gameExe, readState } from './project.mjs';
 import {prepareNativeSession,copyNativeExtras} from './native-preview.mjs';
 import {NativePlaySession} from './native-play-session.mjs';
+import {waitForNativeReplay} from './native-replay.mjs';
 
 const exportedExe=gameExe;
 let buildTask=null;
@@ -13,7 +14,7 @@ let nativeReplay=null;
 let nativePlay=null;
 
 export function nativeRunStatus(){return nativeReplay?{phase:nativeReplay.phase,frame:nativeReplay.frame,target:nativeReplay.target,room:nativeReplay.room,error:nativeReplay.error||''}:null;}
-export async function cancelNativeRun(){const session=nativeReplay;session?.cancel.abort();if(nativePlay)await nativePlay.stop();if(session)session.phase='ended';return {cancelled:!!session};}
+export async function cancelNativeRun(){const session=nativeReplay;session?.cancel.abort();if(nativePlay)await nativePlay.stop();if(session?.plain&&previewProcess&&previewProcess.exitCode===null)previewProcess.kill();if(session)session.phase='ended';return {cancelled:!!session};}
 export async function closeNativePlay(){if(nativePlay){const previous=nativePlay;nativePlay=null;await previous.stop();}}
 
 function sourceStamp() {
@@ -89,6 +90,7 @@ export function packageGame(preview,frame=0) {
   const ini=path.join(dir,'Data','rufmaker_preview.ini');
   const status=path.join(dir,'Data','rufmaker_preview_status.ini');
   if (fs.existsSync(status)) fs.unlinkSync(status);
+  for(const name of ['rufmaker_plain_checkpoint.sav','rufmaker_plain_restore','rufmaker_plain_restore_count.ini']){const file=path.join(dir,'Data',name);if(fs.existsSync(file))fs.unlinkSync(file);}
   if (preview) fs.writeFileSync(ini,`[preview]\r\nframe=${Math.max(0,Math.min(readState().duration,Math.floor(frame)))}\r\n`);
   else if (fs.existsSync(ini)) fs.unlinkSync(ini);
   return {exe,dir,bytes:fs.statSync(exe).size};
@@ -125,24 +127,19 @@ export async function runNative(frame=0) {
       throw error;
     } finally {if(nativeReplay===session&&!nativePlay)nativeReplay=null;}
   }
-  await stopPreviousPreview();
+  const target=Math.max(0,Math.min(state.duration,Math.round(frame))),session={plain:true,phase:'compile',frame:0,target,room:'',cancel:new AbortController()};nativeReplay=session;
+  try{
+  await stopPreviousPreview();session.cancel.signal.throwIfAborted();
   const build=await ensureBuild();
-  const result=packageGame(true,frame);
-  const child=spawn(result.exe,[],{cwd:result.dir,detached:true,stdio:'ignore'});
+  session.cancel.signal.throwIfAborted();const result=packageGame(true,target);session.phase='launch';
+  const child=spawn(result.exe,[],{cwd:result.dir,detached:true,windowsHide:true,stdio:'ignore'});
   previewProcess=child;
   let launchError;
   child.once('error',error=>{launchError=error;});
   child.unref();
   const statusFile=path.join(result.dir,'Data','rufmaker_preview_status.ini');
-  const deadline=Date.now()+15000;
-  while (Date.now()<deadline) {
-    if (launchError) throw launchError;
-    if (fs.existsSync(statusFile)) {
-      const status=Object.fromEntries(fs.readFileSync(statusFile,'utf8').split(/\r?\n/).filter(x=>x.includes('=')).map(x=>{const i=x.indexOf('=');return [x.slice(0,i).trim(),x.slice(i+1).trim().replace(/^"|"$/g,'')];}));
-      return {...result,pid:child.pid,ready:true,status,cached:build.cached};
-    }
-    if (child.exitCode!==null) throw new Error('游戏在进入试玩房间前退出，请查看游戏错误记录');
-    await new Promise(resolve=>setTimeout(resolve,100));
-  }
-  return {...result,pid:child.pid,ready:false,cached:build.cached};
+  await new Promise((resolve,reject)=>{child.once('spawn',resolve);child.once('error',reject);});
+  const status=await waitForNativeReplay({child,statusFile,target,dir:result.dir,signal:session.cancel.signal,onProgress:progress=>Object.assign(session,progress,{phase:'replay'})});
+  if(launchError)throw launchError;return {...result,pid:child.pid,ready:true,status,cached:build.cached};
+  }catch(error){if(previewProcess&&previewProcess.exitCode===null)previewProcess.kill();if(session.cancel.signal.aborted)throw new Error('已取消原生试玩重放。');throw error;}finally{if(nativeReplay===session)nativeReplay=null;}
 }

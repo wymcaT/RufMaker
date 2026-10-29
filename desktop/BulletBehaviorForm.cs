@@ -47,7 +47,7 @@ internal sealed class BulletBehaviorForm : Form
             bag.Add("公式（留空使用数值）","参数",typeof(string),()=>a.expression,v=>{string text=((string)v??"").Trim();if(text.Length>0)RandomExpression.Evaluate(text,state.randomSeed,track.id,ExpressionContext.For(track,track.start));a.expression=text;},null,"在行为生效期间执行。x/y 是本弹幕位置；source.x/y 是生成时来源中心的世界坐标快照。可用 i、n、u、volley、age、player.x/y、speed、direction。sin/cos 使用弧度。");
             if(a.type=="collision")bag.Add("说明","参数",typeof(string),()=>"0 关闭碰撞；1 开启碰撞。外观与碰撞独立。",null);
         }
-        if(a.generationPreset==CopyGeneration.Key)GenerationPresets.Fields(bag,state,track,a,change=>{change();rebuild();},templateMode);inspector.SelectedObject=bag;
+        if(a.generationPreset==CopyGeneration.Key||a.generationPreset==GenerationPresets.Region)GenerationPresets.Fields(bag,state,track,a,change=>{change();rebuild();},templateMode);inspector.SelectedObject=bag;
     }
     private void ValidateActions(){foreach(var a in Actions){if(a.type=="spawn"&&!state.tracks.Any(t=>t.id==a.templateId&&TemplateRuntime.Eligible(t)))throw new FormatException("请选择有效的生成模板。可先在时间轴制作物件或分组，并勾选“仅用作生成模板”。");if(!String.IsNullOrWhiteSpace(a.expression))RandomExpression.Evaluate(a.expression,state.randomSeed,track.id,ExpressionContext.For(track,track.start));}}
     private void SpawnFields(NativeProperties bag,BulletAction a)

@@ -7,6 +7,7 @@ internal sealed class ExpressionContext
     public System.Collections.Generic.IDictionary<string,double> globals;
     public double playerX=400,playerY=304,x,y,x1,y1,x2,y2,sourceX,sourceY,frame,age,direction,speed,fps=50,i,n=1,volley;
     public bool sampleRandom,randomMix;public double randomFrame=Double.NaN,randomOffset;
+    public ExpressionContext Clone(){return (ExpressionContext)MemberwiseClone();}
     public static NativeTestPosition PlayerAt(Track t,double frame,bool worldTime=false)
     {return t.owner==null?new NativeTestPosition{x=t.expressionPlayerX,y=t.expressionPlayerY}:BulletSystem.PlayerAt(t.owner,(int)(frame+(worldTime?0:t.expressionWorldShift)));}
     public static ExpressionContext For(Track t,double frame,bool worldTime=false)

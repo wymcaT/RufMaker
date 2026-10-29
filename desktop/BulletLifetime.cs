@@ -13,7 +13,7 @@ internal static class BulletLifetime
     public static readonly string[] Effects={"none","shrink","fade","shrink-fade"},EffectNames={"无过渡","逐渐缩小","逐渐透明","缩小并透明"};
     public static string Mode(Track t){return Modes.Contains(t.lifetimeMode)?t.lifetimeMode:"fixed";}
     public static string Effect(Track t){return Effects.Contains(t.deathEffect)?t.deathEffect:"none";}
-    public static bool Enabled(Track t){return Mode(t)!="fixed"||Effect(t)!="none"&&t.deathFrames>0;}
+    public static bool Enabled(Track t){return t.fadeInFrames>0||Mode(t)!="fixed"||Effect(t)!="none"&&t.deathFrames>0;}
     public static LifetimeBounds Bounds(double x,double y,double width,double height,double angle)
     {double a=angle*Math.PI/180;return new LifetimeBounds{x=x,y=y,halfWidth=width/2,halfHeight=height/2,cos=Math.Cos(a),sin=Math.Sin(a)};}
     public static bool Request(SimBullet b,int age)
@@ -41,7 +41,7 @@ internal static class BulletLifetime
         return true;
     }
     public static double Scale(SimBullet b){string fx=Effect(b.source);return fx=="shrink"||fx=="shrink-fade"?b.deathFactor:1;}
-    public static double Alpha(SimBullet b){string fx=Effect(b.source);return fx=="fade"||fx=="shrink-fade"?b.deathFactor:1;}
+    public static double Alpha(SimBullet b){string fx=Effect(b.source);double birth=b.source.fadeInFrames>0&&!b.kinematic?Math.Max(0,Math.Min(1,(b.lastUpdate-b.birth)/(double)b.source.fadeInFrames)):1;return birth*(fx=="fade"||fx=="shrink-fade"?b.deathFactor:1);}
 }
 internal sealed partial class MainForm
 {
@@ -49,6 +49,8 @@ internal sealed partial class MainForm
     {Field(bag,label,category,()=>BulletLifetime.ModeNames[Array.IndexOf(BulletLifetime.Modes,BulletLifetime.Mode(t))],value=>{t.lifetimeMode=BulletLifetime.Modes[Array.IndexOf(BulletLifetime.ModeNames,value)];QueueInspectorUpdate();},BulletLifetime.ModeNames,"固定寿命按帧；出屏幕按房间边界；出视野按当前游戏镜头。出界模式不受固定寿命限制，出生即在外也会销毁。");}
     private void LifetimeFields(NativeProperties bag,Track t)
     {
+        Field(bag,"出生淡入","弹幕寿命",()=>t.fadeInFrames>0,value=>{t.fadeInFrames=value?15:0;QueueInspectorUpdate();});
+        if(t.fadeInFrames>0)Field(bag,"淡入帧数","弹幕寿命",()=>t.fadeInFrames,value=>t.fadeInFrames=Math.Max(1,value));
         LifetimeModeField(bag,t,"弹幕寿命");
         if(t.kind=="rod"&&BulletLifetime.Mode(t)=="fixed")Field(bag,"释放后寿命 / 帧","弹幕寿命",()=>t.life,value=>t.life=Math.Max(1,value));
         if(BulletLifetime.Mode(t)!="fixed")Field(bag,"出界余量 / 像素","弹幕寿命",()=>t.despawnMargin,value=>t.despawnMargin=value,null,"正值放宽边界；负值提前在范围内触发，可让销毁过渡在画面内可见。出界模式不受固定寿命限制。");

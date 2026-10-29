@@ -7,7 +7,7 @@ import {parameterCode,expressionCall} from './random-parameters.mjs';
 import {activeCode} from './bullet-schema.mjs';
 import {trailMode} from './trails.mjs';
 import {shapeSetup,shapePoint} from './shapes.mjs';
-import {rainbowCode,rodSequence,releasedRainbow} from './rainbow.mjs';
+import {rainbowCode,rodSequence,releasedRainbow,randomRainbowSequence} from './rainbow.mjs';
 import {templateBundles,templateStateCode,instanceStateCode} from './template-system.mjs';
 import {lifetimeSpawn} from './bullet-lifetime.mjs';
 import {colorCall} from './spawn-appearance.mjs';
@@ -15,14 +15,18 @@ import {isEvent,hasEvents,eventEarly,eventTick,eventScripts} from './event-prese
 
 const color=hex=>{const v=/^#[0-9a-f]{6}$/i.test(hex||'')?hex.slice(1):'ffffff';return `make_color_rgb(${parseInt(v.slice(0,2),16)},${parseInt(v.slice(2,4),16)},${parseInt(v.slice(4,6),16)})`;};
 const locals=`rf_u,rf_px,rf_py,rf_len,rf_phase,rf_fraction,rf_seg,rf_mix,rf_color_sequence,${fields.map(f=>'rf_'+f).join(',')}`;
+function leafReplay(s,t){return !t.bulletActions.some(a=>a.enabled!==false&&['split','spawn'].includes(a.type));}
+function linearReplay(s,t){return leafReplay(s,t)&&t.lifetimeMode==='room'&&t.flightMode==='straight'&&!t.bulletActions.some(a=>a.enabled!==false&&['speed','direction','acceleration','turn','aim','home'].includes(a.type)&&!(a.start===0&&a.duration===0&&a.stagger===0&&['speed','direction'].includes(a.type)));}
+function replayGuard(s,born,linear=false){const events=s.tracks.filter(e=>e.enabled!==false&&e.kind==='control'&&(e.eventPreset==='group-copy'||['split','spawn'].includes(e.controlAction)||linear&&!['clear-bullets','clear-danmaku','group-clear'].includes(e.eventPreset)&&!(e.eventPreset==='group-set'&&['scale','alpha','color'].includes(e.eventProperty))&&!['scale','alpha','color','collision','clear'].includes(e.controlAction)));return events.map(e=>`(global.rf_preview_target<${num(e.start)} || ${born}>${num(e.eventPreset==='group-copy'?e.start:e.end)})`).join(' && ')||'1';}
 export function groupPoseGml(s){return `var ${locals};switch(argument0){
 ${s.tracks.map((t,i)=>t.kind==='group'?`case ${i}:${stateCode(t,'argument1')}global.rf_gx=rf_x;global.rf_gy=rf_y;global.rf_ga=rf_angle;global.rf_gscale=rf_scale;global.rf_galpha=rf_alpha;return 0;`:'').join('\n')}
 }global.rf_gx=0;global.rf_gy=0;global.rf_ga=0;global.rf_gscale=1;global.rf_galpha=1;return 0;`;
 }
-export function emissionPointGml(t){
+export function emissionPointGml(t,context={}){
   const u='rf_epu',prefix=`rf_epu=.5;if rf_n>1 rf_epu=rf_idx/(rf_n-1);rf_epx=0;rf_epy=0;`;
   let code='';
   switch(t.emissionShape){
+    case 'rectangle':code=`rf_epx=(${expressionCall('random(1)',t,'emitRegionX',null,{...context,randomMix:true})}-.5)*rf_emitWidth;rf_epy=(${expressionCall('random(1)',t,'emitRegionY',null,{...context,randomMix:true})}-.5)*rf_emitHeight;`;break;
     case 'line':code=`rf_epx=(${u}-.5)*${'rf_emitWidth'};`;break;
     case 'sine':code=`rf_epx=(${u}-.5)*${'rf_emitWidth'};rf_epy=sin(${u}*${'rf_emitWaves'}*2*pi+${'rf_emitPhase'}*pi/180)*${'rf_emitHeight'}/2;`;break;
     case 'bezier':{const p=t.curvePoints.length===4?t.curvePoints:[{x:-120,y:0},{x:-60,y:-120},{x:60,y:120},{x:120,y:0}];code=['x','y'].map(axis=>`rf_ep${axis}=power(1-${u},3)*${num(p[0][axis])}+3*sqr(1-${u})*${u}*${num(p[1][axis])}+3*(1-${u})*sqr(${u})*${num(p[2][axis])}+power(${u},3)*${num(p[3][axis])};`).join('');break;}
@@ -36,13 +40,14 @@ function tangentGml(t){
   if(t.emissionShape==='line')code='rf_tdx=rf_emitWidth;rf_tdy=0;';
   else if(t.emissionShape==='sine')code=`rf_tdx=rf_emitWidth;rf_tdy=cos(${u}*rf_emitWaves*2*pi+rf_emitPhase*pi/180)*rf_emitHeight/2*rf_emitWaves*2*pi;`;
   else if(t.emissionShape==='bezier'){const p=t.curvePoints.length===4?t.curvePoints:[{x:-120,y:0},{x:-60,y:-120},{x:60,y:120},{x:120,y:0}];code=['x','y'].map(axis=>`rf_td${axis}=3*sqr(1-${u})*(${num(p[1][axis])}-${num(p[0][axis])})+6*(1-${u})*${u}*(${num(p[2][axis])}-${num(p[1][axis])})+3*sqr(${u})*(${num(p[3][axis])}-${num(p[2][axis])});`).join('');}
-  else if(t.emissionShape!=='point')code=`rf_epa=(rf_emitPhase+${t.emissionShape==='arc'?`${u}*rf_emitArc`:'rf_idx/rf_n*360'})*pi/180;rf_tdx=-rf_emitWidth/2*sin(rf_epa);rf_tdy=-${t.emissionShape==='ellipse'?'rf_emitHeight':'rf_emitWidth'}/2*cos(rf_epa);`;
+  else if(t.emissionShape!=='point'&&t.emissionShape!=='rectangle')code=`rf_epa=(rf_emitPhase+${t.emissionShape==='arc'?`${u}*rf_emitArc`:'rf_idx/rf_n*360'})*pi/180;rf_tdx=-rf_emitWidth/2*sin(rf_epa);rf_tdy=-${t.emissionShape==='ellipse'?'rf_emitHeight':'rf_emitWidth'}/2*cos(rf_epa);`;
   return code+'rf_heading=rf_angle+point_direction(0,0,rf_tdx,rf_tdy)+rf_emitRotation;';
 }
 function spawnCase(t,index,eventCount,s){
+  const prune=leafReplay(s,t)&&(!t.lifetimeMode||t.lifetimeMode==='fixed');
   const context={birthSampling:true,randomMix:t.randomPerInstance,sourceX:'rf_birth_source_x',sourceY:'rf_birth_source_y',i:'rf_idx',n:'rf_n',volley:'rf_wave',randomFrame:'0',randomOffset:`(${t.randomPerInstance?'rf_instance_random+':''}${t.randomScope==='group'?'0':`rf_wave*1009${t.randomScope==='bullet'?'+rf_idx*9176':''}`})`};
   const get=(field,fallback=0)=>parameterCode(t,field,fallback,null,{...context,frame:'rf_sample_time'});
-  const pose=(track,template=false)=>`${template?instanceStateCode(track,'rf_sample_time',s,'rf_spawn_owner',context):stateCode(track,'rf_sample_time',context)}${emissionPointGml(track)}
+  const pose=(track,template=false)=>`${template?instanceStateCode(track,'rf_sample_time',s,'rf_spawn_owner',context):stateCode(track,'rf_sample_time',context)}${emissionPointGml(track,{...context,frame:'rf_sample_time'})}
 rf_heading=rf_angle+(rf_idx-(rf_n-1)/2)*rf_spread+rf_idx*${get('indexAngle')};
 ${track.emissionFacing==='radial'||track.emissionFacing==='tangent'?`rf_heading=rf_angle+point_direction(0,0,rf_epx,rf_epy)${track._parentIndex>=0?'-global.rf_ga':''}+${track.emissionFacing==='tangent'?90:0};`:track.emissionFacing==='fixed'?`rf_heading=rf_angle+rf_idx*${num(track.indexAngle)};`:''}
 ${track.emissionFacing==='tangent'?tangentGml(track):''}
@@ -54,7 +59,9 @@ ${track.emissionFacing==='aim'?`rf_heading=point_direction(rf_x,rf_y,rf_expressi
   return `case ${index}:rf_instance_random=0;if instance_exists(rf_spawn_owner) rf_instance_random=rf_spawn_owner.rf_birth*104729+rf_spawn_owner.rf_template_serial*13007;rf_birth_source_x=${num(t.x,400)};rf_birth_source_y=${num(t.y,304)};if instance_exists(rf_spawn_owner) || argument5 {rf_birth_source_x=argument14;rf_birth_source_y=argument15;}if instance_exists(rf_spawn_owner) {switch(rf_spawn_owner.rf_template_source){${variants}}}else {${pose(t)}}
 rf_center_x=rf_x-rf_epx;rf_center_y=rf_y-rf_epy;
 if argument5 {rf_x=argument6;rf_y=argument7;rf_heading=argument8;rf_speed=argument9;}else rf_speed+=rf_idx*${get('indexSpeed')};
+${prune?`if global.rf_preview_replaying && (${replayGuard(s,'rf_born')}) && rf_born+rf_life+${num(t.deathEffect&&t.deathEffect!=='none'?t.deathFrames:0)}<=global.rf_preview_target return noone;`:''}
 rf_result=instance_create(rf_x,rf_y,objRufBullet);rf_result.rf_scope_group=${groupIndex(s,t)};if instance_exists(rf_spawn_owner) rf_result.rf_scope_group=rf_spawn_owner.rf_scope_group;rf_result.rf_system=1;rf_result.rf_source=${index};rf_result.rf_behavior=${index};if argument11 rf_result.rf_behavior=-1;
+rf_result.rf_preview_linear=${linearReplay(s,t)?1:0};
 rf_result.rf_birth=rf_born;rf_result.rf_clock_shift=argument12;rf_result.rf_index=rf_idx;rf_result.rf_n=rf_n;rf_result.rf_volley=rf_wave;rf_result.rf_generation=argument10;rf_result.rf_life=rf_life;rf_result.rf_age=0;rf_result.rf_source_x=rf_center_x;rf_result.rf_source_y=rf_center_y;if instance_exists(rf_spawn_owner) || argument5 {rf_result.rf_source_x=argument14;rf_result.rf_source_y=argument15;}
 rf_result.rf_dir=rf_heading;rf_result.rf_speed=rf_speed;rf_result.rf_base_dir=rf_heading;rf_result.rf_base_speed=rf_speed;rf_result.rf_base_scale=rf_scale*(1+rf_idx*${get('indexScale')});rf_result.rf_base_alpha=rf_alpha;
 ${t.emissionFacing==='aim'?`if !argument5 {rf_result.rf_birth_aim=1;rf_result.rf_aim_offset=rf_heading-point_direction(rf_x,rf_y,rf_expression_player(0),rf_expression_player(1));}`:''}
@@ -62,7 +69,7 @@ rf_result.rf_sprite=${t.sprite};rf_result.sprite_index=${t.sprite};rf_result.ima
 ${lifetimeSpawn(t)}
 rf_result.rf_rotate=${t.rotateSprite?1:0};rf_result.rf_sprite_angle=rf_spriteAngle;rf_result.image_angle=rf_spriteAngle+${t.rotateSprite?'rf_heading':'0'};rf_result.rf_turn=${get('turnRate',3)};rf_result.rf_delay=${get('homingDelay')};
 rf_result.rf_t_mode='${trailMode(t)}';rf_result.rf_t_interval=${get('trailInterval',3)};rf_result.rf_t_life=${get('trailLife',18)};rf_result.rf_t_alpha=${get('trailStartAlpha',.55)};rf_result.rf_t_scale_decay=${get('trailScaleDecay',.035)};rf_result.rf_t_alpha_decay=${get('trailAlphaDecay',.035)};rf_result.rf_t_speed=${get('trailSpeed')};rf_result.rf_t_direction=${get('trailDirection')};rf_result.rf_t_random=${t.trailRandom?1:0};
-${t.rainbow?`rf_result.rf_rainbow=1;rf_result.rf_r_sequence=rf_wave*rf_n+rf_idx;rf_result.rf_r_density=rf_rainbowDensity;rf_result.rf_r_offset=rf_rainbowOffset;rf_result.rf_r_speed=rf_rainbowSpeed;rf_result.rf_r_start=${num(t.clockStart??t.start)}+argument12;rf_result.rf_r_dynamic=${t.rainbowDynamic?1:0};rf_result.rf_r_reverse=${t.rainbowReverse?1:0};rf_result.image_index=${rainbowCode(t,'rf_wave*rf_n+rf_idx','rf_sample_time')};`:''}
+${t.rainbow?`rf_result.rf_rainbow=1;rf_result.rf_r_sequence=${t.rainbowRandom?randomRainbowSequence(t,t.kind==='emitter'?{...context,frame:'rf_sample_time'}:{randomOffset:'(rf_idx*9176)'}):'rf_wave*rf_n+rf_idx'};rf_result.rf_r_density=rf_rainbowDensity;rf_result.rf_r_offset=rf_rainbowOffset;rf_result.rf_r_speed=rf_rainbowSpeed;rf_result.rf_r_start=${num(t.clockStart??t.start)}+argument12;rf_result.rf_r_dynamic=${t.rainbowDynamic?1:0};rf_result.rf_r_reverse=${t.rainbowReverse?1:0};rf_result.image_index=${rainbowCode(t,'rf_result.rf_r_sequence','rf_sample_time',{randomSampled:true})};`:''}
 ${t.colorMode==='random'?`rf_result.image_blend=${colorCall(t.colorExpression,t,'color',{...context,frame:'rf_sample_time',randomOffset:`((rf_wave+instance_exists(rf_spawn_owner)*(rf_born-rf_wave-rf_idx*${num(t.indexDelay)}))*1009${t.colorScope==='bullet'?'+rf_idx*9176':''})`})};`:''}
 with(rf_result) rf_spawn_appearance(rf_spawn_owner);
 for(rf_e=0;rf_e<${eventCount};rf_e+=1)rf_result.rf_cmd[rf_e]=0;
@@ -99,7 +106,7 @@ export function bulletSystemScripts(s){
   const events=s.tracks.filter(t=>t.enabled!==false&&t.kind==='control');
   const spawn=`var ${locals},rf_born,rf_sample_time,rf_spawn_owner,rf_idx,rf_n,rf_wave,rf_heading,rf_result,rf_e,rf_epu,rf_epx,rf_epy,rf_epa,rf_oldx,rf_oldy,rf_tdx,rf_tdy,rf_birth_source_x,rf_birth_source_y,rf_center_x,rf_center_y,rf_instance_random;
 rf_born=argument1;rf_sample_time=rf_born-argument12;rf_spawn_owner=argument13;rf_idx=argument2;rf_n=argument3;rf_wave=argument4;switch(argument0){${s.tracks.map((t,i)=>['emitter','rod'].includes(t.kind)?spawnCase(t,i,events.length,s):'').join('\n')}}return noone;`;
-  const tick=`var rf_world,rf_at,rf_value,rf_u,rf_target,rf_delta,rf_slot,rf_split,rf_split_template,rf_split_plain,rf_split_count,rf_split_speed,rf_split_spread,rf_j,rf_child,rf_split_i,rf_stop_speed,rf_ev,rf_control_from,rf_control_to;
+  const tick=`var rf_world,rf_at,rf_value,rf_u,rf_target,rf_delta,rf_slot,rf_split,rf_split_template,rf_split_plain,rf_split_count,rf_split_speed,rf_split_spread,rf_j,rf_child,rf_split_i,rf_stop_speed,rf_ev,rf_control_from,rf_control_to,rf_preview_age,rf_preview_x,rf_preview_y;
 rf_world=argument0;rf_stop_speed=0;${eventEarly(s)}if rf_kinematic return 0;if rf_last_update=rf_world return 0;rf_last_update=rf_world;rf_age=rf_world-rf_birth;if rf_age<0 {sprite_index=-1;return 0;}if rf_die_start>=0 {if rf_age-rf_die_start>=rf_die_frames {instance_destroy();return 0;}}else if rf_life_mode=0 && rf_age>=rf_life {instance_destroy();return 0;}
 if rf_age=0 && rf_birth_aim {rf_dir=point_direction(x,y,rf_expression_player(0),rf_expression_player(1))+rf_aim_offset;rf_base_dir=rf_dir;rf_birth_aim=0;}
 if rf_lifetime_enabled {image_xscale=rf_raw_sx;image_yscale=rf_raw_sy;image_alpha=rf_raw_alpha;}
@@ -108,7 +115,8 @@ ${events.map((e,i)=>eventCode(e,i,s)).join('\n')}
 }if rf_dead {if !rf_lifetime_request() {instance_destroy();return 0;}}if rf_age>0 {if !rf_stop_speed rf_speed+=rf_accel;rf_dir+=rf_spin;x+=lengthdir_x(rf_speed,rf_dir);y+=lengthdir_y(rf_speed,rf_dir);}if rf_rotate image_angle=rf_sprite_angle+rf_dir;
 if rf_die_start<0 rf_template_bullet_actions(rf_world);if rf_dead {if !rf_lifetime_request() {instance_destroy();return 0;}}
 if rf_lifetime_enabled {if !rf_lifetime_tick() return 0;}
-sprite_index=-1;if rf_collision sprite_index=rf_sprite;if rf_frozen_image>=0 image_index=rf_frozen_image;rf_slot=rf_age mod 301;rf_hx[rf_slot]=x;rf_hy[rf_slot]=y;rf_ha[rf_slot]=image_angle;rf_hs[rf_slot]=image_xscale;rf_hal[rf_slot]=image_alpha;
+if global.rf_preview_replaying && rf_preview_linear && (${replayGuard(s,'rf_birth',true)}) && rf_age=0 && rf_die_start<0 {rf_preview_age=global.rf_preview_target-rf_birth;if rf_die_fx>0 rf_preview_age-=rf_die_frames;if rf_preview_age>0 {rf_preview_x=x+lengthdir_x(rf_speed*rf_preview_age,rf_dir);rf_preview_y=y+lengthdir_y(rf_speed*rf_preview_age,rf_dir);if rf_preview_x<(-rf_die_margin) || rf_preview_x>room_width+rf_die_margin || rf_preview_y<(-rf_die_margin) || rf_preview_y>room_height+rf_die_margin {instance_destroy();return 0;}}}
+sprite_index=-1;if rf_collision sprite_index=rf_sprite;if rf_frozen_image>=0 image_index=rf_frozen_image;if rf_t_mode!='off' {rf_slot=rf_age mod 301;rf_hx[rf_slot]=x;rf_hy[rf_slot]=y;rf_ha[rf_slot]=image_angle;rf_hs[rf_slot]=image_xscale;rf_hal[rf_slot]=image_alpha;}
 if rf_die_start<0 for(rf_split_i=0;rf_split_i<rf_split;rf_split_i+=1){for(rf_j=0;rf_j<rf_split_count[rf_split_i];rf_j+=1){rf_child=rf_pattern_spawn(rf_split_template[rf_split_i],rf_world,rf_j,rf_split_count[rf_split_i],rf_volley,1,x,y,rf_dir+(rf_j-(rf_split_count[rf_split_i]-1)/2)*rf_split_spread[rf_split_i],rf_split_speed[rf_split_i],rf_generation+1,rf_split_plain[rf_split_i],rf_clock_shift,noone,x,y);if instance_exists(rf_child) {rf_child.rf_scope_group=rf_scope_group;if rf_split_plain[rf_split_i] {rf_child.image_blend=image_blend;rf_child.image_xscale=image_xscale;rf_child.image_yscale=image_yscale;rf_child.rf_base_scale=image_xscale;rf_child.image_alpha=image_alpha;rf_child.rf_base_alpha=image_alpha;rf_child.rf_raw_sx=rf_child.image_xscale;rf_child.rf_raw_sy=rf_child.image_yscale;rf_child.rf_raw_alpha=rf_child.image_alpha;}with(rf_child) rf_pattern_tick(global.rf_tick_world);}}}
 return 0;`;
   const update=`var ${locals},rf_now,rf_j,rf_n,rf_i,rf_instance,rf_heading;rf_now=argument0;rf_global_step(rf_now);${hasEvents(s)?'rf_event_prepare(rf_now);':''}rf_template_step(rf_now);

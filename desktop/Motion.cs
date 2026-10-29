@@ -37,7 +37,7 @@ internal static class Motion
         foreach(var t in state.tracks)
         {
             if(EventPresets.IsEvent(t))t.controlAction="event";
-            t.rainbowMode=Rainbow.Mode(t);
+            t.rainbowMode=Rainbow.Mode(t);t.fadeInFrames=Math.Max(0,t.fadeInFrames);
             if(t.rainbow){t.sprite=String.IsNullOrEmpty(t.rainbowSprite)?Rainbow.Sprite:t.rainbowSprite;t.color="#FFFFFF";}
             var converted=new List<Keyframe>();
             foreach(var key in t.keyframes)

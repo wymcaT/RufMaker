@@ -1510,5 +1510,21 @@
   "副本寿命模式": "Copy lifetime mode",
   "先复制当前弹幕，再立即移除对应原弹幕；保留发射器、未来子弹和未参与复制的物件。": "Copy the current bullets, then immediately remove those originals. Keep emitters, future bullets and items outside the snapshot.",
   "固定寿命按帧；出屏幕按房间边界；出视野按当前游戏镜头。出界模式不受固定寿命限制，出生即在外也会销毁。": "Fixed lifetime uses frames; room mode uses room bounds; view mode uses the current game camera. Boundary modes ignore fixed lifetime and remove bullets born outside their bounds.",
-  "组复制销毁选项无效": "Invalid copy replacement option"
+  "组复制销毁选项无效": "Invalid copy replacement option",
+  "正在启动游戏运行器…": "Starting the game runner…",
+  "区域内随机生成": "Random spawns in region",
+  "矩形内随机": "Random rectangle",
+  "区域跟随来源": "Follow source",
+  "区域中心 X": "Region center X",
+  "区域中心 Y": "Region center Y",
+  "区域宽度": "Region width",
+  "区域高度": "Region height",
+  "生成区域": "Spawn region",
+  "出生淡入": "Fade in at birth",
+  "淡入帧数": "Fade-in frames",
+  "新弹幕外观": "New bullet appearance",
+  "随机彩虹颜色": "Random rainbow color",
+  "关闭：中心使用房间坐标；开启：中心是相对来源的偏移。每颗弹幕独立在矩形内部取样。": "Off: center uses room coordinates. On: center is an offset from the source. Each bullet samples its own position inside the rectangle.",
+  "每颗弹幕随机选择彩虹贴图的一帧；出生后保持，开启动态色彩时从该颜色继续变化。支持固定种子和重新随机。": "Each bullet picks a random rainbow sprite frame and keeps it. Dynamic color animates from that color. Supports fixed seeds and rerolling.",
+  "使用彩虹 Cherry 贴图；关闭后恢复之前的贴图。": "Use the rainbow Cherry sprite; turn off to restore the previous sprite."
 }
