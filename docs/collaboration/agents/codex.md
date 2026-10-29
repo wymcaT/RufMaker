@@ -1,18 +1,21 @@
 # Codex 任务记录
 
-- 状态：`in_progress`
-- 任务：按用户“推送release一下”授权，集成本地未发布修改，发布2.6.0完整便携版和兼容更新包。
-- 基线：main/92bd058，v2.5.0已发布；继承下述区域生成及F5/复制/R的未提交实现与用户projects改动。本轮用户已明确授权推送和Release。
-- 当前占用：desktop/Updater.cs、README.md、docs/releases/v2.6.0.md、协作记录/STATUS、根EXE和build/release-check-2.6.0、build/distribution/v2.6.0；精确提交本地应用修改，排除所有用户projects。沿用既有标签Actions发布流程，先核对版本/打包/更新器。
+- 状态：`completed`
+- 任务：2.6.0已推送并正式发布，线上更新包与完整便携包实下载验证通过。
+- 基线：main/92bd058；用户“推送release一下”授权的48个应用文件提交05a6f1c与v2.6.0已推送，用户projects未提交。
+- 当前占用：无。后续交接文档提交不改变v2.6.0标签；本轮授权已完成，之后仍按默认不自动推送。
 - 本机入口：RufMaker.exe，ProductVersion2.6.0，1,371,136 bytes；旧入口备份build/release-check-2.6.0/RufMaker.before-release.exe。
 
-## 2026-10-29：2.6.0发布（准备与本地验收完成）
+## 2026-10-29：2.6.0发布（已完成）
 
 - 用户明确授权“推送release一下”。发布范围为此前未提交的F5/复制性能、R快照和快速重试血粒子修复，以及区域生成/淡入/默认白色/随机彩虹。没有新增额外产品功能，保护所有projects及用户资料。
 - AppVersion及三个程序集版本同步2.6.0，双语README和docs/releases/v2.6.0.md按最终内容整理，性能指南转为正式版本说明。沿用SSH main/tag与Actions正式发布，连接器无创建Release操作。
 - 本地Package-Release输出build/distribution/v2.6.0，完整包59,088,252 bytes/2677文件，兼容更新包57,083,963 bytes/2635文件及两个SHA256。ZIP唯一条目、必要文件、EXE/manifest版本、更新包逐文件SHA256、排除个人资料检查通过。实际原2.0.0更新器接受2634文件，当前更新器提示/替换/保留/备份/隐藏重启通过；完整包隔离无GM首次新建与重开通过。
 - 功能与真实GM沿用上面各任务已通过的定向结果；没有在版本字符串修改后无关重跑全部模拟测试。根EXE已备份并更新为2.6.0/1,371,136 bytes。
-- 待执行：精确暂存/提交应用文件，推送main及v2.6.0，确认Actions和Release资产，再验证公开更新与完整便携包。当前尚未声称远程发布成功；日志均在build/release-check-2.6.0。
+- 48个应用文件精确暂存并核对后提交05a6f1c，SSH原子推送main与v2.6.0成功。没有projects或个人资料。Git自动维护已结束，未遗留测试进程或错误窗。
+- Actions40819262860构建/打包/发布成功；https://github.com/wymcaT/RufMaker/releases/tag/v2.6.0 为latest、非草稿/非预发布。完整包60,144,152 bytes、更新包58,124,580 bytes及两个SHA256均uploaded。CI压缩字节与本地包不同，线上文件按各自公开SHA256核对。
+- Test-Updater -Online -Version 2.6.0实际latest查询、公开更新包下载/SHA256/全部manifest解包通过；公开完整包实际下载、SHA256/必要文件/版本/个人资料排除及无GM首次建工程/重开通过。日志updater-online.log、portable-online.log、release-metadata.json和actions-final.json均在build/release-check-2.6.0。
+- 用户demo仍12文件817增236删及个人未跟踪工程完整保留；没有替用户保存或重置工程。阶段结束，文件占用释放；最终交接记录另提交，不移动发布标签。
 
 ## 2026-10-29：区域随机生成与随机彩虹（本地完成）
 
