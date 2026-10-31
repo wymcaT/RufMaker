@@ -46,7 +46,7 @@ internal sealed class TemplateRuntime
         for(var t=track;t!=null;t=t.parent)if(hidden.Contains(Key(owner,t,-1)))return false;
         return index<0||!hidden.Contains(Key(owner,track,index));
     }
-    private void Hide(Track track,int index,int owner){hidden.Add(Key(owner,track,index));}
+    internal void Hide(Track track,int index,int owner){hidden.Add(Key(owner,track,index));}
     public void DestroyMember(SimBullet b){if(b.kinematic)Hide(b.source,b.index,b.templateOwner);b.dead=true;}
     public void ClearDanmaku(int frame)
     {
@@ -55,6 +55,52 @@ internal sealed class TemplateRuntime
     }
     public void ClearGroup(int frame,string group)
     {foreach(var t in world.State.tracks.Where(t=>t.kind=="rod"&&BulletSystem.Active(t,frame)&&TimelineGroups.Id(t)==group))Hide(t,-1,0);foreach(var instance in instances.Where(i=>i.scopeGroup==group))foreach(var t in instance.definition.scene.tracks.Where(t=>t.kind=="rod"&&BulletSystem.Active(t,frame-instance.shift)))Hide(t,-1,instance.serial);}
+    public void ResetRods(int frame,Track e)
+    {
+        foreach(var t in world.State.tracks.Where(t=>t.kind=="rod"&&BulletSystem.Active(t,frame)&&(t.releaseFrame<0||frame<t.releaseFrame)&&Visible(t)&&EventPresets.Matches(e,new SimBullet{scopeGroup=TimelineGroups.Id(t),source=t})).ToArray())
+        {
+            var points=Motion.RodPoints(t,frame);
+            var p=Motion.At(t,frame);
+            var player=BulletSystem.PlayerAt(world.State,frame);
+            for(int i=0;i<points.Length;i++)
+            {
+                if(!Visible(t,i))continue;
+                double d=t.releaseDirection=="aim"?ExpressionContext.Direction(points[i].X,points[i].Y,player.x,player.y):t.releaseDirection=="fixed"?p.angle:ExpressionContext.Direction(p.x,p.y,points[i].X,points[i].Y)+(t.releaseDirection=="tangent"?90:0);
+                var b=world.Spawn(t,frame,i,points.Length,0,points[i],d,Motion.Value(t,"speed",frame),0,false,0,null,new PointF((float)p.x,(float)p.y));
+                if(t.rainbow&&Rainbow.Mode(t)!="sequence")b.sequence=Rainbow.RodSequence(t,i,points.Length,frame,points[i],p);
+                b.motionReset=e.eventDisableMotion;
+            }
+            Hide(t,-1,0);
+        }
+        foreach(var instance in instances.ToArray())
+        {
+            if(!EventPresets.Matches(e,new SimBullet{scopeGroup=instance.scopeGroup}))continue;
+            int time=frame-instance.shift;
+            var scene=instance.definition.scene;
+            bool affected=false;
+            foreach(var t in scene.tracks.Where(t=>(t.kind=="rod"||t.kind=="object")&&BulletSystem.Active(t,time)&&(t.releaseFrame<0||time<t.releaseFrame)&&Visible(t,-1,instance.serial)).ToArray())
+            {
+                var shape=ShapeAt(t,time,frame);
+                var points=shape.points;
+                for(int i=0;i<points.Length;i++)
+                {
+                    if(!Visible(t,t.kind=="rod"?i:-1,instance.serial))continue;
+                    string key=Key(instance.serial,t,i);
+                    SimBullet b;
+                    if(fixedBullets.TryGetValue(key,out b)&&!b.dead)
+                    {
+                        b.frozenImage=b.frozenImage>=0?b.frozenImage:Rainbow.Index(t,b.sequence,time,time);
+                        fixedBullets.Remove(key);b.kinematic=false;b.behavior=t;b.templateOwner=0;
+                        b.birth=frame;b.life=Math.Max(1,(int)Motion.Value(t,"life",time));b.lastUpdate=frame-1;b.deathStart=-1;b.deathFactor=1;b.motionReset=e.eventDisableMotion;b.detachedAppearance=true;b.baseAlpha=b.alpha;b.baseScale=b.scale;b.history.Clear();
+                        affected=true;
+                    }
+                }
+                Hide(t,-1,instance.serial);
+            }
+            if(affected)instance.ended=true;
+        }
+        instances.RemoveAll(t=>t.ended);
+    }
     private TemplateDefinition Definition(string id,bool linked=false,Track context=null,int owner=0)
     {
         string cacheKey=(linked?"linked|"+owner+"|":"")+id;TemplateDefinition found;if(definitions.TryGetValue(cacheKey,out found))return found;
@@ -172,9 +218,18 @@ internal sealed class TemplateRuntime
             for(int i=0;i<points.Length;i++)
             {
                 if(!Visible(t,t.kind=="rod"?i:-1,instance.serial))continue;string key=Key(instance.serial,t,i);SimBullet b;
+                var p=instance.Point(points[i].X,points[i].Y);
+                if(instance.OmitPoint(points[i].X,points[i].Y,p))
+                {
+                    SimBullet old;if(fixedBullets.TryGetValue(key,out old))old.dead=true;
+                    continue;
+                }
                 if(!fixedBullets.TryGetValue(key,out b)||b.dead)
                 {b=new SimBullet{scopeGroup=instance.scopeGroup,source=t,birth=t.start+instance.shift,index=i,count=points.Length,kinematic=true,templateOwner=instance.serial,generation=instance.generation,clockShift=instance.shift,life=t.end-t.start+1,collision=t.kind=="rod"};fixedBullets[key]=b;world.bullets.Add(b);}
-                var p=instance.Point(points[i].X,points[i].Y);if(instance.OmitPoint(points[i].X,points[i].Y,p))continue;b.sourceX=instance.sourceX;b.sourceY=instance.sourceY;b.x=p.X;b.y=p.Y;b.scale=pose.scale*instance.scaleMultiplier;b.alpha=pose.alpha;b.color=t.rainbow?Color.White:Motion.ColorOf(t.color);b.visualAngle=t.kind=="object"?pose.angle+instance.rotation:Motion.Value(t,"spriteAngle",time)+(t.rotateSprite?pose.angle+instance.rotation:0);b.sequence=t.kind=="rod"?Rainbow.RodSequence(t,i,points.Length,time,points[i],pose,instance.rotation):0;b.count=points.Length;b.seenFrame=frame;Inherit(b,instance);world.TickNew(b,frame);
+                var player=BulletSystem.PlayerAt(world.State,frame);
+                double heading=t.kind=="rod"?(t.releaseDirection=="fixed"?pose.angle+instance.rotation:t.releaseDirection=="aim"?ExpressionContext.Direction(p.X,p.Y,player.x,player.y):ExpressionContext.Direction(pose.x,pose.y,points[i].X,points[i].Y)+instance.rotation+(t.releaseDirection=="tangent"?90:0)):pose.angle+instance.rotation;
+                double speed=Motion.Value(t,"speed",time);
+                b.sourceX=instance.sourceX;b.sourceY=instance.sourceY;b.x=p.X;b.y=p.Y;b.scale=pose.scale*instance.scaleMultiplier;b.alpha=pose.alpha;b.color=t.rainbow?Color.White:Motion.ColorOf(t.color);b.visualAngle=t.kind=="object"?pose.angle+instance.rotation:Motion.Value(t,"spriteAngle",time)+(t.rotateSprite?pose.angle+instance.rotation:0);b.sequence=t.kind=="rod"?Rainbow.RodSequence(t,i,points.Length,time,points[i],pose,instance.rotation):0;b.count=points.Length;b.seenFrame=frame;b.baseSpeed=speed;b.speed=speed;b.baseDirection=heading;b.direction=heading;Inherit(b,instance);world.TickNew(b,frame);
             }
         }
     }

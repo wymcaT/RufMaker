@@ -24,10 +24,10 @@ internal sealed class NativeReplayProgressForm:LocalizedForm
 {
     private readonly NativeBridge bridge;private readonly System.Windows.Forms.Timer poll=new System.Windows.Forms.Timer{Interval=500};private readonly Label label;private readonly ProgressBar bar;private readonly Button cancel;
     private bool finished,polling;public bool Cancelled;public string ErrorText;public BuildResult Result;
-    public NativeReplayProgressForm(NativeBridge bridge,object payload,int target)
+    public NativeReplayProgressForm(NativeBridge bridge,object payload,int target,bool godMode=false)
     {
-        this.bridge=bridge;Text="准备原生试玩";FormBorderStyle=FormBorderStyle.FixedDialog;MaximizeBox=false;MinimizeBox=false;StartPosition=FormStartPosition.CenterParent;BackColor=Theme.Panel;ForeColor=Theme.Text;
-        label=new Label{Text="正在同步并编译原生试玩副本…"};
+        this.bridge=bridge;Text=godMode?"准备调试试玩（无敌模式）":"准备原生试玩";FormBorderStyle=FormBorderStyle.FixedDialog;MaximizeBox=false;MinimizeBox=false;StartPosition=FormStartPosition.CenterParent;BackColor=Theme.Panel;ForeColor=Theme.Text;
+        label=new Label{Text=godMode?"正在同步并编译调试试玩副本（无敌模式）…":"正在同步并编译原生试玩副本…"};
         bar=new ProgressBar{Dock=DockStyle.Top,Height=25,Minimum=0,Maximum=Math.Max(1,target),Style=ProgressBarStyle.Marquee};
         cancel=new Button{Text="取消"};cancel.Click+=(s,e)=>CancelReplay();NativeProgressLayout.Build(this,label,bar,cancel);
         FormClosing+=(s,e)=>{if(!finished){e.Cancel=true;CancelReplay();}};poll.Tick+=async(s,e)=>await ReadProgress();

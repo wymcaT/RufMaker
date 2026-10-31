@@ -13,7 +13,7 @@ const context={x:'x',y:'y',sourceX:'rf_source_x',sourceY:'rf_source_y',frame:'rf
 export function eventValue(e,property,t,ctx={}){return e.expressions?.[property]?expressionCall(e.expressions[property],t,'event|'+e.id+'|'+property,null,{...context,...ctx}):num(e[property]);}
 export function eventAssignment(e,property,s,target){
   if(!e.expressions?.[property])return `${target}=${num(e[property])};`;
-  return `switch(rf_source){${s.tracks.map((t,i)=>['emitter','rod'].includes(t.kind)?`case ${i}:${target}=${eventValue(e,property,t)};break;`:'').join('\n')}default:${target}=${num(e[property])};break;}`;
+  return `switch(rf_source){${s.tracks.map((t,i)=>['emitter','rod','object'].includes(t.kind)?`case ${i}:${target}=${eventValue(e,property,t)};break;`:'').join('\n')}default:${target}=${num(e[property])};break;}`;
 }
 export function setEventProperty(property,value){switch(property){case 'speed':return `rf_speed=${value};`;case 'direction':return `rf_dir=${value};`;case 'acceleration':return `rf_accel=${value};`;case 'turn':return `rf_spin=${value};`;case 'scale':return `image_xscale=max(0,${value});image_yscale=image_xscale;`;case 'alpha':return `image_alpha=clamp(${value},0,1);`;case 'color':return `image_blend=rf_color_hue(${value});`;default:return '';}}
 const tint=hex=>{const c=(hex||'#FFFFFF').slice(1);return `make_color_rgb(${parseInt(c.slice(0,2),16)},${parseInt(c.slice(2,4),16)},${parseInt(c.slice(4,6),16)})`;};

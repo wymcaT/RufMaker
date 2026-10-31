@@ -27,12 +27,47 @@ internal sealed class EditorState
     public List<TimelineGroup> timelineGroups=new List<TimelineGroup>();
     public EditorState Snapshot()
     {
-        var copy=(EditorState)MemberwiseClone();copy.variableTimeline=null;copy.globalSource=null;copy.tracks=tracks.Select(t=>t.Snapshot()).ToList();copy.timelineGroups=(timelineGroups??new List<TimelineGroup>()).Select(g=>g.Snapshot()).ToList();copy.playerTrace=playerTrace.Select(p=>new PlayerTracePoint{frame=p.frame,x=p.x,y=p.y}).ToList();copy.plainRooms=plainRooms==null?null:(string[])plainRooms.Clone();
+        var copy=(EditorState)MemberwiseClone();copy.variableTimeline=null;copy.globalSource=null;copy.tracks=tracks.Select(t=>t.Snapshot()).ToList();copy.timelineGroups=(timelineGroups??new List<TimelineGroup>()).Select(g=>g.Snapshot()).ToList();copy.playerTrace=playerTrace.Select(p=>p.Snapshot()).ToList();copy.plainRooms=plainRooms==null?null:(string[])plainRooms.Clone();
         copy.nativeTest=nativeTest==null?null:new NativeTestPosition{x=nativeTest.x,y=nativeTest.y};copy.player=player==null?null:player.Snapshot();copy.nativeProject=nativeProject==null?null:nativeProject.Snapshot();copy.terrain=terrain==null?null:Json.Read<object>(Json.Write(terrain));return copy;
     }
 }
 internal sealed class NativeTestPosition {public double x=400,y=304;}
-internal sealed class PlayerTracePoint {public int frame;public double x,y;}
+internal sealed class PlayerTracePoint
+{
+    public int frame;
+    public double x, y;
+    public string sprite = "sprPlayerIdle";
+    public int subimage;
+    public double xscale = 1, yscale = 1;
+    public double alpha = 1, angle = 0;
+    public int facing = 1;
+    public double vspeed, hspeed;
+    public string action = "idle";
+    public bool jumping, shooting, dead;
+
+    public PlayerTracePoint Snapshot()
+    {
+        return new PlayerTracePoint
+        {
+            frame = frame,
+            x = x,
+            y = y,
+            sprite = sprite,
+            subimage = subimage,
+            xscale = xscale,
+            yscale = yscale,
+            alpha = alpha,
+            angle = angle,
+            facing = facing,
+            vspeed = vspeed,
+            hspeed = hspeed,
+            action = action,
+            jumping = jumping,
+            shooting = shooting,
+            dead = dead
+        };
+    }
+}
 internal sealed class PlayerSettings {public double gravity=.4,moveSpeed=3,jumpSpeed=8.5,doubleJumpSpeed=7;public int maxJumps=2;public bool infiniteJump;public PlayerSettings Snapshot(){return (PlayerSettings)MemberwiseClone();}}
 internal sealed class Track
 {
@@ -49,6 +84,7 @@ internal sealed class Track
     public int targetVolley=-1,targetMinAge,targetMaxAge=1000000;public bool includeFuture;
     public double controlFrom,controlValue;public string controlColor="#FFFFFF";
     public string eventPreset="",eventNativeObjects="";public bool eventRestoreBirth=true,eventDisableMotion=true;public double eventAcceleration,eventTurn;
+    public bool eventResetLife=true;public int eventLife=160;
     public string eventGroup="",eventProperty="speed";public int eventCopyLife=160;public bool eventCopyTrail,eventCopyDestroyOriginal;
     [ScriptIgnore] public Track parent;[ScriptIgnore] public EditorState owner;
     [ScriptIgnore] public string scopeGroup;
@@ -348,7 +384,7 @@ internal sealed class SpriteStore : IDisposable
         SpriteMeta meta;Metadata.TryGetValue(name,out meta);int count=meta==null?1:Math.Max(1,meta.frames);frame=(frame%count+count)%count;
         string key=name+"|"+frame;Bitmap image;if(images.TryGetValue(key,out image))return image;
         string file=Path.Combine(Project,"sprites",name,frame+".png");
-        if(!File.Exists(file))return null;
+        if(!File.Exists(file)){file=Path.Combine(Project,"sprites",name,"0.png");if(!File.Exists(file))return null;}
         using(var stream=new MemoryStream(File.ReadAllBytes(file)))using(var source=Image.FromStream(stream))image=new Bitmap(source);
         images[key]=image;return image;
     }
@@ -357,9 +393,9 @@ internal sealed class SpriteStore : IDisposable
         var image=Get(name);SpriteMeta meta;Metadata.TryGetValue(name??"",out meta);
         return image==null?new RectangleF((float)x,(float)y,16,16):new RectangleF((float)x-(meta==null?0:meta.originX),(float)y-(meta==null?0:meta.originY),image.Width,image.Height);
     }
-    public void Draw(Graphics g,string name,double x,double y,double scale,double angle,double alpha,Color tint,int frame=0)
+    public void DrawExt(Graphics g,string name,double x,double y,double scaleX,double scaleY,double angle,double alpha,Color tint,int frame=0)
     {
-        if(scale==0||alpha<=0)return;var image=Get(name,frame);if(image==null)return;
+        if(scaleX==0||scaleY==0||alpha<=0)return;var image=Get(name,frame);if(image==null)return;
         SpriteMeta meta;Metadata.TryGetValue(name,out meta);
         int ox=meta==null?0:meta.originX,oy=meta==null?0:meta.originY;
         int alphaByte=(int)Math.Max(0,Math.Min(255,Math.Round(alpha*255)));int key=Color.FromArgb(alphaByte,tint).ToArgb();ImageAttributes attributes;
@@ -369,11 +405,14 @@ internal sealed class SpriteStore : IDisposable
             attributes.SetColorMatrix(matrix);attributes.SetWrapMode(System.Drawing.Drawing2D.WrapMode.TileFlipXY);
             if(attributesCache.Count>=1024){foreach(var entry in attributesCache.Values)entry.Dispose();attributesCache.Clear();}attributesCache[key]=attributes;
         }
-        // Clamp sampling at image edges. Transparent samples outside a tile become cracks after rotation.
-        if(scale==1&&Math.Abs(angle%360)<.0001&&x==Math.Floor(x)&&y==Math.Floor(y)){g.DrawImage(image,new Rectangle((int)x-ox,(int)y-oy,image.Width,image.Height),0,0,image.Width,image.Height,GraphicsUnit.Pixel,attributes);return;}
-        var state=g.Save();g.TranslateTransform((float)x,(float)y);g.RotateTransform((float)-angle);g.ScaleTransform((float)scale,(float)scale);
+        if(scaleX==1&&scaleY==1&&Math.Abs(angle%360)<.0001&&x==Math.Floor(x)&&y==Math.Floor(y)){g.DrawImage(image,new Rectangle((int)x-ox,(int)y-oy,image.Width,image.Height),0,0,image.Width,image.Height,GraphicsUnit.Pixel,attributes);return;}
+        var state=g.Save();g.TranslateTransform((float)x,(float)y);g.RotateTransform((float)-angle);g.ScaleTransform((float)scaleX,(float)scaleY);
         g.DrawImage(image,new Rectangle(-ox,-oy,image.Width,image.Height),0,0,image.Width,image.Height,GraphicsUnit.Pixel,attributes);
         g.Restore(state);
+    }
+    public void Draw(Graphics g,string name,double x,double y,double scale,double angle,double alpha,Color tint,int frame=0)
+    {
+        DrawExt(g,name,x,y,scale,scale,angle,alpha,tint,frame);
     }
     public void Dispose(){foreach(var image in images.Values)image.Dispose();images.Clear();foreach(var attributes in attributesCache.Values)attributes.Dispose();attributesCache.Clear();}
 }

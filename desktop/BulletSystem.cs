@@ -90,7 +90,7 @@ internal static class BulletSystem
 
 internal sealed class SimBullet
 {
-    public string scopeGroup="";public bool kinematic,motionReset;public int templateOwner,clockShift,seenFrame=-1,lastUpdate=-1,deathStart=-1,frozenImage=-1;public string sprite;public double visualAngle,sourceX,sourceY,deathFactor=1,deathInitial=1;
+    public string scopeGroup="";public bool kinematic,motionReset,detachedAppearance;public int templateOwner,clockShift,seenFrame=-1,lastUpdate=-1,deathStart=-1,frozenImage=-1;public string sprite;public double visualAngle,sourceX,sourceY,deathFactor=1,deathInitial=1;
     public Track source,behavior;public int birth,index,count,volley,generation;public double x,y,direction,speed,scale,alpha,baseDirection,baseSpeed,baseScale,baseAlpha,turn,acceleration,sequence;public int life;public bool collision=true,dead;
     public Color color;public List<BulletSample> history=new List<BulletSample>();public HashSet<string> commands=new HashSet<string>();
     public BulletSample Sample(int frame){return new BulletSample{frame=frame,x=x,y=y,direction=kinematic?visualAngle:direction,scale=scale*BulletLifetime.Scale(this),alpha=alpha*BulletLifetime.Alpha(this),sequence=sequence};}
@@ -176,6 +176,7 @@ internal sealed partial class BulletWorld
     private void Step(int frame)
     {
         fixedGeometry.Clear();pendingSplits=new List<Tuple<SimBullet,BulletAction>>();ClearDanmakuThisFrame=eventTracks.Any(e=>EventPresets.Active(e,frame)&&e.eventPreset=="clear-danmaku");clearFlyingThisFrame=ClearDanmakuThisFrame||eventTracks.Any(e=>EventPresets.Active(e,frame)&&e.eventPreset=="clear-bullets");if(ClearDanmakuThisFrame)Templates.ClearDanmaku(frame);Templates.Step(frame);
+        foreach(var e in eventTracks.Where(e=>EventPresets.Active(e,frame)&&(e.eventPreset=="reset-motion"||e.eventPreset=="group-set")))Templates.ResetRods(frame,e);
         foreach(var t in State.tracks.Where(t=>t.kind=="emitter"&&BulletSystem.Active(t,frame)&&Templates.Visible(t))){int dt=frame-TimelineLayout.ClockStart(t);if(dt%Math.Max(1,t.interval)!=0)continue;int n=Math.Max(1,Math.Min(300,(int)BulletSystem.Round(Motion.Value(t,"count",frame))));for(int i=0;i<n;i++)Spawn(t,frame+i*Math.Max(0,t.indexDelay),i,n,dt/Math.Max(1,t.interval));}
         foreach(var t in State.tracks.Where(t=>t.kind=="rod"&&t.releaseFrame==frame&&BulletSystem.Active(t,frame)&&Templates.Visible(t))){var points=Motion.RodPoints(t,frame);var p=Motion.At(t,frame);var player=BulletSystem.PlayerAt(State,frame);for(int i=0;i<points.Length;i++){if(!Templates.Visible(t,i))continue;double d=t.releaseDirection=="aim"?ExpressionContext.Direction(points[i].X,points[i].Y,player.x,player.y):t.releaseDirection=="fixed"?p.angle:ExpressionContext.Direction(p.x,p.y,points[i].X,points[i].Y)+(t.releaseDirection=="tangent"?90:0);var b=Spawn(t,frame,i,points.Length,0,points[i],d,Motion.Value(t,"speed",frame),0,false,0,null,new PointF((float)p.x,(float)p.y));if(t.rainbow&&Rainbow.Mode(t)!="sequence")b.sequence=Rainbow.RodSequence(t,i,points.Length,frame,points[i],p);}}
         var splits=pendingSplits;
@@ -197,9 +198,11 @@ internal sealed partial class BulletWorld
                 if(!b.commands.Contains(e.id)){if(!Match(e,b,frame)||!e.includeFuture&&b.birth>e.start)continue;if(frame!=e.start&&!e.includeFuture)continue;b.commands.Add(e.id);}
                 double u=TimelineLayout.ClockEnd(e)==TimelineLayout.ClockStart(e)?1:Motion.Ease(e.controlEasing,(frame-TimelineLayout.ClockStart(e))/(double)Math.Max(1,TimelineLayout.ClockEnd(e)-TimelineLayout.ClockStart(e)));double v=Expression(b,frame,e.controlExpression,"control|"+e.id+"|base",EventPresets.Value(e,"controlFrom",b,this,frame)+(EventPresets.Value(e,"controlValue",b,this,frame)-EventPresets.Value(e,"controlFrom",b,this,frame))*u,true);if(e.controlAction=="color")b.color=Motion.ColorOf(e.controlColor);else Apply(b,e.controlAction,v);
             }
+            age=frame-b.birth;
             if(b.dead&&!BulletLifetime.Request(b,age))return;
             if(age>0){if(!stopSpeed)b.speed+=b.acceleration;b.direction+=b.turn;b.x+=Math.Cos(b.direction*Math.PI/180)*b.speed;b.y-=Math.Sin(b.direction*Math.PI/180)*b.speed;}
             if(b.deathStart<0)Templates.FromBullet(b,frame);
+            age=frame-b.birth;
             if(b.dead&&!BulletLifetime.Request(b,age))return;
             if(!BulletLifetime.Update(b,age,lifetimeRoom,BulletLifetime.Mode(b.source)=="view"?LifetimeView():new LifetimeBounds()))return;
             RememberTrail(b,frame);
@@ -207,9 +210,10 @@ internal sealed partial class BulletWorld
     private static void RememberTrail(SimBullet b,int frame){if(Trails.Mode(b.source)=="off")return;b.history.Add(b.Sample(frame));if(b.history.Count>301)b.history.RemoveAt(0);}
     public void Draw(Graphics g,SpriteStore sprites,int pass,bool hitboxes,Func<bool> cancelled=null)
     {
-        int rendered=0;foreach(var b in bullets.OrderBy(b=>b.generation).ThenBy(b=>b.birth)){if((rendered++&127)==0&&cancelled!=null&&cancelled())throw new OperationCanceledException();if(Frame<b.birth||b.dead||pass==1&&b.generation>0||pass==2&&b.generation==0)continue;var t=b.source;int image=b.frozenImage>=0?b.frozenImage:Rainbow.Index(t,b.sequence,Frame-b.clockShift,(b.kinematic?Frame:b.birth)-b.clockShift);double angle=b.kinematic?b.visualAngle:Motion.Value(t,"spriteAngle",b.birth-b.clockShift)+(t.rotateSprite?b.direction:0);
-            if(pass==0&&Trails.Mode(t)!="off")foreach(var p in b.history.Where(p=>(p.frame-b.birth)%Trails.Interval(t)==0&&Frame-p.frame<Trails.Life(t)))Trails.Draw(g,sprites,t,p.frame*301+b.index,Frame-p.frame,p.x,p.y,p.scale,b.kinematic?p.direction:Motion.Value(t,"spriteAngle",b.birth-b.clockShift)+(t.rotateSprite?p.direction:0),p.alpha,b.color,b.frozenImage>=0?b.frozenImage:Rainbow.Index(t,p.sequence,p.frame-b.clockShift,(b.kinematic?p.frame:b.birth)-b.clockShift),b.sprite??t.sprite);
+        int rendered=0;foreach(var b in bullets.OrderBy(b=>b.generation).ThenBy(b=>b.birth)){if((rendered++&127)==0&&cancelled!=null&&cancelled())throw new OperationCanceledException();if(Frame<b.birth||b.dead||pass==1&&b.generation>0||pass==2&&b.generation==0)continue;var t=b.source;int image=b.frozenImage>=0?b.frozenImage:Rainbow.Index(t,b.sequence,Frame-b.clockShift,(b.kinematic?Frame:b.birth)-b.clockShift);double angle=BulletAngle(b,b.direction);
+            if(pass==0&&Trails.Mode(t)!="off")foreach(var p in b.history.Where(p=>(p.frame-b.birth)%Trails.Interval(t)==0&&Frame-p.frame<Trails.Life(t)))Trails.Draw(g,sprites,t,p.frame*301+b.index,Frame-p.frame,p.x,p.y,p.scale,b.kinematic?p.direction:BulletAngle(b,p.direction),p.alpha,b.color,b.frozenImage>=0?b.frozenImage:Rainbow.Index(t,p.sequence,p.frame-b.clockShift,(b.kinematic?p.frame:b.birth)-b.clockShift),b.sprite??t.sprite);
             if(pass>0){sprites.Draw(g,b.sprite??t.sprite,b.x,b.y,b.scale*BulletLifetime.Scale(b),angle,b.alpha*BulletLifetime.Alpha(b),b.color,image);if(hitboxes)using(var pen=new Pen(b.collision?Color.Lime:Color.Gray)){var r=sprites.Bounds(b.sprite??t.sprite,b.x,b.y);g.DrawRectangle(pen,r.X,r.Y,r.Width,r.Height);}}
         }
     }
+    internal static double BulletAngle(SimBullet b,double direction){return b.kinematic?b.visualAngle:b.detachedAppearance?b.visualAngle+(b.source.rotateSprite?direction-b.baseDirection:0):Motion.Value(b.source,"spriteAngle",b.birth-b.clockShift)+(b.source.rotateSprite?direction:0);}
 }

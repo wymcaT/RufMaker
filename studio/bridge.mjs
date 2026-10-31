@@ -77,7 +77,7 @@ async function execute(command,payload={}) {
       return roomInfo(payload.room);
     }
     case 'import': return {name:importSprite(payload.folder,payload.name),inventory:inventory(),spriteMeta:spriteMetadata()};
-    case 'run': syncToGame(payload.state); return await runNative(payload.frame);
+    case 'run': syncToGame(payload.state); return await runNative(payload.frame, Boolean(payload.godMode));
     case 'run-progress': return nativeRunStatus();
     case 'run-cancel': return cancelNativeRun();
     case 'export': syncToGame(payload); await ensureBuild(); return packageGame(false);

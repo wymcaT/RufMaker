@@ -93,6 +93,8 @@ rightTime（SelectionTimeControl）属于关键帧页顶部，不挂在两个停
 
 ### GM8.2 验证
 
+音乐校时入口studio/music-sync.mjs，普通工程通过控制器End Step执行，原生工程保留已有Step校时；缺失且时钟可识别时增加objRufMusicSync。运行`runtime/node.exe --test studio/music-sync.test.mjs`及`runtime/node.exe desktop/tests/verify-music-sync-gml.mjs`，后者在build/music-sync-check生成合成WAV和隔离GM工程，检查3/8帧阈值、500ms定位冷却、实际FMOD速率、卡顿、暂停以及导出/F5/原生导出。R恢复回归沿用verify-play-checkpoint-gml.mjs。未修改C#预览时间主时钟或弹幕公式。
+
 区域随机生成/出生淡入/随机彩虹的定向入口为`desktop/Test-RegionGeneration.ps1`，夹具位于build/region-generation-check。通过后，设置RUFMAKER_TEST_BUILD=region-generation-check、RUFMAKER_TEST_SAMPLER=RegionGeneration.tests.exe、RUFMAKER_TEST_FRAMES=0,1,2,4,7,8,13,14,20,21,28,29,35,40,55,65,80,105，再运行`runtime/node.exe desktop/tests/verify-template-gml.mjs`进行真实GM完整状态对照。参数只供探针使用；未设环境参数时保留原模板/gallery路径。产品新字段和使用方法见[生成模板说明](../generation-presets.md)。
 
 独立轨道物件的时段互斥由desktop/TimelineLayout.cs的EnsureExclusive处理，仅用于编辑器的工程打开和改动提交，不用于展开后运行态。生成组内引用模板的局部时间不参与歌曲轨道冲突。检测到旧工程重叠时先保留原执行数组并设置preserveTrackOrder，再仅变更lane；拖动覆盖仍调用CutOverlaps裁剪。运行desktop/Test-LaneExclusivity.ps1后再运行runtime/node.exe desktop/tests/verify-lane-sync.mjs，隔离工程核对保存/重开、时间/父子关系/执行顺序和真实生成GML不变。
@@ -100,6 +102,8 @@ rightTime（SelectionTimeControl）属于关键帧页顶部，不挂在两个停
 复制obj与时间轴编辑入口为desktop/CopyGeneration.cs、TemplateRuntime.cs、TimelineEditing.cs及studio/copy-generation.mjs、linked-copy.mjs、template-system.mjs。BulletAction.copyLinked默认true；track级复制按实际来源图和当前局部时钟取样，一组链接持续到来源结束，不能每次触发再叠加整组。关掉copyLinked或使用弹幕年龄行为时仍走独立模板。联动网格逐成员在旋转格点坐标内取模，锚定实际房间中心、范围至少覆盖房间；禁止按整体中心出屏裁掉成员。shapeSetup与stateCode都要保留来源所在的父级/模板上下文，避免父角度重复进入形状phase。临时实例/位置字段只参与模拟快照；rf_copy_started用普通GM数组，F5重放及原生保存可恢复。先运行desktop/Test-CopyEditing.ps1，再用runtime/node.exe desktop/tests/verify-copy-gml.mjs核对独立GM工程；Node入口studio/copy-generation.test.mjs。夹具在build/copy-editing-check，覆盖来源后续编辑、数量/半径/角度、屏外成员/旋转网格、父级及生成实例内链接、颜色、释放、独立模式和实际F5目标帧状态。UI还覆盖无缝接线、整理/Undo、拉伸模式与中英文。preserveTrackOrder保留执行顺序；Track.keyframeCycle保存周期与独立快照。产品新增CS必须在Build-Native显式列出。
 
 事件预设入口为desktop/EventPresets.cs和studio/event-presets.mjs（复用control轨道，以eventPreset区分）。运行desktop/Test-EventPresets.ps1覆盖事件语义和高字号分隔条/时间按钮；随后用runtime/node.exe desktop/tests/verify-event-gml.mjs核对独立GM工程的弹幕、整体显隐及额外原生父子对象。Node单元测试为studio/event-presets.test.mjs。夹具均位于build/event-presets-check；测试对象事件头使用工程标准action_id/applies_to，不使用id/kind字段。
+
+整体/复制成员解体重设另运行`desktop/Test-ResetFormations.ps1`。随后设置`RUFMAKER_TEST_BUILD=reset-formation-check`、`RUFMAKER_TEST_SAMPLER=ResetFormations.tests.exe`并运行`runtime/node.exe desktop/tests/verify-template-gml.mjs`，对照实际GM；可选`RUFMAKER_TEST_BOOT_FRAME`检查F5重建（该帧须包含在`RUFMAKER_TEST_FRAMES`中）。覆盖圆周、网格、分组嵌套、当帧出生、随机公式、外观及延长寿命。准备阶段只解绑容器，由普通弹幕管线执行事件一次；GML脚本局部变量与with实例字段同名时必须显式使用self。
 
 2.1.0 的生成模板与全局变量定向入口：`desktop/Test-GenerationPresets.ps1`，通过后运行 `runtime/node.exe desktop/tests/verify-generation-gml.mjs`。前者覆盖5种循环模板、移动母弹、寿命/拖影/子弹行为入口、变量历史与复制预设；后者创建独立 GM 工程，对照弹幕状态、拖影参数、全局变量与 F5 中途启动。Node 的对应单元测试为 `studio/global-variables.test.mjs`。
 

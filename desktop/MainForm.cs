@@ -41,7 +41,7 @@ internal sealed partial class MainForm : LocalizedForm
     private string copiedKind;private readonly List<Track> copiedTracks=new List<Track>();private RoomInstance copiedInstance;
 
     private readonly Stopwatch playClock=new Stopwatch();
-    private Button runButton,exportButton,playButton,codeButton,keyButton,deleteButton;
+    private Button runButton,debugButton,exportButton,playButton,codeButton,keyButton,deleteButton;
     private readonly ToolTip tips=new ToolTip();
     private ContextMenuStrip effectMenu;
     private readonly CheckBox keySnap=new CheckBox{Text="游标吸附物件与关键帧",AutoSize=true,Margin=new Padding(8,9,5,0)};
@@ -584,14 +584,14 @@ internal sealed partial class MainForm : LocalizedForm
             catch(Exception error){Error(error);}
         }
     }
-    private void SetBusy(bool value){busy=value;runButton.Enabled=!value;exportButton.Enabled=!value;UseWaitCursor=value;RefreshShell();}
-    private async Task RunGame()
+    private void SetBusy(bool value){busy=value;runButton.Enabled=!value;if(debugButton!=null)debugButton.Enabled=!value;exportButton.Enabled=!value;UseWaitCursor=value;RefreshShell();}
+    private async Task RunGame(bool godMode = false)
     {
-        if(state==null||busy)return;CommitInspectorEdits();if(templateEditing!=null)ExitTemplateContext();if(!await EnsureEngine())return;StopPlaying();saveTimer.Stop();SetBusy(true);SetStatus("正在同步、编译并进入原生试玩…");int target=frame,current=revision;
+        if(state==null||busy)return;CommitInspectorEdits();if(templateEditing!=null)ExitTemplateContext();if(!await EnsureEngine())return;StopPlaying();saveTimer.Stop();SetBusy(true);SetStatus(godMode?"正在同步、编译并进入调试试玩（无敌模式）…":"正在同步、编译并进入原生试玩…");int target=frame,current=revision;
         try{
-            var payload=new{state=Json.Read<EditorState>(Json.Write(state)),frame=target};BuildResult result;
-            using(var dialog=new NativeReplayProgressForm(bridge,payload,target)){Language.ShowDialog(dialog,this);if(dialog.Cancelled){SetStatus("原生试玩重放已取消。");return;}if(dialog.ErrorText!=null)throw new IOException(dialog.ErrorText);result=dialog.Result;}
-            if(current==revision)dirty=false;SetStatus(result.ready?"原生试玩已进入 "+result.status["room"]+" · 第 "+result.status["frame"]+" 帧":"游戏已启动，请查看游戏窗口");if(state.nativeProject!=null){nativePhase="";nativeWatch.Start();}
+            var payload=new{state=Json.Read<EditorState>(Json.Write(state)),frame=target,godMode=godMode};BuildResult result;
+            using(var dialog=new NativeReplayProgressForm(bridge,payload,target,godMode)){Language.ShowDialog(dialog,this);if(dialog.Cancelled){SetStatus("原生试玩重放已取消。");return;}if(dialog.ErrorText!=null)throw new IOException(dialog.ErrorText);result=dialog.Result;}
+            if(current==revision)dirty=false;SetStatus(result.ready?(godMode?"调试试玩（无敌）已进入 ":"原生试玩已进入 ")+result.status["room"]+" · 第 "+result.status["frame"]+" 帧":godMode?"调试试玩已启动（无敌模式）":"游戏已启动，请查看游戏窗口");if(state.nativeProject!=null){nativePhase="";nativeWatch.Start();}
             // A modal progress window reactivates its editor owner when it closes.
             // Transfer input after that modal loop and the busy state have ended.
             WatchPlayerTrace(result);int gamePid=result.pid;BeginInvoke(new Action(()=>AppWindow.FocusGame(gamePid)));
@@ -682,7 +682,7 @@ internal sealed partial class MainForm : LocalizedForm
         if(!editing&&timeline.Focused&&timeline.KeyboardPreviewNavigation&&(keyData==Keys.Left||keyData==Keys.Right)){BeginTimelineArrow(keyData);return true;}
         if(keyData==(Keys.Control|Keys.N)){NewFromKeyboard();return true;}if(keyData==(Keys.Control|Keys.O)){OpenFromKeyboard();return true;}
         if(keyData==(Keys.Control|Keys.S)){stage.Focus();SaveFromKeyboard();return true;}
-        if(keyData==Keys.F5){stage.Focus();RunFromKeyboard();return true;}
+        if(keyData==Keys.F5){stage.Focus();RunFromKeyboard(false);return true;}if(keyData==Keys.F6){stage.Focus();RunFromKeyboard(true);return true;}
         if(!editing)
         {
             if(stage.ContainsFocus&&keyData==(Keys.Control|Keys.D0)){stage.ResetView();return true;}
@@ -693,7 +693,7 @@ internal sealed partial class MainForm : LocalizedForm
         return base.ProcessCmdKey(ref msg,keyData);
     }
     private async void SaveFromKeyboard(){await SaveNow(true);}
-    private async void RunFromKeyboard(){await RunGame();}
+    private async void RunFromKeyboard(bool godMode = false){await RunGame(godMode);}
     private async void OnClosing(object sender,FormClosingEventArgs e)
     {
         if(closing)return;e.Cancel=true;if(closeInProgress)return;if(busy){SetStatus("正在编译，请等待完成后关闭");return;}

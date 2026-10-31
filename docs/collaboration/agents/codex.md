@@ -1,10 +1,30 @@
 # Codex 任务记录
 
-- 状态：`completed`
-- 任务：2.6.0已推送并正式发布，线上更新包与完整便携包实下载验证通过。
-- 基线：main/92bd058；用户“推送release一下”授权的48个应用文件提交05a6f1c与v2.6.0已推送，用户projects未提交。
-- 当前占用：无。后续交接文档提交不改变v2.6.0标签；本轮授权已完成，之后仍按默认不自动推送。
-- 本机入口：RufMaker.exe，ProductVersion2.6.0，1,371,136 bytes；旧入口备份build/release-check-2.6.0/RufMaker.before-release.exe。
+- 状态：`in_progress`
+- 任务：按用户“推送release”授权集成发布2.7.0，包含音乐同步、Argon4已完成的F5/F6与玩家渲染、整体及复制成员重设修复；核对包、更新兼容与线上结果。
+- 基线：main/51d4b2d，保留音乐同步及Argon4已完成的F5/F6/轨迹/重设修改、全部用户工程。本轮无推送/Release授权，Argon4记录无占用。
+- 当前占用：desktop/Updater.cs、双语README、docs/releases/v2.7.0.md、开发/交接说明、根EXE、build/distribution/v2.7.0与build/release-check-2.7.0；集成所有已交接应用修改，精确暂存，不修改用户projects或RufMaker.old.exe。Argon4无占用。
+- 本机入口：RufMaker.exe，ProductVersion2.6.0，1,384,448 bytes；本轮旧入口备份build/reset-formation-check/RufMaker.before-reset-20261031-171137.exe。
+
+## 2026-10-31：整体与复制成员重设修复（本地完成）
+
+- 接手时Argon4同题修复已标完成，但实际GM探针仍复现复制成员速度/方向和外观偏差。本轮沿用其已有寿命字段、组筛选及界面改动，未覆盖F5/F6、玩家轨迹和渲染工作；基线main/51d4b2d，未提交/推送/发布。
+- 根因：GML按来源数组而非实际容器所有权查找成员，漏掉嵌套子件；rf_event_prepare脚本局部变量遮蔽with内同名实例字段；成员当帧已标更新导致解体后不再执行事件。改为按rf_template_owner查找全部活动成员并显式写self字段，清除容器/固定绑定、重置更新时间，由正常弹幕管线当帧统一求值事件。原始整体同样先按出生运动建立成员再执行重设，避免重复随机或错误出生基值。模板内作为成员的可视对象也支持公式分派。
+- C#与GML共同保留当帧外观、贴图朝向与彩虹子图，原容器结束不再清掉独立弹幕。网格成员径向方向从未包裹的形状坐标计算，消除来源出屏/网格循环造成的错误方向。F5历史裁剪将延长寿命的重设事件纳入保护，避免跳到事件后漏弹幕。
+- UI始终显示重设速度/方向；新事件默认自定义模式，修改数值、随机开关或公式自动关闭恢复出生模式，同一Undo一起恢复，取消公式编辑不改变模式。无新工程字段/协议，无新增产品CS。
+- 改动：desktop/EventPresets.cs、GroupEvents.cs、BulletSystem.cs、TemplateRuntime.cs；studio/event-presets.mjs、group-events.mjs、bullet-system.mjs、template-system.mjs；英文词条及轨道组教程/开发入口/本记录/STATUS。新增Test-ResetFormations.ps1与tests/ResetFormationTests.cs，更新verify-template-gml.mjs可选完整状态字段与F5启动探针、event-presets.test.mjs。
+- 验证：Test-ResetFormations、Test-EventPresets、Test-CopyEditing、Test-TimelineGroups、Test-Localization通过；Node事件/复制/模板/轨道组四文件17/17通过。真实GM25时刻3,986条完整状态（含出生基值、贴图角、寿命、归属）与C#一致；F5第55帧216条状态重建一致，包含重设后延长寿命、原容器到期、嵌套/网格/当帧出生、组筛选、随机公式及倒拖。最终日志build/reset-formation-check/gm-boot-final.log，实际隔离工程Template GM 1793437788955/GameMaker.gm82。早期失败诊断保留，均已修正，没有遗留测试进程或错误窗。
+- Build-Native通过并File.Replace更新根EXE为2.6.0/1,384,448 bytes，备份见顶部。应用范围git diff --check通过；projects中接手前已有objRufController.gml末尾空行问题未改。本轮没有用户实操验收；保存并重启软件后重新F5/导出才会使用新生成代码。没有待完成实现，文件占用释放。
+
+## 2026-10-30：游戏卡顿后的BGM校时（本地完成）
+
+- 根因：普通工程替换objAd后，没有原引擎的m_time/FM0D位置校正；原控制器只在Create和R时定位，卡顿后音乐继续按真实时间前进。核对本地Sound扩展接口及原objAd/Verse3脚本，确认FMOD位置归一化、长度毫秒，SetPitch同时改变速率/音高。
+- 新studio/music-sync.mjs提供rf_music_sync_init/tick：每fps/10个逻辑帧检查一次；误差>3帧启动最多±3%修正，<1帧解除；>8帧直接定位，墙钟冷却500ms。只纠正音频，不跳过逻辑，不重启/自动续播歌曲；处理暂停、停止、曲终、换通道和倒向时间。普通project.mjs注册脚本并在End Step调用，预热不调用；native-checkpoint.mjs在普通R恢复时清除速率/状态。
+- 原生：nativeMusicPolicy识别已有Step内GetPosition+SetPosition时保留原控制；否则仅FMOD且有可识别controller clock/timeline才添加objRufMusicSync，原GML不改。纯原生保存也安装此观察对象；有原生预览harness时跳过底片/未presented阶段。native-preview.mjs缓存摘要包含模块，R恢复同步重置观察对象，checkpointScripts新增可选第三参musicReset。未知音频或时钟不接管。
+- 文件：studio/music-sync.mjs、music-sync.test.mjs（新）、project.mjs、native-checkpoint.mjs、native-preview.mjs；desktop/tests/verify-music-sync-gml.mjs（新）；性能说明、开发入口及本记录/STATUS。无工程数据字段/桥接协议/弹幕公式变化，无新增产品CS。C#预览已有墙钟驱动+90ms定位，此次未改。
+- 验证：Node音乐/快照/原生会话/保存四文件12/12通过，unit-final.log。实际GM普通导出、F5第100帧、无原生校时的模拟导入导出均通过：11组精确阈值/迟滞/冷却/100FPS用例，真实FMOD误差±5帧时读回0.97/1.03；sleep350ms造成13～15帧偏差后定位误差0；暂停不多定位。gm-final.log，工程build/music-sync-check/Music sync 1793291099922/GameMaker.gm82。真实GM R固定/随机两模式各两次恢复34行一致，没有Create或历史重算，checkpoint.log。
+- 原生既有校时不改、观察对象只放一次、timeline与预热guard通过生成/文件测试；本轮没有重新录制Verse3整段底片/完整原生试玩。实际原生导出验证采用隔离合成控制器，不声称遍历所有音频系统。
+- Build-Native输出build/music-sync-check/RufMaker.check.exe通过，根EXE保持2.6.0/1,371,136 bytes；后台模块更新后需保存并重启编辑器，再重新F5/导出。git diff --check通过，用户demo仍12文件817增236删，未操作用户工程，无遗留测试进程或错误窗。未提交/推送/发布，当前占用释放。
 
 ## 2026-10-29：2.6.0发布（已完成）
 

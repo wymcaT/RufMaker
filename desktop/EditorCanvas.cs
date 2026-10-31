@@ -67,7 +67,7 @@ internal sealed partial class StageCanvas : Control
         if(State==null||Room==null||Sprites==null)return;
         RandomParameters.Attach(State);
         if(assetOwner!=Sprites){assetOwner=Sprites;assetVersion++;}
-        renderState=new EditorState{timelineGroups=State.timelineGroups.Select(g=>g.Snapshot()).ToList(),nativeProject=State.nativeProject==null?null:State.nativeProject.Snapshot(),version=State.version,fps=State.fps,bpm=State.bpm,duration=State.duration,room=State.room,music=State.music,timelineInitialized=State.timelineInitialized,randomSeed=State.randomSeed,usePlayerTrace=State.usePlayerTrace,playerTrace=State.playerTrace.Select(p=>new PlayerTracePoint{frame=p.frame,x=p.x,y=p.y}).ToList(),nativeTest=new NativeTestPosition{x=State.nativeTest.x,y=State.nativeTest.y},tracks=State.tracks.Select(t=>t.Snapshot()).ToList()};
+        renderState=new EditorState{timelineGroups=State.timelineGroups.Select(g=>g.Snapshot()).ToList(),nativeProject=State.nativeProject==null?null:State.nativeProject.Snapshot(),version=State.version,fps=State.fps,bpm=State.bpm,duration=State.duration,room=State.room,music=State.music,timelineInitialized=State.timelineInitialized,randomSeed=State.randomSeed,usePlayerTrace=State.usePlayerTrace,playerTrace=State.playerTrace.Select(p=>p.Snapshot()).ToList(),nativeTest=new NativeTestPosition{x=State.nativeTest.x,y=State.nativeTest.y},tracks=State.tracks.Select(t=>t.Snapshot()).ToList()};
         if(!String.IsNullOrEmpty(TemplatePreviewId)){renderState.nativeProject=null;var visible=new HashSet<string>{TemplatePreviewId};bool added;do{added=false;foreach(var child in renderState.tracks)if(visible.Contains(child.parentId))added|=visible.Add(child.id);}while(added);foreach(var track in renderState.tracks){track.templateOnly=!visible.Contains(track.id);if(track.templateOnly&&(track.kind=="camera"||track.kind=="effect"))track.enabled=false;if(track.id==TemplatePreviewId){track.enabled=true;track.parentId="";}}}
         renderState=BulletSystem.Expand(renderState);RandomParameters.Attach(renderState);renderRoom=Room.Snapshot();renderObjects=ObjectSprites;renderProject=Sprites.Project;renderMetadata=Sprites.Metadata;RequestRender();
     }
@@ -131,6 +131,7 @@ internal sealed partial class StageCanvas : Control
             if(Sprites!=null&&!String.IsNullOrEmpty(NativeTestSprite))Sprites.Draw(g,NativeTestSprite,x,y,1,0,.8,Color.White);
             using(var pen=new Pen(Color.Cyan,1.5f)){g.DrawRectangle(pen,x-12,y-16,24,32);g.DrawLine(pen,x-20,y,x+20,y);g.DrawLine(pen,x,y-23,x,y+23);}using(var brush=new SolidBrush(Color.Cyan))g.DrawString("试玩玩家 · "+x.ToString("0.##")+", "+y.ToString("0.##"),Theme.Small,brush,x+15,y-20);
         }
+        PaintPlayerTrace(g);
         if(SelectedInstance!=null&&Sprites!=null)
         {string sprite;if(ObjectSprites.TryGetValue(SelectedInstance.name,out sprite)){var r=Sprites.Bounds(sprite,SelectedInstance.x,SelectedInstance.y);using(var pen=new Pen(Theme.Accent,2))g.DrawRectangle(pen,r.X,r.Y,r.Width,r.Height);}}
         foreach(var item in SelectedTracks.Where(t=>t!=SelectedTrack&&Theme.Spatial(t.kind)))
@@ -153,6 +154,53 @@ internal sealed partial class StageCanvas : Control
         Theme.Label(g,Room.name+" · "+Frame+" F · "+(view.Width/Room.width*100).ToString("0")+Language.Text("% · Ctrl+滚轮 / 中键平移"),new Rectangle(14,Height-31,Math.Max(1,Width-28),24),Theme.Text,Theme.Small,localize:false);
     }
     private static bool Near(PointF a,PointF b,double radius){return Math.Abs(a.X-b.X)<radius&&Math.Abs(a.Y-b.Y)<radius;}
+    private void PaintPlayerTrace(Graphics g)
+    {
+        if (State == null) return;
+        if (image == null)
+        {
+            PreviewRenderer.DrawPlayer(g, State, Sprites, Frame, Hitboxes);
+        }
+
+        if (SelectedTrack != null && Theme.Spatial(SelectedTrack.kind))
+        {
+            int currentFrame = (image != null && DisplayedFrame >= 0) ? DisplayedFrame : Frame;
+            var p = Motion.At(SelectedTrack, currentFrame);
+            bool isAiming = SelectedTrack.emissionFacing == "aim" ||
+                            SelectedTrack.flightMode == "aim" ||
+                            SelectedTrack.flightMode == "turn" ||
+                            SelectedTrack.releaseDirection == "aim" ||
+                            (SelectedTrack.bulletActions != null && SelectedTrack.bulletActions.Any(a => a.enabled && (a.type == "aim" || a.type == "home"))) ||
+                            (!string.IsNullOrEmpty(SelectedTrack.flightExpression) && SelectedTrack.flightExpression.Contains("player.")) ||
+                            (SelectedTrack.expressions != null && SelectedTrack.expressions.Values.Any(v => v != null && v.Contains("player.")));
+
+            if (isAiming)
+            {
+                var targetPlayer = BulletSystem.PlayerAt(State, currentFrame);
+                float tx = (float)p.x, ty = (float)p.y;
+                float px = (float)targetPlayer.x, py = (float)targetPlayer.y;
+                double angle = ExpressionContext.Direction(tx, ty, px, py);
+                double dist = Math.Sqrt((px - tx) * (px - tx) + (py - ty) * (py - ty));
+
+                using (var pen = new Pen(Color.FromArgb(230, 255, 170, 0), 1.5f))
+                {
+                    pen.DashStyle = DashStyle.Dash;
+                    g.DrawLine(pen, tx, ty, px, py);
+                    float arrowLen = 10f;
+                    double rad1 = (angle + 150) * Math.PI / 180.0;
+                    double rad2 = (angle - 150) * Math.PI / 180.0;
+                    g.DrawLine(pen, px, py, px + (float)(arrowLen * Math.Cos(rad1)), py - (float)(arrowLen * Math.Sin(rad1)));
+                    g.DrawLine(pen, px, py, px + (float)(arrowLen * Math.Cos(rad2)), py - (float)(arrowLen * Math.Sin(rad2)));
+                }
+
+                using (var brush = new SolidBrush(Color.FromArgb(255, 200, 50)))
+                {
+                    float midX = (tx + px) / 2f, midY = (ty + py) / 2f;
+                    g.DrawString(string.Format("自机狙瞄准 · {0:0.#}° ({1:0}px)", angle, dist), Theme.Small, brush, midX + 8, midY - 8);
+                }
+            }
+        }
+    }
     public Track TrackAt(PointF p)
     {
         return PickTargets(p).Select(hit=>hit.track).FirstOrDefault(t=>t!=null);

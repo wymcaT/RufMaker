@@ -28,15 +28,19 @@ if rf_cam_blur>0 {
 // Caller is objRufController; do not touch the original engine RNG.
 export const styleFxGml=`var src,dst,kind,strength,opacity,angle,zoom,flash,retention,slices,hold,start,index,age,bucket,seed,v,rf_slice_y,h,dx,dy,i,z,history;
 src=argument0;dst=argument1;kind=argument2;strength=max(0,argument3);opacity=max(0,min(1,argument4));angle=argument5;zoom=max(1,min(3,argument6));flash=max(0,min(1,argument7));retention=max(0,min(1,argument8));slices=max(1,min(32,round(argument9)));hold=max(1,min(12,round(argument10)));start=argument11;index=argument12;
-surface_set_target(dst);d3d_set_projection_ortho(0,0,room_width,room_height,0);draw_set_blend_mode(bm_normal);draw_set_alpha(1);draw_clear(c_black);
+d3d_set_projection_ortho(0,0,room_width,room_height,0);draw_set_blend_mode(bm_normal);draw_set_alpha(1);
 if opacity<=0 {draw_surface(src,0,0);return 0;}
 if kind='rgb-impact' {
  z=1+(zoom-1)*opacity;dx=round(lengthdir_x(strength*opacity,angle));dy=round(lengthdir_y(strength*opacity,angle));draw_set_blend_mode(bm_add);
  draw_surface_ext(src,room_width*(1-z)/2+dx,room_height*(1-z)/2+dy,z,z,0,c_red,1);
  draw_surface_ext(src,room_width*(1-z)/2,room_height*(1-z)/2,z,z,0,c_lime,1);
  draw_surface_ext(src,room_width*(1-z)/2-dx,room_height*(1-z)/2-dy,z,z,0,c_blue,1);draw_set_blend_mode(bm_normal);
- z=1+(z-1)*1.75;draw_surface_ext(src,room_width*(1-z)/2+strength*.55*opacity,room_height*(1-z)/2,z,z,0,c_white,retention*opacity);
- draw_set_color(argument13);draw_set_alpha(flash*opacity);draw_rectangle(0,0,room_width,room_height,0);draw_set_color(c_white);draw_set_alpha(1);
+ if (retention*opacity>0) {
+  z=1+(z-1)*1.75;draw_surface_ext(src,room_width*(1-z)/2+strength*.55*opacity,room_height*(1-z)/2,z,z,0,c_white,retention*opacity);
+ }
+ if (flash*opacity>0) {
+  draw_set_color(argument13);draw_set_alpha(flash*opacity);draw_rectangle(0,0,room_width,room_height,0);draw_set_color(c_white);draw_set_alpha(1);
+ }
 }else{
  age=max(0,floor(rf_frame-start));bucket=floor(age/hold);
  if !surface_exists(rf_fx_history[index]) rf_fx_history[index]=surface_create(room_width,room_height);

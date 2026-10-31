@@ -100,6 +100,7 @@ internal static class PreviewRenderer
                 }
                 // Descendants are above the held formations; use the same view transform.
                 if(advanced)cache.bulletWorld.Draw(g,sprites,2,hitboxes,cache.Cancelled);
+                DrawPlayer(g,state,sprites,frame,hitboxes);
             }
             Bitmap result=bitmap;
             if(applyEffects&&effectsFrame.HasValue)
@@ -118,5 +119,68 @@ internal static class PreviewRenderer
             return result;
         }
         catch{bitmap.Dispose();throw;}
+    }
+
+    internal static void DrawPlayer(Graphics g,EditorState state,SpriteStore sprites,int frame,bool hitboxes)
+    {
+        if(state==null)return;
+        bool hasTrace=state.usePlayerTrace&&state.playerTrace!=null&&state.playerTrace.Count>0;
+        if(!hasTrace)return;
+        var trace=state.playerTrace;
+        int lo=0,hi=trace.Count-1;
+        while(lo<hi){int mid=(lo+hi+1)/2;if(trace[mid].frame<=frame)lo=mid;else hi=mid-1;}
+        var pt=trace[lo];
+        if(pt.dead||pt.alpha<=0)return;
+        double px=pt.x,py=pt.y;
+        if(lo<trace.Count-1)
+        {
+            var next=trace[lo+1];
+            if(next.frame>pt.frame&&frame>=pt.frame)
+            {
+                double u=Math.Max(0,Math.Min(1,(frame-pt.frame)/(double)(next.frame-pt.frame)));
+                px=pt.x+(next.x-pt.x)*u;
+                py=pt.y+(next.y-pt.y)*u;
+            }
+        }
+        string spriteName=pt.sprite;
+        int subimage=pt.subimage;
+        double xscale=pt.xscale!=0?pt.xscale:(pt.facing<0?-1:1);
+        double yscale=pt.yscale!=0?pt.yscale:1;
+        double alpha=pt.alpha>0?pt.alpha:1;
+        double angle=pt.angle;
+        if(sprites!=null)
+        {
+            if(string.IsNullOrEmpty(spriteName)||sprites.Get(spriteName,subimage)==null)
+            {
+                if(pt.action=="jump")spriteName="sprPlayerJump";
+                else if(pt.action=="fall")spriteName="sprPlayerFall";
+                else if(pt.action=="run")spriteName="sprPlayerRunning";
+                else spriteName="sprPlayerIdle";
+                if(sprites.Get(spriteName,subimage)==null)
+                {
+                    spriteName="sprPlayerIdle";
+                    subimage=0;
+                }
+            }
+            if(sprites.Get(spriteName,subimage)!=null)
+            {
+                sprites.DrawExt(g,spriteName,px,py,xscale,yscale,angle,alpha,Color.White,subimage);
+            }
+            else
+            {
+                using(var pen=new Pen(Color.FromArgb(220,0,240,255),1.5f))
+                {
+                    g.DrawRectangle(pen,(float)px-6,(float)py-12,12,24);
+                    g.FillEllipse(Brushes.White,(float)px+(xscale>0?1:-4),(float)py-8,3,3);
+                }
+            }
+        }
+        if(hitboxes)
+        {
+            using(var pen=new Pen(Color.FromArgb(200,255,60,60),1f))
+            {
+                g.DrawRectangle(pen,(float)px-5,(float)py-12,11,21);
+            }
+        }
     }
 }

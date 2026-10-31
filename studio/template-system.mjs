@@ -101,10 +101,12 @@ if (${active}) && rf_template_visible(${source},-1,id)${t.kind==='rod'&&t.releas
 ${instanceStateCode(t,'rf_clock',s)}${t.kind==='rod'?instanceShapeSetup(t,'rf_clock',s):'rf_count=1;'}rf_n=rf_count;${geometryKey(t,s)}
 for(rf_j=0;rf_j<max(rf_n,rf_tc[${source}]);rf_j+=1){
 if rf_j>=rf_n || !rf_template_visible(${source},${t.kind==='rod'?'rf_j':'-1'},id) {if instance_exists(rf_tf[${source},rf_j]) with(rf_tf[${source},rf_j]) instance_destroy();rf_tf[${source},rf_j]=noone;continue;}
-${memberPoint(t,s)}rf_color_sequence=${t.kind==='rod'?rodSequence(t,{rotation:'rf_rotation'}):'0'};${warp()}
+${memberPoint(t,s)}rf_heading=${t.kind==='rod'?(t.releaseDirection==='fixed'?'rf_angle+rf_rotation':t.releaseDirection==='aim'?'point_direction(rf_px,rf_py,rf_expression_player(0),rf_expression_player(1))':'point_direction(rf_x,rf_y,rf_px,rf_py)+rf_rotation'+(t.releaseDirection==='tangent'?'+90':'')):'rf_angle+rf_rotation'};
+rf_color_sequence=${t.kind==='rod'?rodSequence(t,{rotation:'rf_rotation'}):'0'};${warp()}
+${t.releaseDirection==='aim'?'rf_heading=point_direction(rf_px,rf_py,rf_expression_player(0),rf_expression_player(1));':''}
 if global.rf_copy_omit {if instance_exists(rf_tf[${source},rf_j]) with(rf_tf[${source},rf_j]) instance_destroy();rf_tf[${source},rf_j]=noone;continue;}
 if !instance_exists(rf_tf[${source},rf_j]) {rf_tf[${source},rf_j]=instance_create(rf_px,rf_py,objRufBullet);rf_inst=rf_tf[${source},rf_j];rf_inst.rf_scope_group=rf_scope_group;rf_inst.rf_system=1;rf_inst.rf_kinematic=1;rf_inst.rf_template_owner=id;rf_inst.rf_source=${source};rf_inst.rf_behavior=-1;rf_inst.rf_birth=rf_shift+${num(t.start)};rf_inst.rf_index=rf_j;rf_inst.rf_generation=rf_generation;rf_inst.rf_clock_shift=rf_shift;rf_inst.rf_life=${num(t.end-t.start+1)};}
-rf_inst=rf_tf[${source},rf_j];with(rf_inst){self.rf_source_x=other.rf_source_x;self.rf_source_y=other.rf_source_y;self.x=rf_px;self.y=rf_py;self.rf_age=rf_now-self.rf_birth;self.rf_last_update=rf_now;self.rf_n=rf_n;${appearance(t).replaceAll('rf_inst.','self.')}rf_spawn_appearance(other.id);
+rf_inst=rf_tf[${source},rf_j];rf_angle_outer=rf_rotation;with(rf_inst){self.rf_source_x=other.rf_source_x;self.rf_source_y=other.rf_source_y;self.x=rf_px;self.y=rf_py;self.rf_age=rf_now-self.rf_birth;self.rf_last_update=rf_now;self.rf_n=rf_n;self.rf_base_speed=rf_speed;self.rf_speed=rf_speed;self.rf_base_dir=rf_heading;self.rf_dir=rf_heading;${appearance(t).replaceAll('rf_inst.','self.').replaceAll('rf_rotation','rf_angle_outer')}rf_spawn_appearance(other.id);
 ${hasGroupEvents(s)?`rf_event_fixed(${source},global.rf_template_world,other.id);`:''}if self.rf_t_mode!='off' {self.rf_hx[self.rf_age mod 301]=rf_px;self.rf_hy[self.rf_age mod 301]=rf_py;self.rf_ha[self.rf_age mod 301]=self.image_angle;self.rf_hs[self.rf_age mod 301]=rf_scale;self.rf_hal[self.rf_age mod 301]=rf_alpha;
 self.rf_himage[self.rf_age mod 301]=self.image_index;}}
 }rf_tc[${source}]=rf_n;
@@ -150,5 +152,5 @@ lib_id=1
 action_id=603
 applies_to=self
 */
-if rf_has_members with(objRufBullet) if rf_kinematic && rf_template_owner=other.id instance_destroy();
+var rf_d_inst;rf_d_inst=id;if rf_has_members with(objRufBullet) if rf_kinematic && rf_template_owner=rf_d_inst instance_destroy();
 `;

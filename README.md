@@ -1,6 +1,6 @@
 # RufMaker
 
-**2.6.0**：新增区域内随机生成、出生淡入和随机彩虹颜色，新弹幕默认白色；改善复制弹幕与中途 F5 的性能，按 R 直接恢复测试快照，并修复快速重试后的血粒子残留。[下载完整便携版](https://github.com/wymcaT/RufMaker/releases/tag/v2.6.0)，完整解压后运行 `RufMaker.exe`；已有版本可使用“检测更新”。[本版更新说明](docs/releases/v2.6.0.md) · [弹幕生成模板](docs/generation-presets.md) · [性能与保存](docs/performance-and-saving.md)。
+**2.7.0**：修复重设事件对整体对象和圆周、网格、嵌套复制弹幕的控制；速度与方向可直接修改或填写随机公式。新增 F6 无敌调试，试玩玩家的贴图、动画与位置可回看；游戏卡顿后会自动校正音乐同步。[下载完整便携版](https://github.com/wymcaT/RufMaker/releases/tag/v2.7.0)，完整解压后运行 `RufMaker.exe`；已有版本可使用“检测更新”。[本版更新说明](docs/releases/v2.7.0.md) · [轨道组与重设事件](docs/timeline-groups.md) · [性能与保存](docs/performance-and-saving.md)。
 
 [轨道共享组与组事件](docs/timeline-groups.md)：可跨轨道归组、用底色区分，并按组复制、清除或设置弹幕属性；运动数值框支持随机与选择表达式。
 
@@ -294,6 +294,7 @@ choose(0, 90, 180, 270)
 | 空格 / P | 带音乐播放或暂停预览 |
 | 左 / 右方向键 | 点击时间轴空白处后，退 / 进一帧；长按加速倒放 / 正放，松开停止 |
 | F5 | 从播放头进入真实游戏试玩 |
+| F6 | 从播放头进入无敌调试，便于观察弹幕和记录走位 |
 | K / Ctrl+K | 为当前属性 / 全部属性添加关键帧 |
 | Ctrl+C / Ctrl+V | 完整复制粘贴物件；选中关键帧时复制粘贴关键帧 |
 | Ctrl+D | 复制所选物件到播放头 |

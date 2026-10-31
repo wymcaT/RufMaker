@@ -9,7 +9,7 @@ export const effectTypes=['flash','shake','color','fade-in','fade-out','rgb','mo
 // A completed scene already contains the RGB blended over its background. Keep
 // those colors and fill alpha to one before sampling it as a full-screen image.
 // Black * (1 - destination alpha) + destination RGB leaves every RGB unchanged.
-export const fxOpaqueGml=`draw_set_blend_mode_ext(bm_inv_dest_alpha,bm_one);draw_set_color(c_black);draw_set_alpha(1);draw_rectangle(-16777216,-16777216,16777216,16777216,0);draw_set_blend_mode(bm_normal);draw_set_color(c_white);return 0;`;
+export const fxOpaqueGml=`d3d_set_projection_ortho(0,0,room_width,room_height,0);draw_set_blend_mode_ext(bm_inv_dest_alpha,bm_one);draw_set_color(c_black);draw_set_alpha(1);draw_rectangle(0,0,room_width,room_height,0);draw_set_blend_mode(bm_normal);draw_set_color(c_white);return 0;`;
 export const fxResetGml=`// Restore the timeline's full-frame target after the engine composites its own surfaces.
 if instance_exists(objRufController) {
  if objRufController.rf_fx_active && surface_exists(objRufController.rf_fx_scene) {surface_set_target(objRufController.rf_fx_scene);rf_camera_apply();return 0;}
@@ -18,9 +18,9 @@ surface_reset_target();return 0;
 `;
 export function fxInitialization(state) {
   const count=state.tracks.filter(t=>t.enabled!==false&&(t.kind==='effect'||t.kind==='camera')).length;
-  return `rf_fx_scene=-1;rf_fx_a=-1;rf_fx_b=-1;rf_fx_active=0;rf_fx_rendering=0;rf_fx_w=0;rf_fx_h=0;
+  return `rf_fx_scene=-1;rf_fx_a=-1;rf_fx_b=-1;rf_fx_active=0;rf_fx_rendering=0;rf_fx_w=room_width;rf_fx_h=room_height;
 for(rf_j=0;rf_j<${Math.max(1,count)};rf_j+=1){rf_fx_history[rf_j]=-1;rf_fx_history_frame[rf_j]=-1000000;}
-${state.nativeProject?.imported?'application_surface_enable(rf_native_compose);':count?'rf_inst=instance_create(0,0,objRufFxBegin);rf_inst.rf_owner=id;rf_inst=instance_create(0,0,objRufFxEnd);rf_inst.rf_owner=id;':''}`;
+${state.nativeProject?.imported?'application_surface_enable(rf_native_compose);':count?'rf_fx_scene=surface_create(room_width,room_height);rf_fx_a=surface_create(room_width,room_height);rf_fx_b=surface_create(room_width,room_height);rf_inst=instance_create(0,0,objRufFxBegin);rf_inst.rf_owner=id;rf_inst=instance_create(0,0,objRufFxEnd);rf_inst.rf_owner=id;':''}`;
 }
 export function fxCleanup(state) {
   const count=state.tracks.filter(t=>t.enabled!==false&&(t.kind==='effect'||t.kind==='camera')).length;
@@ -46,7 +46,7 @@ with(rf_owner) {
   const parts=[`#define Create_0\n${action}\nrf_owner=noone;`, `#define Draw_0\n${action}
 if !instance_exists(rf_owner) {instance_destroy();exit;}
 with(rf_owner) {
-if !rf_fx_rendering exit;surface_set_target(rf_fx_scene);rf_fx_opaque();surface_reset_target();rf_fx_rendering=0;rf_camera_apply();
+if !rf_fx_rendering exit;rf_fx_opaque();surface_reset_target();rf_fx_rendering=0;rf_camera_apply();
 var rf_src,rf_dst,rf_swap,rf_u,rf_dx,rf_dy,rf_age,rf_i,rf_offset,rf_samples,rf_band,rf_inset,rf_coverage,${fields.map(f=>'rf_'+f).join(',')};
 rf_src=rf_fx_scene;rf_dst=rf_fx_a;
 `];

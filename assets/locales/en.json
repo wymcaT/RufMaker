@@ -1355,6 +1355,7 @@
   "清除全屏所有弹幕": "Clear all bullets and formations",
   "所有子弹速度归零": "Stop all bullets",
   "重设所有子弹运动属性": "Reset all bullet motion",
+  "重设所有弹幕属性": "Reset all bullet properties",
   "未知事件预设": "Unknown event preset",
   "事件类型": "Event type",
   "执行范围": "Execution scope",
@@ -1376,6 +1377,12 @@
   "立即清除飞行子弹、当前整体对象和可视对象。发射器保留，未来物件仍可出场。": "Immediately clear flying bullets, active formations and visual objects. Emitters and future objects remain.",
   "只把当前弹速设为0；后续加速和行为仍可生效。需要取消后续运动时使用重设运动事件。": "Set current speed to zero. Later acceleration and behaviors can resume. Use Reset motion to disable subsequent motion.",
   "重设速度、方向、加速度与持续转向；可停止后续运动行为，保留外观、寿命和生成行为。": "Reset speed, direction, acceleration and turn. Optionally disable later motion while keeping appearance, lifetime and spawning behaviors.",
+  "重设全屏弹幕及整体对象（多边形、转转棒等）的速度、方向、加速度、转向与寿命；整体对象立即销毁并顺从重设运动。": "Reset speed, direction, acceleration, turn and lifetime for all bullets and formations; formations are destroyed immediately and their bullets obey the reset arrangement.",
+  "重设本组弹幕及整体对象（多边形、转转棒等）的速度、方向、加速度、转向与寿命；整体对象立即销毁并顺从重设运动。": "Reset speed, direction, acceleration, turn and lifetime for bullets and formations in this group; formations are destroyed immediately and follow the reset motion.",
+  "重设弹幕寿命": "Reset bullet lifetime",
+  "重设寿命 / 帧": "Reset lifetime / frames",
+  "寿命重设": "Lifetime reset",
+  "大于0设为指定寿命；设为0时保留或恢复该弹幕原属性寿命。": "Greater than 0 sets the specified lifetime; 0 keeps or restores the original lifetime.",
   "留空仅作用于RufMaker弹幕。填写原生子弹类对象名，包含其子类；不自动猜测玩家、地形或控制器。": "Leave blank for RufMaker bullets only. Enter native bullet object names, including their children. Players, terrain and controllers are never inferred.",
   "原生对象在F5/导出时执行；底片录像不随事件改变。运动重设使用自定义值，只重设GM内建运动，原生代码仍可再次改写。": "Native objects are affected in F5/export; cached footage does not change. Reset uses custom values for GM built-in motion. Native code can override them again.",
   "请填写工程中的原生弹幕对象名，多个用逗号分隔。": "Enter native bullet object names from the project, separated by commas.",
@@ -1475,6 +1482,7 @@
   "复制组内所有弹幕一遍": "Copy all bullets in group once",
   "清除组内所有弹幕": "Clear all bullets in group",
   "设置组内所有弹幕属性": "Set all group bullet properties",
+  "重设组内所有弹幕属性": "Reset all group bullet properties",
   "目标组": "Target group",
   "组事件": "Group event",
   "事件所在轨道的组": "Group of event track",
@@ -1526,5 +1534,6 @@
   "随机彩虹颜色": "Random rainbow color",
   "关闭：中心使用房间坐标；开启：中心是相对来源的偏移。每颗弹幕独立在矩形内部取样。": "Off: center uses room coordinates. On: center is an offset from the source. Each bullet samples its own position inside the rectangle.",
   "每颗弹幕随机选择彩虹贴图的一帧；出生后保持，开启动态色彩时从该颜色继续变化。支持固定种子和重新随机。": "Each bullet picks a random rainbow sprite frame and keeps it. Dynamic color animates from that color. Supports fixed seeds and rerolling.",
-  "使用彩虹 Cherry 贴图；关闭后恢复之前的贴图。": "Use the rainbow Cherry sprite; turn off to restore the previous sprite."
+  "使用彩虹 Cherry 贴图；关闭后恢复之前的贴图。": "Use the rainbow Cherry sprite; turn off to restore the previous sprite.",
+  "每颗弹幕独立计算；修改数值或公式会自动关闭恢复出生速度与方向。": "Calculated per bullet; editing a value or expression automatically turns off Restore birth speed and direction."
 }

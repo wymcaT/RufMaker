@@ -9,14 +9,14 @@ export function plainCheckpointScripts(state,cleanup='',particles=''){
 var rf_marker;rf_marker=file_text_open_write(working_directory+'\\Data\\rufmaker_plain_restore');file_text_close(rf_marker);if FMODInstanceIsPlaying(rf_music) FMODInstanceSetPaused(rf_music,1);${particles}${cleanup}game_load(working_directory+'\\Data\\rufmaker_plain_checkpoint.sav');return 1;`],
     ['rf_preview_restore',`if !file_exists(working_directory+'\\Data\\rufmaker_plain_restore') return 0;file_delete(working_directory+'\\Data\\rufmaker_plain_restore');keyboard_clear(ord('R'));
 ${state.randomizeOnPlay?`randomize();rf_random_seed=${nextSeed};`:'random_set_seed(rf_checkpoint_seed);'}
-if !FMODInstanceIsPlaying(rf_music) rf_music=FMODSoundPlay(BGM_Ad,1);global.BGMHandler=rf_music;FMODInstanceSetPosition(rf_music,rf_checkpoint_music);FMODInstanceSetPaused(rf_music,0);FMODInstanceSetVolume(rf_music,1);
+if !FMODInstanceIsPlaying(rf_music) rf_music=FMODSoundPlay(BGM_Ad,1);global.BGMHandler=rf_music;FMODInstanceSetPitch(rf_music,1);FMODInstanceSetPosition(rf_music,rf_checkpoint_music);FMODInstanceSetPaused(rf_music,0);FMODInstanceSetVolume(rf_music,1);rf_music_sync_init();
 rf_fx_scene=-1;rf_fx_a=-1;rf_fx_b=-1;rf_fx_rendering=0;var rf_h;for(rf_h=0;rf_h<${count};rf_h+=1){rf_fx_history[rf_h]=-1;rf_fx_history_frame[rf_h]=-1000000;}
 ini_open(working_directory+'\\Data\\rufmaker_plain_restore_count.ini');rf_restores=ini_read_real('test','restores',0)+1;ini_write_real('test','restores',rf_restores);ini_close();return 1;`]
   ];
 }
 
 // Imported native sessions keep their checkpoint in the disposable F5 build.
-export function checkpointScripts(state,particles='') {
+export function checkpointScripts(state,particles='',musicReset='') {
   const fmod=state.nativeProject.hasFmod;
   return {
     rf_native_checkpoint:`if rf_checkpoint_ready return 0;
@@ -36,6 +36,7 @@ ${fmod?`if rf_checkpoint_music>=0 && variable_global_exists('BGMHandler') {
  if !FMODInstanceIsPlaying(global.BGMHandler) {if variable_global_exists('BGM_Av') global.BGMHandler=FMODSoundPlay(global.BGM_Av,1);}
  if FMODInstanceIsPlaying(global.BGMHandler) {FMODInstanceSetPosition(global.BGMHandler,rf_checkpoint_music);FMODInstanceSetPaused(global.BGMHandler,0);FMODInstanceSetVolume(global.BGMHandler,1);}
 }`:''}
+${musicReset}
 // Surfaces are GPU resources, so discard temporal FX history after restoring game state.
 ${state.tracks.some(t=>t.kind!=='native')?`if instance_exists(objRufController) {with(objRufController) {var rf_h;for(rf_h=0;rf_h<${Math.max(1,state.tracks.filter(t=>t.enabled!==false&&(t.kind==='effect'||t.kind==='camera')).length)};rf_h+=1) rf_fx_history_frame[rf_h]=-1000000;}}`:''}
 ini_open(working_directory+'\\Data\\rufmaker_checkpoint_count.ini');rf_restores=ini_read_real('test','restores',0)+1;ini_write_real('test','restores',rf_restores);ini_close();

@@ -51,16 +51,23 @@ internal static partial class Effects
     {var result=new Bitmap(source.Width,source.Height,PixelFormat.Format32bppArgb);using(var g=Graphics.FromImage(result))using(var a=new ImageAttributes()){a.SetColorMatrix(matrix);g.DrawImage(source,new Rectangle(0,0,result.Width,result.Height),0,0,source.Width,source.Height,GraphicsUnit.Pixel,a);}return result;}
     private static Bitmap Shift(Bitmap source,int dx,int dy)
     {var result=new Bitmap(source.Width,source.Height);using(var g=Graphics.FromImage(result)){g.Clear(Color.Black);g.DrawImageUnscaled(source,dx,dy);}return result;}
+    [ThreadStatic]
+    private static byte[] s_rgbOriginal;
+    [ThreadStatic]
+    private static byte[] s_rgbPixels;
     private static Bitmap Rgb(Bitmap source,int dx,int dy,double opacity)
     {
+        if(opacity<=0||(dx==0&&dy==0))return (Bitmap)source.Clone();
         int width=source.Width,height=source.Height;var bounds=new Rectangle(0,0,width,height);var data=source.LockBits(bounds,ImageLockMode.ReadOnly,PixelFormat.Format32bppArgb);int stride=data.Stride;
-        var original=new byte[stride*height];try{Marshal.Copy(data.Scan0,original,0,original.Length);}finally{source.UnlockBits(data);}
-        var pixels=new byte[original.Length];
+        int needed=stride*height;
+        if(s_rgbOriginal==null||s_rgbOriginal.Length<needed){s_rgbOriginal=new byte[needed];s_rgbPixels=new byte[needed];}
+        var original=s_rgbOriginal;var pixels=s_rgbPixels;
+        try{Marshal.Copy(data.Scan0,original,0,needed);}finally{source.UnlockBits(data);}
         for(int y=0;y<height;y++)for(int x=0;x<width;x++)
         {int i=y*stride+x*4;int rx=x-dx,ry=y-dy,bx=x+dx,by=y+dy;
             int red=rx>=0&&rx<width&&ry>=0&&ry<height?original[ry*stride+rx*4+2]:0,blue=bx>=0&&bx<width&&by>=0&&by<height?original[by*stride+bx*4]:0;
             pixels[i]=(byte)(original[i]*(1-opacity)+blue*opacity);pixels[i+1]=original[i+1];pixels[i+2]=(byte)(original[i+2]*(1-opacity)+red*opacity);pixels[i+3]=255;}
-        var result=new Bitmap(width,height,PixelFormat.Format32bppArgb);data=result.LockBits(bounds,ImageLockMode.WriteOnly,PixelFormat.Format32bppArgb);try{Marshal.Copy(pixels,0,data.Scan0,pixels.Length);}finally{result.UnlockBits(data);}return result;
+        var result=new Bitmap(width,height,PixelFormat.Format32bppArgb);data=result.LockBits(bounds,ImageLockMode.WriteOnly,PixelFormat.Format32bppArgb);try{Marshal.Copy(pixels,0,data.Scan0,needed);}finally{result.UnlockBits(data);}return result;
     }
     internal static Bitmap Blur(Bitmap source,double distance,double angle,int samples,double opacity,bool mirror=false)
     {

@@ -79,7 +79,7 @@ export async function openNative() {
   });
 }
 
-export function packageGame(preview,frame=0) {
+export function packageGame(preview,frame=0,godMode=false) {
   if (!exportStatus().fresh) throw new Error('工程已修改，请重新编译游戏');
   const dir=path.join(buildDir,preview?'preview':'release');
   fs.mkdirSync(dir,{recursive:true});
@@ -91,7 +91,7 @@ export function packageGame(preview,frame=0) {
   const status=path.join(dir,'Data','rufmaker_preview_status.ini');
   if (fs.existsSync(status)) fs.unlinkSync(status);
   for(const name of ['rufmaker_plain_checkpoint.sav','rufmaker_plain_restore','rufmaker_plain_restore_count.ini']){const file=path.join(dir,'Data',name);if(fs.existsSync(file))fs.unlinkSync(file);}
-  if (preview) fs.writeFileSync(ini,`[preview]\r\nframe=${Math.max(0,Math.min(readState().duration,Math.floor(frame)))}\r\n`);
+  if (preview) fs.writeFileSync(ini,`[preview]\r\nframe=${Math.max(0,Math.min(readState().duration,Math.floor(frame)))}\r\ngod=${godMode?1:0}\r\n`);
   else if (fs.existsSync(ini)) fs.unlinkSync(ini);
   return {exe,dir,bytes:fs.statSync(exe).size};
 }
@@ -108,7 +108,7 @@ async function stopPreviousPreview() {
   }
 }
 
-export async function runNative(frame=0) {
+export async function runNative(frame=0,godMode=false) {
   const state=readState();
   if(state.nativeProject?.imported){
     const target=Math.max(0,Math.min(state.duration,Math.round(frame))),session={phase:'compile',frame:0,target,room:'',cancel:new AbortController()};nativeReplay=session;
@@ -116,7 +116,7 @@ export async function runNative(frame=0) {
     try {
       await stopPreviousPreview();session.cancel.signal.throwIfAborted();
       const cacheDir=path.join(root,'build','native-projects',crypto.createHash('sha256').update(project.toLowerCase()).digest('hex').slice(0,16));
-      const result=await prepareNativeSession({project,projectFile,buildDir,cacheDir,gameMaker,state,frame:target,playable:true});
+      const result=await prepareNativeSession({project,projectFile,buildDir,cacheDir,gameMaker,state,frame:target,playable:true,godMode});
       session.cancel.signal.throwIfAborted();session.phase='replay';
       play=new NativePlaySession({result,target,cancel:session.cancel,onProgress:progress=>Object.assign(session,progress)});nativePlay=play;
       const status=await play.start();return {...result,pid:play.child.pid,ready:true,status};
@@ -131,7 +131,7 @@ export async function runNative(frame=0) {
   try{
   await stopPreviousPreview();session.cancel.signal.throwIfAborted();
   const build=await ensureBuild();
-  session.cancel.signal.throwIfAborted();const result=packageGame(true,target);session.phase='launch';
+  session.cancel.signal.throwIfAborted();const result=packageGame(true,target,godMode);session.phase='launch';
   const child=spawn(result.exe,[],{cwd:result.dir,detached:true,windowsHide:true,stdio:'ignore'});
   previewProcess=child;
   let launchError;
