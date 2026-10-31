@@ -1,10 +1,20 @@
 # Codex 任务记录
 
-- 状态：`in_progress`
-- 任务：按用户“推送release”授权集成发布2.7.0，包含音乐同步、Argon4已完成的F5/F6与玩家渲染、整体及复制成员重设修复；核对包、更新兼容与线上结果。
-- 基线：main/51d4b2d，保留音乐同步及Argon4已完成的F5/F6/轨迹/重设修改、全部用户工程。本轮无推送/Release授权，Argon4记录无占用。
-- 当前占用：desktop/Updater.cs、双语README、docs/releases/v2.7.0.md、开发/交接说明、根EXE、build/distribution/v2.7.0与build/release-check-2.7.0；集成所有已交接应用修改，精确暂存，不修改用户projects或RufMaker.old.exe。Argon4无占用。
-- 本机入口：RufMaker.exe，ProductVersion2.6.0，1,384,448 bytes；本轮旧入口备份build/reset-formation-check/RufMaker.before-reset-20261031-171137.exe。
+- 状态：`completed`
+- 任务：已按用户“推送release”授权集成发布2.7.0；Actions与线上更新器、完整便携包下载验证通过。
+- 基线：main/51d4b2d；发布功能提交1c603bf与v2.7.0已推送。本轮用户明确授权发布，后续新版本仍需另行授权；Argon4无占用，用户工程与个人资料均保留。
+- 当前占用：无。所有已交接应用修改已集成，用户projects与RufMaker.old.exe完整保留；没有自动发布后续版本的授权。
+- 本机入口：RufMaker.exe，ProductVersion2.7.0，1,384,448 bytes；本轮旧入口备份build/release-check-2.7.0/RufMaker.before-release.exe。
+
+## 2026-10-31：2.7.0发布（已完成）
+
+- 用户明确授权“推送release”。范围为此前本地已完成的音乐校时、Argon4的F5/F6无敌调试/玩家轨迹与贴图同步、整体及复制成员重设补充修复；没有自行增加其他功能。AppVersion与程序集版本、双语README和docs/releases/v2.7.0.md同步2.7.0。
+- Package-Release生成完整便携包60,168,284 bytes/2,681文件，兼容更新包58,136,704 bytes/2,638文件及SHA256。检查唯一路径、必要模块、个人资料排除、版本和全部manifest校验通过；原v2.0.0更新器解包校验2,637文件通过，当前更新器确认文案/替换/保留/备份/隐藏重启通过；完整包隔离无GM首次创建与重开通过。
+- 本轮补跑音乐+F6 Node集成5/5、PlayerTrace解析/并发/渲染/引导线与F5/F6配置定向通过。弹幕、音乐的真实GM数值验证沿用上两条任务结果；没有在版本字符串修改后无关重跑模拟测试。根EXE已替换为2.7.0/1,384,448 bytes。
+- 48个应用文件精确暂存检查后提交1c603bf，SSH原子推送main与v2.7.0成功。未提交projects、个人歌曲、存档或RufMaker.old.exe。Git用户工程diff前后摘要完全相同。
+- Actions41195027387成功，https://github.com/wymcaT/RufMaker/releases/tag/v2.7.0 为latest、非草稿/非预发布；线上完整包60,168,843 bytes、更新包58,137,198 bytes和两个SHA256均uploaded。CI压缩结果与本地略有差异，各自按公开校验文件验证。
+- Test-Updater -Online -Version 2.7.0实际latest查询、公开下载、SHA256及全manifest解包通过；公开完整包实际下载、校验/必要文件/版本/个人资料排除与无GM首次建工程/重开通过。日志updater-online.log、portable-online.log、release-metadata.json、actions-final.json在build/release-check-2.7.0。旧更新器首轮用64位pwsh载入x86程序集失败，改用SysWOW64 PowerShell后通过，失败日志保留；不是产品失败。
+- 所有验证进程已退出，没有遗留错误窗。文件占用释放；最终交接记录另提交推送，不移动发布标签。尚无2.7.0用户实操验收。
 
 ## 2026-10-31：整体与复制成员重设修复（本地完成）
 
