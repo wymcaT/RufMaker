@@ -36,9 +36,9 @@ internal sealed partial class MainForm
     private void ColorFields(NativeProperties bag,Track t)
     {
         if(t.kind!="emitter")return;
-        Field(bag,"波次随机颜色","发射颜色",()=>t.colorMode=="random",v=>{t.colorMode=v?"random":"fixed";QueueInspectorUpdate();});
+        Field(bag,"波次随机颜色","外观",()=>t.colorMode=="random",v=>{t.colorMode=v?"random":"fixed";QueueInspectorUpdate();});
         if(t.colorMode!="random")return;
-        Field(bag,"颜色公式","发射颜色",()=>t.colorExpression,v=>{SpawnColors.Evaluate(v,t,"color",frame,0);t.colorExpression=v;},null,"random(360) 随机色相；choose(0,120,240) 选择色相；choose(\"#FF75AD\",\"#6DE8FF\") 选择指定颜色。出生时取样，之后固定。请使用白色底图；彩虹贴图会保留自身颜色。");
-        Field(bag,"每颗独立配色","发射颜色",()=>t.colorScope=="bullet",v=>t.colorScope=v?"bullet":"wave",null,"关闭时同一波弹幕使用相同颜色；开启时逐颗取样。支持固定种子和重新随机。");
+        Field(bag,"颜色公式","外观",()=>t.colorExpression,v=>{SpawnColors.Evaluate(v,t,"color",frame,0);t.colorExpression=v;},null,"random(360) 随机色相；choose(0,120,240) 选择色相；choose(\"#FF75AD\",\"#6DE8FF\") 选择指定颜色。出生时取样，之后固定。请使用白色底图；彩虹贴图会保留自身颜色。");
+        Field(bag,"每颗独立配色","外观",()=>t.colorScope=="bullet",v=>t.colorScope=v?"bullet":"wave",null,"关闭时同一波弹幕使用相同颜色；开启时逐颗取样。支持固定种子和重新随机。");
     }
 }

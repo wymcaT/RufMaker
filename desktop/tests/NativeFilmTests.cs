@@ -16,10 +16,11 @@ internal static class NativeFilmTests
     private static string Hash(string file){using(var hash=SHA256.Create())return Convert.ToBase64String(hash.ComputeHash(File.ReadAllBytes(file)));}
     private static void Test(string folder)
     {
-        var job=new NativeFilmJob{exe=Path.Combine(folder,"producer.exe"),dir=folder,statusFile=Path.Combine(folder,"status.txt"),frameFile=Path.Combine(folder,"frame.bmp"),ackDirectory=Path.Combine(folder,"ack"),output=Path.Combine(folder,"base.rufvideo"),fps=50,width=64,height=48,frameCount=8,room="room",nativeIds=new[]{"baked"}};
+        var job=new NativeFilmJob{exe=Path.Combine(folder,"producer.exe"),dir=folder,statusFile=Path.Combine(folder,"status.txt"),frameFile=Path.Combine(folder,"frame.bmp"),ackDirectory=Path.Combine(folder,"ack"),output=Path.Combine(folder,"base.rufvideo"),fps=50,width=64,height=48,frameCount=8,room="room",nativeIds=new[]{"baked"},sourceSignature="source-key",nativeTrackIds=new[]{"native-clip"}};
         File.WriteAllText(Path.Combine(folder,"count.txt"),"8");File.WriteAllText(Path.Combine(folder,"color.txt"),"blue");NativeFilmBuilder.Generate(job,CancellationToken.None);string original=Hash(job.output);
         using(var old=new NativeFilmReader(job.output)){
             Check(old.Info.frameCount==8&&old.Info.playerX==400&&old.Info.playerY==304,"Manifest and fixed player metadata");
+            Check(old.Info.sourceSignature=="source-key"&&old.Info.nativeTrackIds.SequenceEqual(new[]{"native-clip"}),"Native preview cache provenance was lost");
             Check(old.Info.objectCounts.Length==2&&old.Info.Counts(2)["objNativeBullet"]==5&&old.Info.Counts(3)["objNativeBullet"]==7&&old.Info.Counts(500)["world"]==1,"Counts must persist as change records and support seeking");
             var nativeStateCounts=new EditorState{nativeProject=new NativeProject{imported=true},duration=7};var nativeRoomCounts=new RoomData();using(var c=new PreviewCache()){c.FilmFrame(job.output,4,50);var stats=ObjectStatistics.Capture(nativeStateCounts,nativeRoomCounts,4,c);Check(!stats.nativeMissing&&stats.total==9&&stats.types["objNativeBullet"]==7,"Native count data must enter current-frame statistics");}
             Check(new NativeFilmInfo().Counts(3)==null,"Old movies without count metadata remain readable");

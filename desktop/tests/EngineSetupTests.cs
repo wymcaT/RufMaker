@@ -30,7 +30,14 @@ internal static class EngineSetupTests
         try{await EngineSetup.InstallArchive(root,traversal,CancellationToken.None,null);}catch(InvalidDataException){rejected=true;}Check(rejected&&!File.Exists(Path.Combine(root,"build","engine-setup","escaped.txt")),"Archive traversal was accepted");
         Check(Directory.GetDirectories(Path.Combine(root,"build","engine-setup"),"job-*").Length==0,"Temporary setup jobs were not cleaned");
         Check(EngineSetup.DownloadLink("<a id='downloadButton' href='https://download1.mediafire.com/file.7z?x=1&amp;y=2'>").Query=="?x=1&y=2","Download link parser lost HTML entities");rejected=false;try{EngineSetup.DownloadLink("<a id='downloadButton' href='https://example.com/ad.exe'>");}catch(InvalidDataException){rejected=true;}Check(rejected,"Unrelated download host was accepted");
-        Console.WriteLine("PASS: detection, chosen paths, ZIP setup, plugin preservation, backup, invalid packages, cancellation, cleanup and download link parsing.");
+        string broken=Path.Combine(folder,"broken-extensions"),repairRoot=Path.Combine(folder,"repair-root");Directory.CreateDirectory(broken);Directory.CreateDirectory(repairRoot);
+        var exeHeader=new byte[2048];exeHeader[0]=(byte)'M';exeHeader[1]=(byte)'Z';File.WriteAllBytes(Path.Combine(broken,"GameMaker.exe"),exeHeader);
+        foreach(string name in new[]{"gm82save.dll","rundata","fnames","gm82room.exe"})File.WriteAllText(Path.Combine(broken,name),"fake");
+        var brokenInspect=EngineSetup.Inspect(broken);
+        Check(!brokenInspect.Ready&&EngineSetup.CanRepair(repairRoot,brokenInspect),"Broken extension engine was not repairable");
+        var repaired=EngineSetup.Use(repairRoot,broken);
+        Check(repaired.Ready&&File.Exists(Path.Combine(broken,"extensions","Game Maker 8.2 Core.ged")),"Bundled extension auto-repair failed");
+        Console.WriteLine("PASS: detection, chosen paths, ZIP setup, plugin preservation, backup, invalid packages, cancellation, cleanup, download link parsing and offline extension repair.");
     }
     private sealed class Stages:IProgress<EngineSetupProgress>
     {private string last;public void Report(EngineSetupProgress p){string stage=p.Text.StartsWith("正在下载")?"下载中":p.Text;if(stage==last)return;last=stage;Console.WriteLine("SETUP: "+stage);}}
@@ -43,10 +50,10 @@ internal static class EngineSetupTests
     private static void Interface(string folder)
     {
         string root=Path.Combine(folder,"offline");Language.Initialize(root);using(var form=new EngineSetupForm(root)){
-            Language.Attach(form);Check(All(form).OfType<Button>().Any(b=>b.Text=="Download and set up"),"English setup labels are missing");var text=All(form).OfType<TextBox>().Single();Check(text.Text.Contains("Required GM8.2 files are present")&&text.Text.Contains(Path.Combine(root,"GameMaker8.2")),"Engine status or path was not shown");
+            Language.Attach(form);Check(All(form).OfType<Button>().Any(b=>b.Text=="Download and set up")&&All(form).OfType<Button>().Any(b=>b.Text=="Repair missing extensions (offline)"),"English setup labels are missing");var text=All(form).OfType<TextBox>().Single();Check(text.Text.Contains("Required GM8.2 files are present")&&text.Text.Contains(Path.Combine(root,"GameMaker8.2")),"Engine status or path was not shown");
             var children=form.Controls.Cast<Control>().ToArray();form.Controls.Clear();
             using(var surface=new Panel{Size=form.ClientSize,Font=form.Font,BackColor=form.BackColor,ForeColor=form.ForeColor}){surface.Controls.AddRange(children);surface.PerformLayout();Check(All(surface).OfType<Label>().Where(l=>l.Text.Length>100).All(l=>l.Width<surface.Width&&l.Height>=l.Font.Height*2),"Long setup explanations do not wrap");var bar=All(surface).OfType<ProgressBar>().Single();Check(bar.Width>300&&bar.Height>=22,"Setup progress bar has no usable area");using(var bitmap=new Bitmap(surface.Width,surface.Height)){surface.DrawToBitmap(bitmap,new Rectangle(Point.Empty,bitmap.Size));bitmap.Save(Path.Combine(Path.GetDirectoryName(folder),"engine-setup-en.png"),System.Drawing.Imaging.ImageFormat.Png);}surface.Controls.Clear();}form.Controls.AddRange(children);
-            Language.Select(root,"zh-CN");Language.Apply(form);Check(All(form).OfType<Button>().Any(b=>b.Text=="一键下载并配置"),"Chinese setup labels are missing");
+            Language.Select(root,"zh-CN");Language.Apply(form);Check(All(form).OfType<Button>().Any(b=>b.Text=="一键下载并配置")&&All(form).OfType<Button>().Any(b=>b.Text=="一键补全缺失扩展 (免下载)"),"Chinese setup labels are missing");
             foreach(float scale in new[]{1f,1.5f,2f}){form.Font=new Font(Theme.Font.FontFamily,Theme.Font.Size*scale);form.PerformLayout();foreach(Button button in All(form).OfType<Button>())Check(button.AutoSize,"Setup action cannot grow with translated text");}
         }
         Console.WriteLine("PASS: bilingual setup window, status details, unchanged paths and scalable action controls (no application window).");

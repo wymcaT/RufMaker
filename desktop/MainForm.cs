@@ -107,7 +107,7 @@ internal sealed partial class MainForm : LocalizedForm
     private void RestoreDocumentView()
     {
         if(restoredDocumentView)return;restoredDocumentView=true;if(restoredView==null)return;var view=restoredView;
-        resourceKind=new[]{"objects","sprites","scripts"}.Contains(view.resourceKind)||IsPresetKind(view.resourceKind)?view.resourceKind:"objects";search.Text=(view.search??"").Trim();FillResources();
+        resourceKind=new[]{"objects","sprites","scripts","rooms","paths","timelines"}.Contains(view.resourceKind)||IsPresetKind(view.resourceKind)?view.resourceKind:"objects";search.Text=(view.search??"").Trim();FillResources();
         stage.SetView(view.cameraZoom,view.cameraX,view.cameraY);SetFrame(view.frame);timeline.RestoreView(view.timeline);timeline.SelectedProperty=view.selectedProperty??"x";
         var track=state.tracks.FirstOrDefault(t=>t.id==view.selectedTrack);if(track!=null)SelectTrack(track,null);
     }
@@ -125,48 +125,55 @@ internal sealed partial class MainForm : LocalizedForm
         var menu=new ContextMenuStrip{BackColor=Theme.Panel,ForeColor=Theme.Text,ShowImageMargin=false};
         menu.Opening+=(s,e)=>
         {
-            menu.Items.Clear();if(state==null){e.Cancel=true;return;}
-            if(selectedTrack!=null&&selectedTrack.kind=="native"){if(selectedNativeEvent!=null)menu.Items.Add("编辑此事件代码块",null,async(a,b)=>await EditNativeEvent());menu.Items.Add("编辑整个源文件",null,async(a,b)=>await EditNativeSource());menu.Items.Add("查看识别提示",null,(a,b)=>Language.Message(this,String.Join(Environment.NewLine+Environment.NewLine,state.nativeProject.warnings),"原生工程兼容提示"));return;}
-            if(!inspector&&selectedInstance==null){CompactTrackContext(menu);return;}
-            AddBulletContext(menu);
-            string property=CurrentProperty(inspector&&menu.SourceControl!=keyProperties);
-            if(selectedInstance!=null)
-            {menu.Items.Add("编辑对象 GML",null,async(a,b)=>await EditSelection());menu.Items.Add("复制房间实例    Ctrl+C",null,(a,b)=>CopySelection());var del=menu.Items.Add("删除房间实例    Delete",null,(a,b)=>RemoveSelection());del.Enabled=selectedInstance.name!="objRufController";menu.Items.Add(new ToolStripSeparator());}
-            if(selectedTrack!=null)
-            {
-                var t=selectedTrack;
-                menu.Items.Add("复制所选物件（含全部关键帧）    Ctrl+C",null,(a,b)=>{timeline.ClearKeySelection();CopySelection();});
-                menu.Items.Add("存为自定义预设…",null,(a,b)=>SaveSelectionAsPreset());
-                if(t.templateOnly)menu.Items.Add("预览模板局部动画",null,(a,b)=>EnterTemplateContext(t));
-                menu.Items.Add("在右栏编辑关键帧",null,(a,b)=>OpenKeyWorkspace(t));
-                if(Motion.Fields(t).Length>0)
-                {
-                    menu.Items.Add("为 "+Motion.Name(property)+" 添加关键帧    K",null,(a,b)=>AddPropertyKey(property));
-                    var add=new ToolStripMenuItem("选择属性添加关键帧");foreach(string item in Motion.Fields(t).Where(p=>!MotionPresets.Generated(t,p))){string p=item;add.DropDownItems.Add(Motion.Name(p),null,(a,b)=>AddPropertyKey(p));}menu.Items.Add(add);
-                    var formulas=new ToolStripMenuItem("参数公式 / 填充逐帧关键帧…");foreach(string field in Motion.Fields(t).Where(p=>!MotionPresets.Generated(t,p))){string p=field;formulas.DropDownItems.Add(Motion.Name(p),null,(a,b)=>EditParameterExpression(timeline.SelectedTracks.Where(item=>Motion.Fields(item).Contains(p)&&!MotionPresets.Generated(item,p)).DefaultIfEmpty(t).ToArray(),p));}menu.Items.Add(formulas);
-                    menu.Items.Add("所有属性在播放头加键    Ctrl+K",null,(a,b)=>AddAllKeys());
-                    menu.Items.Add("清除此属性的全部关键帧",null,(a,b)=>{PushUndo();double v=Motion.Value(t,property,frame);t.keyframes.RemoveAll(k=>k.property==property);var f=typeof(Track).GetField(property);if(f!=null)f.SetValue(t,f.FieldType==typeof(int)?(object)(int)Math.Round(v):v);SelectTrack(t,null);MarkChanged();});
-                    var easing=new ToolStripMenuItem(timeline.SelectedKeys.Count==0?"物件默认缓动":"所选 "+timeline.SelectedKeys.Count+" 个关键帧的缓动");for(int i=0;i<Motion.EaseValues.Length;i++){string value=Motion.EaseValues[i];easing.DropDownItems.Add(Motion.EaseNames[i],null,(a,b)=>{PushUndo();if(timeline.SelectedKeys.Count==0)t.easing=value;else foreach(var key in timeline.SelectedKeys)key.easing=value;MarkChanged();});}menu.Items.Add(easing);
-                    if(Theme.Visual(t.kind)){
-                    var motion=new ToolStripMenuItem("运动逻辑");foreach(var pair in new[]{new[]{"keyframes","关键帧"},new[]{"velocity","速度 / 加速度"},new[]{"orbit","圆周运动"}}){string value=pair[0];motion.DropDownItems.Add(pair[1],null,(a,b)=>{PushUndo();MotionPresets.Manual(t);t.motion=value;if(value=="velocity"&&t.velocityX==0&&t.velocityY==0)t.velocityX=1;ShowProperties();MarkChanged();});}motion.DropDownItems.Add("匀速自转 1°/帧",null,(a,b)=>{PushUndo();t.angularSpeed=1;MarkChanged();});motion.DropDownItems.Add("停止自转",null,(a,b)=>{PushUndo();t.angularSpeed=0;MarkChanged();});menu.Items.Add(motion);
-                    var trailsMenu=new ToolStripMenuItem("拖影样式");for(int n=0;n<Trails.Values.Length;n++){string mode=Trails.Values[n];trailsMenu.DropDownItems.Add(Trails.Names[n],null,(a,b)=>{PushUndo();foreach(var item in timeline.SelectedTracks.Where(item=>Theme.Visual(item.kind)))Trails.SetMode(item,mode);ShowProperties();MarkChanged();});}menu.Items.Add(trailsMenu);}
-                }
-                if(timeline.SelectedKeys.Count>0){menu.Items.Add("复制所选 "+timeline.SelectedKeys.Count+" 个关键帧    Ctrl+C",null,(a,b)=>CopyKey());menu.Items.Add("删除所选关键帧    Delete",null,(a,b)=>RemoveSelection());}
-                menu.Items.Add("选择此物件全部关键帧    Ctrl+A",null,(a,b)=>timeline.SelectAllKeys(t));
-                var paste=menu.Items.Add("粘贴    Ctrl+V",null,async(a,b)=>await PasteSelection());paste.Enabled=copiedKind!=null;
-                menu.Items.Add("复制物件到播放头    Ctrl+D",null,(a,b)=>DuplicateTrack());
-                menu.Items.Add(t.enabled?"禁用物件":"启用物件",null,(a,b)=>{PushUndo();t.enabled=!t.enabled;MarkChanged();});
-                var lanesMenu=new ToolStripMenuItem("移动到轨道");for(int n=0;n<state.laneCount;n++){int destination=n;lanesMenu.DropDownItems.Add(Language.Text("轨道")+" "+(n+1),null,(a,b)=>MoveSelectionToLane(destination));}lanesMenu.DropDownItems.Add("新轨道",null,(a,b)=>MoveSelectionToLane(state.laneCount));menu.Items.Add(lanesMenu);menu.Items.Add("上移一条轨道",null,(a,b)=>MoveSelectionToLane(Math.Max(0,t.lane-1)));menu.Items.Add("下移一条轨道",null,(a,b)=>MoveSelectionToLane(t.lane+1));
-                menu.Items.Add("删除所选物件",null,(a,b)=>{selectedKey=null;timeline.ClearKeySelection();RemoveSelection();});menu.Items.Add(new ToolStripSeparator());
-            }
-            if(selectedTrack==null&&copiedKind!=null)menu.Items.Add("粘贴    Ctrl+V",null,async(a,b)=>await PasteSelection());
-            if(timeline.ActiveLane>=0){var removeLane=menu.Items.Add("删除空轨道",null,(a,b)=>{int lane=timeline.ActiveLane;if(state.tracks.Any(item=>item.kind!="native"&&item.lane==lane))return;PushUndo();foreach(var item in state.tracks.Where(item=>item.kind!="native"&&item.lane>lane))item.lane--;state.laneCount=Math.Max(1,state.laneCount-1);timeline.ActiveLane=Math.Min(lane,state.laneCount-1);MarkChanged();});removeLane.Enabled=state.laneCount>1&&!state.tracks.Any(item=>item.kind!="native"&&item.lane==timeline.ActiveLane);}menu.Items.Add("新建空轨道",null,(a,b)=>{PushUndo();timeline.ActiveLane=state.laneCount++;MarkChanged();});var emitters=new ToolStripMenuItem("添加弹幕预设");foreach(string template in new[]{"环形弹幕","扇形弹幕","旋转螺旋","渐变弹速"}){string name=template;emitters.DropDownItems.Add(name,null,(a,b)=>AddPreset(name));}menu.Items.Add(emitters);
-            var rods=new ToolStripMenuItem("添加整体对象");rods.DropDownItems.Add("圆环",null,(a,b)=>AddShape("ring"));rods.DropDownItems.Add("多边形",null,(a,b)=>AddShape("polygon"));foreach(var pair in new[]{new[]{"center","中心 + 角度 + 长度"},new[]{"anchor","自身端点 + 手动端点"},new[]{"endpoints","两个手动端点"}}){string mode=pair[0];rods.DropDownItems.Add(pair[1],null,(a,b)=>{AddTrack("rod");selectedTrack.rodMode=mode;if(mode!="center")selectedTrack.angularSpeed=0;ShowProperties();MarkChanged();});}menu.Items.Add(rods);
-            menu.Items.Add("添加拉镜",null,(a,b)=>AddTrack("camera"));menu.Items.Add("添加贴图对象",null,(a,b)=>AddTrack("object"));var effects=new ToolStripMenuItem("添加画面特效");FillEffectMenu(effects.DropDownItems);menu.Items.Add(effects);menu.Items.Add("添加全局变量",null,(a,b)=>AddGlobalVariable());menu.Items.Add("添加 GML 事件",null,(a,b)=>AddTrack("script"));
-            menu.Items.Add(new ToolStripSeparator());menu.Items.Add("撤销    Ctrl+Z",null,(a,b)=>Undo(false)).Enabled=undo.Count>0;menu.Items.Add("重做    Ctrl+Y",null,(a,b)=>Undo(true)).Enabled=redo.Count>0;
+            foreach(ToolStripItem item in menu.Items.Cast<ToolStripItem>().ToArray())item.Dispose();menu.Items.Clear();
+            if(state==null){e.Cancel=true;return;}
+            if(browsedRoom!=null&&menu.SourceControl==stage)menu.Items.Add("返回耐久房间",null,(a,b)=>ReturnToTimelineRoom());
+            else if(selectedTrack!=null&&selectedTrack.kind=="native"){
+                if(selectedNativeEvent!=null)menu.Items.Add("编辑此事件代码块",null,async(a,b)=>await EditNativeEvent());
+                menu.Items.Add("编辑整个源文件",null,async(a,b)=>await EditNativeSource());
+                menu.Items.Add("查看识别提示",null,(a,b)=>Language.Message(this,String.Join(Environment.NewLine+Environment.NewLine,state.nativeProject.warnings),"原生工程兼容提示"));
+            }else if(selectedInstance!=null){
+                menu.Items.Add("编辑对象 GML",null,async(a,b)=>await EditSelection());
+                if(CanEditGmAsset(selectedInstance.name))menu.Items.Add("实例创建代码…",null,async(a,b)=>await EditRoomInstanceCode(selectedInstance));
+                menu.Items.Add("复制房间实例    Ctrl+C",null,(a,b)=>CopySelection());
+                menu.Items.Add("删除房间实例    Delete",null,(a,b)=>RemoveSelection()).Enabled=selectedInstance.name!="objRufController";
+            }else if(inspector||menu.SourceControl==keyTimeline)ParameterContext(menu,menu.SourceControl==keyProperties||menu.SourceControl==keyTimeline);
+            else CompactTrackContext(menu);
+            Language.Attach(menu);e.Cancel=menu.Items.Count==0;
         };
         return menu;
     }
+    private void SelectedKeyContext(ToolStripItemCollection items)
+    {
+        int count=timeline.SelectedKeys.Count;if(count==0)return;
+        items.Add(count>1?"复制所选 "+count+" 个关键帧    Ctrl+C":"复制关键帧    Ctrl+C",null,(s,e)=>CopyKey());
+        items.Add(count>1?"删除所选关键帧    Delete":"删除关键帧    Delete",null,(s,e)=>RemoveSelection());
+        var easing=new ToolStripMenuItem(count>1?"所选 "+count+" 个关键帧的缓动":"至下一关键帧的缓动");
+        for(int i=0;i<Motion.EaseValues.Length;i++){string value=Motion.EaseValues[i];easing.DropDownItems.Add(Motion.EaseNames[i],null,(s,e)=>{PushUndo();foreach(var key in timeline.SelectedKeys)key.easing=value;MarkChanged();QueueInspectorUpdate();});}
+        items.Add(easing);
+    }
+    private void ParameterContext(ContextMenuStrip menu,bool keyPage)
+    {
+        var t=selectedTrack;if(t==null)return;
+        if(keyPage&&timeline.SelectedKeys.Count>0){SelectedKeyContext(menu.Items);menu.Items.Add(new ToolStripSeparator());}
+        string property=CurrentProperty(!keyPage);
+        if(Motion.Fields(t).Contains(property)&&!MotionPresets.Generated(t,property)){
+            menu.Items.Add("为 "+Motion.Name(property)+" 添加关键帧    K",null,(s,e)=>AddPropertyKey(property));
+            menu.Items.Add("编辑参数公式…",null,(s,e)=>EditParameterExpression(new[]{t},property));
+            if(Motion.HasKeys(t,property))menu.Items.Add("清除此属性的全部关键帧",null,(s,e)=>{PushUndo();double value=Motion.Value(t,property,frame);t.keyframes.RemoveAll(k=>k.property==property);Motion.SetBase(t,property,value);selectedKey=null;timeline.ClearKeySelection();MarkChanged();QueueInspectorUpdate();});
+        }
+        if(keyPage&&t.keyframes.Count>0)menu.Items.Add("选择此物件全部关键帧    Ctrl+A",null,(s,e)=>timeline.SelectAllKeys(t));
+        if(keyPage&&copiedKind=="keys")menu.Items.Add("粘贴关键帧    Ctrl+V",null,async(s,e)=>await PasteSelection());
+        if(!keyPage&&Motion.Fields(t).Length>0)menu.Items.Add("在右栏编辑关键帧",null,(s,e)=>OpenKeyWorkspace(t));
+        if(!keyPage&&t==ObjectPropertyTarget()){
+            var modules=new ToolStripMenuItem("收回物件属性");
+            for(int i=0;i<ObjectProperties.Keys.Length;i++)if(ObjectProperties.Supports(t,ObjectProperties.Keys[i])&&ObjectProperties.Shows(t,i)){
+                int index=i;modules.DropDownItems.Add(ObjectProperties.Names[index],null,(s,e)=>HideObjectProperty(t,index));
+            }
+            if(modules.DropDownItems.Count>0)menu.Items.Add(modules);else modules.Dispose();
+        }
+    }
+
     private void FillEffectMenu(ToolStripItemCollection items)
     {for(int i=0;i<Effects.Values.Length;i++){string effect=Effects.Values[i];items.Add(Effects.Names[i],null,(s,e)=>AddEffect(effect));}}
     private void ShowEffectMenu(Control anchor)
@@ -224,7 +231,8 @@ internal sealed partial class MainForm : LocalizedForm
         }
         else if(copiedKind=="instance"&&copiedInstance!=null)
         {
-            PushUndo();try{ReplaceRoom(await bridge.Call<RoomData>("clone-instance",new{room=state.room,raw=copiedInstance.raw}));SelectInstance(document.room.instances.Last());SetStatus("房间实例已原位粘贴");}catch(Exception error){Error(error);}
+            if(stage.InspectRoomOnly||writingRoomInstance)return;
+            PushUndo();try{ReplaceRoom(await bridge.Call<RoomData>("clone-instance",new{room=state.room,raw=copiedInstance.raw,revision=document.room.instanceRevision}));SelectInstance(document.room.instances.Last());SetStatus("房间实例已原位粘贴");}catch(Exception error){Error(error);}
         }
     }
     private async void PasteFromKeyboard(){await PasteSelection();}
@@ -254,7 +262,7 @@ internal sealed partial class MainForm : LocalizedForm
         bool wasBusy=busy,wasEnabled=Enabled;SetBusy(true);Enabled=false;
         try
         {
-            if(bridge==null)return;StopPlaying();nativeRender.Checked=false;stage.NativeFilmPath=null;SetStatus("正在读取工程…");document=loaded??await bridge.Call<LoadData>("load",new{});state=document.state;nativeRender.Enabled=state.nativeProject!=null;Motion.Normalize(state);int separated=TimelineLayout.EnsureExclusive(state);currentProjectPath=document.descriptor;templateEditing=null;templateOrigin=null;stage.TemplatePreviewId=null;timeline.TemplateSource=null;if(!String.IsNullOrEmpty(currentProjectPath)){recentProjects.RemoveAll(p=>String.Equals(p,currentProjectPath,StringComparison.OrdinalIgnoreCase));recentProjects.Insert(0,currentProjectPath);if(recentProjects.Count>10)recentProjects.RemoveAt(10);}await LoadCurrentMusic();RefreshBeatControls();
+            if(bridge==null)return;StopPlaying();ReturnToTimelineRoom(false);roomUndoEpoch++;nativeRender.Checked=false;stage.NativeFilmPath=null;SetStatus("正在读取工程…");document=loaded??await bridge.Call<LoadData>("load",new{});state=document.state;state.nativePaths=document.nativePaths;nativeRender.Enabled=state.nativeProject!=null;Motion.Normalize(state);int separated=TimelineLayout.EnsureExclusive(state);currentProjectPath=document.descriptor;templateEditing=null;templateOrigin=null;stage.TemplatePreviewId=null;timeline.TemplateSource=null;if(!String.IsNullOrEmpty(currentProjectPath)){recentProjects.RemoveAll(p=>String.Equals(p,currentProjectPath,StringComparison.OrdinalIgnoreCase));recentProjects.Insert(0,currentProjectPath);if(recentProjects.Count>10)recentProjects.RemoveAt(10);}await LoadCurrentMusic();RefreshBeatControls();
             bool migrated=!state.timelineInitialized;if(migrated){if(state.nativeProject==null&&state.duration==1500)state.duration=Math.Max(state.tracks.Count==0?state.fps:state.tracks.Max(t=>Math.Max(t.end,t.keyframes.Count==0?0:t.keyframes.Max(k=>k.frame))),(int)Math.Ceiling(document.waveform.duration*state.fps));state.timelineInitialized=true;}
             if(sprites!=null)sprites.Dispose();sprites=new SpriteStore{Project=document.project,Metadata=document.spriteMeta};
             selectedTrack=null;selectedKey=null;selectedInstance=null;selectedNativeEvent=null;resourceName=null;dirty=false;undo.Clear();redo.Clear();
@@ -272,18 +280,27 @@ internal sealed partial class MainForm : LocalizedForm
     private void FillResources()
     {
         SyncResourceTree();
-        if(document==null)return;if(IsPresetKind(resourceKind)){FillPresetResources();return;}presetTools.Visible=false;string[] names=resourceKind=="objects"?document.inventory.objects:resourceKind=="sprites"?document.inventory.sprites:document.inventory.scripts;
+        if(document==null)return;if(IsPresetKind(resourceKind)){FillPresetResources();return;}presetTools.Visible=false;
+        string[] names=resourceKind=="rooms"?document.inventory.rooms:resourceKind=="objects"?document.inventory.objects:resourceKind=="sprites"?document.inventory.sprites:
+            resourceKind=="paths"?document.inventory.paths:resourceKind=="timelines"?document.inventory.timelines:document.inventory.scripts;
         resources.BeginUpdate();resources.Items.Clear();var previous=resources.SmallImageList;var icons=new ImageList{ImageSize=new Size(24,24),ColorDepth=ColorDepth.Depth32Bit};
-        foreach(string name in names.Where(n=>n.IndexOf(ResourceFilter,StringComparison.OrdinalIgnoreCase)>=0))
+        foreach(string name in (names??new string[0]).Where(n=>n.IndexOf(ResourceFilter,StringComparison.OrdinalIgnoreCase)>=0))
         {
             string spriteName=name;if(resourceKind=="objects")document.inventory.objectSprites.TryGetValue(name,out spriteName);
             var icon=new Bitmap(24,24);using(var g=Graphics.FromImage(icon))
             {
-                var image=resourceKind=="scripts"||resourceKind=="presets"?null:sprites.Get(spriteName);g.Clear(Color.Transparent);
+                var image=resourceKind=="sprites"||resourceKind=="objects"?sprites.Get(spriteName):null;g.Clear(Color.Transparent);
                 if(image!=null){float ratio=Math.Min(22f/image.Width,22f/image.Height);g.InterpolationMode=System.Drawing.Drawing2D.InterpolationMode.NearestNeighbor;g.DrawImage(image,(24-image.Width*ratio)/2,(24-image.Height*ratio)/2,image.Width*ratio,image.Height*ratio);}
-                else Theme.Label(g,resourceKind=="scripts"?"{}":resourceKind=="presets"?"↗":"◇",new Rectangle(0,0,24,24),Theme.Accent,Theme.Bold,TextFormatFlags.HorizontalCenter|TextFormatFlags.VerticalCenter);
+                else Theme.Label(g,resourceKind=="rooms"?"▣":resourceKind=="scripts"?"{}":resourceKind=="paths"?"∿":resourceKind=="timelines"?"≡":"◇",new Rectangle(0,0,24,24),Theme.Accent,Theme.Bold,TextFormatFlags.HorizontalCenter|TextFormatFlags.VerticalCenter);
             }
-            icons.Images.Add(icon);resources.Items.Add(new ListViewItem(name,icons.Images.Count-1));
+            icons.Images.Add(icon);
+            string caption=resourceKind=="rooms"&&name==state.room?name+" · "+Language.Text("耐久房间"):name;
+            var item=new ListViewItem(caption,icons.Images.Count-1){Tag=name};
+            if(resourceKind=="rooms")item.ToolTipText=Language.Text("双击查看房间");
+            else if(resourceKind=="paths")item.ToolTipText=Language.Text("双击编辑路径，或拖到弹幕来源和原生对象片段。");
+            else if(resourceKind=="timelines")item.ToolTipText=Language.Text("双击编辑原生帧。");
+            else if(resourceKind=="objects"&&CanScheduleObject(name))item.ToolTipText=Language.Text("拖到画布摆放实例，拖到时间轴按帧生成。");
+            resources.Items.Add(item);
         }
         resources.SmallImageList=icons;if(previous!=null)previous.Dispose();resources.EndUpdate();
     }
@@ -301,6 +318,7 @@ internal sealed partial class MainForm : LocalizedForm
         {
             state=state,
             room=document==null?null:document.room,
+            roomUndoEpoch=roomUndoEpoch,
             selectedTrack=selectedTrack==null?null:selectedTrack.id,
             selectedTracks=timeline.SelectedTracks.Select(t=>t.id).ToArray(),
             selectedProperty=timeline.SelectedProperty,
@@ -325,57 +343,95 @@ internal sealed partial class MainForm : LocalizedForm
         undo.Push(snapshot);
         redo.Clear();
     }
+    private void QueueProjectSave()
+    {dirty=true;revision++;saveTimer.Stop();if(!parameterScrubbing&&!closeInProgress)saveTimer.Start();}
     private void MarkChanged()
-    {if(state==null)return;if(selectedKey!=null&&timeline.Owner(selectedKey)==null){selectedKey=null;timeline.ClearKeySelection();QueueInspectorUpdate();}int separated=TimelineLayout.EnsureExclusive(state,(selectedTrack==null?Enumerable.Empty<Track>():new[]{selectedTrack}).Concat(timeline.SelectedTracks));if(separated>0&&selectedTrack!=null)timeline.ActiveLane=selectedTrack.lane;RandomParameters.Attach(state);TimelineLayout.Order(state);foreach(var t in state.tracks.Where(t=>t.kind=="native")){t.start=0;t.end=Math.Min(state.duration,state.nativeProject.duration);t.enabled=true;}dirty=true;revision++;saveTimer.Stop();if(!parameterScrubbing&&!closeInProgress)saveTimer.Start();stage.SceneChanged();RefreshBeatControls();if(!parameterScrubbing){timeline.RefreshLayout();RefreshKeyWorkspace();properties.Refresh();UpdateTitle();rightTime.SetView(state.fps,state.duration,frame,selectedTrack);SetStatus(separated>0?Language.Text("已将重叠物件分配到其他轨道；时间与运行顺序保持。"):"正在同步修改…");}}
+    {if(state==null)return;if(selectedKey!=null&&timeline.Owner(selectedKey)==null){selectedKey=null;timeline.ClearKeySelection();QueueInspectorUpdate();}int separated=TimelineLayout.EnsureExclusive(state,(selectedTrack==null?Enumerable.Empty<Track>():new[]{selectedTrack}).Concat(timeline.SelectedTracks));if(separated>0&&selectedTrack!=null)timeline.ActiveLane=selectedTrack.lane;RandomParameters.Attach(state);TimelineLayout.Order(state);foreach(var t in state.tracks.Where(t=>t.kind=="native")){t.start=0;t.end=Math.Min(state.duration,state.nativeProject.duration);t.enabled=true;}QueueProjectSave();NativeObjectPreviewChanged();stage.SceneChanged();RefreshBeatControls();if(!parameterScrubbing){timeline.RefreshLayout();RefreshKeyWorkspace();properties.Refresh();UpdateTitle();rightTime.SetView(state.fps,state.duration,frame,selectedTrack);SetStatus(separated>0?Language.Text("已将重叠物件分配到其他轨道；时间与运行顺序保持。"):"正在同步修改…");}}
     private int ContentEnd(){int tracks=state.tracks.Where(t=>t.kind!="native").Select(t=>Math.Max(t.end,t.keyframes.Count==0?0:t.keyframes.Max(k=>k.frame))).DefaultIfEmpty(0).Max();int native=state.nativeProject==null?0:state.nativeProject.events.Select(e=>e.frame).DefaultIfEmpty(0).Max();return Math.Max(tracks,native);}
     private async Task<bool> SaveNow(bool notify)
     {
         if(state==null||bridge==null)return true;if(notify)CommitInspectorEdits();await saveGate.WaitAsync();saveTimer.Stop();int current=revision;
         try
         {
-            var snapshot=state.Snapshot();var result=await Task.Run(()=>bridge.Call<SaveResult>("save",snapshot));ReplaceRoom(result.room);
+            var snapshot=state.Snapshot();var result=await Task.Run(()=>bridge.Call<SaveResult>("save",snapshot));ReplaceRoomFromDisk(result.room);
             if(current==revision)dirty=false;SetStatus("已保存到 GameMaker 工程");if(notify)stage.Focus();return true;
         }
         catch(Exception error){Error(error);return false;}
         finally{saveGate.Release();if(dirty&&!closeInProgress&&!parameterScrubbing){saveTimer.Stop();saveTimer.Start();}}
     }
+    private void BindSelection()
+    {SyncTemplateSelection();stage.SelectedTrack=selectedTrack;stage.SelectedKey=selectedKey;stage.SelectedInstance=selectedInstance;timeline.SelectedTrack=selectedTrack;timeline.SelectedKey=selectedKey;keySnap.Enabled=state!=null;}
     private void UpdateSelection()
-    {SyncTemplateSelection();stage.SelectedTrack=selectedTrack;stage.SelectedKey=selectedKey;stage.SelectedInstance=selectedInstance;timeline.SelectedTrack=selectedTrack;timeline.SelectedKey=selectedKey;timeline.RefreshLayout();RefreshKeyWorkspace();keySnap.Enabled=state!=null;if(state!=null)rightTime.SetView(state.fps,state.duration,frame,selectedTrack);stage.Invalidate();timeline.Invalidate();}
+    {BindSelection();timeline.RefreshLayout();RefreshKeyWorkspace();if(state!=null)rightTime.SetView(state.fps,state.duration,frame,selectedTrack);stage.Invalidate();timeline.Invalidate();}
+    private void SetTrackSelectionState(Track track,Keyframe key)
+    {if(!timeline.NotifyingSelection)timeline.ResetSelection(track,key);selectedTrack=track;if(track!=null&&track.kind!="native")timeline.ActiveLane=track.lane;selectedKey=key;selectedInstance=null;resourceName=null;if(key!=null)timeline.SelectedProperty=key.property;if(track!=null&&!Motion.Fields(track).Contains(timeline.SelectedProperty))timeline.SelectedProperty=Motion.Fields(track).FirstOrDefault()??"x";}
     private void SelectTrack(Track track,Keyframe key)
-    {if(!timeline.NotifyingSelection)timeline.ResetSelection(track,key);selectedTrack=track;if(track!=null&&track.kind!="native")timeline.ActiveLane=track.lane;selectedKey=key;selectedInstance=null;resourceName=null;if(key!=null)timeline.SelectedProperty=key.property;if(track!=null&&!Motion.Fields(track).Contains(timeline.SelectedProperty))timeline.SelectedProperty=Motion.Fields(track).FirstOrDefault()??"x";UpdateSelection();ShowProperties();}
+    {if(track!=null)ReturnToTimelineRoom(false);SetTrackSelectionState(track,key);UpdateSelection();ShowPropertiesCore(false);}
     private void SelectInstance(RoomInstance instance)
     {timeline.ResetSelection(null,null);selectedInstance=instance;selectedTrack=null;selectedKey=null;resourceName=null;UpdateSelection();ShowProperties();}
     private void SelectResource()
-    {if(IsPresetKind(resourceKind)){SetStatus(resourceKind=="event-presets"?"拖到时间轴创建事件；双击从播放头添加。":resourceKind=="generation-presets"?"拖到来源物件上，自动循环生成弹幕；双击应用到所选物件。":resourceKind=="presets"?"拖到物件或拉镜轨道应用动作；双击应用到所选轨道。":resourceKind=="custom-presets"?"双击进入分类或添加预设；拖入时间轴按落点新建，右键管理名称、分类与导入导出。":"拖到同类轨道上应用；拖到空白处或双击新建预设轨道。");return;}if(resourceKind=="sprites"&&selectedTrack!=null&&Theme.Visual(selectedTrack.kind)){ApplySprite(resourceName);return;}timeline.ResetSelection(null,null);selectedTrack=null;selectedKey=null;selectedInstance=null;UpdateSelection();ShowProperties();}
+    {if(resourceKind=="paths"){SetStatus("双击编辑路径，或拖到弹幕来源和原生对象片段。");return;}if(IsPresetKind(resourceKind)){SetStatus(resourceKind==ObjectProperties.Kind?ObjectProperties.Help:resourceKind=="event-presets"?"拖到时间轴创建事件；双击从播放头添加。":resourceKind=="generation-presets"?"拖到来源物件上，自动循环生成弹幕；双击应用到所选物件。":resourceKind=="presets"?"拖到物件或拉镜轨道应用动作；双击应用到所选轨道。":resourceKind=="custom-presets"?"双击进入分类或添加预设；拖入时间轴按落点新建，右键管理名称、分类与导入导出。":"拖到同类轨道上应用；拖到空白处或双击新建预设轨道。");return;}if(resourceKind=="sprites"&&selectedTrack!=null&&Theme.Visual(selectedTrack.kind)){ApplySprite(resourceName);return;}timeline.ResetSelection(null,null);selectedTrack=null;selectedKey=null;selectedInstance=null;UpdateSelection();ShowProperties();}
     private void SelectProject(){timeline.ResetSelection(null,null);selectedTrack=null;selectedKey=null;selectedInstance=null;resourceName=null;UpdateSelection();ShowProperties();}
     private void Field<T>(NativeProperties bag,string name,string category,Func<T> get,Action<T> set,string[] choices=null,string description="")
     {string property=selectedTrack==null?null:NumericProperty(name);var targets=timeline.SelectedTracks.Count>1?timeline.SelectedTracks.ToArray():new[]{selectedTrack};bag.Add(name,category,typeof(T),()=>property==null?(object)get():Convert.ChangeType(Motion.Value(selectedTrack,property,frame),typeof(T)),value=>{PushUndo();if(property!=null)selectedTrack.expressions.Remove(property);set((T)value);MarkChanged();},choices,description,property==null?null:ParameterControls(targets,property));}
     private static double ClampValue(string property,double value)
     {if(property=="shapeAspect")return Math.Max(-10,Math.Min(10,value));if(property=="shapeInner")return Math.Max(.01,Math.Min(1,value));if(property=="alpha"||property=="fxOpacity"||property=="fxRetention")return Math.Max(0,Math.Min(1,value));if(property=="count")return Math.Max(1,Math.Min(300,Math.Round(value)));if(property=="life")return Math.Max(1,value);if(property=="sides")return Math.Max(3,Math.Min(64,Math.Round(value)));if(property=="cameraZoom")return Math.Max(.05,Math.Min(20,value));if(property=="radius"||property=="length"||property=="strength")return Math.Max(0,value);return value;}
     private string CurrentProperty(bool inspector=false)
-    {if(selectedTrack==null)return "x";if(inspector&&properties.SelectedLabel!=null){string label=properties.SelectedLabel;foreach(string p in Motion.Fields(selectedTrack))if(Motion.Name(p)==label)return p;}return selectedKey!=null?selectedKey.property:timeline.SelectedProperty;}
+    {if(selectedTrack==null)return "x";if(inspector&&properties.SelectedLabel!=null){string label=properties.SelectedLabel;foreach(string p in Motion.Fields(selectedTrack))if(Motion.Name(p,selectedTrack)==label||Motion.Name(p)==label)return p;}return selectedKey!=null?selectedKey.property:timeline.SelectedProperty;}
     private void EaseField(NativeProperties bag,Track t,Keyframe key)
     {
         var names=key==null?Motion.EaseNames:new[]{"继承轨道"}.Concat(Motion.EaseNames).ToArray();var values=key==null?Motion.EaseValues:new[]{""}.Concat(Motion.EaseValues).ToArray();
-        Field(bag,key==null?"默认缓动":timeline.SelectedKeys.Count>1?"整组缓动":"至下一关键帧的缓动",key==null?"运动":"所选关键帧",()=>names[Math.Max(0,Array.IndexOf(values,key==null?t.easing:key.easing??""))],value=>{string easing=values[Array.IndexOf(names,value)];if(key==null)t.easing=easing;else foreach(var selected in timeline.SelectedKeys)selected.easing=easing;},names);
+        string category=key==null?"运动":"所选关键帧";
+        Field(bag,key==null?"默认缓动":timeline.SelectedKeys.Count>1?"整组缓动":"至下一关键帧的缓动",category,()=>names[Math.Max(0,Array.IndexOf(values,key==null?t.easing:key.easing??""))],value=>{string easing=values[Array.IndexOf(names,value)];if(key==null)t.easing=easing;else foreach(var selected in timeline.SelectedKeys)selected.easing=easing;QueueInspectorUpdate();},names);
+        var used=new[]{t.easing??""}.Concat(t.keyframes.Select(k=>k.easing??"")).ToArray();
+        if(used.Any(value=>value.StartsWith("power-")))Field(bag,"Power 指数",category,()=>t.easePower,value=>t.easePower=Math.Max(.1,value));
+        if(used.Contains("expsin"))Field(bag,"ExpSin 周期",category,()=>t.easePeriod,value=>t.easePeriod=Math.Max(.01,value));
+    }
+    private static bool RelevantParameter(Track t,string p)
+    {
+        if(Motion.HasKeys(t,p)||t.expressions.ContainsKey(p))return true;
+        if(p=="rainbowSpeed")return t.rainbowDynamic;
+        if(t.kind=="rod"){
+            if(p=="rollSpeed")return t.rolling;
+            if(t.shape=="rod"){
+                if(p=="x1"||p=="y1")return t.rodMode=="endpoints";
+                if(p=="x2"||p=="y2")return t.rodMode!="center";
+                if(p=="length")return t.rodMode=="center";
+            }
+        }
+        if(t.kind=="emitter"){
+            if(p=="emitWidth")return t.emissionShape!="bezier";
+            if(p=="emitHeight")return new[]{"ellipse","rectangle","sine"}.Contains(t.emissionShape);
+            if(p=="emitArc")return t.emissionShape=="arc";
+            if(p=="emitPhase")return new[]{"ring","ellipse","arc","sine"}.Contains(t.emissionShape);
+            if(p=="emitWaves")return t.emissionShape=="sine";
+        }
+        if(t.kind=="effect"){
+            if(p=="fxAngle")return new[]{"rgb","blur","motion-blur","rgb-impact","glitch"}.Contains(t.effect);
+            if(p=="fxRetention")return new[]{"motion-blur","rgb-impact","glitch"}.Contains(t.effect);
+            if(p=="strength")return !new[]{"flash","color","fade-in","fade-out","invert"}.Contains(t.effect);
+        }
+        return true;
     }
     private void AnimatedFields(NativeProperties bag,Track track)
     {
-        foreach(string item in Motion.Fields(track).Where(p=>MotionPresets.Generated(track,p))){string property=item;bag.Add(Motion.Name(property),ParameterCategory(track,property),typeof(string),()=>Language.Text("由预设控制"),null);}
-        foreach(string item in Motion.Fields(track).Where(p=>!MotionPresets.Generated(track,p)&&!Rainbow.Parameters.Contains(p)&&(p!="life"||BulletLifetime.Mode(track)=="fixed")))
-        {string property=item;bag.Add(Motion.Name(property),ParameterCategory(track,property),typeof(double),()=>Motion.Value(track,property,frame),value=>{PushUndo();Motion.EditValue(track,property,frame,ClampValue(property,(double)value));timeline.SelectedProperty=property;MarkChanged();},null,"◇ 开启属性关键帧；◆ 关闭并保留当前值。随机开关支持 random、random_range、choose，结果保持到重新随机。",ParameterControls(new[]{track},property));}
+        foreach(string item in Motion.Fields(track).Where(p=>MotionPresets.Generated(track,p))){string property=item;bag.Add(Motion.Name(property,track),ParameterCategory(track,property),typeof(string),()=>Language.Text("由预设控制"),null);}
+        foreach(string item in Motion.Fields(track).Where(p=>!MotionPresets.Generated(track,p)&&!Rainbow.Parameters.Contains(p)&&(p!="life"||BulletLifetime.Mode(track)=="fixed"&&ObjectProperties.Shows(track,2))&&RelevantParameter(track,p)))
+        {string property=item;bag.Add(Motion.Name(property,track),ParameterCategory(track,property),typeof(double),()=>Motion.Value(track,property,frame),value=>{PushUndo();Motion.EditValue(track,property,frame,ClampValue(property,(double)value));timeline.SelectedProperty=property;MarkChanged();},null,"◇ 开启属性关键帧；◆ 关闭并保留当前值。随机开关支持 random、random_range、choose，结果保持到重新随机。",ParameterControls(new[]{track},property));}
     }
     private bool inspectorUpdatePending;
     private void QueueInspectorUpdate(){if(!IsHandleCreated||IsDisposed||inspectorUpdatePending)return;inspectorUpdatePending=true;BeginInvoke(new Action(()=>{inspectorUpdatePending=false;if(!IsDisposed)ShowProperties();}));}
-    private void ShowProperties()
+    private void ShowProperties(){ShowPropertiesCore(true);}
+    private void ShowPropertiesCore(bool refreshKeys)
     {
         if(state==null)return;var bag=new NativeProperties();codeButton.Enabled=false;keyButton.Enabled=false;deleteButton.Enabled=false;
-        if(selectedInstance!=null)
+        if(browsedRoom!=null)RoomSummary(bag,browsedRoom);
+        else if(selectedInstance!=null)
         {
             var instance=selectedInstance;selectionTitle.Text=Language.Text("房间实例 · ")+instance.name;
             bag.Add("对象","实例",typeof(string),()=>instance.name,null);
             bag.Add("X","位置",typeof(double),()=>instance.x,value=>{PushUndo();instance.x=Math.Round((double)value);stage.SceneChanged();if(!parameterScrubbing)SaveInstanceFromProperty(instance);});
-            bag.Add("Y","位置",typeof(double),()=>instance.y,value=>{PushUndo();instance.y=Math.Round((double)value);stage.SceneChanged();if(!parameterScrubbing)SaveInstanceFromProperty(instance);});codeButton.Enabled=true;deleteButton.Enabled=instance.name!="objRufController";
+            bag.Add("Y","位置",typeof(double),()=>instance.y,value=>{PushUndo();instance.y=Math.Round((double)value);stage.SceneChanged();if(!parameterScrubbing)SaveInstanceFromProperty(instance);});InstanceTransformFields(bag,instance);codeButton.Enabled=true;deleteButton.Enabled=instance.name!="objRufController";
         }
         else if(selectedTrack!=null&&selectedTrack.kind=="native")
         {NativeProperties(bag);}
@@ -384,7 +440,7 @@ internal sealed partial class MainForm : LocalizedForm
         else if(selectedTrack!=null)
         {
             var track=selectedTrack;selectionTitle.Text=timeline.SelectedKeys.Count>1?Language.Text("已选择 ")+timeline.SelectedKeys.Count+Language.Text(" 个关键帧"):Language.Text(EventPresets.IsEvent(track)?"事件":Theme.KindName(track.kind))+" · "+track.name;
-            Field(bag,"名称","物件",()=>track.name,value=>track.name=value);Field(bag,"启用","物件",()=>track.enabled,value=>track.enabled=value);
+            Field(bag,"名称","物件",()=>track.name,value=>track.name=value);Field(bag,"启用","物件",()=>track.enabled,value=>track.enabled=value);Field(bag,"仅预览隐藏","物件",()=>track.previewHidden,value=>{track.previewHidden=value;stage.SceneChanged();timeline.Invalidate();},null,"仅在编辑器预览中隐藏此物件，不参与预览绘制与鼠标拾取；F5 试玩和导出依然完整保留。");
             var displayLanes=track.templateOnly?TimelineLayout.TemplateDisplayLanes(state,track):new int[0];
             if(displayLanes.Length>0)bag.Add("所在生成组轨道","物件",typeof(string),()=>String.Join(", ",displayLanes.Select(l=>(l+1).ToString())),null);
             else Field(bag,"轨道编号","物件",()=>track.lane+1,value=>{track.lane=Math.Max(0,value-1);state.laneCount=Math.Max(state.laneCount,track.lane+1);});
@@ -395,6 +451,7 @@ internal sealed partial class MainForm : LocalizedForm
             }
             if(Theme.Visual(track.kind))
             {
+                Field(bag,"绘制深度","外观",()=>DrawingDepth.Track(track),value=>track.depth=value,null,"数值越小越靠前，数值越大越靠后。");
                 keyButton.Enabled=true;Field(bag,"贴图","外观",()=>track.sprite,value=>{Rainbow.SetSprite(track,value);QueueInspectorUpdate();},document.inventory.sprites);
                 if(track.rainbow)bag.Add("颜色（彩虹固定白色）","外观",typeof(Color),()=>Color.White,null);
                 else Field(bag,"颜色","外观",()=>Motion.ColorOf(track.color),value=>track.color=String.Format("#{0:X2}{1:X2}{2:X2}",value.R,value.G,value.B));
@@ -402,35 +459,34 @@ internal sealed partial class MainForm : LocalizedForm
                 if(track.kind!="object")Field(bag,"贴图跟随发射 / 棒角度","外观",()=>track.rotateSprite,value=>track.rotateSprite=value,null,"默认关闭。弹幕发射方向、转转棒方向与贴图角度分别控制。");
                 TrailFields(bag,new[]{track});
                 EaseField(bag,track,null);
-                Field(bag,"Power 指数","运动",()=>track.easePower,value=>track.easePower=Math.Max(.1,value));Field(bag,"ExpSin 周期","运动",()=>track.easePeriod,value=>track.easePeriod=Math.Max(.01,value));
                 MotionControls(bag,track);
                 AnimatedFields(bag,track);
                 keyButton.Text="＋ "+Motion.Name(CurrentProperty())+" 关键帧  (K)";
             }
             if(track.kind=="emitter")
             {
-                Field(bag,"发射间隔","发射器",()=>track.interval,value=>track.interval=Math.Max(1,value));FlightFields(bag,track);
+                Field(bag,"发射间隔","发射",()=>track.interval,value=>track.interval=Math.Max(1,value));FlightFields(bag,track);
             }
             if(track.kind=="rod")
             {
                 if(track.shape=="rod"){
                 string[] names={"中心 + 角度 + 长度","自身为端点1 + 手动端点2","手动端点1 + 手动端点2"},values={"center","anchor","endpoints"};
-                Field(bag,"端点模式","转转棒",()=>names[Math.Max(0,Array.IndexOf(values,track.rodMode))],value=>track.rodMode=values[Array.IndexOf(names,value)],names);
-                Field(bag,"循环滚动","转转棒",()=>track.rolling,value=>track.rolling=value,null,"关闭时含两个端点等距摆放；开启时保持数量，在半开线段内循环移动。滚动速度单位为像素/帧。");
-                }else {Field(bag,"沿轮廓滚动","整体对象",()=>track.rolling,value=>track.rolling=value,null,"按滚动速度沿闭合轮廓移动，可叠加自转。单位为像素/帧。");bag.Add("排列方式","整体对象",typeof(string),()=>"沿闭合轮廓参数排列；角度控制沿线相位，轮廓朝向控制整体旋转。星星/花朵使用边数设置尖角/花瓣数。",null);}
+                Field(bag,"端点模式","转转棒",()=>names[Math.Max(0,Array.IndexOf(values,track.rodMode))],value=>{track.rodMode=values[Array.IndexOf(names,value)];QueueInspectorUpdate();},names);
+                Field(bag,"循环滚动","转转棒",()=>track.rolling,value=>{track.rolling=value;QueueInspectorUpdate();},null,"关闭时含两个端点等距摆放；开启时保持数量，在半开线段内循环移动。滚动速度单位为像素/帧。");
+                }else Field(bag,"沿轮廓滚动","整体对象",()=>track.rolling,value=>{track.rolling=value;QueueInspectorUpdate();},null,"按滚动速度沿闭合轮廓移动，可叠加自转。单位为像素/帧。");
             }
             VariableFields(bag,track);
             if(track.kind=="camera")
             {
                 keyButton.Enabled=true;keyButton.Text="＋ "+Motion.Name(CurrentProperty())+" 关键帧  (K)";Field(bag,"镜像补边","拉镜",()=>track.cameraMirror,value=>track.cameraMirror=value,null,"在渲染拉镜时镜像延伸房间边缘，避免甩镜或旋转时露出黑边。");EaseField(bag,track,null);
-                Field(bag,"Power 指数","运动",()=>track.easePower,value=>track.easePower=Math.Max(.1,value));Field(bag,"ExpSin 周期","运动",()=>track.easePeriod,value=>track.easePeriod=Math.Max(.01,value));CameraPresetControls(bag,track);MotionControls(bag,track);AnimatedFields(bag,track);
+                CameraPresetControls(bag,track);MotionControls(bag,track);AnimatedFields(bag,track);
                 bag.Add("说明","拉镜",typeof(string),()=>"X/Y 为镜头中心；缩放大于 1 拉近。时段外恢复房间视图；重叠时下方轨道优先。",null);
             }
             if(track.kind=="effect")
             {
                 keyButton.Enabled=true;keyButton.Text="＋ "+Motion.Name(CurrentProperty())+" 关键帧  (K)";
                 Field(bag,"效果","特效",()=>Effects.Name(track.effect),value=>{bool autoName=track.name==Effects.Name(track.effect)||track.name=="闪屏";track.effect=Effects.Values[Array.IndexOf(Effects.Names,value)];if(autoName)track.name=Effects.Name(track.effect);QueueInspectorUpdate();},Effects.Names);
-                Field(bag,"遮罩 / 闪屏颜色","特效",()=>Motion.ColorOf(track.color),value=>track.color=String.Format("#{0:X2}{1:X2}{2:X2}",value.R,value.G,value.B));
+                if(new[]{"flash","color","fade-in","fade-out","rgb-impact"}.Contains(track.effect))Field(bag,"遮罩 / 闪屏颜色","特效",()=>Motion.ColorOf(track.color),value=>track.color=String.Format("#{0:X2}{1:X2}{2:X2}",value.R,value.G,value.B));
                 if(track.effect=="shake")Field(bag,"震动频率","特效",()=>track.fxFrequency,value=>track.fxFrequency=Math.Max(.01,value));
                 if(track.effect=="blur"||track.effect=="motion-blur")Field(bag,"模糊采样数","特效",()=>track.fxSamples,value=>track.fxSamples=Math.Max(2,Math.Min(16,value)));
                 if(track.effect=="glitch"){Field(bag,"错位切片数量","特效",()=>track.fxSlices,value=>track.fxSlices=Math.Max(1,Math.Min(32,value)));Field(bag,"顿帧间隔 / 帧","特效",()=>track.fxStutter,value=>track.fxStutter=Math.Max(1,Math.Min(12,value)));}
@@ -438,6 +494,8 @@ internal sealed partial class MainForm : LocalizedForm
                 bag.Add("提示","特效",typeof(string),()=>track.effect=="rgb-impact"?"效果透明度控制整套冲击；缩放、色散、残像和闪光可分别调整。":track.effect=="glitch"?"强度控制错位距离；透明度控制整套故障。顿帧只影响画面，游戏逻辑继续执行。":"强度：像素；暗角：0–100。方向：角度。",null);
             }
             if(track.kind=="script"){bag.Add("触发帧","GML",typeof(int),()=>track.start,null);codeButton.Enabled=true;}
+            if(track.kind=="native-instance")NativeObjectFields(bag,track);
+            GmPathFields(bag,track);
             BulletFields(bag,track);
             deleteButton.Enabled=true;
         }
@@ -449,13 +507,14 @@ internal sealed partial class MainForm : LocalizedForm
         {
             selectionTitle.Text=Language.Text("属性检查器");bag.Add("操作","编辑",typeof(string),()=>"选中画布或时间轴物件以编辑参数。工程设置请点击顶栏按钮。",null);
         }
-        properties.SelectedObject=bag;RefreshKeyWorkspace();RefreshBehavior();RefreshShell();
+        properties.SelectedObject=bag;if(refreshKeys)RefreshKeyWorkspace();RefreshBehavior();RefreshShell();RefreshObjectPropertyPresets();
     }
     private void ShowGroupProperties(NativeProperties bag)
     {
         var group=timeline.SelectedTracks.ToArray();var primary=selectedTrack;
         selectionTitle.Text=Language.Text("已选择 ")+group.Length+Language.Text(" 个物件");
         bag.Add("选中数量","批量编辑",typeof(int),()=>group.Length,null);
+        Field(bag,"仅预览隐藏","批量编辑",()=>primary.previewHidden,value=>{foreach(var t in group)t.previewHidden=value;stage.SceneChanged();timeline.Invalidate();},null,"仅在编辑器预览中隐藏选中的物件，不影响游戏导出。");
         Field(bag,"移到轨道编号","批量时间",()=>primary.lane+1,value=>{int lane=Math.Max(0,value-1);foreach(var t in group)t.lane=lane;state.laneCount=Math.Max(state.laneCount,lane+1);timeline.ActiveLane=lane;});
         Field(bag,"主物件开始帧 · 整组平移","批量时间",()=>primary.start,value=>timeline.MoveTracks(value-primary.start),null,"所有物件及关键帧平移相同帧数，保留相对时间。");
         Field(bag,"开始边界 · 整组拉伸","批量时间",()=>primary.start,value=>timeline.TrimTracks(true,value-primary.start),null,"仅改变各物件开始边界，关键帧不移动。");
@@ -467,6 +526,7 @@ internal sealed partial class MainForm : LocalizedForm
             foreach(string property in new[]{"x","y"})
             {string p=property;Field(bag,"整组 "+p.ToUpper()+" · 主物件","批量位置",()=>Motion.Value(primary,p,frame),value=>{double delta=value-Motion.Value(primary,p,frame);foreach(var t in group){bool controlled=false;if(MotionPresets.Bound(t)){MotionPresets.Translate(t,p=="x"?delta:0,p=="y"?delta:0);controlled=true;}if(CameraPresets.Bound(t)){CameraPresets.Translate(t,p=="x"?delta:0,p=="y"?delta:0);controlled=true;}if(!controlled)Motion.EditValue(t,p,frame,Motion.Value(t,p,frame)+delta);}});}
             if(group.All(t=>Theme.Visual(t.kind))){
+            Field(bag,"统一绘制深度","批量外观",()=>DrawingDepth.Track(primary),value=>{foreach(var t in group)t.depth=value;});
             foreach(string property in new[]{"scale","alpha"})
             {string p=property;Field(bag,"统一"+Motion.Name(p),"批量外观",()=>Motion.Value(primary,p,frame),value=>{foreach(var t in group)Motion.EditValue(t,p,frame,ClampValue(p,value));});}
             Field(bag,"统一贴图","批量外观",()=>primary.sprite,value=>{foreach(var t in group)Rainbow.SetSprite(t,value);QueueInspectorUpdate();},document.inventory.sprites);
@@ -476,14 +536,14 @@ internal sealed partial class MainForm : LocalizedForm
     }
     private void RainbowFields(NativeProperties bag,Track[] group)
     {
-        if(!group.All(Rainbow.IsCherry))return;var t=group[0];
+        if(!group.All(track=>ObjectProperties.Shows(track,0)))return;var t=group[0];
         Field(bag,"彩虹","彩虹 Cherry",()=>group.All(track=>track.rainbow),value=>{foreach(var track in group)Rainbow.Enable(track,value);QueueInspectorUpdate();},null,"使用 sprrainbowcherry，固定白色与 image_speed=0。中心转转棒按离中心的距离分配颜色。");
         if(!group.All(track=>track.rainbow))return;
         Field(bag,"随机彩虹颜色","彩虹 Cherry",()=>t.rainbowRandom,value=>{foreach(var track in group)track.rainbowRandom=value;},null,"每颗弹幕随机选择彩虹贴图的一帧；出生后保持，开启动态色彩时从该颜色继续变化。支持固定种子和重新随机。");
         if(group.All(track=>track.kind=="rod"))Field(bag,"彩虹分配方式","彩虹 Cherry",()=>Rainbow.ModeNames[Array.IndexOf(Rainbow.Modes,Rainbow.Mode(t))],value=>{foreach(var track in group)track.rainbowMode=Rainbow.Modes[Array.IndexOf(Rainbow.ModeNames,value)];QueueInspectorUpdate();},Rainbow.ModeNames,"中心使用整体对象的 X/Y。距离模式每像素推进一个颜色帧；角度模式绕中心一圈为一轮彩虹。颜色密度控制重复次数，支持反转和动态色彩。");
         Field(bag,"反转","彩虹 Cherry",()=>t.rainbowReverse,value=>{foreach(var track in group)track.rainbowReverse=value;});
-        Field(bag,"动态色彩","彩虹 Cherry",()=>t.rainbowDynamic,value=>{foreach(var track in group)track.rainbowDynamic=value;});
-        foreach(string item in Rainbow.Parameters)
+        Field(bag,"动态色彩","彩虹 Cherry",()=>t.rainbowDynamic,value=>{foreach(var track in group)track.rainbowDynamic=value;QueueInspectorUpdate();});
+        foreach(string item in Rainbow.Parameters.Where(p=>p!="rainbowSpeed"||group.Any(track=>RelevantParameter(track,p))))
         {
             string property=item;
             bag.Add(Motion.Name(property),"彩虹 Cherry",typeof(double),()=>Motion.Value(t,property,frame),value=>{PushUndo();foreach(var track in group)Motion.EditValue(track,property,frame,property=="rainbowDensity"?Math.Max(0,(double)value):(double)value);timeline.SelectedProperty=property;MarkChanged();},null,property=="rainbowDensity"?(t.kind=="rod"&&Rainbow.Mode(t)!="sequence"?"距离模式：每像素跨过的颜色帧。角度模式：绕中心一圈重复彩虹的次数。0 表示同色；支持独立关键帧。":"相邻序号间跨过多少颜色帧。1 表示逐帧递增；0 表示同色。支持独立关键帧。"):"支持独立关键帧。动态开启后，按时间更新 image_index，image_speed 仍保持 0。",ParameterControls(group,property));
@@ -491,6 +551,7 @@ internal sealed partial class MainForm : LocalizedForm
     }
     private void TrailFields(NativeProperties bag,Track[] group)
     {
+        if(!group.All(track=>ObjectProperties.Shows(track,1)))return;
         var t=group[0];Action<Action<Track>> apply=change=>{foreach(var track in group)change(track);};
         Field(bag,"拖影样式","拖影",()=>Trails.Names[Math.Max(0,Array.IndexOf(Trails.Values,Trails.Mode(t)))],value=>{apply(track=>Trails.SetMode(track,Trails.Values[Array.IndexOf(Trails.Names,value)]));QueueInspectorUpdate();},Trails.Names);
         if(Trails.Mode(t)=="off")return;
@@ -508,12 +569,13 @@ internal sealed partial class MainForm : LocalizedForm
     }
     private void AddTrack(string kind,Action<Track> configure=null)
     {
-        if(state==null)return;CommitInspectorEdits();PushUndo();var track=new Track{id=Guid.NewGuid().ToString("N"),kind=kind,name=kind=="camera"?"拉镜":kind=="rod"?"转转棒":kind=="emitter"?"新弹幕":kind=="object"?"新对象":kind=="effect"?"闪屏":"GML 事件",start=Math.Min(frame,state.duration-1)};
+        if(state==null)return;ReturnToTimelineRoom(false);CommitInspectorEdits();PushUndo();var track=new Track{id=Guid.NewGuid().ToString("N"),kind=kind,name=kind=="camera"?"拉镜":kind=="rod"?"转转棒":kind=="emitter"?"新弹幕":kind=="object"?"新对象":kind=="effect"?"闪屏":kind=="variable"?"全局变量":"GML 事件",start=Math.Min(frame,state.duration-1)};
         track.end=Math.Min(state.duration,track.start+(kind=="emitter"?300:kind=="object"?200:10));
+        if(kind=="emitter"||kind=="rod")track.lifetimeMode="room";
         if(kind=="emitter"||kind=="object"||kind=="rod"){track.sprite=kind=="emitter"?"sprBullet":"sprCherry";if(!document.inventory.sprites.Contains(track.sprite))track.sprite=document.inventory.sprites.First();if(kind=="rod"){track.count=5;track.angularSpeed=1;track.end=Math.Min(state.duration,track.start+500);}}
         if(kind=="camera"){track.x=document.room.width/2.0;track.y=document.room.height/2.0;track.end=Math.Min(state.duration,track.start+500);}
         if(kind=="script")track.code="// 在开始帧执行的 GameMaker GML\r\n";
-        track.lane=timeline.ActiveLane>=0?timeline.ActiveLane:selectedTrack!=null&&selectedTrack.kind!="native"?selectedTrack.lane:Math.Max(0,state.laneCount-1);if(configure!=null)configure(track);state.laneCount=Math.Max(state.laneCount,track.lane+1);state.tracks.Add(track);SelectTrack(track,null);timeline.Expand(track,true);MarkChanged();
+        track.lane=timeline.ActiveLane>=0?timeline.ActiveLane:selectedTrack!=null&&selectedTrack.kind!="native"?selectedTrack.lane:Math.Max(0,state.laneCount-1);if(configure!=null)configure(track);state.laneCount=Math.Max(state.laneCount,track.lane+1);state.tracks.Add(track);Motion.Normalize(state);SelectTrack(track,null);timeline.Expand(track,true);MarkChanged();
     }
     private void AddKey()
     {
@@ -523,36 +585,58 @@ internal sealed partial class MainForm : LocalizedForm
     {
         if(selectedTrack==null||!Motion.Fields(selectedTrack).Contains(property))return;var track=selectedTrack;
         if(MotionPresets.Generated(track,property)){SetStatus("该属性由预设控制；请修改预设参数，或先切换为手动关键帧。");return;}
-        var existing=track.keyframes.FirstOrDefault(k=>k.frame==frame&&k.property==property);if(existing!=null){SelectTrack(track,existing);timeline.Expand(track,true);return;}
-        PushUndo();string formula;track.expressions.TryGetValue(property,out formula);bool first=!Motion.HasKeys(track,property);Motion.SetKey(track,property,frame,Motion.Value(track,property,frame));if(first&&!String.IsNullOrWhiteSpace(formula)){var created=track.keyframes.First(k=>k.property==property&&k.frame==frame);created.expression=formula;created.randomId="base";track.expressions.Remove(property);}SelectTrack(track,track.keyframes.First(k=>k.frame==frame&&k.property==property));timeline.Expand(track,true);MarkChanged();
+        var existing=track.keyframes.FirstOrDefault(k=>k.frame==frame&&k.property==property);
+        if(existing!=null){timeline.SetExpanded(track,true);SelectTrack(track,existing);return;}
+        PushUndo();
+        string formula;track.expressions.TryGetValue(property,out formula);
+        bool first=!Motion.HasKeys(track,property);
+        Motion.SetKey(track,property,frame,Motion.Value(track,property,frame));
+        var created=track.keyframes.First(k=>k.property==property&&k.frame==frame);
+        if(first&&!String.IsNullOrWhiteSpace(formula)){created.expression=formula;created.randomId="base";track.expressions.Remove(property);}
+        SetTrackSelectionState(track,created);
+        timeline.SetExpanded(track,true);
+        BindSelection();
+        MarkChanged();
+        ShowPropertiesCore(parameterScrubbing);
     }
     private void RemoveSelection()
     {
         if(selectedInstance!=null){DeleteInstance();return;}if(selectedTrack==null||selectedTrack.kind=="native")return;if(timeline.SelectedKeys.Count==0){var dropping=WithGroupChildren(timeline.SelectedTracks.Count>0?timeline.SelectedTracks.ToArray():new[]{selectedTrack}).ToArray();var remaining=state.tracks.Except(dropping).ToArray();var missing=new HashSet<string>(GlobalVariables.Declarations(dropping).Select(row=>row.variableName).Except(GlobalVariables.Declarations(remaining).Select(row=>row.variableName)));string reference=remaining.SelectMany(GlobalVariables.References).FirstOrDefault(missing.Contains);if(reference!=null){SetStatus("变量仍被引用，请先修改相关公式：global."+reference);return;}}PushUndo();if(timeline.SelectedKeys.Count>0){foreach(var track in state.tracks)track.keyframes.RemoveAll(k=>timeline.SelectedKeys.Contains(k));timeline.ClearKeySelection();SelectTrack(selectedTrack,null);}else{var remove=WithGroupChildren(timeline.SelectedTracks.Count>0?timeline.SelectedTracks.ToArray():new[]{selectedTrack});state.tracks.RemoveAll(t=>t.kind!="native"&&remove.Contains(t));SelectProject();}MarkChanged();
     }
     private async void DeleteInstance()
-    {if(selectedInstance==null||selectedInstance.name=="objRufController")return;PushUndo();try{var room=await bridge.Call<RoomData>("delete-instance",new{room=state.room,id=selectedInstance.id});selectedInstance=null;ReplaceRoom(room);SelectProject();SetStatus("房间实例已删除 · Ctrl+Z 可撤销");}catch(Exception error){Error(error);}}
+    {if(selectedInstance==null||selectedInstance.name=="objRufController"||writingRoomInstance)return;PushUndo();try{var room=await bridge.Call<RoomData>("delete-instance",new{room=state.room,id=selectedInstance.id,revision=document.room.instanceRevision});selectedInstance=null;ReplaceRoom(room);SelectProject();SetStatus("房间实例已删除 · Ctrl+Z 可撤销");}catch(Exception error){Error(error);}}
     private void ReplaceRoom(RoomData room)
-    {if(document.room!=null&&stage.Room==document.room&&document.room.SameContent(room))return;string id=selectedInstance==null?null:selectedInstance.id;document.room=room;stage.Room=room;if(id!=null)selectedInstance=room.instances.FirstOrDefault(x=>x.id==id);stage.SelectedInstance=selectedInstance;stage.SceneChanged();}
+    {if(document.room!=null&&document.room.SameContent(room))return;string id=selectedInstance==null?null:selectedInstance.id;document.room=room;if(browsedRoom==null)stage.Room=room;if(id!=null)selectedInstance=room.instances.FirstOrDefault(x=>x.id==id);stage.SelectedInstance=selectedInstance;stage.SceneChanged();}
     private void ApplySprite(string name){if(selectedTrack==null||!Theme.Visual(selectedTrack.kind))return;PushUndo();foreach(var t in timeline.SelectedTracks.Where(t=>Theme.Visual(t.kind)))Rainbow.SetSprite(t,name);ShowProperties();MarkChanged();}
     private async Task DropResource(string kind,string name,PointF position)
     {
         try
         {
+            if(kind=="paths"){AttachGmPath(stage.TrackAt(position),name);return;}
             if(IsPresetKind(kind)){await UsePreset(kind,name,stage.TrackAt(position),frame);return;}
             if(kind=="sprites"){AddTrack("object");selectedTrack.sprite=name;selectedTrack.x=Math.Round(position.X);selectedTrack.y=Math.Round(position.Y);ShowProperties();MarkChanged();}
             else if(kind=="objects")
-            {PushUndo();ReplaceRoom(await bridge.Call<RoomData>("add-instance",new{room=state.room,name=name,x=(double)position.X,y=(double)position.Y}));SelectInstance(document.room.instances.Last());SetStatus("对象实例已加入 GameMaker 房间");}
+            {if(writingRoomInstance)return;PushUndo();ReplaceRoom(await bridge.Call<RoomData>("add-instance",new{room=state.room,name=name,x=(double)position.X,y=(double)position.Y,revision=document.room.instanceRevision}));SelectInstance(document.room.instances.Last());SetStatus("对象实例已加入 GameMaker 房间");}
         }
         catch(Exception error){Error(error);}
     }
     private async void SaveInstanceFromProperty(RoomInstance instance){await SaveInstance(instance);}
     private async Task SaveInstance(RoomInstance instance)
     {
-        try{ReplaceRoom(await bridge.Call<RoomData>("move-instance",new{room=state.room,index=instance.index,x=instance.x,y=instance.y}));UpdateSelection();ShowProperties();SetStatus("房间实例位置已同步");}catch(Exception error){Error(error);}
+        if(writingRoomInstance||stage.InspectRoomOnly||bridge==null)return;
+        writingRoomInstance=true;
+        var original=document;
+        Exception failure=null;
+        try{
+            var room=await bridge.Call<RoomData>("move-instance",new{room=state.room,index=instance.index,id=instance.id,x=instance.x,y=instance.y,revision=document.room.instanceRevision,transform=new{instance.scaleX,instance.scaleY,instance.angle,instance.blend}});
+            if(document==original){ReplaceRoom(room);UpdateSelection();ShowPropertiesCore(false);SetStatus("房间实例已同步到 GameMaker。");}
+        }catch(Exception error){failure=error;}
+        finally{writingRoomInstance=false;}
+        if(failure!=null&&document==original)await RefreshRoomAfterConflict(failure);
     }
     private async Task EditSelection()
     {
+        if(selectedTrack!=null&&selectedTrack.kind=="native-instance"){EditNativeObjectInit(selectedTrack);return;}
         if(selectedTrack!=null&&selectedTrack.kind=="native"){if(selectedNativeEvent!=null)await EditNativeEvent();else await EditNativeSource();return;}
         if(selectedTrack!=null&&selectedTrack.kind=="script")
         {var track=selectedTrack;using(var editor=new CodeForm(track.name,track.code,async text=>{PushUndo();track.code=text;MarkChanged();await SaveNow(false);}))Language.ShowDialog(editor,this);}
@@ -561,8 +645,9 @@ internal sealed partial class MainForm : LocalizedForm
     }
     private async Task EditResource(string kind,string name)
     {
+        if(GmAssetKind(kind)){await OpenGmAsset(kind,name);return;}
         try
-        {var source=await bridge.Call<SourceData>("source-read",new{kind=kind,name=name});using(var editor=new CodeForm(name+".gml",source.content,async text=>{await bridge.Call<object>("source-save",new{kind=kind,name=name,content=text});SetStatus("GML 已写入 GameMaker 工程");}))Language.ShowDialog(editor,this);}
+        {var source=await bridge.Call<SourceData>("source-read",new{kind=kind,name=name});using(var editor=new CodeForm(name+".gml",source.content,async text=>{var result=await bridge.Call<SourceData>("source-save",new{kind=kind,name=name,content=text,hash=source.hash});source.hash=result.hash;SetStatus("GML 已写入 GameMaker 工程");}))Language.ShowDialog(editor,this);}
         catch(Exception error){Error(error);}
     }
     private async Task ImportAssets()
@@ -587,7 +672,7 @@ internal sealed partial class MainForm : LocalizedForm
     private void SetBusy(bool value){busy=value;runButton.Enabled=!value;if(debugButton!=null)debugButton.Enabled=!value;exportButton.Enabled=!value;UseWaitCursor=value;RefreshShell();}
     private async Task RunGame(bool godMode = false)
     {
-        if(state==null||busy)return;CommitInspectorEdits();if(templateEditing!=null)ExitTemplateContext();if(!await EnsureEngine())return;StopPlaying();saveTimer.Stop();SetBusy(true);SetStatus(godMode?"正在同步、编译并进入调试试玩（无敌模式）…":"正在同步、编译并进入原生试玩…");int target=frame,current=revision;
+        if(state==null||busy)return;ReturnToTimelineRoom();CommitInspectorEdits();if(templateEditing!=null)ExitTemplateContext();if(!await EnsureEngine())return;StopPlaying();saveTimer.Stop();SetBusy(true);SetStatus(godMode?"正在同步、编译并进入调试试玩（无敌模式）…":"正在同步、编译并进入原生试玩…");int target=frame,current=revision;
         try{
             var payload=new{state=Json.Read<EditorState>(Json.Write(state)),frame=target,godMode=godMode};BuildResult result;
             using(var dialog=new NativeReplayProgressForm(bridge,payload,target,godMode)){Language.ShowDialog(dialog,this);if(dialog.Cancelled){SetStatus("原生试玩重放已取消。");return;}if(dialog.ErrorText!=null)throw new IOException(dialog.ErrorText);result=dialog.Result;}
@@ -657,16 +742,29 @@ internal sealed partial class MainForm : LocalizedForm
     }
     private async void Undo(bool forward)
     {
-        var from=forward?redo:undo;var to=forward?undo:redo;if(state==null||from.Count==0||busy)return;StopPlaying();saveTimer.Stop();
-        var current=CaptureSnapshot();var snapshot=from.Pop().Restore();to.Push(new UndoEntry(current));
+        var from=forward?redo:undo;var to=forward?undo:redo;if(state==null||from.Count==0||busy||writingRoomInstance)return;StopPlaying();saveTimer.Stop();
+        var current=CaptureSnapshot();var snapshot=from.Peek().Restore();
         try
         {
             string previousMusic=state.music;var previousRoom=document==null?null:document.room;
-            state=snapshot.state;Motion.Normalize(state);if(document!=null)document.state=state;stage.State=state;timeline.State=state;
-            if(snapshot.room!=null&&document!=null)ReplaceRoom(snapshot.room);
+            RoomData restoredRoom=null;
+            if(previousRoom!=null&&snapshot.room!=null&&snapshot.roomUndoEpoch==roomUndoEpoch&&
+                (bridge==null?!SceneComparison.Same(previousRoom.instances,snapshot.room.instances):!EditableRoomRows(previousRoom).SequenceEqual(EditableRoomRows(snapshot.room)))){
+                if(bridge==null){restoredRoom=previousRoom.Snapshot();restoredRoom.instances=snapshot.room.instances;}
+                else{
+                    writingRoomInstance=true;
+                    Exception failure=null;
+                    try{restoredRoom=await bridge.Call<RoomData>("restore-room",new{name=previousRoom.name,revision=previousRoom.instanceRevision,instances=snapshot.room.instances});}
+                    catch(Exception error){failure=error;}
+                    finally{writingRoomInstance=false;}
+                    if(failure!=null)await RefreshRoomAfterConflict(failure);
+                }
+            }
+            from.Pop();to.Push(new UndoEntry(current));
+            state=snapshot.state;if(document!=null){state.nativePaths=document.nativePaths;document.state=state;}Motion.Normalize(state);stage.State=state;timeline.State=state;
+            if(restoredRoom!=null)ReplaceRoom(restoredRoom);
             RefreshBeatControls();SetFrame(frame);RestoreUndoSelection(current,snapshot);MarkChanged();
             if(document!=null&&previousMusic!=state.music)await LoadCurrentMusic();
-            if(bridge!=null&&snapshot.room!=null&&(previousRoom==null||!previousRoom.SameContent(snapshot.room))){ReplaceRoom(await bridge.Call<RoomData>("restore-room",snapshot.room));RestoreUndoSelection(current,snapshot);}
         }
         catch(Exception error){Error(error);}
     }

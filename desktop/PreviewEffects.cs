@@ -7,6 +7,10 @@ using System.Runtime.InteropServices;
 
 internal sealed class PreviewCache : IDisposable
 {
+    private RoomData artRoom;
+    private RoomPresentation art;
+    public RoomPresentation RoomArt(RoomData room)
+    {if(artRoom!=room){artRoom=room;art=new RoomPresentation(room);}return art;}
     public Bitmap roomLayer;public string roomKey;
     public BulletWorld bulletWorld;public EditorState expandedState;
     private EditorState inputScene;private RoomData inputRoom;
@@ -20,20 +24,25 @@ internal sealed class PreviewCache : IDisposable
         if(bulletWorld!=null){if(first==0)bulletWorld=null;else if(first>0)bulletWorld.Revise(expanded,first);}
         ClearEffects();expandedState=expanded;inputScene=expanded;inputRoom=room;
     }
-    private NativeFilmReader film;private string filmKey;
-    public NativeFilmInfo FilmInfo {get{return film==null?null:film.Info;}}
-    public HashSet<string> FilmNativeIds {get{return film==null?null:film.NativeIds;}}
+    private NativeFilmReader film;private string filmKey;private bool filmActive;
+    public NativeFilmInfo FilmInfo {get{return !filmActive||film==null?null:film.Info;}}
+    public HashSet<string> FilmNativeIds {get{return !filmActive||film==null?null:film.NativeIds;}}
     public Bitmap FilmFrame(string path,int frame,int fps)
     {
-        if(String.IsNullOrEmpty(path))return null;var file=new System.IO.FileInfo(path);if(!file.Exists)return null;
+        if(String.IsNullOrEmpty(path)||!System.IO.File.Exists(path)){
+            if(filmActive){filmActive=false;bulletWorld=null;ClearEffects();}
+            return null;
+        }
+        var file=new System.IO.FileInfo(path);
         string key=path+":"+file.LastWriteTimeUtc.Ticks+":"+file.Length;
         if(key!=filmKey){if(film!=null)film.Dispose();film=null;filmKey=null;film=new NativeFilmReader(path);filmKey=key;bulletWorld=null;ClearEffects();}
+        if(!filmActive){filmActive=true;bulletWorld=null;ClearEffects();}
         return film.Frame((int)Math.Round(frame*film.Info.fps/(double)Math.Max(1,fps)));
     }
     public readonly Dictionary<string,History> history=new Dictionary<string,History>();
     internal sealed class History : IDisposable {public Bitmap image;public int frame;public void Dispose(){if(image!=null)image.Dispose();image=null;}}
     public void ClearHistory(){ClearEffects();bulletWorld=null;expandedState=null;inputScene=null;inputRoom=null;}
-    public void Clear(){if(roomLayer!=null)roomLayer.Dispose();roomLayer=null;roomKey=null;if(film!=null)film.Dispose();film=null;filmKey=null;ClearHistory();}
+    public void Clear(){if(roomLayer!=null)roomLayer.Dispose();roomLayer=null;roomKey=null;if(film!=null)film.Dispose();film=null;filmKey=null;filmActive=false;ClearHistory();}
     public void Dispose(){Clear();}
 }
 

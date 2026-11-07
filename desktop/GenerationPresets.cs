@@ -16,7 +16,7 @@ internal static class GenerationPresets
         if(Formation(key)&&source.kind!="rod")throw new ArgumentException("整体扩散模板需要拖到整体对象上。");
         if(key==CopyGeneration.Key)return CopyGeneration.Apply(state,source);
 
-        bool formation=Formation(key);var shot=new Track{id=Guid.NewGuid().ToString("N"),kind="emitter",name="模板 · "+Name(key),lane=source.lane,start=0,end=0,x=0,y=0,angle=0,speed=3,scale=.75,count=formation||key==Keys[3]?1:12,spread=0,life=180,interval=25,advancedBullets=true,templateOnly=true,rotateSprite=false,emissionFacing=key==Keys[3]?"aim":"fan",randomPerInstance=true,sprite=source.kind=="rod"||source.kind=="emitter"?source.sprite:"sprBullet",color="#FFFFFF",deathEffect="shrink-fade",deathFrames=15};
+        bool formation=Formation(key);var shot=new Track{id=Guid.NewGuid().ToString("N"),kind="emitter",name="模板 · "+Name(key),lane=source.lane,start=0,end=0,x=0,y=0,angle=0,speed=3,scale=.75,count=formation||key==Keys[3]?1:12,spread=0,life=180,lifetimeMode="room",interval=25,advancedBullets=true,templateOnly=true,rotateSprite=false,emissionFacing=key==Keys[3]?"aim":"fan",randomPerInstance=true,sprite=source.kind=="rod"||source.kind=="emitter"?source.sprite:"sprBullet",color="#FFFFFF",deathEffect="shrink-fade",deathFrames=15};
         if(formation)shot.bulletActions.Add(new BulletAction{type="direction",start=0,duration=0,expression="point_direction(source.x,source.y,x,y)"});
         if(key==Keys[0])shot.bulletActions.Add(new BulletAction{type="speed",start=0,duration=0,expression="point_distance(x,y,source.x,source.y)*speed/100"});
         if(key==Keys[2]){shot.expressions["angle"]="random_range(0,360)";shot.randomScope="bullet";}

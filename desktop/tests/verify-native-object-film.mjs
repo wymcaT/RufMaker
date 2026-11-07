@@ -1,0 +1,50 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+import {spawn,execFileSync} from 'node:child_process';
+import {fileURLToPath} from 'node:url';
+import {createProject} from '../../studio/project-files.mjs';
+import {prepareNativeFilm,nativeFilmStatus} from '../../studio/native-film.mjs';
+
+const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'../..'),base=path.join(root,'build','native-object-preview');
+fs.mkdirSync(base,{recursive:true});
+const created=createProject(root,{name:'Native animation '+Date.now(),parent:base,preset:'floor',width:800,height:608,fps:50});
+process.env.RUFMAKER_ROOT=root;process.env.RUFMAKER_PROJECT=created.path;
+const p=await import('../../studio/project.mjs'),state=p.readState();
+const action='/*"/*\'/**//* YYD ACTION\nlib_id=1\naction_id=603\napplies_to=self\n*/\n';
+function object(name,code){
+  fs.writeFileSync(path.join(p.project,'objects',name+'.txt'),'sprite=\nvisible=1\nsolid=0\npersistent=0\ndepth=-100\nparent=\nmask=\n');
+  fs.writeFileSync(path.join(p.project,'objects',name+'.gml'),code);
+  for(const [file,line] of [['index.yyd',name],['tree.yyd','|'+name]])fs.appendFileSync(path.join(p.project,'objects',file),'\n'+line+'\n');
+}
+object('objMovieChild','#define Create_0\n'+action+'age=0;\n#define Step_0\n'+action+'age+=1;y-=1;if age>12 instance_destroy();\n#define Draw_0\n'+action+'draw_set_color(c_blue);draw_rectangle(x,y,x+8,y+8,0);\n');
+object('objMovieActor','#define Create_0\n'+action+'phase=irandom(3)+1;clock=0;\n#define Step_0\n'+action+'clock+=1;x+=phase;if clock=3 instance_create(x,y+20,objMovieChild);\n#define Draw_0\n'+action+'draw_set_color(c_red);draw_rectangle(x,y,x+8,y+8,0);\n');
+state.duration=24;state.tracks=[{id:'clip',name:'Native actor',kind:'native-instance',nativeObject:'objMovieActor',start:3,end:12,x:100,y:100,nativeKeepAlive:false,code:'',keyframes:[]}];
+p.syncToGame(state);
+const original=fs.readFileSync(path.join(p.project,'objects','objMovieActor.gml'),'utf8');
+const status=nativeFilmStatus(p.project,state);
+state.tracks.push({id:'overlay',name:'Live overlay',kind:'object',sprite:'sprBullet',start:0,end:24,x:700,y:500,keyframes:[]});
+p.syncToGame(state);
+assert.equal(nativeFilmStatus(p.project,state).sourceSignature,status.sourceSignature,'A RufMaker overlay edit invalidated the native cache');
+console.log('Isolated project: '+p.project);
+const job=await prepareNativeFilm({root,project:p.project,projectFile:p.projectFile,gameMaker:p.gameMaker,state});
+assert.deepEqual(job.nativeTrackIds,['clip']);assert.equal(job.sourceSignature,status.sourceSignature);
+const jobFile=path.join(path.dirname(p.project),'film-job.json'),progress=path.join(path.dirname(p.project),'film-progress.json');
+fs.writeFileSync(jobFile,JSON.stringify(job));
+await new Promise((resolve,reject)=>{
+  const child=spawn(path.join(base,'RufMaker.next.exe'),['--render-native-film',jobFile,progress],{windowsHide:true});
+  const timer=setTimeout(()=>{child.kill();reject(Error('Recording timed out; '+progress));},60000);
+  child.on('error',error=>{clearTimeout(timer);reject(error);});
+  child.on('close',code=>{clearTimeout(timer);code===0?resolve():reject(Error('Recording failed; '+progress));});
+});
+assert.equal(fs.readFileSync(path.join(p.project,'objects','objMovieActor.gml'),'utf8'),original,'Original native code was modified by recording');
+const preview=path.join(path.dirname(p.project),'preview.json'),report=path.join(path.dirname(p.project),'samples.json');
+fs.writeFileSync(preview,JSON.stringify({project:p.project,state,room:p.roomInfo(state.room)}));
+execFileSync(path.join(root,'build','native-integration','desktop','NativeIntegration.tests.exe'),['--native-film-probe',preview,job.output,report],{windowsHide:true});
+const samples=JSON.parse(fs.readFileSync(report,'utf8'));
+assert.equal(samples[0].red,0);assert(samples[1].red>20);assert(samples[2].left>samples[1].left);
+assert(samples[2].blue>20,'The native actor did not create its child object');
+assert.equal(samples[3].red,0,'The native actor outlived its timeline clip');
+assert.equal(nativeFilmStatus(p.project,state).sourceSignature,status.sourceSignature);
+state.tracks[0].x+=10;assert.notEqual(nativeFilmStatus(p.project,state).sourceSignature,status.sourceSignature);
+console.log('PASS: native Create/Step/Draw, random initialization, child creation, clip end, cached seek, live overlay, original source preservation and cache invalidation.');

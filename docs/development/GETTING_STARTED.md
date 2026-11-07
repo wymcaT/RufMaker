@@ -75,6 +75,8 @@ pwsh -NoProfile -File desktop/Test-EditorPerformance.ps1
 
 `Test-EditorPerformance.ps1` 检查属性表控件复用、重绑后的编辑/撤销、历史深复制与去重、保存后的房间比较，并记录合成场景的编辑/撤销耗时。`-ProfileOnly -Report NAME` 可单独记录数据，输出在 `build/editor-performance-check/`；绝对耗时不作为测试断言。此测试不测真实游戏 FPS。
 
+`Test-UiSimplification.ps1` 检查物件/参数/关键帧右键上下文、低频配置折叠、模式依赖字段及已有键/公式的可达性。MainForm.RelevantParameter只过滤属性面板，不修改Motion.Fields、工程数据或导出；增添依赖显示规则时要保留已有键/公式。菜单和顶栏共用FillAddMenu，关键帧操作共用SelectedKeyContext。说明见[菜单与属性分类](../inspector-simplification.md)，截图与日志在build/ui-simplification-check。
+
 `Test-BulletSystem.ps1` 输出 `build/bullet-system-check/scene.json`、测试 EXE 和截图。数值导出接口属于这个测试 EXE：
 
 ```powershell

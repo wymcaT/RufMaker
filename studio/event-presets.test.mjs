@@ -12,7 +12,7 @@ test('all event scripts have balanced blocks; clear and reset cover templates, n
   const s=scene([track('e','emitter',{start:0,end:90,flightMode:'aim',bulletActions:[{type:'speed',start:20,duration:20,from:6,to:6}]}),track('f','rod',{start:0,end:90}),track('template','rod',{templateOnly:true,start:0,end:30}),...eventKeys.map((key,i)=>track('event'+i,'control',{start:i*10,end:i*10,eventPreset:key,eventNativeObjects:'objNativeBullet'}))]);
   s.tracks[0].spawnActions.push({type:'spawn',templateId:'template'});const normalized=scene(s.tracks);const scripts=[...bulletSystemScripts(normalized),...templateScripts(normalized)];
   for(const [name,body] of scripts){const code=body.replace(/'[^']*'|"[^"]*"/g,'');let balance=0;for(const c of code){if(c==='{')balance++;if(c==='}')balance--;assert.ok(balance>=0,name+' closes too early');}assert.equal(balance,0,name+' misses a closing block');}
-  const map=new Map(scripts);assert.match(map.get('rf_event_prepare'),/with\(objNativeBullet\)/);assert.equal((map.get('rf_event_prepare').match(/with\(objNativeBullet\)/g)||[]).length,4,'group events must not accidentally execute stale native-object settings');assert.match(map.get('rf_event_prepare'),/rf_template_hide/);assert.match(map.get('rf_template_instance_step'),/rf_event_template/);assert.match(map.get('rf_pattern_tick'),/!rf_motion_reset && rf_age/);assert.match(map.get('rf_pattern_tick'),/rf_stop_speed=1/);assert.match(map.get('rf_pattern_tick'),/if !rf_stop_speed rf_speed\+=rf_accel/);
+  const map=new Map(scripts);assert.match(map.get('rf_event_prepare'),/with\(objNativeBullet\)/);assert.equal((map.get('rf_event_prepare').match(/with\(objNativeBullet\)/g)||[]).length,5,'group events must not accidentally execute stale native-object settings');assert.match(map.get('rf_event_prepare'),/rf_template_hide/);assert.match(map.get('rf_template_instance_step'),/rf_event_template/);assert.match(map.get('rf_pattern_tick'),/!rf_motion_reset && rf_age/);assert.match(map.get('rf_pattern_tick'),/rf_stop_speed=1/);assert.match(map.get('rf_pattern_tick'),/if !rf_stop_speed \{rf_speed\+=rf_accel/);
 });
 test('event reset units follow nested clip time scaling without rotating direction units',()=>{
   const e=track('reset','control',{eventPreset:'reset-motion',controlValue:6,controlFrom:90,eventAcceleration:2,eventTurn:4,eventLife:100});const s=scene([track('clip','pattern',{start:50,end:100,timeScale:2,repeatCount:1,children:[e]})]);const t=expandPatterns(s).tracks.find(t=>t.eventPreset);assert.equal(t.controlValue,12);assert.equal(t.controlFrom,90);assert.equal(t.eventAcceleration,8);assert.equal(t.eventTurn,8);assert.equal(t.eventLife,50);
@@ -45,5 +45,32 @@ test('group-set event supports complete motion and life reset and disintegrates 
   assert.match(scripts.get('rf_pattern_tick'),/rf_spin=-2/);
   assert.match(scripts.get('rf_pattern_tick'),/rf_life=90/);
   const tick=scripts.get('rf_pattern_tick');
-  assert.match(tick,/if rf_scope_group=0 \{rf_stop_speed=0;rf_speed=7;rf_dir=120;rf_accel=0\.3;rf_spin=-2;rf_motion_reset=1;if rf_cmd\[0\]=0 \{rf_cmd\[0\]=1;rf_birth=rf_world;rf_age=0;rf_life=90;\}\}/);
+  assert.match(tick,/if rf_scope_group=0 \{rf_stop_speed=0;rf_orbiting=0;rf_speed=7;rf_dir=120;rf_accel=0\.3;rf_friction=0;rf_spin=-2;rf_motion_reset=1;if rf_cmd\[0\]=0 \{rf_cmd\[0\]=1;rf_birth=rf_world;rf_age=0;rf_life=90;\}\}/);
+});
+test('player-move and player-set events generate player actions in rf_event_prepare and support friction',()=>{
+  const move=track('mv','control',{start:30,end:30,eventPreset:'player-move',playerTargetX:250,playerTargetY:450,playerKeepMotion:false,playerResetJump:true});
+  const set=track('ps','control',{start:35,end:35,eventPreset:'player-set',playerInfJump:true,playerInvincible:true,playerCanMove:false});
+  const resetFriction=track('rf','control',{start:40,end:40,eventPreset:'reset-motion',eventFriction:0.15});
+  const s=scene([move,set,resetFriction]);
+  const scripts=new Map(bulletSystemScripts(s));
+  const prep=scripts.get('rf_event_prepare');
+  assert.ok(prep);
+  assert.match(prep,/with\(player\)\{x=250;y=450;hspeed=0;vspeed=0;speed=0;gravity=0;curJumps=1;/);
+  assert.match(prep,/global\.infJump=1;global\.godmode=1;global\.frozen2=1;global\.frozen=1;/);
+  assert.match(prep,/with\(player\)\{infJump=1;godmode=1;if variable_local_exists\("wudi"\) wudi=1;hspeed=0;vspeed=0;speed=0;gravity=0;\}/);
+  const tick=scripts.get('rf_pattern_tick');
+  assert.match(tick,/if rf_friction>0 \{if rf_speed>rf_friction rf_speed-=rf_friction;else if rf_speed<-rf_friction rf_speed\+=rf_friction;else rf_speed=0;\}/);
+  assert.match(tick,/rf_friction=0\.15/);
+});
+test('orbit-bullets and group-orbit events generate orbit initialization and kinematics in rf_pattern_tick',()=>{
+  const g={id:'grp2',name:'Group 2',color:'#00ff00'};
+  const orbitAll=track('oa','control',{start:20,end:20,eventPreset:'orbit-bullets',eventCenterX:400,eventCenterY:304,eventOrbitSpeed:2.5,eventRadiusMode:'keep'});
+  const orbitGrp=track('og','control',{start:50,end:50,eventPreset:'group-orbit',eventGroup:'grp2',eventCenterX:300,eventCenterY:200,eventOrbitSpeed:-1.5,eventRadiusMode:'fixed',eventRadius:150,eventResetLife:true,eventLife:80});
+  const s=scene([orbitAll,orbitGrp],[g]);
+  const scripts=new Map(bulletSystemScripts(s));
+  const tick=scripts.get('rf_pattern_tick');
+  assert.ok(tick);
+  assert.match(tick,/rf_orbiting=1;rf_orbit_cx=400;rf_orbit_cy=304;rf_orbit_spd=2\.5;rf_orbit_r=point_distance\(rf_orbit_cx,rf_orbit_cy,x,y\);rf_orbit_a=point_direction\(rf_orbit_cx,rf_orbit_cy,x,y\);/);
+  assert.match(tick,/if rf_scope_group=0 \{rf_orbiting=1;rf_orbit_cx=300;rf_orbit_cy=200;rf_orbit_spd=-1\.5;rf_orbit_r=150;rf_orbit_a=point_direction\(rf_orbit_cx,rf_orbit_cy,x,y\);/);
+  assert.match(tick,/rf_orbit_a\+=rf_orbit_spd;x=rf_orbit_cx\+lengthdir_x\(rf_orbit_r,rf_orbit_a\);y=rf_orbit_cy\+lengthdir_y\(rf_orbit_r,rf_orbit_a\);rf_dir\+=rf_orbit_spd;/);
 });

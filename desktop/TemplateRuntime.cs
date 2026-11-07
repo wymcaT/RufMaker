@@ -62,11 +62,13 @@ internal sealed class TemplateRuntime
             var points=Motion.RodPoints(t,frame);
             var p=Motion.At(t,frame);
             var player=BulletSystem.PlayerAt(world.State,frame);
+            double baseSpeed=Motion.Value(t,"speed",frame);double maxDist=0;if(t.releaseKeepShape&&t.releaseDirection=="radial"){for(int j=0;j<points.Length;j++){double dist=Math.Sqrt((points[j].X-p.x)*(points[j].X-p.x)+(points[j].Y-p.y)*(points[j].Y-p.y));if(dist>maxDist)maxDist=dist;}}
             for(int i=0;i<points.Length;i++)
             {
                 if(!Visible(t,i))continue;
                 double d=t.releaseDirection=="aim"?ExpressionContext.Direction(points[i].X,points[i].Y,player.x,player.y):t.releaseDirection=="fixed"?p.angle:ExpressionContext.Direction(p.x,p.y,points[i].X,points[i].Y)+(t.releaseDirection=="tangent"?90:0);
-                var b=world.Spawn(t,frame,i,points.Length,0,points[i],d,Motion.Value(t,"speed",frame),0,false,0,null,new PointF((float)p.x,(float)p.y));
+                double spd=baseSpeed;if(t.releaseKeepShape&&t.releaseDirection=="radial"&&maxDist>.0001){double dist=Math.Sqrt((points[i].X-p.x)*(points[i].X-p.x)+(points[i].Y-p.y)*(points[i].Y-p.y));spd=baseSpeed*(dist/maxDist);}
+                var b=world.Spawn(t,frame,i,points.Length,0,points[i],d,spd,0,false,0,null,new PointF((float)p.x,(float)p.y));
                 if(t.rainbow&&Rainbow.Mode(t)!="sequence")b.sequence=Rainbow.RodSequence(t,i,points.Length,frame,points[i],p);
                 b.motionReset=e.eventDisableMotion;
             }
@@ -208,12 +210,13 @@ internal sealed class TemplateRuntime
             var shape=ShapeAt(t,time,frame);var pose=shape.pose;var points=shape.points;
             if(t.kind=="rod"&&t.releaseFrame>=0&&time>=t.releaseFrame)
             {
-                if(time==t.releaseFrame)for(int i=0;i<points.Length;i++)if(Visible(t,i,instance.serial))
+                if(time==t.releaseFrame){double baseSpeed=Motion.Value(t,"speed",time);double maxDist=0;if(t.releaseKeepShape&&t.releaseDirection=="radial"){for(int j=0;j<points.Length;j++){double dist=Math.Sqrt((points[j].X-pose.x)*(points[j].X-pose.x)+(points[j].Y-pose.y)*(points[j].Y-pose.y));if(dist>maxDist)maxDist=dist;}}for(int i=0;i<points.Length;i++)if(Visible(t,i,instance.serial))
                 {
                     var p=instance.Point(points[i].X,points[i].Y);if(instance.OmitPoint(points[i].X,points[i].Y,p))continue;var center=instance.Point(pose.x,pose.y);
                     var player=BulletSystem.PlayerAt(world.State,frame);double direction=t.releaseDirection=="fixed"?pose.angle+instance.rotation:t.releaseDirection=="aim"?ExpressionContext.Direction(p.X,p.Y,player.x,player.y):ExpressionContext.Direction(pose.x,pose.y,points[i].X,points[i].Y)+instance.rotation+(t.releaseDirection=="tangent"?90:0);
-                    var b=world.Spawn(t,frame,i,points.Length,0,p,direction,Motion.Value(t,"speed",time),instance.generation,false,instance.shift,instance,center);if(t.rainbow&&Rainbow.Mode(t)!="sequence")b.sequence=Rainbow.RodSequence(t,i,points.Length,time,points[i],pose,instance.rotation);world.TickNew(b,frame);
-                }continue;
+                    double spd=baseSpeed;if(t.releaseKeepShape&&t.releaseDirection=="radial"&&maxDist>.0001){double dist=Math.Sqrt((points[i].X-pose.x)*(points[i].X-pose.x)+(points[i].Y-pose.y)*(points[i].Y-pose.y));spd=baseSpeed*(dist/maxDist);}
+                    var b=world.Spawn(t,frame,i,points.Length,0,p,direction,spd,instance.generation,false,instance.shift,instance,center);if(t.rainbow&&Rainbow.Mode(t)!="sequence")b.sequence=Rainbow.RodSequence(t,i,points.Length,time,points[i],pose,instance.rotation);world.TickNew(b,frame);
+                }}continue;
             }
             for(int i=0;i<points.Length;i++)
             {

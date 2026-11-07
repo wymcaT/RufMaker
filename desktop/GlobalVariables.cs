@@ -15,7 +15,7 @@ internal static class GlobalVariables
         state.variableTimeline=flattened.tracks.Any(t=>t.kind=="variable")?new GlobalVariableTimeline(flattened):null;
     }
     public static IDictionary<string,double> At(EditorState state,double frame)
-    {if(state==null)return null;if(state.globalSource!=null)return At(state.globalSource,frame);return state.variableTimeline==null?null:state.variableTimeline.At(Math.Max(0,(int)Math.Floor(frame)));}
+    {if(state==null)return null;if(state.globalSource!=null)return At(state.globalSource,frame);if(state.variableTimeline==null&&Declarations(state.tracks).Any()){try{Attach(state);}catch{return null;}}return state.variableTimeline==null?null:state.variableTimeline.At(Math.Max(0,(int)Math.Floor(frame)));}
     public static IEnumerable<string> References(Track t)
     {
         var texts=t.expressions.Values.Concat(t.keyframes.Select(k=>k.expression)).Concat(new[]{t.variableExpression,t.flightExpression,t.controlExpression,t.colorExpression}).Concat(TemplateRuntime.Actions(t).SelectMany(a=>new[]{a.expression,a.spawnColorExpression}));
@@ -86,7 +86,7 @@ internal sealed partial class MainForm
         string[] formulas={"random(360)","random_range(1,5)","choose(0,90,180,270)","floor(random(10))","point_distance(0,0,player.x,player.y)"};
         bag.Add("公式示例","全局变量",typeof(string),()=>"选择公式模板…",value=>{if(!formulas.Contains((string)value))return;PushUndo();t.variableExpression=(string)value;MarkChanged();},new[]{"选择公式模板…"}.Concat(formulas).ToArray(),localizeChoices:false);
         bag.Add("引用方式","全局变量",typeof(string),()=>"global."+t.variableName,null);
-        bag.Add("当前游标值","全局变量",typeof(double),()=>GlobalVariables.At(state,frame)[t.variableName],null);
+        bag.Add("当前游标值","全局变量",typeof(double),()=>{if(state==null||t==null)return 0.0;var dict=GlobalVariables.At(state,frame);double val;if(dict!=null&&!String.IsNullOrEmpty(t.variableName)&&dict.TryGetValue(t.variableName,out val))return val;return t.variableDefault;},null);
         bag.Add("说明","全局变量",typeof(string),()=>"开始帧触发赋值；重复时在结束帧内循环。结束后保留结果。同帧按轨道顺序赋值。",null);
     }
     private void RenameGlobal(string oldName,string newName)

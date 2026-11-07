@@ -18,10 +18,10 @@ export function preparePlainRoom(root,project,state,write,append,io=fs) {
       append(path.join(project,'objects','index.yyd'),name);append(path.join(project,'objects','tree.yyd'),`\t|${name}`);
     }
   }
-  const room=path.join(project,'rooms',state.room),instances=path.join(room,'instances.txt');
-  write(instances,io.readFileSync(instances,'utf8').split(/\r?\n/).filter(Boolean).filter(line=>!/^obj(Background|Ad),/.test(line)).map(line=>line.replace(/^block,/, 'objRufBlock,').replace(/^platform,/,'objRufPlatform,')).join('\n')+'\n');
   state.plainRooms??=[];
   if(!state.plainRooms.includes(state.room)){
+    const room=path.join(project,'rooms',state.room),instances=path.join(room,'instances.txt');
+    write(instances,io.readFileSync(instances,'utf8').split(/\r?\n/).filter(Boolean).filter(line=>!/^obj(Background|Ad),/.test(line)).map(line=>line.replace(/^block,/, 'objRufBlock,').replace(/^platform,/,'objRufPlatform,')).join('\n')+'\n');
     const settings=path.join(room,'room.txt');
     write(settings,io.readFileSync(settings,'utf8').replace(/^bg_color=.*$/m,'bg_color=2105376').replace(/^clear_screen=.*$/m,'clear_screen=1').replace(/^bg_visible\d+=.*$/gm,line=>line.split('=')[0]+'=0').replace(/^bg_source\d+=.*$/gm,line=>line.split('=')[0]+'='));
     state.plainRooms.push(state.room);

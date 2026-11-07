@@ -15,6 +15,8 @@ export function normalizeState(s,globalSource=null) {
   }
   for(const t of s.tracks)Object.assign(t,Object.fromEntries(Object.entries({motion:'keyframes',flightMode:'straight',flightExpression:'point_direction(x,y,player.x,player.y)',turnRate:3,homingDelay:0,shape:'rod',rodMode:'center',easePower:3,easePeriod:.3,velocityX:0,velocityY:0,accelerationX:0,accelerationY:0,angularSpeed:0,orbitRadius:100,orbitSpeed:1,orbitPhase:0,rolling:false,fxSamples:6,fxFrequency:1,cameraMirror:false,fxSlices:11,fxStutter:2,...defaults}).filter(([key])=>t[key]===undefined)));
   for(const t of s.tracks) {
+    if(t.depth==null)t.depth=null;
+    else if(!Number.isInteger(t.depth)||t.depth< -2147483648||t.depth>2147483647)throw Error('绘制深度必须是有效的整数。');
     if(motionBound(t)&&!motionLegacyKeysMatch(t,ease))t.motionPreset=null;
     if(motionBound(t)){t.keyframes=t.keyframes.filter(k=>k.property!=='x'&&k.property!=='y');if(t.expressions){delete t.expressions.x;delete t.expressions.y;}t.motion='keyframes';t.velocityX=t.velocityY=t.accelerationX=t.accelerationY=0;}
     if(cameraBound(t)){const d=t.cameraPreset;t.cameraStyle=d.name;t.x=t.cameraOriginX=d.centerX;t.y=t.cameraOriginY=d.centerY;t.angle=t.cameraOriginAngle=d.baseAngle;t.cameraZoom=t.cameraOriginZoom=d.baseZoom;t.keyframes=t.keyframes.filter(k=>!cameraPresetFields.includes(k.property));if(t.expressions)for(const field of cameraPresetFields)delete t.expressions[field];}
@@ -84,6 +86,10 @@ export function stateCode(t,time,context={}) {
   if(t.motion==='velocity')out.push(`rf_x+=${parameter(t,'velocityX')}*${dt}+${parameter(t,'accelerationX')}*sqr(${dt})/2;rf_y+=${parameter(t,'velocityY')}*${dt}+${parameter(t,'accelerationY')}*sqr(${dt})/2;`);
   if(t.motion==='orbit')out.push(`rf_x+=lengthdir_x(rf_orbitRadius,rf_orbitPhase+${parameter(t,'orbitSpeed',1)}*${dt});rf_y+=lengthdir_y(rf_orbitRadius,rf_orbitPhase+${parameter(t,'orbitSpeed',1)}*${dt});`);
   if(t.motion==='parabola')out.push(`rf_u=max(0,min(1,rf_pathProgress));rf_x+=sqr(1-rf_u)*rf_pathStartX+2*(1-rf_u)*rf_u*(2*rf_pathPeakX-(rf_pathStartX+rf_pathEndX)/2)+sqr(rf_u)*rf_pathEndX;rf_y+=sqr(1-rf_u)*rf_pathStartY+2*(1-rf_u)*rf_u*(2*rf_pathPeakY-(rf_pathStartY+rf_pathEndY)/2)+sqr(rf_u)*rf_pathEndY;`);
+  if(t.kind==='emitter'&&t.nativePath){
+    const frames=num(t.nativePathFrames,120),progress=t.nativePathLoop?`(${dt} mod ${frames})/${frames}`:`min(${dt}/${frames},1)`;
+    out.push(`rf_u=${progress};rf_x+=path_get_x(${t.nativePath},rf_u)-path_get_x(${t.nativePath},0);rf_y+=path_get_y(${t.nativePath},rf_u)-path_get_y(${t.nativePath},0);`);
+  }
   positioned=true;for(const field of fields.filter(f=>!geometry.includes(f)))out.push(...blocks.get(field));
   out.push(`rf_angle+=${parameter(t,'angularSpeed')}*${dt};`,groupTransformCode(t,time));return out.join('\n');
 }

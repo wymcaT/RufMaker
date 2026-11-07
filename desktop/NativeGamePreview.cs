@@ -5,6 +5,9 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 
+internal sealed class NativeFilmStatus
+{public string sourceSignature="",output="";}
+
 internal static class NativeProgressLayout
 {
     public static void Build(Form form,Label label,ProgressBar progress,Button cancel)
@@ -57,7 +60,7 @@ internal sealed class NativeFilmProgressForm:LocalizedForm
     public NativeFilmInfo Result;public string ErrorText;
     public NativeFilmProgressForm(NativeFilmJob job)
     {
-        Text="生成原生底片";FormBorderStyle=FormBorderStyle.FixedDialog;MaximizeBox=false;MinimizeBox=false;StartPosition=FormStartPosition.CenterParent;BackColor=Theme.Panel;ForeColor=Theme.Text;
+        Text=job.nativeTrackIds.Length>0?"生成原生对象动态预览":"生成原生底片";FormBorderStyle=FormBorderStyle.FixedDialog;MaximizeBox=false;MinimizeBox=false;StartPosition=FormStartPosition.CenterParent;BackColor=Theme.Panel;ForeColor=Theme.Text;
         var label=new Label{Text="正在完整运行原生耐久，player 固定在 (400,304)…"};
         var bar=new ProgressBar{Dock=DockStyle.Top,Height=25,Minimum=0,Maximum=job.frameCount};
         var cancel=new Button{Text="取消"};cancel.Click+=(s,e)=>{cancellation.Cancel();cancel.Enabled=false;label.Text="正在停止生成，已有底片会保留…";};NativeProgressLayout.Build(this,label,bar,cancel);
@@ -73,32 +76,77 @@ internal sealed partial class MainForm
 {
     private readonly CheckBox nativeRender=new CheckBox{Text="原生底片",AutoSize=true,Enabled=false,ForeColor=Theme.Muted,Margin=new Padding(8,9,5,0)};
     private readonly Button regenerateNativeFilm=new Button{Text="重新生成原生底片",AutoSize=true,Enabled=false,FlatStyle=FlatStyle.Flat,BackColor=Theme.Raised,ForeColor=Theme.Text,UseVisualStyleBackColor=false,TabStop=false,Padding=new Padding(8,3,8,3),Margin=new Padding(8,3,5,0)};
-    private NativeEvent selectedNativeEvent;private NativeFilmInfo nativeFilmInfo;private bool nativeFilmGenerating;
-    private string NativeFilmPath {get{return document==null?null:Path.Combine(document.project,"cache","native-film","base.rufvideo");}}
-    private void ToggleNativeFilm(){stage.NativeFilmPath=nativeRender.Checked&&File.Exists(NativeFilmPath)?NativeFilmPath:null;stage.NativeFilmInfo=nativeFilmInfo;stage.NativeFilmIds=new System.Collections.Generic.HashSet<string>(nativeFilmInfo==null?new string[0]:nativeFilmInfo.nativeIds??new string[0]);stage.SceneChanged();}
+    private NativeEvent selectedNativeEvent;private NativeFilmInfo nativeFilmInfo,baseNativeFilmInfo;private bool nativeFilmGenerating,nativeObjectFilmStale;
+    private string nativePreviewKey="";
+    private bool HasNativeObjectClips {get{return state!=null&&NativeClip.HasClips(state.tracks);}}
+    private string BaseNativeFilmPath {get{return document==null?null:Path.Combine(document.project,"cache","native-film","base.rufvideo");}}
+    private string NativeFilmPath {get{return document==null?null:Path.Combine(document.project,"cache","native-film",HasNativeObjectClips?"objects.rufvideo":"base.rufvideo");}}
+    private void ToggleNativeFilm()
+    {
+        string path=NativeFilmPath;var info=nativeFilmInfo;
+        if(HasNativeObjectClips&&(nativeObjectFilmStale||!File.Exists(path))){path=BaseNativeFilmPath;info=baseNativeFilmInfo;}
+        stage.NativeFilmPath=nativeRender.Checked&&path!=null&&File.Exists(path)?path:null;
+        stage.NativeFilmInfo=info;
+        stage.NativeFilmIds=new System.Collections.Generic.HashSet<string>(info==null?new string[0]:info.nativeIds??new string[0]);stage.SceneChanged();
+    }
+    private void NativeObjectPreviewChanged(bool resources=false)
+    {
+        string key=NativeClip.PreviewKey(state);
+        if(!resources&&key==nativePreviewKey)return;
+        nativePreviewKey=key;nativeObjectFilmStale=true;
+        if(HasNativeObjectClips)nativeRender.Enabled=true;
+        ToggleNativeFilm();RefreshShell();
+    }
     private async Task EnsureNativeFilm()
     {
         // Enabled includes the parent's temporary disabled state during SwitchProject.
         // Availability comes from project data, never from a control's effective state.
-        bool available=state!=null&&state.nativeProject!=null;nativeRender.Enabled=available;regenerateNativeFilm.Enabled=available&&!nativeFilmGenerating;nativeFilmInfo=null;
+        bool available=state!=null&&(state.nativeProject!=null||HasNativeObjectClips||File.Exists(NativeFilmPath));nativeRender.Enabled=available;regenerateNativeFilm.Enabled=available&&!nativeFilmGenerating;nativeFilmInfo=null;baseNativeFilmInfo=null;nativeObjectFilmStale=false;nativePreviewKey=NativeClip.PreviewKey(state);
         if(!available){stage.NativeFilmPath=null;return;}
+        if(HasNativeObjectClips&&File.Exists(BaseNativeFilmPath)){
+            try{using(var film=new NativeFilmReader(BaseNativeFilmPath))baseNativeFilmInfo=film.Info;}
+            catch(IOException){SetStatus("原生底片缓存无法读取，可重新生成。");}
+        }
         if(File.Exists(NativeFilmPath)){
-            try{using(var film=new NativeFilmReader(NativeFilmPath))nativeFilmInfo=film.Info;nativeRender.Checked=true;ToggleNativeFilm();SetStatus(nativeFilmInfo.views==null?"旧底片未记录原生视野；请点击“重新生成原生底片”一次，以同步物件和拉镜坐标。":"原生底片已载入 · 物件跟随原生视野，RufMaker 拉镜与特效实时叠加。");}
+            try{
+                using(var film=new NativeFilmReader(NativeFilmPath))nativeFilmInfo=film.Info;
+                if(!HasNativeObjectClips)baseNativeFilmInfo=nativeFilmInfo;
+                if(HasNativeObjectClips){var status=await bridge.Call<NativeFilmStatus>("native-film-status",new{});nativeObjectFilmStale=nativeFilmInfo.sourceSignature!=status.sourceSignature;}
+                nativeRender.Checked=true;ToggleNativeFilm();RefreshShell();SetStatus(nativeObjectFilmStale?"原生对象预览已过期，按空格重新生成。":nativeFilmInfo.views==null?"旧底片未记录原生视野；请点击“重新生成原生底片”一次，以同步物件和拉镜坐标。":"原生底片已载入 · 物件跟随原生视野，RufMaker 拉镜与特效实时叠加。");}
             catch(Exception error){nativeRender.Checked=false;Error(error);}return;
         }
+        if(HasNativeObjectClips){nativeFilmInfo=baseNativeFilmInfo;nativeObjectFilmStale=true;nativeRender.Checked=baseNativeFilmInfo!=null;ToggleNativeFilm();SetStatus("原生对象动态预览尚未生成，按空格生成，或在原生预览管理中手动生成。");return;}
         if(!EngineSetup.Find(root).Ready){nativeRender.Checked=false;SetStatus("尚未配置 GM8.2；可继续编辑，使用顶栏“引擎设置”完成配置后再试玩或导出。");return;}
         await GenerateNativeFilm();
     }
     private async Task GenerateNativeFilm()
     {
-        if(state==null||state.nativeProject==null||nativeFilmGenerating)return;if(!await EnsureEngine())return;bool wasBusy=busy;nativeFilmGenerating=true;StopPlaying();SetBusy(true);regenerateNativeFilm.Enabled=false;
+        if(state==null||nativeFilmGenerating)return;if(!await EnsureEngine())return;bool wasBusy=busy;nativeFilmGenerating=true;StopPlaying();SetBusy(true);regenerateNativeFilm.Enabled=false;
         try{
-            CommitInspectorEdits();if(!await SaveNow(false))return;SetStatus("正在编译原生底片录制副本…");var job=await bridge.Call<NativeFilmJob>("native-film-prepare",new{});
+            CommitInspectorEdits();if(!await SaveNow(false))return;string requestedKey=NativeClip.PreviewKey(state);SetStatus("正在编译原生底片录制副本…");var job=await bridge.Call<NativeFilmJob>("native-film-prepare",new{});
             using(var dialog=new NativeFilmProgressForm(job)){
-                var result=Language.ShowDialog(dialog,this);if(result==DialogResult.OK){nativeFilmInfo=dialog.Result;nativeRender.Checked=true;ToggleNativeFilm();ShowProperties();SetStatus("原生底片已保存 · "+nativeFilmInfo.frameCount+" 帧 · 后续打开直接使用缓存。");}
+                var result=Language.ShowDialog(dialog,this);if(result==DialogResult.OK){nativeFilmInfo=dialog.Result;if(!HasNativeObjectClips)baseNativeFilmInfo=nativeFilmInfo;nativePreviewKey=NativeClip.PreviewKey(state);nativeObjectFilmStale=requestedKey!=nativePreviewKey;nativeRender.Enabled=true;nativeRender.Checked=true;ToggleNativeFilm();ShowProperties();SetStatus(nativeObjectFilmStale?"原生对象已修改，按空格更新预览。":"原生底片已保存 · "+nativeFilmInfo.frameCount+" 帧 · 后续打开直接使用缓存。");}
                 else if(!String.IsNullOrEmpty(dialog.ErrorText))throw new IOException(dialog.ErrorText);else SetStatus("底片生成已取消，可稍后点击重新生成。");
             }
-        }catch(Exception error){Error(error);}finally{nativeFilmGenerating=false;regenerateNativeFilm.Enabled=state!=null&&state.nativeProject!=null;SetBusy(wasBusy);}
+        }catch(Exception error){Error(error);}finally{nativeFilmGenerating=false;regenerateNativeFilm.Enabled=state!=null;SetBusy(wasBusy);}
+    }
+    private async Task<bool> PrepareNativeObjectPlayback()
+    {
+        if(!HasNativeObjectClips)return true;
+        CommitInspectorEdits();if(dirty&&!await SaveNow(false))return false;
+        var status=await bridge.Call<NativeFilmStatus>("native-film-status",new{});
+        if(File.Exists(status.output)){
+            try{using(var film=new NativeFilmReader(status.output)){
+                if(film.Info.sourceSignature==status.sourceSignature){nativeFilmInfo=film.Info;nativeObjectFilmStale=false;nativeRender.Enabled=true;nativeRender.Checked=true;ToggleNativeFilm();return true;}
+            }}catch(InvalidDataException){}catch(IOException){}
+        }
+        nativeObjectFilmStale=true;
+        await GenerateNativeFilm();
+        if(nativeObjectFilmStale||nativeFilmInfo==null)return false;
+        var current=await bridge.Call<NativeFilmStatus>("native-film-status",new{});
+        nativeObjectFilmStale=nativeFilmInfo.sourceSignature!=current.sourceSignature;
+        if(nativeObjectFilmStale){ToggleNativeFilm();SetStatus("原生对象已修改，按空格更新预览。");}
+        return !nativeObjectFilmStale;
     }
     private void NativeProperties(NativeProperties bag)
     {
@@ -113,11 +161,15 @@ internal sealed partial class MainForm
     private async Task EditNativeEvent()
     {
         if(state.nativeProject==null||selectedNativeEvent==null)return;var item=selectedNativeEvent;
+        if(item.kind=="timeline"){
+            string section=item.expression.Substring(item.expression.LastIndexOf(' ')+1);
+            await OpenGmAsset("timelines",Path.GetFileNameWithoutExtension(item.file),section);return;
+        }
         try{StopPlaying();CommitInspectorEdits();if(!await SaveNow(false))return;bool saved=false;var source=await bridge.Call<SourceData>("native-event-read",new{ @event=item });using(var editor=new CodeForm("第 "+item.frame+" 帧 · "+item.expression+" · "+item.file,source.content,async text=>{await bridge.Call<object>("native-event-save",new{ @event=item,content=text,hash=source.hash });saved=true;}))Language.ShowDialog(editor,this);if(saved){await LoadProject();SetStatus("原生代码已保存，点击“重新生成原生底片”更新画面。");}}catch(Exception error){Error(error);}
     }
     private async Task EditNativeSource()
     {
         if(state.nativeProject==null)return;string file=selectedNativeEvent==null?"objects/"+state.nativeProject.controller+".gml":selectedNativeEvent.file;if(String.IsNullOrEmpty(state.nativeProject.controller)&&selectedNativeEvent==null){SetStatus("未识别控制对象，请从左栏资源打开对应 GML。");return;}
-        try{bool saved=false;var source=await bridge.Call<SourceData>("native-source-read",new{path=file});using(var editor=new CodeForm(file,source.content,async text=>{await bridge.Call<object>("native-source-save",new{path=file,content=text});await SaveNow(false);saved=true;},selectedNativeEvent==null?1:selectedNativeEvent.line))Language.ShowDialog(editor,this);if(saved){await LoadProject();SetStatus("原生代码已保存，点击“重新生成原生底片”更新画面。");}}catch(Exception error){Error(error);}
+        try{bool saved=false;var source=await bridge.Call<SourceData>("native-source-read",new{path=file});using(var editor=new CodeForm(file,source.content,async text=>{var result=await bridge.Call<SourceData>("native-source-save",new{path=file,content=text,hash=source.hash});source.hash=result.hash;await SaveNow(false);saved=true;},selectedNativeEvent==null?1:selectedNativeEvent.line))Language.ShowDialog(editor,this);if(saved){await LoadProject();SetStatus("原生代码已保存，点击“重新生成原生底片”更新画面。");}}catch(Exception error){Error(error);}
     }
 }

@@ -15,8 +15,9 @@ internal static class ObjectStatistics
     public static ObjectStatisticsSnapshot Capture(EditorState original,RoomData room,int frame,PreviewCache cache)
     {
         var state=cache.expandedState??original;var result=new ObjectStatisticsSnapshot{frame=frame};bool imported=state.nativeProject!=null;
-        var native=imported&&cache.FilmInfo!=null?cache.FilmInfo.Counts((int)Math.Round(frame*cache.FilmInfo.fps/(double)state.fps)):null;
-        if(imported){result.nativeMissing=native==null;if(native!=null)foreach(var row in native)result.Type(row.Key,row.Value);}
+        var native=cache.FilmInfo!=null?cache.FilmInfo.Counts((int)Math.Round(frame*cache.FilmInfo.fps/(double)state.fps)):null;
+        if(native!=null){foreach(var row in native)if(row.Key!="objRufController")result.Type(row.Key,row.Value);}
+        else if(imported)result.nativeMissing=true;
         else {result.roomEstimate=true;foreach(var instance in room.instances){if(instance.name.StartsWith("objRuf",StringComparison.Ordinal))continue;result.Type(instance.name=="playerStart"?"player":instance.name,1);}}
         bool layers=!imported||state.tracks.Any(t=>t.kind!="native");if(layers){result.Type("objRufController",1);result.Type("objRufTrails",1);if(!imported&&state.tracks.Any(t=>t.enabled&&(t.kind=="effect"||t.kind=="camera"))){result.Type("objRufFxBegin",1);result.Type("objRufFxEnd",1);}}
         var world=cache.bulletWorld;

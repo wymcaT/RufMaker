@@ -1,4 +1,4 @@
-import fs from 'node:fs';import path from 'node:path';import test from 'node:test';import assert from 'node:assert/strict';import {retryParticleCleanup,guardPendingDeath} from './retry-particles.mjs';import {plainCheckpointScripts,checkpointScripts} from './native-checkpoint.mjs';
+import fs from 'node:fs';import path from 'node:path';import test from 'node:test';import assert from 'node:assert/strict';import {retryParticleCleanup,guardPendingDeath,guardPlainDeath} from './retry-particles.mjs';import {plainCheckpointScripts,checkpointScripts} from './native-checkpoint.mjs';
 test('retry discovers only death-emitter-owned particle systems and types',()=>{
   const base=path.resolve('build/retry-particles-check');fs.mkdirSync(base,{recursive:true});const project=fs.mkdtempSync(path.join(base,'unit-')),objects=path.join(project,'objects');fs.mkdirSync(objects);
   fs.writeFileSync(path.join(objects,'bloodEmitter.gml'),'Sname=part_system_create();particle1=part_type_create(); // ignored=part_system_create();\n');fs.writeFileSync(path.join(objects,'decoration.gml'),'scenery=part_system_create();');fs.writeFileSync(path.join(objects,'obj_bloodEmitter.gml'),'system_id=part_system_create();');
@@ -8,4 +8,13 @@ test('retry discovers only death-emitter-owned particle systems and types',()=>{
 test('pending retry blocks a second death without changing normal death code',()=>{
   const original='instance_create(player.x,player.y,bloodEmitter);';for(const native of [false,true]){const patched=guardPendingDeath(original,native);assert.equal(guardPendingDeath(patched,native),patched);assert.ok(patched.endsWith(original));assert.ok(patched.includes(native?'objRufNativePreview.rf_playable':'objRufController.rf_preview'));assert.ok(patched.includes(native?'rufmaker_checkpoint_restore':'rufmaker_plain_restore'));}
   const layered=guardPendingDeath(guardPendingDeath(original),true);assert.ok(layered.includes('(plain)')&&layered.includes('(native)'));
+});
+test('plain synchronization collapses old god guards and preserves the death code',()=>{
+  const original='// Engine death code\r\ninstance_create(player.x,player.y,bloodEmitter);\r\n';
+  const patched=guardPlainDeath(original),guard=patched.split('\n')[0];
+  assert.equal(guardPlainDeath(patched),patched);
+  assert.equal(guardPlainDeath(guard+'\r\n'+guard+'\n'+patched),patched);
+  assert.equal(guardPlainDeath('\uFEFF'+guard+'\n'+patched),'\uFEFF'+patched);
+  assert.equal(patched.split(guard).length,2);
+  assert.ok(patched.endsWith(original));
 });

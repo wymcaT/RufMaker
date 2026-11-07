@@ -3,7 +3,8 @@ import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import assert from 'node:assert/strict';
 import {test,after} from 'node:test';
-import {fixedPlayerReads,pinNativeEvents,makeFilmHarness,writeFilmHarness} from './native-film.mjs';
+import {fixedPlayerReads,pinNativeEvents,makeFilmHarness,writeFilmHarness,nativeFilmStatus} from './native-film.mjs';
+import {normalizeState} from './motion.mjs';
 
 test('fixed player reads preserve assignments, strings and object qualification',()=>{
   const code=`a=player.x;b=player2.y;player.x=200;player.y+=5;\n--player.x;player.y++;\ntext='player.x';// player.y\nglobal.player.x=1;`;
@@ -31,4 +32,21 @@ test('recording clone keeps native event logic and excludes RufMaker live object
   assert(read('objects/objAd.gml').includes('phase=irandom(100)'));assert(read('objects/objAd.gml').includes('point_direction(x,y,400,304)'));assert(!read('objects/player.gml').includes('x+=3'));assert(!read('rooms/rAvoidance/instances.txt').includes('objRufController'));assert(read('scripts/rf_film_pin.gml').includes('x=400;y=304'));assert(read('settings/settings.txt').includes('show_error_messages=0'));
   const counts=read('scripts/rf_film_counts.gml'),status=read('scripts/rf_film_status.gml');assert(counts.includes('with(all)'));assert(counts.includes('object_get_name(object_index)'));assert(counts.includes('object_index!=objRufNativePreview'));assert(counts.includes('ds_map_destroy(rf_counts)'));
   assert(status.includes("'objects='+rf_film_counts()"));assert(status.indexOf('file_text_close(f)')<status.indexOf('file_rename(rf_temp,rf_path)'));assert(status.includes("rf_temp=rf_path+'.tmp'"));
+});
+test('native clip recording keeps a schedule controller and fingerprints code and timing',()=>{
+  const state=normalizeState({version:2,room:'rAvoidance',fps:50,duration:30,music:'',nativeProject:{duration:30},
+    tracks:[{id:'clip',name:'Actor',kind:'native-instance',nativeObject:'objAd',start:5,end:20,x:20,y:30,keyframes:[]}]});
+  const before=nativeFilmStatus(fixture,state);
+  state.tracks[0].name='Rename';state.tracks[0].lane=20;
+  assert.equal(nativeFilmStatus(fixture,state).sourceSignature,before.sourceSignature);
+  state.tracks[0].x=21;
+  assert.notEqual(nativeFilmStatus(fixture,state).sourceSignature,before.sourceSignature);
+  assert.deepEqual(before.nativeTrackIds,['clip']);
+  assert(before.output.endsWith('objects.rufvideo'));
+  fs.appendFileSync(path.join(fixture,'rooms','rAvoidance','instances.txt'),'\nobjRufController,0,0,2,0,1,1,0,0,0\n');
+  writeFilmHarness(fixture,state,{objectClips:true});
+  const controller=fs.readFileSync(path.join(fixture,'objects','objRufController.gml'),'utf8');
+  assert(controller.includes('rf_native_objects(rf_frame)'));
+  assert(!controller.includes('rf_pattern_step('));
+  assert(fs.readFileSync(path.join(fixture,'rooms','rAvoidance','instances.txt'),'utf8').includes('objRufController,'));
 });

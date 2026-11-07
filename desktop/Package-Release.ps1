@@ -37,6 +37,10 @@ foreach($file in Get-ChildItem -LiteralPath (Join-Path $taskRoot 'assets/gml') -
     $relative=$file.FullName.Substring((Join-Path $taskRoot 'assets/gml').Length+1).Replace('\','/')
     & $addFile ('templates/avoidance.gm82/rufmaker-assets/gml/'+$relative) $file.FullName
 }
+foreach($file in Get-ChildItem -LiteralPath (Join-Path $taskRoot 'assets/gm82-extensions') -File -Recurse){
+    $relative=$file.FullName.Substring((Join-Path $taskRoot 'assets/gm82-extensions').Length+1).Replace('\','/')
+    & $addFile ('templates/avoidance.gm82/rufmaker-assets/gm82-extensions/'+$relative) $file.FullName
+}
 $manifest=@{version=$Version;files=$manifestFiles.ToArray()} | ConvertTo-Json -Depth 5
 $zip=[System.IO.Compression.ZipArchive]::new([System.IO.File]::Create($zipPath),[System.IO.Compression.ZipArchiveMode]::Create)
 try {

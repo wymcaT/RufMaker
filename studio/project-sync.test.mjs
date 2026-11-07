@@ -35,3 +35,15 @@ test('an interrupted process is recovered before the next load',()=>{
 test('a concurrent external file edit is detected before committing',()=>{
   const dir=project(),file=path.join(dir,'script.gml');fs.writeFileSync(file,'old');const tx=new ProjectSyncTransaction(dir);tx.write(file,'generated');fs.writeFileSync(file,'manual');assert.throws(()=>tx.commit(),/其他程序修改/);assert.equal(fs.readFileSync(file,'utf8'),'manual');
 });
+test('resource removal is hidden from the staged view and restored if commit fails',()=>{
+  const dir=project(),file=path.join(dir,'object.gml'),index=path.join(dir,'index.yyd');
+  fs.writeFileSync(file,'old source');fs.writeFileSync(index,'object');
+  const tx=new ProjectSyncTransaction(dir,{applied:at=>{if(at===1)throw Error('injected delete failure');}});
+  tx.remove(file);tx.write(index,'');
+  assert.equal(tx.io.existsSync(file),false);
+  assert.throws(()=>tx.io.readFileSync(file),{code:'ENOENT'});
+  assert.deepEqual(tx.io.readdirSync(dir),['index.yyd']);
+  assert.throws(()=>tx.commit(),/injected delete failure/);
+  assert.equal(fs.readFileSync(file,'utf8'),'old source');
+  assert.equal(fs.readFileSync(index,'utf8'),'object');
+});

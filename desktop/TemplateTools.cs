@@ -15,8 +15,7 @@ internal sealed partial class MainForm
     private void TemplateFields(NativeProperties bag,Track track)
     {
         if(!TemplateRuntime.Eligible(track))return;
-        Field(bag,"仅用作生成模板","生成模板",()=>track.templateOnly,value=>track.templateOnly=value,null,"开启后不在歌曲时间轴自行出现，仍可被其他物件生成。模板的关键帧与运动保留。");
-        bag.Add("物件生成行为","生成模板",typeof(string),()=>track.spawnActions.Count+" 项 · 右键“物件生成行为…”编辑",null);
+        Field(bag,"仅用作生成模板","高级设置",()=>track.templateOnly,value=>track.templateOnly=value,null,"开启后不在歌曲时间轴自行出现，仍可被其他物件生成。模板的关键帧与运动保留；生成规则在“行为”页编辑。");
     }
     private Track[] PresetDependencies(IEnumerable<Track> selected)
     {

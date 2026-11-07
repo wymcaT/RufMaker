@@ -45,11 +45,34 @@ internal sealed partial class MainForm
     }
     private void CompactTrackContext(ContextMenuStrip menu)
     {
-        var t=selectedTrack;LaneGroupMenu(menu.Items);
-        if(t!=null){menu.Items.Add("在右栏编辑关键帧",null,(s,e)=>OpenKeyWorkspace(t));menu.Items.Add("复制    Ctrl+C",null,(s,e)=>{timeline.ClearKeySelection();CopySelection();});var paste=menu.Items.Add("粘贴    Ctrl+V",null,async(s,e)=>await PasteSelection());paste.Enabled=copiedKind!=null;menu.Items.Add("删除所选物件    Delete",null,(s,e)=>{selectedKey=null;timeline.ClearKeySelection();RemoveSelection();});
-            var edit=new ToolStripMenuItem("更多物件操作");edit.DropDownItems.Add("存为自定义预设…",null,(s,e)=>SaveSelectionAsPreset());edit.DropDownItems.Add(t.enabled?"禁用物件":"启用物件",null,(s,e)=>{PushUndo();t.enabled=!t.enabled;MarkChanged();});if(TemplateRuntime.Eligible(t))edit.DropDownItems.Add("物件生成行为…",null,(s,e)=>OpenTemplateBehavior());if(t.kind=="rod"||t.kind=="emitter")edit.DropDownItems.Add("编辑弹幕年龄行为…",null,(s,e)=>OpenBulletBehavior());if(t.kind=="pattern")edit.DropDownItems.Add("拆开片段以编辑内部物件",null,(s,e)=>UnpackPattern());else edit.DropDownItems.Add("组合为可循环弹幕片段",null,(s,e)=>PackPattern());if(t.templateOnly)edit.DropDownItems.Add("预览模板局部动画",null,(s,e)=>EnterTemplateContext(t));var move=new ToolStripMenuItem("移动到轨道");for(int i=0;i<state.laneCount;i++){int lane=i;move.DropDownItems.Add(Language.Text("轨道")+" "+(i+1),null,(s,e)=>MoveSelectionToLane(lane));}move.DropDownItems.Add("新轨道",null,(s,e)=>MoveSelectionToLane(state.laneCount));edit.DropDownItems.Add(move);menu.Items.Add(edit);
-        }else if(copiedKind!=null)menu.Items.Add("粘贴    Ctrl+V",null,async(s,e)=>await PasteSelection());
-        var add=new ToolStripMenuItem("添加物件或事件");add.DropDownItems.Add("添加弹幕发射器",null,(s,e)=>AddTrack("emitter"));var shapes=new ToolStripMenuItem("添加整体对象");foreach(var value in FormationShapes.Values){string shape=value;shapes.DropDownItems.Add(FormationShapes.Name(shape),null,(s,e)=>AddShape(shape));}add.DropDownItems.Add(shapes);var events=new ToolStripMenuItem("添加事件");foreach(string value in EventPresets.Keys){string key=value;events.DropDownItems.Add(EventPresets.Names[Array.IndexOf(EventPresets.Keys,key)],null,(s,e)=>AddEventPreset(key,frame));}add.DropDownItems.Add(events);add.DropDownItems.Add("添加拉镜",null,(s,e)=>AddTrack("camera"));add.DropDownItems.Add("添加贴图对象",null,(s,e)=>AddTrack("object"));var fx=new ToolStripMenuItem("添加画面特效");FillEffectMenu(fx.DropDownItems);add.DropDownItems.Add(fx);add.DropDownItems.Add("添加全局变量",null,(s,e)=>AddGlobalVariable());add.DropDownItems.Add("添加 GML 事件",null,(s,e)=>AddTrack("script"));menu.Items.Add(add);
-        var lanes=new ToolStripMenuItem("轨道操作");lanes.DropDownItems.Add("新建空轨道",null,(s,e)=>{PushUndo();timeline.ActiveLane=state.laneCount++;MarkChanged();});int active=timeline.ActiveLane;lanes.DropDownItems.Add("删除空轨道",null,(s,e)=>{if(active<0||state.laneCount<=1||state.tracks.Any(x=>x.lane==active&&x.kind!="native"))return;PushUndo();TimelineGroups.RemoveLane(state,active);foreach(var x in state.tracks.Where(x=>x.kind!="native"&&x.lane>active))x.lane--;state.laneCount--;MarkChanged();}).Enabled=active>=0&&state.laneCount>1&&!state.tracks.Any(x=>x.lane==active&&x.kind!="native");menu.Items.Add(lanes);menu.Items.Add(new ToolStripSeparator());menu.Items.Add("撤销    Ctrl+Z",null,(s,e)=>Undo(false)).Enabled=undo.Count>0;menu.Items.Add("重做    Ctrl+Y",null,(s,e)=>Undo(true)).Enabled=redo.Count>0;Language.Attach(menu);
+        var t=selectedTrack;
+        if(timeline.SelectedKeys.Count>0){SelectedKeyContext(menu.Items);menu.Items.Add(new ToolStripSeparator());}
+        if(t!=null){
+            menu.Items.Add("编辑属性",null,(s,e)=>{inspectorTabs.SelectedIndex=0;inspectorDock.Activate("general");});
+            if(t.kind=="native-instance")menu.Items.Add("编辑实例初始化 GML",null,(s,e)=>EditNativeObjectInit(t));
+            else if(Motion.Fields(t).Length>0)menu.Items.Add("在右栏编辑关键帧",null,(s,e)=>OpenKeyWorkspace(t));
+            menu.Items.Add(timeline.SelectedKeys.Count>0?"复制物件":"复制    Ctrl+C",null,(s,e)=>{timeline.ClearKeySelection();CopySelection();});
+            var paste=menu.Items.Add("粘贴    Ctrl+V",null,async(s,e)=>await PasteSelection());paste.Enabled=copiedKind!=null;
+            menu.Items.Add(timeline.SelectedKeys.Count>0?"删除所选物件":"删除所选物件    Delete",null,(s,e)=>{selectedKey=null;timeline.ClearKeySelection();RemoveSelection();});
+            var edit=new ToolStripMenuItem("更多物件操作");
+            if(TemplateRuntime.Eligible(t))edit.DropDownItems.Add("编辑行为",null,(s,e)=>FocusBehavior(true,-1));
+            edit.DropDownItems.Add("存为自定义预设…",null,(s,e)=>SaveSelectionAsPreset());
+            edit.DropDownItems.Add(t.enabled?"禁用物件":"启用物件",null,(s,e)=>{PushUndo();bool enabled=!t.enabled;foreach(var item in timeline.SelectedTracks)item.enabled=enabled;MarkChanged();ShowProperties();});
+            edit.DropDownItems.Add(t.previewHidden?"恢复物件预览显示":"仅在预览中隐藏此物件",null,(s,e)=>{PushUndo();bool hidden=!t.previewHidden;foreach(var item in timeline.SelectedTracks)item.previewHidden=hidden;MarkChanged();ShowProperties();});
+            if(t.kind=="pattern")edit.DropDownItems.Add("拆开片段以编辑内部物件",null,(s,e)=>UnpackPattern());
+            else if(timeline.SelectedTracks.All(item=>item.kind!="native"&&item.kind!="script"))edit.DropDownItems.Add("组合为可循环弹幕片段",null,(s,e)=>PackPattern());
+            if(t.templateOnly)edit.DropDownItems.Add("预览模板局部动画",null,(s,e)=>EnterTemplateContext(t));
+            var move=new ToolStripMenuItem("移动到轨道");for(int i=0;i<state.laneCount;i++){int lane=i;move.DropDownItems.Add(Language.Text("轨道")+" "+(i+1),null,(s,e)=>MoveSelectionToLane(lane));}move.DropDownItems.Add("新轨道",null,(s,e)=>MoveSelectionToLane(state.laneCount));edit.DropDownItems.Add(move);menu.Items.Add(edit);
+        }else{
+            if(copiedKind!=null)menu.Items.Add("粘贴    Ctrl+V",null,async(s,e)=>await PasteSelection());
+            var add=new ToolStripMenuItem("添加物件或事件");FillAddMenu(add);menu.Items.Add(add);
+        }
+        var lanes=new ToolStripMenuItem("轨道与组");LaneGroupMenu(lanes.DropDownItems);int active=timeline.ActiveLane;
+        if(active>=0){var laneTracks=state.tracks.Where(x=>x.lane==active&&x.kind!="native").ToList();bool allHidden=laneTracks.Count>0&&laneTracks.All(x=>x.previewHidden);lanes.DropDownItems.Add(allHidden?"恢复本轨道物件预览显示":"仅预览隐藏本轨道所有物件",null,(s,e)=>{PushUndo();foreach(var x in laneTracks)x.previewHidden=!allHidden;MarkChanged();ShowProperties();}).Enabled=laneTracks.Count>0;}
+        lanes.DropDownItems.Add("新建空轨道",null,(s,e)=>{PushUndo();timeline.ActiveLane=state.laneCount++;MarkChanged();});
+        lanes.DropDownItems.Add("删除空轨道",null,(s,e)=>{if(active<0||state.laneCount<=1||state.tracks.Any(x=>x.lane==active&&x.kind!="native"))return;PushUndo();TimelineGroups.RemoveLane(state,active);foreach(var x in state.tracks.Where(x=>x.kind!="native"&&x.lane>active))x.lane--;state.laneCount--;MarkChanged();}).Enabled=active>=0&&state.laneCount>1&&!state.tracks.Any(x=>x.lane==active&&x.kind!="native");
+        menu.Items.Add(lanes);Language.Attach(menu);
     }
+
+
 }

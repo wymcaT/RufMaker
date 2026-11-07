@@ -21,3 +21,14 @@ export function guardPendingDeath(source,native=false){
   const owner=native?'objRufNativePreview':'objRufController',enabled=native?'rf_playable':'rf_preview',file=native?'rufmaker_checkpoint_restore':'rufmaker_plain_restore';
   return marker+`\nif instance_exists(${owner}) {if ${owner}.${enabled} && file_exists(working_directory+'\\Data\\${file}') return 0;}\n`+source;
 }
+
+export function guardPlainDeath(source){
+  const guard="if (variable_global_exists('rf_god_mode') && global.rf_god_mode) return 0;";
+  const bom=source.startsWith('\uFEFF')?'\uFEFF':'';
+  source=source.slice(bom.length);
+  // Older saves prepended this exact line on every synchronization.
+  while(source.startsWith(guard+'\n')||source.startsWith(guard+'\r\n')){
+    source=source.slice(source.indexOf('\n')+1);
+  }
+  return bom+guard+'\n'+guardPendingDeath(source);
+}

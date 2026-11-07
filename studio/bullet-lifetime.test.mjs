@@ -6,7 +6,7 @@ import {advancedBullets,expandPatterns} from './bullet-schema.mjs';
 import {templateScripts} from './template-system.mjs';
 
 test('old projects keep fixed life with no transition; boundary/fade settings round trip',()=>{
-  const t={};normalizeLifetime(t);assert.deepEqual(t,{lifetimeMode:'fixed',deathEffect:'none',deathFrames:15,despawnMargin:0});assert.equal(lifetimeEnabled(t),false);
+  const t={};normalizeLifetime(t);assert.deepEqual(t,{lifetimeMode:'fixed',deathEffect:'none',deathFrames:15,despawnMargin:0,fadeInFrames:0});assert.equal(lifetimeEnabled(t),false);
   const s=normalizeState({version:2,fps:50,tracks:[{id:'a',kind:'emitter',start:0,end:20,lifetimeMode:'view',deathEffect:'shrink-fade',deathFrames:8,despawnMargin:-20,keyframes:[]}]});
   assert.equal(advancedBullets(s),true);assert.equal(s.tracks[0].despawnMargin,-20);assert.match(lifetimeSpawn(s.tracks[0]),/rf_life_mode=2;.*rf_die_fx=3;.*rf_die_frames=8/);assert.equal(lifetimeScripts.length,3);
   assert.equal(JSON.parse(JSON.stringify(s)).tracks[0].deathEffect,'shrink-fade');

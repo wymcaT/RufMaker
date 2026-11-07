@@ -10,7 +10,8 @@ internal static class AppPaths
         new[]{"sprrainbowcherry.gmspr","assets/sprites/sprrainbowcherry.gmspr"},
         new[]{"desktop/assets","assets/terrain"},
         new[]{"Ultimate Avoidance Sprite Pack","assets/sprite-packs/Ultimate Avoidance Sprite Pack"},
-        new[]{"templates/avoidance.gm82/rufmaker-assets/gml","assets/gml"}
+        new[]{"templates/avoidance.gm82/rufmaker-assets/gml","assets/gml"},
+        new[]{"templates/avoidance.gm82/rufmaker-assets/gm82-extensions","assets/gm82-extensions"}
     };
     public static void ArrangeAssets(string root)
     {foreach(var item in AssetMoves)Move(Path.Combine(root,item[0]),Path.Combine(root,item[1]));}

@@ -1,7 +1,8 @@
 import {hasGroupEvents} from './group-events.mjs';
+import {trackDepth,sourceDepthGml} from './drawing-depth.mjs';
 import {ProjectSyncTransaction,recoverProjectSync} from './project-sync.mjs';
 import {plainCheckpointScripts,plainRetryEvents} from './native-checkpoint.mjs';
-import {retryParticleCleanup,guardPendingDeath} from './retry-particles.mjs';
+import {retryParticleCleanup,guardPlainDeath} from './retry-particles.mjs';
 import {musicSyncScripts,installNativeMusicSync} from './music-sync.mjs';
 import {groupIndex} from './timeline-groups.mjs';
 import fs from 'node:fs';
@@ -15,13 +16,17 @@ import {advancedBullets,expandPatterns,activeCode} from './bullet-schema.mjs';
 import {bulletSystemScripts} from './bullet-system.mjs';
 import {templateScripts,templateObject} from './template-system.mjs';
 import {preparePlainRoom} from './plain-room.mjs';
+import {readRoom,fileRevision} from './native-room.mjs';
+import {nativeObjectSchedule,guardPlainReplayPlayer} from './native-objects.mjs';
+import {gmAssetNames} from './gm-resources.mjs';
 import {shapeSetup,shapePoint,formationScripts} from './shapes.mjs';
 import {cameraApplyGml,cameraCompositeGml,cameraUpdate} from './camera.mjs';
 import path from 'node:path';
 import {normalizeState,stateCode,easeGml,bounceGml,fields} from "./motion.mjs";
 import {effectTypes,fxResetGml,fxOpaqueGml,fxInitialization,fxCleanup,makeFxObjects} from './effects.mjs';
 import crypto from 'node:crypto';
-import {rainbowCode,rainbowGml,rodSequence} from './rainbow.mjs';
+import {rainbowCode,rainbowGml,rodSequence,rainbowSprite} from './rainbow.mjs';
+import {roomInstances,absoluteBrick,usesBulletBoundary} from './bullet-boundaries.mjs';
 import {colorHueGml,spawnAppearanceGml} from './spawn-appearance.mjs';
 import {lifetimeScripts,lifetimeDefaults} from './bullet-lifetime.mjs';
 import {trailModes,trailMode,trailCall,trailGml} from './trails.mjs';
@@ -70,13 +75,24 @@ export function validateState(s) {
   if (!s || ![1,2].includes(s.version) || !Array.isArray(s.tracks) || !Number.isInteger(s.duration) || s.duration < 1 || s.duration > 1000000 || !Number.isInteger(s.fps) || s.fps < 15 || s.fps > 240) throw new Error('工程数据无效，请检查时长、帧率及物件列表');
   if (!safeName(s.room) || !fs.existsSync(path.join(project,'rooms',s.room,'room.txt'))) throw new Error('Invalid room');
   for (const t of s.tracks) {
-    if (!['emitter', 'object', 'rod', 'effect', 'script', 'camera','native','group','control','pattern','variable'].includes(t.kind) || !Array.isArray(t.keyframes) || t.keyframes.length > (t.motionPreset||t.keyframeCycle?2010000:10000) || !Number.isFinite(t.start) || !Number.isFinite(t.end) || t.start < 0 || t.end > s.duration || t.start > t.end) throw new Error('Invalid track');
+    if (!['emitter', 'object', 'native-instance', 'rod', 'effect', 'script', 'camera','native','group','control','pattern','variable'].includes(t.kind) || !Array.isArray(t.keyframes) || t.keyframes.length > (t.motionPreset||t.keyframeCycle?2010000:10000) || !Number.isFinite(t.start) || !Number.isFinite(t.end) || t.start < 0 || t.end > s.duration || t.start > t.end) throw new Error('Invalid track');
     if(t.kind==='native'&&(!s.nativeProject?.imported||t.id!=='gm-native'))throw new Error('原生轨道必须来自工程导入');
     if (t.kind === 'emitter' && (!safeName(t.sprite) || !Number.isInteger(t.count) || t.count < 1 || t.count > 300 || !Number.isInteger(t.interval) || t.interval < 1 || !Number.isFinite(t.speed) || !Number.isFinite(t.life) || t.life < 1)) throw new Error('Invalid emitter');
     if (t.kind === 'object' && !safeName(t.sprite)) throw new Error('Invalid sprite');
     if(t.eventPreset)for(const name of String(t.eventNativeObjects||'').split(/[,，;；\r\n]/).map(v=>v.trim()).filter(Boolean))if(!safeName(name)||!fs.existsSync(path.join(project,'objects',name+'.gml')))throw new Error('原生事件对象不存在：'+name);
     if(t.kind==='effect'&&!effectTypes.includes(t.effect))throw new Error('Invalid screen effect');
     for (const k of t.keyframes) if (!Number.isFinite(k.frame) || !fields.includes(k.property) || !Number.isFinite(k.value) || k.frame<(t.clockStart!=null?-1000000:0) || k.frame>s.duration) throw new Error('Invalid keyframe');
+  }
+}
+
+function validateNativeObjects(tracks,pathNames){
+  for(const t of tracks){
+    if(t.kind==='native-instance'){
+      if(!safeName(t.nativeObject)||/^objRuf/i.test(t.nativeObject)||!fs.existsSync(path.join(project,'objects',t.nativeObject+'.txt')))throw Error('原生对象不存在或无法由时间轴生成：'+t.nativeObject);
+      if(!Number.isFinite(t.x)||!Number.isFinite(t.y)||typeof t.code!=='string')throw Error('原生对象生成参数无效：'+t.nativeObject);
+    }
+    if(t.nativePath&&!pathNames.has(t.nativePath))throw Error('GM 路径不存在：'+t.nativePath);
+    if(t.kind==='pattern')validateNativeObjects(t.children,pathNames);
   }
 }
 
@@ -96,6 +112,7 @@ function bulletSpawn(track, fromHistory, sequence='0',index=-1) {
   pieces.push(`rf_dir=rf_angle+(rf_j-(rf_count-1)/2)*rf_spread;`);
   pieces.push(`rf_inst=instance_create(rf_x+lengthdir_x(rf_speed*${track.flightMode!=='straight'?'0':age},rf_dir),rf_y+lengthdir_y(rf_speed*${track.flightMode!=='straight'?'0':age},rf_dir),objRufBullet);`);
   pieces.push(`rf_inst.rf_age=${track.flightMode!=='straight'?'0':age}; rf_inst.rf_life=rf_life; rf_inst.rf_speed=rf_speed; rf_inst.rf_dir=rf_dir;`);
+  pieces.push(`rf_inst.depth=${gnum(trackDepth(track))};`);
   pieces.push(`rf_inst.sprite_index=${track.sprite}; rf_inst.image_blend=${gcolor(track.color)}; rf_inst.image_xscale=rf_scale; rf_inst.image_yscale=rf_scale; rf_inst.image_alpha=rf_alpha; rf_inst.rf_trail=${track.trail ? 1 : 0};`);
   pieces.push(`rf_inst.image_angle=rf_spriteAngle+${track.rotateSprite?'rf_dir':'0'};rf_inst.rf_rotate=${track.rotateSprite?1:0};rf_inst.rf_sprite_angle=rf_spriteAngle;rf_inst.rf_birth=${time};rf_inst.rf_index=rf_j;`);
   pieces.push(`rf_inst.rf_t_mode='${trailMode(track)}';rf_inst.rf_t_interval=${parameter(track,'trailInterval',3)};rf_inst.rf_t_life=${parameter(track,'trailLife',18)};rf_inst.rf_t_alpha=${parameter(track,'trailStartAlpha',.55)};rf_inst.rf_t_scale_decay=${parameter(track,'trailScaleDecay',.035)};rf_inst.rf_t_alpha_decay=${parameter(track,'trailAlphaDecay',.035)};rf_inst.rf_t_speed=${parameter(track,'trailSpeed')};rf_inst.rf_t_direction=${parameter(track,'trailDirection')};rf_inst.rf_t_random=${track.trailRandom?1:0};`);
@@ -111,6 +128,7 @@ function rodUpdate(t,index) {
   parts.push(`for(rf_j=0;rf_j<max(rf_count,${prefix}_count);rf_j+=1) {`);
   parts.push(`if rf_j>=rf_count || !rf_template_visible(${source},rf_j,noone) {if instance_exists(${prefix}[rf_j]) with (${prefix}[rf_j]) instance_destroy();${prefix}[rf_j]=noone;} else {`);
   parts.push(`if !instance_exists(${prefix}[rf_j]) {${prefix}[rf_j]=instance_create(0,0,objRufBullet);${prefix}[rf_j].rf_fixed=1;}rf_inst=${prefix}[rf_j];rf_inst.rf_scope_group=${groupIndex(t._state,t)};rf_inst.rf_static_source=${source};rf_inst.rf_index=rf_j;`);
+  parts.push(`rf_inst.depth=${gnum(trackDepth(t))};`);
   parts.push(shapePoint(t));
   parts.push(`rf_inst.x=rf_px;rf_inst.y=rf_py;rf_inst.image_angle=rf_spriteAngle+${t.rotateSprite?'rf_angle':'0'};rf_inst.sprite_index=${t.sprite};rf_inst.image_blend=${gcolor(t.color)};rf_inst.image_xscale=rf_scale;rf_inst.image_yscale=rf_scale;rf_inst.image_alpha=rf_alpha;rf_inst.rf_trail=${t.trail?1:0};`);
   if(t.rainbow)parts.push(`rf_inst.image_speed=0;rf_inst.image_blend=c_white;rf_inst.image_index=${rainbowCode(t,rodSequence(t),'rf_frame')};`);
@@ -132,17 +150,32 @@ function spatialTrails(t) {
   parts.push('}}');return parts.join('\n');
 }
 
-function makeController(s) {
+function visualDrawCode(s){
+  const groups=new Map();
+  s.tracks.forEach((t,index)=>{
+    if(t.kind!=='object'||t.enabled===false)return;
+    const depth=trackDepth(t);
+    if(!groups.has(depth))groups.set(depth,[]);
+    groups.get(depth).push(`if rf_template_visible(${index},-1,noone) && (${activeCode(t,'rf_frame',s.tracks)}) { ${stateAt(t,'rf_frame')} draw_sprite_ext(${t.sprite},${rainbowCode(t,'0','rf_frame')},rf_x,rf_y,rf_scale,rf_scale,rf_angle,${gcolor(t.color)},rf_alpha); }`);
+  });
+  return `var ${fields.map(f=>'rf_'+f).join(',')},rf_u;\nswitch(argument0){`+
+    [...groups].map(([depth,code])=>`case ${gnum(depth)}:\n${code.join('\n')}break;`).join('\n')+'}\nreturn 0;';
+}
+
+function makeController(s,schedule) {
   const beta=advancedBullets(s);
   const native=Boolean(s.nativeProject?.imported),nativeClock=s.nativeProject?.timeline?`timeline_position/${gnum(s.nativeProject.timelineSpeed,1)}`:s.nativeProject?.clock;
   const create = [`#define Create_0`,action,native?`rf_frame=0;rf_target=0;rf_preview=0;rf_ready=0;`:`rf_frame=0; rf_target=0; rf_preview=0; rf_ready=0; rf_music=FMODSoundPlay(BGM_Ad,1); global.BGMHandler=rf_music;`,
     `rf_god_mode=0;global.rf_god_mode=0;if file_exists(working_directory+'\\Data\\rufmaker_preview.ini') { ini_open(working_directory+'\\Data\\rufmaker_preview.ini'); rf_target=ini_read_real('preview','frame',0); rf_god_mode=ini_read_real('preview','god',0); global.rf_god_mode=rf_god_mode; ini_close(); rf_preview=1; if (global.rf_god_mode) with(player) godmode=1; }`,
     `rf_frame=max(0,min(${gnum(s.duration)},round(rf_target))); rf_target=rf_frame;`,
-    '',
-    `var rf_k,rf_i,rf_j,rf_u,rf_dir,rf_inst,rf_len,rf_phase,rf_fraction,rf_px,rf_py,rf_seg,rf_mix,${fields.map(f=>'rf_'+f).join(',')};`,randomInitialization(s), `rf_global_init();rf_template_init();rf_custom_create();`,fxInitialization(s),cameraUpdate(s),`rf_inst=instance_create(0,0,objRufTrails);rf_inst.rf_owner=id;`];
+    !native?`rf_warming_native=${schedule?`rf_preview && rf_target>0 && rf_target>=${gnum(schedule.first)}`:'0'};${schedule?'if rf_warming_native {rf_frame=0;window_set_visible(0);FMODInstanceSetPaused(rf_music,1);}':''}`:'',
+    schedule?.initialization||'',
+    `var rf_k,rf_i,rf_j,rf_u,rf_dir,rf_inst,rf_len,rf_phase,rf_fraction,rf_px,rf_py,rf_seg,rf_mix,${fields.map(f=>'rf_'+f).join(',')};`,randomInitialization(s), `rf_global_init();rf_template_init();${s.tracks.some(usesBulletBoundary)?'rf_bullet_bricks_init();':''}rf_custom_create();`,fxInitialization(s),cameraUpdate(s),`rf_inst=instance_create(0,0,objRufTrails);rf_inst.rf_owner=id;`];
   const step = [`#define Step_0`,action,native&&nativeClock&&safeName(s.nativeProject.controller)?`rf_frame+=1;if instance_exists(${s.nativeProject.controller}) with(${s.nativeProject.controller}) {other.rf_frame=${nativeClock};}`:`rf_frame+=1;`,native?'':`if rf_frame>${gnum(s.duration)} { room_goto(rEnd); exit; }`,
-    `var rf_k,rf_i,rf_j,rf_u,rf_dir,rf_inst,rf_len,rf_phase,rf_fraction,rf_px,rf_py,rf_seg,rf_mix,${fields.map(f=>'rf_'+f).join(',')};`, `rf_global_step(rf_frame);rf_custom_step();`,cameraUpdate(s)];
+    `var rf_k,rf_i,rf_j,rf_u,rf_dir,rf_inst,rf_len,rf_phase,rf_fraction,rf_px,rf_py,rf_seg,rf_mix,${fields.map(f=>'rf_'+f).join(',')};`, `rf_global_step(rf_frame);${schedule?'rf_native_objects(rf_frame);':''}rf_custom_step();`,cameraUpdate(s)];
   const draw = [`#define Draw_0`,action,`var rf_sample,rf_len,rf_phase,rf_fraction,rf_px,rf_py,rf_seg,rf_mix,rf_i,rf_j,rf_u,rf_dir,rf_inst,${fields.map(f=>'rf_'+f).join(',')};`, `rf_custom_draw();`];
+  for(const depth of new Set(s.tracks.filter(t=>t.kind==='object'&&t.enabled!==false).map(trackDepth)))
+    create.push(`rf_inst=instance_create(0,0,objRufVisual);rf_inst.depth=${gnum(depth)};rf_inst.rf_layer=${gnum(depth)};rf_inst.rf_owner=id;`);
   let rodIndex=0,emitterIndex=0;
   for (const t of s.tracks.filter(x=>x.enabled!==false)) {
 
@@ -162,33 +195,47 @@ function makeController(s) {
       create.push(`${prefix}_count=0;for(rf_j=0;rf_j<300;rf_j+=1) ${prefix}[rf_j]=noone;`,rodUpdate(t,rodIndex));
       step.push(rodUpdate(t,rodIndex++));
     } else if (t.kind==='object') {
-      draw.push(`if rf_template_visible(${s.tracks.indexOf(t)},-1,noone) && (${activeCode(t,'rf_frame',s.tracks)}) { ${stateAt(t,'rf_frame')} draw_sprite_ext(${t.sprite},${rainbowCode(t,'0','rf_frame')},rf_x,rf_y,rf_scale,rf_scale,rf_angle,${gcolor(t.color)},rf_alpha); }`);
+      // Sprite objects are drawn by the shared renderer at their requested depth.
     } else if (t.kind==='effect') {
       // Screen effects are evaluated every Draw, including native preview started mid-track.
     } else if (t.kind==='script') {
       step.push(`if rf_frame=${gnum(t.clockStart??t.start)} && rf_frame>=${gnum(t.start)} && rf_frame<=${gnum(t.end)} {\n${t.code || ''}\n}`);
     }
   }
-  step.push(`if rf_preview && !rf_ready { rf_ready=1; rf_preview_status(rf_target,1); }`);
+  step.push(`if rf_preview && !rf_ready${!native&&schedule?' && !rf_warming_native':''} { rf_ready=1; rf_preview_status(rf_target,1); }`);
   if(beta){create.push('global.rf_preview_replaying=rf_preview;global.rf_preview_target=rf_frame;var rf_replay;for(rf_replay=0;rf_replay<=rf_frame;rf_replay+=1){rf_pattern_step(rf_replay);if rf_preview && rf_replay mod 128=0 rf_preview_status(rf_replay,0);}global.rf_preview_replaying=0;',cameraUpdate(s),...s.tracks.filter(t=>t.enabled!==false&&t.kind==='rod').map((t,i)=>rodUpdate(t,i)));step.push('rf_pattern_step(rf_frame);');}
-  if(!native)create.push(`rf_music_sync_init();FMODInstanceSetPitch(rf_music,1);FMODInstanceSetPosition(rf_music,(rf_frame/${gnum(s.fps)}*1000)/FMODSoundGetLength(BGM_Ad)); FMODInstanceSetPaused(rf_music,0);`);
+  if(!native)create.push(`${schedule?'if !rf_warming_native {':''}rf_music_sync_init();FMODInstanceSetPitch(rf_music,1);FMODInstanceSetPosition(rf_music,(rf_frame/${gnum(s.fps)}*1000)/FMODSoundGetLength(BGM_Ad)); FMODInstanceSetPaused(rf_music,0);${schedule?'}':''}`);
   create.push("rf_checkpoint_ready=0;rf_checkpoint_seed=0;rf_checkpoint_music=0;rf_restores=0;if rf_preview {var rf_trace_file;rf_trace_file=file_text_open_write(working_directory+'\\Data\\rufmaker_player_trace.csv');file_text_close(rf_trace_file);}");
   step.push('rf_record_trace();');
   step.push('FMODUpdate();');
-  const destroy=[`#define Destroy_0`,action,native?'':`if FMODInstanceIsPlaying(rf_music) FMODInstanceStop(rf_music);`,fxCleanup(s)];
+  const destroy=[`#define Destroy_0`,action,native?'':`if FMODInstanceIsPlaying(rf_music) FMODInstanceStop(rf_music);`,schedule?.cleanup||'',fxCleanup(s)];
   const roomStart=[`#define Other_4`,action,`room_speed=${gnum(s.fps)};`];
   if(s.player)roomStart.push(`with(player){grav=${gnum(s.player.gravity,.4)};maxSpeed=${gnum(s.player.moveSpeed,3)};jump[1]=${gnum(s.player.jumpSpeed,8.5)};jump[2]=${gnum(s.player.doubleJumpSpeed,7)};maxJumps=max(1,min(8,${gnum(s.player.maxJumps,2)}));var rf_jump;for(rf_jump=3;rf_jump<=maxJumps;rf_jump+=1)jump[rf_jump]=jump[2];infJump=${s.player.infiniteJump?1:0};if (variable_global_exists('rf_god_mode') && global.rf_god_mode) godmode=1;}`);
   else roomStart.push(`if (variable_global_exists('rf_god_mode') && global.rf_god_mode) with(player) godmode=1;`);
-  const beginStep=native?'':`#define Step_1\n${action}\nif (variable_global_exists('rf_god_mode') && global.rf_god_mode) with(player) godmode=1;\nif rf_preview {if !rf_checkpoint_ready rf_preview_checkpoint();rf_preview_restore();}\n`;
-  const endStep=native?'':`#define Step_2\n${action}\nrf_music_sync_tick(rf_music,rf_frame,${gnum(s.fps)});\n`;
-  return [create.join('\n'),step.join('\n'),draw.join('\n'),destroy.join('\n'),roomStart.join('\n'),beginStep,endStep].join('\n')+'\n';
+  if(schedule)roomStart.push('rf_native_objects(rf_frame);');
+  const warm=schedule?`if rf_warming_native {
+  if rf_frame<rf_target {
+    room_speed=1000;global.rf_god_mode=1;
+    if rf_frame mod 25=0 rf_preview_status(rf_frame,0);
+    exit;
+  }
+  rf_warming_native=0;room_speed=${gnum(s.fps)};global.rf_god_mode=rf_god_mode;
+  with(player) if variable_local_exists('godmode') godmode=other.rf_god_mode;
+  rf_music_sync_init();FMODInstanceSetPitch(rf_music,1);
+  FMODInstanceSetPosition(rf_music,(rf_frame/${gnum(s.fps)}*1000)/FMODSoundGetLength(BGM_Ad));
+  FMODInstanceSetPaused(rf_music,0);window_set_visible(1);
+}\n`:'';
+  const beginStep=native?'':`#define Step_1\n${action}\n${warm}if (variable_global_exists('rf_god_mode') && global.rf_god_mode) with(player) godmode=1;\nif rf_preview {if !rf_checkpoint_ready rf_preview_checkpoint();rf_preview_restore();}\n`;
+  const endStep=native?'':`#define Step_2\n${action}\n${schedule?'if !rf_warming_native ':''}rf_music_sync_tick(rf_music,rf_frame,${gnum(s.fps)});\n`;
+  const roomEnd=schedule?.cleanup?`#define Other_5\n${action}\n${schedule.cleanup}\n`:'';
+  return [create.join('\n'),step.join('\n'),draw.join('\n'),destroy.join('\n'),roomStart.join('\n'),roomEnd,beginStep,endStep].join('\n')+'\n';
 }
 
 const bulletGml = `#define Create_0
 ${action}
 image_speed=0;image_index=0;rf_frozen_image=-1;rf_rainbow=0;rf_r_sequence=0;rf_r_density=1;rf_r_offset=0;rf_r_speed=.25;rf_r_start=0;rf_r_dynamic=0;rf_r_reverse=0;
 ${lifetimeDefaults}
-rf_scope_group=-1;rf_generation=0;rf_volley=0;rf_n=1;rf_source_x=0;rf_source_y=0;rf_kinematic=0;rf_template_owner=noone;rf_static_source=-1;rf_clock_shift=0;rf_system=0;rf_source=-1;rf_behavior=-1;rf_last_update=-1;rf_motion_reset=0;rf_spin=0;rf_accel=0;rf_collision=1;rf_dead=0;rf_sprite=sprite_index;rf_birth_aim=0;rf_aim_offset=0;
+rf_scope_group=-1;rf_generation=0;rf_volley=0;rf_n=1;rf_source_x=0;rf_source_y=0;rf_kinematic=0;rf_template_owner=noone;rf_static_source=-1;rf_clock_shift=0;rf_system=0;rf_source=-1;rf_behavior=-1;rf_last_update=-1;rf_motion_reset=0;rf_spin=0;rf_accel=0;rf_friction=0;rf_collision=1;rf_dead=0;rf_sprite=sprite_index;rf_birth_aim=0;rf_aim_offset=0;
 rf_flight=-1;rf_turn=3;rf_delay=0;rf_age=0;rf_life=120;rf_speed=0;rf_dir=0;rf_trail=0;rf_fixed=0;rf_rotate=0;rf_sprite_angle=0;rf_birth=0;rf_index=0;
 rf_t_mode='off';rf_t_interval=3;rf_t_life=18;rf_t_alpha=.55;rf_t_scale_decay=.035;rf_t_alpha_decay=.035;rf_t_speed=0;rf_t_direction=0;rf_t_random=0;
 rf_preview_linear=0;
@@ -227,7 +274,7 @@ function makeTrails(s) {
 #define Step_2
 ${action}
 if !instance_exists(rf_owner) {instance_destroy();exit;}
-depth=rf_owner.depth+1;with(objRufBullet) other.depth=max(other.depth,depth+1);
+depth=max(rf_owner.depth+1,${gnum(Math.max(-6999999,...s.tracks.filter(t=>t.enabled!==false&&['object','rod','emitter'].includes(t.kind)).map(t=>trackDepth(t)+1)))});with(objRufBullet) other.depth=max(other.depth,depth+1);
 #define Draw_0
 ${action}
 if !instance_exists(rf_owner) {instance_destroy();exit;}
@@ -250,27 +297,37 @@ function buildSyncPlan(s,fs,atomicWrite,appendUnique) {
   if (!fs.existsSync(projectFile) || !fs.readFileSync(projectFile,'utf8').startsWith('gm82_version=')) throw new Error(`GameMaker 工程入口格式不正确：${projectFile}`);
   normalizeState(s);
   validateState(s);
+  validateNativeObjects(s.tracks,new Set(gmAssetNames(project,'paths',fs)));
   const storedState=s;s=normalizeState(expandPatterns(s));for(const t of s.tracks){Object.defineProperty(t,'_allTracks',{value:s.tracks,configurable:true});Object.defineProperty(t,'_state',{value:s,configurable:true});}
   const native=Boolean(s.nativeProject?.imported);
+  const schedule=nativeObjectSchedule(s);
   if(native)installNativeMusicSync(project,s,{io:fs,write:atomicWrite,append:appendUnique});
   if(!native&&(typeof s.music!=='string'||!/^Data\/Music\/[A-Za-z0-9_. -]+\.(ogg|mp3|wav|flac)$/i.test(s.music)||!fs.existsSync(path.join(project,s.music))))throw new Error('工程音乐不存在，请重新导入歌曲');
-  if(native){for(const t of s.tracks.filter(t=>t.kind==='native')){t.start=0;t.end=Math.min(s.duration,s.nativeProject.duration||s.duration);t.enabled=true;}if(!s.tracks.some(t=>t.kind!=='native')){atomicWrite(makerFile,JSON.stringify(storedState,null,2)+'\n');return;}}
+  if(native){for(const t of s.tracks.filter(t=>t.kind==='native')){t.start=0;t.end=Math.min(s.duration,s.nativeProject.duration||s.duration);t.enabled=true;}if(!s.tracks.some(t=>t.kind!=='native')&&!fs.existsSync(path.join(project,'objects','objRufController.txt'))){atomicWrite(makerFile,JSON.stringify(storedState,null,2)+'\n');return;}}
   if(!native)preparePlainRoom(path.resolve(sourceDir,'..'),project,s,atomicWrite,appendUnique,fs);
   if(!native)storedState.plainRooms=s.plainRooms;
   if(!native){
     for(const [name,code] of musicSyncScripts()){atomicWrite(path.join(project,'scripts',name+'.gml'),code+'\n');appendUnique(path.join(project,'scripts','index.yyd'),name);appendUnique(path.join(project,'scripts','tree.yyd'),'\t|'+name);}
     for(const [name,code] of plainCheckpointScripts(s,fxCleanup(s),retryParticleCleanup(project,fs))){atomicWrite(path.join(project,'scripts',name+'.gml'),code+'\n');appendUnique(path.join(project,'scripts','index.yyd'),name);appendUnique(path.join(project,'scripts','tree.yyd'),'\t|'+name);}
     for(const name of ['loadGame','scrLoadGame']){const file=path.join(project,'scripts',name+'.gml');if(fs.existsSync(file)){const code=fs.readFileSync(file,'utf8');if(!code.includes('// RufMaker F5 checkpoint'))atomicWrite(file,"// RufMaker F5 checkpoint\nif instance_exists(objRufController) {if objRufController.rf_preview && objRufController.rf_checkpoint_ready {with(objRufController)rf_preview_retry();return 0;}}\n"+code);}}
-    for(const name of fs.readdirSync(path.join(project,'objects')).filter(name=>name.endsWith('.gml'))){const file=path.join(project,'objects',name);atomicWrite(file,plainRetryEvents(fs.readFileSync(file,'utf8')));}
-    for(const name of fs.readdirSync(path.join(project,'scripts')).filter(name=>/^(?:killPlayer|scrKillPlayer)\.gml$/i.test(name))){const file=path.join(project,'scripts',name);const godGuard="if (variable_global_exists('rf_god_mode') && global.rf_god_mode) return 0;\n";const src=fs.readFileSync(file,'utf8');atomicWrite(file,godGuard+guardPendingDeath(src));}
+    for(const name of fs.readdirSync(path.join(project,'objects')).filter(name=>name.endsWith('.gml'))){const file=path.join(project,'objects',name);const code=plainRetryEvents(fs.readFileSync(file,'utf8'));atomicWrite(file,schedule&&name==='player.gml'?guardPlainReplayPlayer(code):code);}
+    for(const name of fs.readdirSync(path.join(project,'scripts')).filter(name=>/^(?:killPlayer|scrKillPlayer)\.gml$/i.test(name))){const file=path.join(project,'scripts',name);atomicWrite(file,guardPlainDeath(fs.readFileSync(file,'utf8')));}
   }
   if(native){
     appendUnique(path.join(project,'settings','extensions.txt'),'Game Maker 8.2 DirectX9');
     for(const dir of ['objects','scripts'])for(const file of fs.readdirSync(path.join(project,dir)).filter(f=>f.endsWith('.gml')&&!/^(?:objRuf|rf_)/.test(f))){const target=path.join(project,dir,file);atomicWrite(target,patchNativeSurfaceReset(fs.readFileSync(target,'utf8')));}
     for(const [name,code] of [['rf_native_compose',nativeComposeGml(s)],['rf_native_surface_reset',nativeSurfaceResetGml]]){atomicWrite(path.join(project,'scripts',name+'.gml'),code);appendUnique(path.join(project,'scripts','index.yyd'),name);appendUnique(path.join(project,'scripts','tree.yyd'),'\t|'+name);}
   }
-  for (const [name,code] of [...globalScripts(s),...templateScripts(s),...lifetimeScripts,['rf_color_hue',colorHueGml],['rf_spawn_appearance',spawnAppearanceGml],...formationScripts,...expressionScripts(s,fs.readdirSync(path.join(project,'objects')).filter(n=>/^(?:(?:obj_?|o)?player[12]?)\.txt$/i.test(n)).map(n=>n.slice(0,-4))),['rf_camera_post',cameraPostGml],['rf_style_fx',styleFxGml],['rf_bullet_advance',bulletFlightGml(s)],['rf_random_next',randomNextGml],['rf_camera_apply',cameraApplyGml],['rf_camera_composite',cameraCompositeGml],['rf_bullet_trails',bulletTrailGml],['rf_ease',easeGml],['rf_bounce',bounceGml],['rf_fx_reset_target',fxResetGml],['rf_fx_opaque',fxOpaqueGml],['rf_trail_draw',trailGml],['rf_rainbow_index',rainbowGml]]) {atomicWrite(path.join(project,'scripts',`${name}.gml`),code);appendUnique(path.join(project,'scripts','index.yyd'),name);appendUnique(path.join(project,'scripts','tree.yyd'),`	|${name}`);}
-  for(const [name,code] of bulletSystemScripts(s)){atomicWrite(path.join(project,'scripts',name+'.gml'),code);appendUnique(path.join(project,'scripts','index.yyd'),name);appendUnique(path.join(project,'scripts','tree.yyd'),'\t|'+name);}
+  for(const [name,code] of [['rf_native_objects',schedule?.script],['rf_native_object_init',schedule?.initializer]]){
+    const file=path.join(project,'scripts',name+'.gml');
+    if(!code&&!fs.existsSync(file))continue;
+    atomicWrite(file,code||'return 0;');
+    appendUnique(path.join(project,'scripts','index.yyd'),name);
+    appendUnique(path.join(project,'scripts','tree.yyd'),'\t|'+name);
+  }
+  for (const [name,code] of [...globalScripts(s),...templateScripts(s),...lifetimeScripts,['rf_visual_draw',visualDrawCode(s)],['rf_source_depth',sourceDepthGml(s)],['rf_color_hue',colorHueGml],['rf_spawn_appearance',spawnAppearanceGml],...formationScripts,...expressionScripts(s,fs.readdirSync(path.join(project,'objects')).filter(n=>/^(?:(?:obj_?|o)?player[12]?)\.txt$/i.test(n)).map(n=>n.slice(0,-4))),['rf_camera_post',cameraPostGml],['rf_style_fx',styleFxGml],['rf_bullet_advance',bulletFlightGml(s)],['rf_random_next',randomNextGml],['rf_camera_apply',cameraApplyGml],['rf_camera_composite',cameraCompositeGml],['rf_bullet_trails',bulletTrailGml],['rf_ease',easeGml],['rf_bounce',bounceGml],['rf_fx_reset_target',fxResetGml],['rf_fx_opaque',fxOpaqueGml],['rf_trail_draw',trailGml],['rf_rainbow_index',rainbowGml]]) {atomicWrite(path.join(project,'scripts',`${name}.gml`),code);appendUnique(path.join(project,'scripts','index.yyd'),name);appendUnique(path.join(project,'scripts','tree.yyd'),`	|${name}`);}
+  const bricks=s.tracks.some(t=>t.bounceBricks)?roomInstances(project,s.room,fs).filter(i=>i.bulletBrick).map(absoluteBrick):[];
+  for(const [name,code] of bulletSystemScripts(s,bricks)){atomicWrite(path.join(project,'scripts',name+'.gml'),code);appendUnique(path.join(project,'scripts','index.yyd'),name);appendUnique(path.join(project,'scripts','tree.yyd'),'\t|'+name);}
   atomicWrite(path.join(project,'scripts','rf_record_trace.gml'),`if !rf_preview || rf_frame<rf_target return 0;
 var rf_file,rf_p,rf_px,rf_py,rf_spr,rf_sub,rf_xs,rf_ys,rf_alp,rf_ang,rf_dead;
 rf_file=file_text_open_append(working_directory+'\\Data\\rufmaker_player_trace.csv');
@@ -329,8 +386,20 @@ return 0;`);appendUnique(path.join(project,'scripts','index.yyd'),'rf_record_tra
     atomicWrite(initFile,patched);
   }
   for (const [name,info,code] of [
-    ['objRufController','sprite=\nvisible=1\nsolid=0\npersistent=0\ndepth=-7000000\nparent=\nmask=\n',makeController(s)],
+    ['objRufController','sprite=\nvisible=1\nsolid=0\npersistent=0\ndepth=-7000000\nparent=\nmask=\n',makeController(s,schedule)],
     ['objRufBullet',`sprite=${native?s.nativeProject.defaultSprite:'sprBullet'}\nvisible=1\nsolid=0\npersistent=0\ndepth=-100\nparent=${native?s.nativeProject.killerParent:'playerKiller'}\nmask=\n`,bulletGml],
+    ['objRufVisual','sprite=\nvisible=1\nsolid=0\npersistent=0\ndepth=0\nparent=\nmask=\n',`#define Create_0
+${action}
+rf_owner=noone;rf_layer=0;
+#define Step_0
+${action}
+if !instance_exists(rf_owner) instance_destroy();
+#define Draw_0
+${action}
+if !instance_exists(rf_owner) exit;
+var rf_draw_layer;rf_draw_layer=rf_layer;
+with(rf_owner) rf_visual_draw(rf_draw_layer);
+`],
     ['objRufTemplate','sprite=\nvisible=0\nsolid=0\npersistent=0\ndepth=0\nparent=\nmask=\n',templateObject],
     ['objRufTrails','sprite=\nvisible=1\nsolid=0\npersistent=0\ndepth=-99\nparent=\nmask=\n',makeTrails(s)],
     ...makeFxObjects(s)
@@ -345,8 +414,13 @@ return 0;`);appendUnique(path.join(project,'scripts','index.yyd'),'rf_record_tra
     const instFile=path.join(project,'rooms',entry.name,'instances.txt');
     if (!fs.existsSync(instFile)) continue;
     const original=lines(instFile).filter(Boolean);
-    const inst=original.filter(x=>!x.startsWith('objRufController,') && (native||entry.name!==s.room || !x.startsWith('objAd,')));
-    if (entry.name===s.room) inst.push('objRufController,32,32,00F0F0F0,0,1,1,4294967295,0,0');
+    let found=false;
+    const inst=original.filter(line=>{
+      if(!line.startsWith('objRufController,'))return true;
+      if(entry.name!==s.room||found)return false;
+      found=true;return true;
+    });
+    if(entry.name===s.room&&!found)inst.push('objRufController,32,32,00F0F0F0,0,1,1,4294967295,0,0');
     if (inst.join('\n')!==original.join('\n')) atomicWrite(instFile,inst.join('\n')+'\n');
   }
   const roomSettings=path.join(project,'rooms',s.room,'room.txt');
@@ -357,11 +431,23 @@ return 0;`);appendUnique(path.join(project,'scripts','index.yyd'),'rf_record_tra
 }
 
 export function roomInfo(room='rAvoidance') {
-  if (!safeName(room)) throw new Error('Invalid room');
-  const rfile=path.join(project,'rooms',room,'room.txt');
-  const settings=Object.fromEntries(lines(rfile).filter(x=>x.includes('=')).map(x=>x.split(/=(.*)/s).slice(0,2)));
-  const instances=lines(path.join(project,'rooms',room,'instances.txt')).filter(Boolean).map((line,index)=>{ const a=line.split(','); return { index,id:a[3],name:a[0],x:Number(a[1]),y:Number(a[2]),raw:line }; });
-  return { name:room,width:Number(settings.width),height:Number(settings.height),fps:Number(settings.roomspeed),bgColor:Number(settings.bg_color??2105376),instances };
+  return readRoom(project,room);
+}
+
+export function ensureRainbowSprite() {
+  const target=path.join(project,'sprites',rainbowSprite);
+  const transaction=new ProjectSyncTransaction(project);
+  transaction.recover();
+  if(!fs.existsSync(path.join(target,'sprite.txt'))){
+    const source=path.join(root,'templates','avoidance.gm82','sprites',rainbowSprite);
+    transaction.directory(target);
+    for(const name of fs.readdirSync(source)){
+      if(name==='sprite.txt'||/^\d+\.png$/.test(name))transaction.write(path.join(target,name),fs.readFileSync(path.join(source,name)));
+    }
+  }
+  transaction.appendUnique(path.join(project,'sprites','index.yyd'),rainbowSprite);
+  transaction.appendUnique(path.join(project,'sprites','tree.yyd'),'\t|'+rainbowSprite);
+  transaction.commit();
 }
 
 export function inventory() {
@@ -371,6 +457,8 @@ export function inventory() {
     const list=fs.readdirSync(path.join(project,dir),{withFileTypes:true});
     out[key]=list.filter(x=> key==='sprites'||key==='rooms' ? x.isDirectory() : x.isFile() && x.name.endsWith(key==='scripts'?'.gml':'.txt')).map(x=>key==='sprites'||key==='rooms'?x.name:path.parse(x.name).name).sort((a,b)=>a.localeCompare(b));
   }
+  out.paths=gmAssetNames(project,'paths');
+  out.timelines=gmAssetNames(project,'timelines');
   out.objectSprites={};
   for (const name of out.objects) {
     const f=path.join(project,'objects',`${name}.txt`);
@@ -389,13 +477,35 @@ export function sourcePath(kind,name) {
   return p;
 }
 
-export function moveRoomInstance(room,index,x,y) {
+export function editRoomInstances(room,revision,edit) {
+  if(!safeName(room))throw Error('无效的 GameMaker 房间名称');
+  const file=path.join(project,'rooms',room,'instances.txt');
+  const transaction=new ProjectSyncTransaction(project);transaction.recover();
+  const original=transaction.read(file);
+  if(revision&&fileRevision(original)!==revision)throw Error('GameMaker 已修改房间实例。请先使用「读取 GameMaker 修改」。');
+  const text=original.toString('utf8'),newline=text.includes('\r\n')?'\r\n':'\n';
+  const rows=text.split(/\r?\n/).filter(Boolean);
+  edit(rows,transaction);
+  transaction.write(file,rows.length?rows.join(newline)+newline:'');
+  const prepared=transaction.files.get(file);
+  if(prepared&&(!prepared.before||!original.equals(prepared.before)))throw Error('GameMaker 已修改房间实例。请先使用「读取 GameMaker 修改」。');
+  transaction.commit();
+  return roomInfo(room);
+}
+
+export function moveRoomInstance(room,index,x,y,revision,id,transform) {
   if (!safeName(room) || !Number.isInteger(index) || !Number.isFinite(x) || !Number.isFinite(y)) throw new Error('Invalid instance');
-  const f=path.join(project,'rooms',room,'instances.txt');
-  const ls=lines(f).filter(Boolean);
-  if (!ls[index]) throw new Error('Instance not found');
-  const a=ls[index].split(','); a[1]=String(Math.round(x)); a[2]=String(Math.round(y)); ls[index]=a.join(',');
-  atomicWrite(f,ls.join('\n')+'\n');
+  return editRoomInstances(room,revision,rows=>{
+    const slot=id?rows.findIndex(row=>row.split(',')[3]===id):index;
+    if(!rows[slot])throw Error('房间实例已变化，请重新读取工程。');
+    const fields=rows[slot].split(',');fields[1]=gnum(Math.round(x));fields[2]=gnum(Math.round(y));
+    if(transform){
+      if(![transform.scaleX,transform.scaleY,transform.angle].every(Number.isFinite)||
+        !Number.isInteger(transform.blend)||transform.blend<0||transform.blend>4294967295)throw Error('房间实例变换无效');
+      fields[5]=gnum(transform.scaleX);fields[6]=gnum(transform.scaleY);fields[7]=String(transform.blend);fields[8]=gnum(transform.angle);
+    }
+    rows[slot]=fields.join(',');
+  });
 }
 
 export function spriteFile(name) {

@@ -1,9 +1,104 @@
 # Codex 任务记录
 
-- 状态：`completed`
-- 任务：已按用户“推送release”授权集成发布2.7.0；Actions与线上更新器、完整便携包下载验证通过。
-- 基线：main/51d4b2d；发布功能提交1c603bf与v2.7.0已推送。本轮用户明确授权发布，后续新版本仍需另行授权；Argon4无占用，用户工程与个人资料均保留。
-- 当前占用：无。所有已交接应用修改已集成，用户projects与RufMaker.old.exe完整保留；没有自动发布后续版本的授权。
+- 状态：`idle`
+- 当前任务：无，原生对象动态预览及错误瞄准线已本地完成。
+- 基线：main/b1affa1；接手有Argon4已完成的释放保形、变量/事件、公转/预览隐藏、扩展修复等大量未提交改动，Argon4当前idle无占用。本轮无推送/发布授权，保留所有用户工程与现有改动。
+- 当前占用：无。
+- 本机入口：RufMaker.exe，ProductVersion 2.7.0，1,587,200 bytes，旧 EXE 备份 build/native-object-preview/RufMaker.before-native-preview-20261107.exe。
+
+## 2026-11-07　原生对象动态预览与辅助线（本地完成）
+
+- 用户确认需要预览原生事件的动态效果。原生对象过去只显示贴图/生成位置，现由 GM 实际运行 Create/Step/Draw 与子对象生成并缓存。时间轴存在 native-instance 时首次按空格生成，后续播放检查资源/原生片段签名，未改变则直接使用缓存。原生对象修改后更新缓存，普通 RufMaker 物件变化保持缓存及实时叠加。参考玩家仍固定 (400,304)，F5 使用真实玩家。
+- 原生对象组合缓存为 cache/native-film/objects.rufvideo，外部工程原有 base.rufvideo 保留。录制副本用只处理 native-instance 调度和全局变量的控制器执行历史，剔除实时 RufMaker 弹幕、物件、特效与 objRufVisual；不重新解释 GML。普通工程也可录制，房间实例可在工程菜单的原生底片管理手动生成。
+- 虚线原因是每个 Track 的默认 flightExpression 带 player.x/y，绘制时未检查是否启用，且把 native-instance 作为普通空间物件处理。AimsAtPlayer 现在检查实际支持的物件类型及已启用模式，保留真正自机狙/追踪/相关表达式的辅助线，原生对象不会误触发。
+- 底片 manifest 新增可选 sourceSignature/nativeTrackIds，旧格式继续读取。播放实际缓存时跳过相应片段的静态占位图，关闭缓存恢复静态编辑。资源或调度变化后标记过期，取消生成保留旧文件，生成期间再改动会要求更新。关闭底片时预览缓存不再使用残留的底片坐标/统计。普通工程也能读取动态原生对象数量，薄控制器计数去重。
+- 涉及 studio/native-film.mjs、bridge.mjs，desktop NativeGamePreview/NativeFilm/NativeRoomTools/EditorCanvas/EditorShell/PreviewPlayback/PreviewEffects/PreviewRenderer/ObjectStatistics/MainForm/GmResources，既有源码表已包含。没有新增工程字段，缓存元数据向后兼容。补充英文和 README。
+- Node native-film/native-compositor 共 6 项通过。Test-NativeIntegration 验证辅助线判断、片段缓存键及改名/位置变化；Test-NativeFilm 验证元数据保存、随机访问、取消、原子替换与实时合成；Test-PreviewPlayback、Test-Localization 和 Build-Native 通过。
+- 实际 GM 入口 desktop/tests/verify-native-object-film.mjs，隔离工程 build/native-object-preview/Native animation 1794030947660。25 帧录制验证随机初始化、Step 位移、Draw 自绘红块、生成蓝色子对象、片段结束、回看一致、RufMaker 实时叠加、静态占位去重与恢复、原始 GML 保留、缓存签名及叠加编辑不使缓存失效。frame 5/8 红块左边由 109 到 118，frame 20 父子都消失。录制源在独立 build/native-projects 子目录。
+- 检查中一次引用了不存在的 native-objects.test.mjs，改为实际存在的两项 Node 测试。另一个占位像素断言因 GDI 栅格取点不准失败，改用完整边框区域检查并通过。汇总 build/native-object-preview/verification.log。测试只写 build，用户工程保留。根 EXE 已备份替换，无提交、推送或发布，占用释放。
+
+## 2026-11-07　绘制深度和玩家传送预览（本地完成）
+
+- 对象、整体对象和发射来源在外观分组增加绘制深度，多选可统一设置，较小值在前。新增可空整数 Track.depth，空值沿用旧默认，对象 -7000000，整体和普通子弹 -100；旧的生成后代保留 -7000000-generation，显式设置时后代用来源深度减 generation。成员、模板复制和组复制保留对应层级，组复制为原弹深度减一。字段通过现有快照/JSON/复制/预设保存，未加入属性关键帧列表。
+- 新增 desktop/DrawingDepth.cs 与 studio/drawing-depth.mjs。预览用深度队列组合房间实例/瓦片、物件和子弹，同深度保持各来源顺序，拖影统一处于所有本体后。原生对象 sprites 使用每个深度一份 objRufVisual 调用 rf_visual_draw，整体碰撞成员和普通/高级弹幕设置真实 depth，rf_source_depth 与预览共用规则。拖影绘制器也考虑高深度的精灵物件。RoomData.playerDepth 从原生 player 对象默认值读取，用于轨迹角色的静态绘制层。原生底片仍是整体底层，无法重排已录制到同一画面的原生元素，原生代码动态改玩家深度也未扩展到轨迹格式。
+- 选中强制移动玩家位置事件，即使播放头在事件之前，也在画布显示目标十字、坐标、参考位置连线和可用玩家贴图的半透明预览。触发期间也显示目标，数值修改直接刷新覆盖层。目标按事件坐标表达式取样，保留现有视口/拉镜变换。补全 playerTargetX/Y 的 JS 表达式白名单，并将原生传送表达式上下文从弹幕变量改为有效玩家变量，支持 random/choose 和玩家坐标。
+- 主要改动为 EditorCore/MainForm/EditorCanvas/EventPresets/PreviewRenderer/RoomPresentation/BulletSystem/GroupEvents/Build-Native，studio project/motion/native-room/spawn-appearance/event-presets/random-parameters 及新深度模块。三份既有弹幕状态取样器改为调用实际深度计算，补充英文词条和 README。新 CS 已加入显式产品构建表。
+- Test-NativeIntegration 验证六处对象/整体/原生静态实例/弹幕遮挡像素、深度 JSON/快照/预设保存、生成深度、旧默认、目标预览和坐标表达式。15 项 Node 深度/事件/随机参数检查通过，另有 GM 数字测试通过。Test-EventPresets、Test-TemplateSystem、Test-PreviewHiddenAndOrbit、Test-Localization 与构建通过。
+- 实际 GM8.2 定向入口 desktop/tests/verify-depth-gml.mjs，最终工程 build/depth-player-preview/Depth 1794029734087。六处原生像素与 C# 全部一致，生成深度 98、拖影深度 401、传送 X=600，玩家物理继续后 Y=202.4。现有 verify-template-gml 进一步在 build/template-system-check/Template GM 1794029816533 验证 22 帧 1489 条完整弹幕/模板状态一致。
+- 定向准备阶段发现原有传送坐标表达式未在白名单内，已修复；另一次 build 隔离资源事务遇到 EPERM，保留异常摘要，改为直接准备不属于本轮测试对象的资源夹具后正常验证。日志汇总 build/depth-player-preview/verification.log。全部验证只写 build，用户工程保留。根 EXE 已备份替换，无提交、推送或发布，占用释放。
+
+## 2026-11-07　继续补齐常用原生动作（本地完成）
+
+- 对象编辑器的同一个添加动作入口增加设置速度与方向 102、设置闹钟 301、更换贴图 541、反弹 115、执行脚本 601 和调用父事件 604。复用原参数弹窗，未新增主界面栏位。各数值参数保留 GML 表达式，脚本参数为 argument0 到 argument4，闹钟选 0 到 11，反弹支持精确/普通及仅实心/所有对象。
+- 参数动作增加作用对象，可选择 self、碰撞 other 或指定 GM 对象类型；原生运行器按对应作用域执行。销毁动作也能编辑作用对象。已有这些类型的原生动作双击可直接填参数，其他类型和 GML 的原有入口保留。调用父事件本身无参数，通过事件列表和动作顺序使用。
+- GmVisualAction 增加 appliesTo、speed、direction、frames、alarm、subimage、animationSpeed、precise、collisionAll 和独立拷贝的五项 arguments。它们属于资源编辑 DTO，保存为真实 GM 动作元数据，没有新增 RufMaker 工程字段或另一套 C# 模拟公式。参数资源检查包含工程索引。修改已有动作只更新相关头字段，保留原换行、其他动作、作用域和条件标志。
+- 改动文件为 desktop/GmObjectEditor.cs、GmAssetEditor.cs，studio/gm-resources.mjs 及 gm-resources.test.mjs，desktop/tests/NativeIntegrationTests.cs、verify-gm-resources.mjs，英文词条、README 和协作记录。新源码文件数量未变，既有构建表继续包含。
+- Node 15 项通过，日志 build/gm-actions/node-tests.log。Test-NativeIntegration.ps1 验证参数编辑、表达式保留、作用对象映射和脚本草稿隔离；Test-Localization.ps1 与 Build-Native.ps1 通过。实际 GM8.2 隔离工程验证速度方向、相对闹钟触发、贴图/动画速度、五参数脚本、父事件、反弹与 self/other/指定对象作用域，同时保留 18 个路径位置对照。最终工程 build/gm-resources/GM resources 1794024162955，compiler.log 记录编译和运行均退出 0，actions.csv 十项状态全部一致。
+- 第一轮实际运行发现 GM 的换贴图动作在空贴图时会报 Setting instance to non-existing sprite: -1，测试采用关闭弹窗/写错误日志方式结束，记录保存在 build/gm-resources/GM resources 1794024044515/GameMaker.gm82/game_errors.log。已要求换贴图/脚本选择有效资源，已验证有效资源的路径；原有空引用仍可读入并补选。一次早期组合测试只保留了 14/15 的摘要，随后保存完整输出的组合测试为 15/15，GM 资源单项为 8/8。详情 build/gm-actions/verification.log。
+- 根 EXE 已备份替换，仍为 2.7.0。用户工程与既有未提交修改保留。本轮无提交、推送或发布，文件占用释放。
+
+## 2026-11-07　GM 对象编辑器与增删对象（本地完成）
+
+- 双击素材里的 GM 对象打开独立三栏窗口。左栏直接设置贴图、父对象、碰撞遮罩、深度及可见/实心/持久属性，中栏选择、添加、删除或更换事件，右栏逐项增删、编辑和调整动作执行顺序。包含创建、销毁、Step、Draw、闹钟、碰撞、键盘、房间和常用 Other/User 事件。键盘可选择常用键或手填键码。左侧属性点完成保存，事件和动作经各自的操作即时保存。
+- 创建实例、移动到位置、设置变量（含 alarm[0] 等数组字段）和销毁自身使用真实 GM 拖放动作 201/109/611/203，支持适用的相对选项。既有 GML 603 按单动作打开。为样本中的其他常见原生动作显示名称、保留原文，可排序或删除，尚未提供这些动作的参数表单。其他动作参数继续通过 GM 编辑，任意 GML 不自动转成表单。原生 Timeline 保持既有窗口。
+- 素材列表右键支持新建和删除对象。删除前同步待保存内容、扫描房间实例/继承/碰撞事件/脚本与时间轴/嵌套 RufMaker 片段的直接引用，列出位置，并在实际删除时复查。只允许删除无已识别引用的对象。对象索引留下空位，避免改变其他资源编号，树与两个对象文件使用同一事务删除。运行时动态拼接的资源名不属于静态扫描范围。
+- 后台 gm-asset-edit 增加 delete、change-section、delete-section、visual-action、move-action 和 delete-action，add 支持空事件，add-action 支持 visual 或 GML content。gm-asset-read 的动作包含 lib/id/visual，新增 gm-object-references 桥接命令。ProjectSyncTransaction 增加暂存删除及回滚。无新工程字段。
+- 改动文件包括 desktop/GmObjectEditor.cs、GmAssetEditor.cs、GmResources.cs、Build-Native.ps1，studio/gm-resources.mjs、bridge.mjs、project-sync.mjs，英文词条、README、定向测试与本记录。源码表已包含新窗体。禁用按钮及滚动条使用暗色主题，最小窗口已做离屏绘图检查。
+- 验证通过 runtime/node.exe --test studio/gm-resources.test.mjs studio/project-sync.test.mjs，共 13 项。Test-NativeIntegration.ps1、Test-Localization.ps1 和 Build-Native.ps1 通过。实际 GM8.2 隔离工程编译运行验证创建/相对位移/变量赋值/销毁、删除对象后索引、连续空事件及键盘事件，并保留原先的实例字段、Timeline 和 18 处 C#/GM 路径位置对照。最终工程在 build/gm-resources/GM resources 1794021569349，UI 图在 build/native-integration/desktop/gm-object-editor.png。
+- 初次沙箱内 GM 启动返回 3221225794，隔离授权执行通过。补查连续空事件时编译超时，测试进程已结束；依据官方 gm82save loader 定位到空事件之间需要额外换行，修复生成和删去最后动作的情况，新增回归后实际 GM 通过。详细过程保存在 build/gm-object-editor/verification.log。
+- 根 EXE 已备份并替换，保留用户 projects 与接手前改动。本轮无本地提交、推送或发布，文件占用释放。
+
+## 2026-11-06：GM8.2 原生集成第二阶段（本地完成）
+
+- 素材栏对象、GM 路径与原生 Timeline 按资源打开独立编辑窗口，新增入口复用「管理」和右键。对象可新建、编辑贴图/父对象/碰撞遮罩/深度等属性，按事件编辑 GML 或追加常用事件。单动作保存保留其他事件、原拖放动作和换行；右键可打开整个源文件。
+- 房间实例右键打开实例创建 GML 或 Object Fields。识别 Room Start 的声明和继承，按依赖分组；常用类型可通过 GML 值编辑，并只更新标记块内被改字段，保留其他代码及字段。写回使用房间版本、源码版本和事务。
+- Path 可画布增删/拖动路径点，设置点速度、闭合、平滑、精度。可拖到发射器或原生对象片段上，参数只在已绑定时显示。存储字段为 `nativePath`、`nativePathFrames`、`nativePathSpeed`、`nativePathLoop`、`nativePathAbsolute`。发射器按固定帧长采样路径距离，C# 与生成 GML 对照；原生对象调用 `path_start`，使用原生点速度。路径资产来自真实 GM 目录，预览路径数据由桥接读取。
+- 原生 Timeline 可添加、移动、编辑 moment，兼容导入轨道上原生 moment 的双击入口，并回读定位标记。新建原生 Timeline 仍通过对象 GML 的 `timeline_index` 选择。后台新增 `gm-asset-read/edit`、`gm-instance-code-read/save`、`gm-native-timing`。产品代码见桌面 GmPath/GmPathEditor/GmAssetEditor/GmResources 和后台 gm-resources/gm-instance-fields 及现有同步入口。
+- Test-NativeIntegration、Test-UiSimplification、Test-EditorPerformance、Test-Localization 及 23 项 Node 测试通过。真实 GM8.2 编译运行隔离工程，验证对象事件、实例字段、移动后的原生 moment、平台原生移动和 18 个开口/闭合路径发射位置与 C# 一致。验证入口 `runtime/node.exe desktop/tests/verify-gm-resources.mjs`，最新记录在 build/gm-resources/GM resources 1793967460157。未写用户工程、提交或发布，占用释放。
+
+## 2026-11-06：GM8.2 原生集成第一阶段（本地完成）
+
+- 左栏「素材 → 房间」可浏览房间；其他房间只读，返回按钮仅浏览期间出现。静态预览解析背景、前景、瓦片深度和视野矩形，按原生实例缩放、旋转、颜色、透明度及对象深度绘制。当前房间实例的变换可在折叠区编辑。瓦片编辑仍由 GM 房间编辑器完成。
+- 「工程 → 读取 GameMaker 修改」只回读房间与资源，保留播放头和编辑状态。导入工程回读后显示静态房间，已有底片仍可按需使用或更新。实例修改与 GML 源文件保存比较读取版本，发现冲突保留磁盘原文；外部改动后历史撤销不会覆盖新布局。普通工程的旧地形转换只在首次迁移执行。
+- 从素材库将 GM 对象拖到画布仍是摆放房间实例，拖到时间轴创建 `native-instance`。持久字段 `nativeObject`、`nativeKeepAlive`；`code` 用作 Create 后的初始化 GML。片段初始位置可编辑，显示只估算生成时的位置。真实 GM 处理事件、运动和碰撞。普通 F5 只有游标前存在这类片段才运行原生历史，R 复用测试点存档。对导入工程的底片继续保留原有缓存模型。
+- 后台模块为 `native-room.mjs`、`native-objects.mjs` 及同步/桥接；桌面模块为 `RoomPresentation.cs`、`NativeRoomTools.cs` 及既有画布、预设和属性接线。新增桥接命令 `room-read`、`gm-resources-read`，GML/实例编辑接受版本。英文词条及 README 操作说明已补齐。
+- Test-NativeIntegration、Test-UiSimplification、Test-EditorPerformance 和 27 项 Node 定向测试通过。实际 GM8.2 编译并运行隔离工程，核对普通运行及中段 F5 的实例年龄、位置、碰撞、测试点恢复与清理。Verse3 的隔离房间副本验证瓦片回读，导入模式验证生成及删除最后一个片段后清理生成脚本，未完整运行 Verse3。Build-Native 通过，替换本机 EXE。未写用户工程、提交或发布。
+
+## 2026-11-06：GM8.2 原生能力盘点与方案
+
+- 按当前本地 main/b1affa1 工作区做源码和样本核对，参考 GM82Project 的 gm82save、gm82room、Object Fields、Event Order。以 Verse3 的房间瓦片和路径资源、GMAM 的原生 Timeline 为样本，未启动导入、编译或试玩。
+- 已有原生 IDE 入口、房间实例基础编辑、GML 编辑、已识别事件代码块、底片及真实试玩和导出。缺口主要是静态房间图层与实例变换、GM 外部修改回读、结构化对象/资源编辑、时间轴真实实例、Path/Timeline 资源编辑及原生依赖和诊断。
+- 方案优先打通原生房间回读和真实对象片段，再做常用对象事件、Path 和 Timeline，最后扩展多房间、音效、素材和依赖检查。本轮只交付方案，未改产品源码、用户工程或 EXE，无提交，无占用。
+
+## 2026-11-06：优化排查修复（本地完成）
+
+- `studio/retry-particles.mjs` 的 `guardPlainDeath` 合并普通工程此前叠加的无敌守卫，`project.mjs` 同步复用该入口。隔离工程清除 LF/CRLF 重复守卫后，连续三次无改动同步均保留缓存，有改动时正常失效。旧工程在下次同步时清理，未写入用户工程。
+- `MainForm.cs`、`TimelineCanvas.cs`、`RandomParameterUI.cs` 和 `KeyframeWorkspace.cs` 合并加键刷新，保留详情控件并跳过未变化的分隔布局。40 轨、6,400 键的新增关键帧中位耗时从 215.85 ms 降为 3.57 ms，计时数据在 build/editor-performance-check/optimization-*.json。
+- `BulletBoundaries.cs` 和 `studio/bullet-boundaries.mjs` 对单格扫掠采用静态砖块网格筛选，多格长扫掠保留原候选顺序；纯穿屏直接计算剩余位移。对照测试中远离砖块的 1,000 次移动在 1,000 砖块房间由 4.964 ms 降为 0.100 ms，8,000 像素穿屏保留终点。实际 GM8.2 正常模拟和 F5 快进与 C# 对照 118 条状态一致。
+- `ObjectProperties.cs`、`EditorCore.cs`、`PresetBrowser.cs`、`ParameterInspector.cs`、`PreviewRevision.cs`、`studio/bullet-schema.mjs` 和双语词条支持收回、恢复、左栏 ✓ 和重复应用定位。持久字段 `hiddenObjectProperties` 只控制展示，效果、关键帧和预览模拟保留。重复应用已经显示的属性不增加保存或撤销。
+- Test-EditorPerformance、Test-KeyframeWorkspace、Test-InspectorDocking、Test-UiSimplification、Test-VariableAndKeyframe、Test-TemplateSystem 及 15 项 Node 定向测试通过。真实对照入口 `runtime/node.exe desktop/tests/verify-bullet-boundaries-gml.mjs`。使用 Build-Native 构建并替换根 EXE。未提交或发布，占用释放。
+
+## 2026-11-06：优化排查
+
+- 优先修复普通工程重复生成 F6 守卫。隔离工程连续六次同步时 `killPlayer.gml` 从 765 增至 1,140 字节，每次多一条守卫。独立探针确认同内容同步令编译产物由 fresh 变 stale。定位 `studio/project.mjs:266` 和 `studio/native.mjs:34`。
+- `Test-EditorPerformance.ps1 -ProfileOnly -Report optimization-audit` 的 40 轨、6,400 关键帧场景测得普通属性编辑中位 2.1 ms、撤销 6.8 ms、加键 215.8 ms。加键调用选择更新、展开和提交，各自刷新布局。优先合并为一次刷新。
+- `build/optimization-audit/BoundaryProfile.exe` 的 C# 纯移动测试每 1,000 次移动在 25/1,000 砖块下约 0.18/5.08 ms。大量砖块可用格子索引缩小候选范围。同一探针复现极高速穿屏达到 8 次接触后丢失剩余位移。
+- 物件属性当前只能添加和关闭效果，显式添加的分组仍显示。补充移除或收回入口，可完善按需属性流程。本轮仅评估，探针和合成数据存于 build。
+
+## 2026-11-06：可添加的物件属性与反弹（本地完成）
+
+- 预设库「物件属性」提供彩虹 Cherry、拖影、弹幕寿命、散开飞行、反弹设置。拖到物件或双击后选中目标并展开对应属性。位标记 `objectProperties` 记录添加过的分组，旧工程已配置的效果按原字段显示。新建发射器、整体对象和生成预设子弹采用房间外销毁，读取旧工程保留原寿命。彩虹贴图在缺失时从模板事务导入。
+- `bounceBricks` 与 `boundaryMode` 保存在轨道。飞行弹幕可碰实心砖块反弹，房间边界可选反弹或穿屏。C# 与 GML 对同一批放置在房间内的实心实例边界框执行扫掠，碰撞按弹幕中心。出界判断在位移处理后执行。反弹轨道跳过 F5 线性出界裁剪。GM8.2 在控制器创建时显式初始化砖块坐标。
+- 涉及桌面预设、属性、模拟、预览修订、房间模型与显式构建清单。后台包括 bullet-boundaries、bullet-system、bullet-schema、project、bridge。未修改用户工程。基线 main/b1affa1，保留接手前的未提交改动。
+- Test-UiSimplification、Test-TemplateSystem、Test-GenerationPresets、Test-ReleaseKeepShape、Test-Localization 和 12 项 Node 测试通过。运行 `runtime/node.exe desktop/tests/verify-bullet-boundaries-gml.mjs` 得到 80 条 GM8.2/预览一致状态，含普通和 F5 快进重建、砖块、角点、穿屏和散开。根 EXE 已构建并替换，未提交/推送/发布，占用释放。
+
+## 2026-11-06：右键与属性精简（本地完成）
+
+- MainForm和TimelineGroups移除独立的旧版大右键菜单，普通物件最多7个一级入口；属性只给当前属性操作，关键帧页只给关键帧相关操作，空白处复用EditorShell.FillAddMenu（保留分类事件），轨道和组功能收进同一子菜单。行为页保留高级规则编辑入口，复制、预设、循环片段、预览隐藏、分组和撤销均可用。短菜单移除重复的全局撤销/重做入口。
+- MainForm.RelevantParameter仅改变可见属性，按端点、滚动、阵列、特效、彩虹及释放模式显示，保留已有键/公式的动画字段。Power/ExpSin参数随轨道或任一键的缓动显示；运动预设只保留速度输入，圈数仍按原字段存储。发射分类合并，随机颜色移到外观，标签/变换父级/模板/逐颗递增及随机取样收到默认折叠的高级设置。没有新增工程字段或修改Motion.Fields、生成GML/后台接口。
+- 文件：desktop/MainForm.cs、TimelineGroups.cs、BulletTools.cs、TemplateTools.cs、MotionPresets.cs、ParameterInspector.cs、EditorShell.cs、SpawnAppearance.cs；assets/locales/en.json；新Test-UiSimplification.ps1/tests/UiSimplificationTests.cs；docs/inspector-simplification.md、开发入口和本记录/STATUS。无新增产品CS。
+- Test-UiSimplification、Test-ShellLayout、Test-EditorPerformance、Test-VariableAndKeyframe、Test-Localization、Test-PreviewHiddenAndOrbit及最终Build-Native通过。中英340/440px属性图已查看；UI范围git diff --check通过。全应用diff已有Argon4的studio/bullet-system.test.mjs末尾空行，不在本轮修改范围。日志和截图在build/ui-simplification-check。只验证编辑器行为，本轮未运行GM对照或同步用户projects。
+- 未提交、推送或发布；根EXE已换，保留接手前所有其他改动。本轮无未完成实现，文件占用释放。
 - 本机入口：RufMaker.exe，ProductVersion2.7.0，1,384,448 bytes；本轮旧入口备份build/release-check-2.7.0/RufMaker.before-release.exe。
 
 ## 2026-10-31：2.7.0发布（已完成）

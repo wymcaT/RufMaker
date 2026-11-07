@@ -13,6 +13,7 @@ using System.Web.Script.Serialization;
 #pragma warning disable 0649
 internal class NativeFilmInfo
 {
+    public string sourceSignature;public string[] nativeTrackIds=new string[0];
     public int version=1,fps=50,width,height,frameCount,playerX=400,playerY=304;public string room,generatedUtc;public string[] nativeIds=new string[0];public NativeViewPose[] views;
     public NativeObjectCounts[] objectCounts;
     public Dictionary<string,int> Counts(int frame){if(objectCounts==null||objectCounts.Length==0)return null;int lo=0,hi=objectCounts.Length-1,found=-1;while(lo<=hi){int mid=(lo+hi)/2;if(objectCounts[mid].frame<=frame){found=mid;lo=mid+1;}else hi=mid-1;}return found<0?null:objectCounts[found].counts;}
@@ -70,7 +71,7 @@ internal static class NativeFilmBuilder
     {
         if(job.frameCount<1||job.fps!=50)throw new IOException("原生底片的帧数或 FPS 无效。");
         Directory.CreateDirectory(Path.GetDirectoryName(job.output));string temporary=job.output+".partial-"+Guid.NewGuid().ToString("N");Process process=null;
-        var info=new NativeFilmInfo{fps=job.fps,width=job.width,height=job.height,frameCount=job.frameCount,room=job.room,nativeIds=job.nativeIds,generatedUtc=DateTime.UtcNow.ToString("o",CultureInfo.InvariantCulture)};
+        var info=new NativeFilmInfo{fps=job.fps,width=job.width,height=job.height,frameCount=job.frameCount,room=job.room,nativeIds=job.nativeIds,sourceSignature=job.sourceSignature,nativeTrackIds=job.nativeTrackIds,generatedUtc=DateTime.UtcNow.ToString("o",CultureInfo.InvariantCulture)};
         try{
             string errorLog=Path.Combine(job.dir,"game_errors.log");foreach(string file in new[]{job.statusFile,job.frameFile,errorLog})if(File.Exists(file))File.Delete(file);
             Directory.CreateDirectory(job.ackDirectory);foreach(string marker in Directory.GetFiles(job.ackDirectory,"*.ok"))File.Delete(marker);

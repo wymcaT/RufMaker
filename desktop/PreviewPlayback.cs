@@ -120,11 +120,14 @@ internal sealed partial class MainForm
         if(templateEditing!=null){audio.Pause();return;}if(audio.Duration<=0)return;if(speed==0||seconds<0||seconds>=audio.Duration){audio.Pause();return;}
         if(!audio.Playing)audio.Play(seconds,speed);else{audio.SetRate(speed);if(Math.Abs(audio.Position-seconds)>.09)audio.Seek(seconds);audio.Update();}
     }
-    private void TogglePlaying()
+    private bool preparingNativePlayback;
+    private async void TogglePlaying()
     {
-        if(state==null||busy)return;if(playTimer.Enabled){StopPlaying();return;}
-        try{if(templateEditing!=null&&frame>=templateEditing.end)SetFrame(templateEditing.start);else if(frame>=state.duration)SetFrame(0);previewTransport.Start(frame,1,false);previewTickTime=0;SyncPreviewAudio();playClock.Restart();playTimer.Start();playButton.Text="Ⅱ";SetStatus("时间轴与音乐播放中 · "+previewRate.ToString("0.##")+"× · 空格暂停 · F5 试玩");}
+        if(state==null||busy||preparingNativePlayback)return;ReturnToTimelineRoom();if(playTimer.Enabled){StopPlaying();return;}
+        preparingNativePlayback=true;
+        try{if(templateEditing==null&&!await PrepareNativeObjectPlayback())return;if(IsDisposed||busy)return;if(templateEditing!=null&&frame>=templateEditing.end)SetFrame(templateEditing.start);else if(frame>=state.duration)SetFrame(0);previewTransport.Start(frame,1,false);previewTickTime=0;SyncPreviewAudio();playClock.Restart();playTimer.Start();playButton.Text="⏸";SetStatus("时间轴与音乐播放中 · "+previewRate.ToString("0.##")+"× · 空格暂停 · F5 试玩");}
         catch(Exception error){StopPlaying();Error(error);}
+        finally{preparingNativePlayback=false;}
     }
     private void StopPlaying(){StopPreview(true);}
     private void StopPreview(bool releaseArrow)

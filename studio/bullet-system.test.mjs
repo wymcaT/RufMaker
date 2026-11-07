@@ -17,3 +17,18 @@ test('looped clips keep internal references and scale local action time',()=>{
 test('invalid behavior values and cyclic parenting report specific errors',()=>{
   assert.throws(()=>normalizeBulletState({tracks:[{...emitter(),bulletActions:[{type:'split',count:301}]}]}),/行为参数/);assert.throws(()=>normalizeBulletState({tracks:[{id:'a',kind:'group',parentId:'b'},{id:'b',kind:'group',parentId:'a'}]}),/循环引用/);
 });
+test('radial release generates keep-shape distance scaling when releaseKeepShape is enabled',()=>{
+  const rodKeep={id:'rod-k',kind:'rod',start:0,end:100,shape:'star',count:5,releaseFrame:20,releaseDirection:'radial',releaseKeepShape:true,speed:5,keyframes:[]};
+  const rodUniform={id:'rod-u',kind:'rod',start:0,end:100,shape:'star',count:5,releaseFrame:20,releaseDirection:'radial',releaseKeepShape:false,speed:5,keyframes:[]};
+  const sKeep=normalizeState({version:2,fps:50,duration:200,tracks:[rodKeep]});
+  const scriptsKeep=Object.fromEntries(bulletSystemScripts(sKeep));
+  assert.match(scriptsKeep.rf_pattern_step,/rf_max_dist=0;for\(rf_j=0;rf_j<rf_n;rf_j\+=1\)/);
+  assert.match(scriptsKeep.rf_pattern_step,/rf_spd_out=rf_speed\*\(point_distance\(rf_x,rf_y,rf_px,rf_py\)\/rf_max_dist\)/);
+  assert.match(scriptsKeep.rf_pattern_step,/rf_instance=rf_pattern_spawn\(0,rf_now,rf_j,rf_n,0,1,rf_px,rf_py,rf_heading,rf_spd_out/);
+
+  const sUniform=normalizeState({version:2,fps:50,duration:200,tracks:[rodUniform]});
+  const scriptsUniform=Object.fromEntries(bulletSystemScripts(sUniform));
+  assert.doesNotMatch(scriptsUniform.rf_pattern_step,/rf_max_dist=0/);
+  assert.match(scriptsUniform.rf_pattern_step,/rf_instance=rf_pattern_spawn\(0,rf_now,rf_j,rf_n,0,1,rf_px,rf_py,rf_heading,rf_speed/);
+});
+

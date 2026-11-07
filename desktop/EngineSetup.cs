@@ -56,8 +56,42 @@ internal static class EngineSetup
         }
         return incomplete??Inspect(Path.Combine(root,"GameMaker8.2","GameMaker.exe"));
     }
+    public static string BundledExtensionsFolder(string root)
+    {
+        if(!String.IsNullOrEmpty(root)){string direct=Path.Combine(root,"assets","gm82-extensions");if(Directory.Exists(direct))return direct;}
+        string baseDir=AppDomain.CurrentDomain.BaseDirectory,near=Path.Combine(baseDir,"assets","gm82-extensions");
+        if(Directory.Exists(near))return near;
+        string parent=Path.Combine(baseDir,"..","assets","gm82-extensions");
+        if(Directory.Exists(parent))return Path.GetFullPath(parent);
+        return Path.Combine(root??"","assets","gm82-extensions");
+    }
+    public static bool CanRepair(string root,EngineInspection inspection)
+    {
+        if(inspection==null||String.IsNullOrEmpty(inspection.Exe)||!File.Exists(inspection.Exe))return false;
+        if(inspection.Missing==null||inspection.Missing.Length==0)return false;
+        string bundle=BundledExtensionsFolder(root);if(!Directory.Exists(bundle))return false;
+        return inspection.Missing.All(m=>m.StartsWith("extensions/")&&File.Exists(Path.Combine(bundle,Path.GetFileName(m))));
+    }
+    public static EngineInspection Repair(string root,EngineInspection inspection)
+    {
+        if(inspection==null||String.IsNullOrEmpty(inspection.Exe))return inspection;
+        string engineDir=Path.GetDirectoryName(inspection.Exe),extDir=Path.Combine(engineDir,"extensions");
+        Directory.CreateDirectory(extDir);string bundle=BundledExtensionsFolder(root);
+        if(Directory.Exists(bundle)){
+            foreach(string file in Directory.GetFiles(bundle)){
+                string target=Path.Combine(extDir,Path.GetFileName(file));
+                if(!File.Exists(target))File.Copy(file,target,true);
+            }
+        }
+        return Inspect(inspection.Exe);
+    }
     public static EngineInspection Use(string root,string selection)
-    {var found=Inspect(selection);if(!found.Ready)throw new InvalidDataException("这个目录缺少 GM8.2 必需文件：\r\n"+String.Join("\r\n",found.Missing));SetSetting(root,"gameMaker",found.Exe);SetSetting(root,"engineSetupSkipped","false");return found;}
+    {
+        var found=Inspect(selection);
+        if(!found.Ready&&CanRepair(root,found))found=Repair(root,found);
+        if(!found.Ready)throw new InvalidDataException("这个目录缺少 GM8.2 必需文件：\r\n"+String.Join("\r\n",found.Missing));
+        SetSetting(root,"gameMaker",found.Exe);SetSetting(root,"engineSetupSkipped","false");return found;
+    }
     public static string[] MissingRuntimes(string engineDirectory)
     {
         string system=Environment.Is64BitOperatingSystem?Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows),"SysWOW64"):Environment.SystemDirectory;

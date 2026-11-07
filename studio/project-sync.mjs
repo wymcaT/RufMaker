@@ -11,19 +11,31 @@ export class ProjectSyncTransaction {
     this.io={existsSync:file=>this.exists(file),readFileSync:(file,encoding)=>this.read(file,encoding),readdirSync:(file,options)=>this.entries(file,options),mkdirSync:file=>this.directory(file),copyFileSync:(source,target)=>this.write(target,this.read(source))};
   }
   target(file) {const value=path.resolve(file),relative=path.relative(this.project,value);if(!relative||relative.startsWith('..'+path.sep)||relative==='..'||path.isAbsolute(relative))throw Error('同步文件超出工程目录');return value;}
-  exists(file) {file=path.resolve(file);return this.files.has(file)||this.directories.has(file)||fs.existsSync(file);}
-  read(file,encoding) {const row=this.files.get(path.resolve(file)),value=row?row.next:fs.readFileSync(file);return encoding?value.toString(encoding):value;}
+  exists(file) {file=path.resolve(file);const row=this.files.get(file);return row?row.next!==null:this.directories.has(file)||fs.existsSync(file);}
+  read(file,encoding) {
+    const row=this.files.get(path.resolve(file));
+    if(row&&row.next===null)throw Object.assign(Error('文件已被移除：'+file),{code:'ENOENT'});
+    const value=row?row.next:fs.readFileSync(file);return encoding?value.toString(encoding):value;
+  }
   directory(file) {file=this.target(file);while(file!==this.project&&!fs.existsSync(file)){this.directories.add(file);file=path.dirname(file);}}
   write(file,value) {
     file=this.target(file);const row=this.files.get(file),before=row?row.before:fs.existsSync(file)?fs.readFileSync(file):null,next=Buffer.isBuffer(value)?Buffer.from(value):Buffer.from(value,'utf8');
     if(before&&before.equals(next)){this.files.delete(file);return;}
     this.files.set(file,{before,next});if(!fs.existsSync(path.dirname(file)))this.directory(path.dirname(file));
   }
+  remove(file) {
+    file=this.target(file);const row=this.files.get(file),before=row?row.before:fs.existsSync(file)?fs.readFileSync(file):null;
+    if(before===null)this.files.delete(file);else this.files.set(file,{before,next:null});
+  }
   appendUnique(file,value) {const text=this.read(file,'utf8');if(!text.replace(/\r/g,'').split('\n').includes(value))this.write(file,text+(text&&!text.endsWith('\n')?'\n':'')+value+'\n');}
   entries(file,options) {
     file=path.resolve(file);const result=new Map();
     if(fs.existsSync(file))for(const item of fs.readdirSync(file,options))result.set(typeof item==='string'?item:item.name,item);
-    for(const target of [...this.directories,...this.files.keys()])if(path.dirname(target)===file&&!result.has(path.basename(target))){const name=path.basename(target),directory=this.directories.has(target);result.set(name,options?.withFileTypes?{name,isDirectory:()=>directory,isFile:()=>!directory}:name);}
+    for(const target of [...this.directories,...this.files.keys()])if(path.dirname(target)===file){
+      const name=path.basename(target),directory=this.directories.has(target);
+      if(this.files.get(target)?.next===null)result.delete(name);
+      else if(!result.has(name))result.set(name,options?.withFileTypes?{name,isDirectory:()=>directory,isFile:()=>!directory}:name);
+    }
     return [...result.values()];
   }
   replace(target,bytes) {const temporary=target+'.rufmaker-sync.tmp';fs.writeFileSync(temporary,bytes);try{fs.renameSync(temporary,target);}catch(error){try{fs.unlinkSync(temporary);}catch{}throw error;}}
@@ -43,10 +55,15 @@ export class ProjectSyncTransaction {
     const rows=[...this.files];for(const [file,row] of rows){const current=fs.existsSync(file)?fs.readFileSync(file):null;if(current===null?row.before!==null:row.before===null||!current.equals(row.before))throw Error('工程文件已被其他程序修改，请重新读取后再保存：'+path.relative(this.project,file));}
     fs.mkdirSync(this.folder);const journal={version:1,status:'pending',files:rows.map(([file,row],index)=>({path:path.relative(this.project,file),index,existed:row.before!==null})),directories:[...this.directories].map(file=>path.relative(this.project,file))};
     let committed=false;try {
-      for(let index=0;index<rows.length;index++){const row=rows[index][1];fs.writeFileSync(path.join(this.folder,index+'.new'),row.next);if(row.before!==null)fs.writeFileSync(path.join(this.folder,index+'.old'),row.before);}
+      for(let index=0;index<rows.length;index++){const row=rows[index][1];if(row.next!==null)fs.writeFileSync(path.join(this.folder,index+'.new'),row.next);if(row.before!==null)fs.writeFileSync(path.join(this.folder,index+'.old'),row.before);}
       this.replace(path.join(this.folder,'journal.json'),Buffer.from(JSON.stringify(journal)));
       this.hooks.prepared?.(journal);
-      for(let index=0;index<rows.length;index++){const [file,row]=rows[index];fs.mkdirSync(path.dirname(file),{recursive:true});this.replace(file,row.next);this.hooks.applied?.(index,file);}
+      for(let index=0;index<rows.length;index++){
+        const [file,row]=rows[index];
+        if(row.next===null)fs.unlinkSync(file);
+        else{fs.mkdirSync(path.dirname(file),{recursive:true});this.replace(file,row.next);}
+        this.hooks.applied?.(index,file);
+      }
       journal.status='committed';this.replace(path.join(this.folder,'journal.json'),Buffer.from(JSON.stringify(journal)));committed=true;this.cleanup();
     } catch(error) {
       if(committed)return; // Resource set is complete; cleanup can finish on the next load.

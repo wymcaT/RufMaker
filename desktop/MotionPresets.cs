@@ -102,7 +102,6 @@ internal sealed partial class MainForm
         if(MotionPresets.Bound(track)){
             var d=track.motionPreset;string[] choices=new[]{"手动关键帧"}.Concat(MotionPresets.Names).ToArray();
             Field(bag,"动作预设","动作预设参数",()=>track.motionPreset.name,value=>{if(value=="手动关键帧")MotionPresets.Manual(track,frame);else MotionPresets.Apply(track,value,Math.Max(track.start,Math.Min(track.end,frame)));QueueInspectorUpdate();},choices);
-            bag.Add("生成方式","动作预设参数",typeof(string),()=>"由预设控制；切换手动时保留当前位置。",null);
             bag.Add("预设持续时间 / 帧","动作预设参数",typeof(int),()=>Math.Max(1,track.motionPreset.end-track.motionPreset.start),value=>{PushUndo();track.motionPreset.end=track.motionPreset.start+Math.Max(1,Math.Min(1000000,(int)value));MotionPresets.Bake(track);MarkChanged();});
             Action<string,string> number=(label,field)=>bag.Add(label,"动作预设参数",typeof(double),()=>typeof(MotionPresetData).GetField(field).GetValue(track.motionPreset),value=>{PushUndo();typeof(MotionPresetData).GetField(field).SetValue(track.motionPreset,field=="hold"?Math.Max(0,Math.Min(.99,(double)value)):(double)value);MotionPresets.Bake(track);if(selectedKey!=null&&MotionPresets.Generated(track,selectedKey.property)){selectedKey=null;timeline.ClearKeySelection();}MarkChanged();});
             bool circle=d.name=="圆周运动"||d.name=="螺旋扩散"||d.name=="螺旋收束",eight=d.name=="八字运动",back=d.name=="水平往返"||d.name=="垂直往返";
@@ -113,7 +112,7 @@ internal sealed partial class MainForm
             else if(circle){number("起始半径","radiusStart");number("结束半径","radiusEnd");}
             if(back||eight||d.name=="向上漂浮")number("水平振幅","amplitudeX");
             if(back||eight||d.name=="S 形穿行")number("垂直振幅","amplitudeY");
-            if(circle||eight||back||d.name=="向上漂浮"||d.name=="S 形穿行"){number("运动圈数","turns");bag.Add("运动速度 / 圈每秒","动作预设参数",typeof(double),()=>track.motionPreset.turns*state.fps/Math.Max(1.0,track.motionPreset.end-track.motionPreset.start),value=>{PushUndo();track.motionPreset.turns=(double)value*Math.Max(1.0,track.motionPreset.end-track.motionPreset.start)/state.fps;MotionPresets.Bake(track);MarkChanged();});number("运动初相角","phase");}
+            if(circle||eight||back||d.name=="向上漂浮"||d.name=="S 形穿行"){bag.Add("运动速度 / 圈每秒","动作预设参数",typeof(double),()=>track.motionPreset.turns*state.fps/Math.Max(1.0,track.motionPreset.end-track.motionPreset.start),value=>{PushUndo();track.motionPreset.turns=(double)value*Math.Max(1.0,track.motionPreset.end-track.motionPreset.start)/state.fps;MotionPresets.Bake(track);MarkChanged();},null,"速度与持续时间共同决定运动圈数；修改速度会保持持续时间。");number("运动初相角","phase");}
             if(d.name=="停顿后冲刺")number("停顿占比 0–1","hold");
             if(!circle&&!eight&&!back&&d.name!="抛物线运动")Field(bag,"路径缓动","动作预设参数",()=>Motion.EaseNames[Math.Max(0,Array.IndexOf(Motion.EaseValues,d.easing))],value=>{d.easing=Motion.EaseValues[Array.IndexOf(Motion.EaseNames,value)];MotionPresets.Bake(track);},Motion.EaseNames);
             Field(bag,track.kind=="camera"?"镜头旋转速度 °/帧":"自转速度 °/帧","运动",()=>track.angularSpeed,value=>track.angularSpeed=value);return;
@@ -122,7 +121,7 @@ internal sealed partial class MainForm
         Field(bag,"运动逻辑","运动",()=>names[Math.Max(0,Array.IndexOf(values,track.motion))],value=>{track.motion=values[Array.IndexOf(names,value)];QueueInspectorUpdate();},names,"动作预设支持拉镜及物件。运动叠加在关键帧位置上，时间单位为帧。");
         Field(bag,track.kind=="camera"?"镜头旋转速度 °/帧":"自转速度 °/帧","运动",()=>track.angularSpeed,value=>track.angularSpeed=value);
         if(track.motion=="velocity"){Field(bag,"X 速度","运动",()=>track.velocityX,value=>track.velocityX=value);Field(bag,"Y 速度","运动",()=>track.velocityY,value=>track.velocityY=value);Field(bag,"X 加速度","运动",()=>track.accelerationX,value=>track.accelerationX=value);Field(bag,"Y 加速度","运动",()=>track.accelerationY,value=>track.accelerationY=value);}
-        if(track.motion=="orbit")Field(bag,"公转速度 °/帧","运动",()=>track.orbitSpeed,value=>track.orbitSpeed=value);
+        if(track.motion=="orbit"){Field(bag,"公转速度 °/帧","圆周运动",()=>track.orbitSpeed,value=>track.orbitSpeed=value);bag.Add("说明","圆周运动",typeof(string),()=>"物件围绕公转圆心旋转。修改上方的“公转圆心 X / Y”及“公转半径”即可调整公转轨迹。",null);}
         if(track.motion=="parabola")bag.Add("路径说明","运动",typeof(string),()=>"设置起点、终点和峰（通过点）；路径进度 0→1 沿连续曲线运动。",null);
     }
 }

@@ -6,7 +6,7 @@ using System.Web.Script.Serialization;
 
 internal static class PreviewRevision
 {
-    private static readonly FieldInfo[] trackFields=typeof(Track).GetFields().Where(f=>!f.IsDefined(typeof(ScriptIgnoreAttribute),true)&&f.Name!="name"&&f.Name!="lane").ToArray();
+    private static readonly FieldInfo[] trackFields=typeof(Track).GetFields().Where(f=>!f.IsDefined(typeof(ScriptIgnoreAttribute),true)&&f.Name!="name"&&f.Name!="lane"&&f.Name!="objectProperties"&&f.Name!="hiddenObjectProperties").ToArray();
     private static readonly FieldInfo[] stateFields=typeof(EditorState).GetFields().Where(f=>!f.IsDefined(typeof(ScriptIgnoreAttribute),true)&&f.Name!="tracks").ToArray();
     internal static readonly FieldInfo[] PersistedTrackFields=typeof(Track).GetFields().Where(f=>!f.IsDefined(typeof(ScriptIgnoreAttribute),true)).ToArray();
     private static bool RenderOnly(Track t,bool viewLife){return t.kind=="effect"||t.kind=="script"||t.kind=="native"||t.kind=="camera"&&!viewLife;}
@@ -25,6 +25,8 @@ internal static class PreviewRevision
     public static int SimulationFrom(EditorState old,EditorState next,RoomData room,RoomData nextRoom)
     {
         if(old==null||room==null||nextRoom==null||room.width!=nextRoom.width||room.height!=nextRoom.height||old.room!=next.room||old.fps!=next.fps||old.duration!=next.duration||old.randomSeed!=next.randomSeed||old.usePlayerTrace!=next.usePlayerTrace||!SceneComparison.Same(old.nativeTest,next.nativeTest)||next.usePlayerTrace&&!SceneComparison.Same(old.playerTrace,next.playerTrace)||!SceneComparison.Same(old.nativeProject,next.nativeProject))return 0;
+        if(old.tracks.Concat(next.tracks).Any(UsesBrickBounce)&&!room.SameContent(nextRoom))return 0;
+        if(!ReferenceEquals(old.nativePaths,next.nativePaths)&&!SceneComparison.Same(old.nativePaths,next.nativePaths))return 0;
         bool viewLife=old.tracks.Concat(next.tracks).Any(t=>BulletLifetime.Mode(t)=="view");
         var before=old.tracks.Where(t=>!RenderOnly(t,viewLife)).ToArray();var after=next.tracks.Where(t=>!RenderOnly(t,viewLife)).ToArray();
         var common=new HashSet<string>(before.Select(t=>t.id).Intersect(after.Select(t=>t.id)));
@@ -45,6 +47,7 @@ internal static class PreviewRevision
         }
         return first==Int32.MaxValue?-1:first;
     }
+    private static bool UsesBrickBounce(Track track){return track.bounceBricks||track.children.Any(UsesBrickBounce);}
     public static void Apply(EditorState target,EditorState source)
     {
         var variables=target.variableTimeline;var old=target.tracks.GroupBy(t=>t.id).ToDictionary(g=>g.Key,g=>g.First());var tracks=new List<Track>();

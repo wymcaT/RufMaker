@@ -10,7 +10,7 @@ internal static class RegionGenerationTests
     sealed class QuietForm:Form {protected override bool ShowWithoutActivation{get{return true;}}}
     static void Check(bool value,string message){if(!value)throw new Exception(message);}
     static void Near(double a,double b,string message){Check(Math.Abs(a-b)<.0001,message+": "+a+" / "+b);}
-    static object Rows(BulletWorld w){return w.bullets.Where(b=>b.birth<=w.Frame&&!b.dead).Select(b=>new{source=b.source.id,b.birth,b.index,b.generation,b.x,b.y,b.direction,b.speed,scale=b.scale*BulletLifetime.Scale(b),alpha=b.alpha*BulletLifetime.Alpha(b),b.kinematic,b.clockShift,b.sourceX,b.sourceY,b.collision,b.deathStart,sprite=b.sprite??b.source.sprite,color=b.color.R+b.color.G*256+b.color.B*65536,depth=b.generation>0?-7000000-b.generation:-100,image=b.frozenImage>=0?b.frozenImage:Rainbow.Index(b.source,b.sequence,w.Frame-b.clockShift,(b.kinematic?w.Frame:b.birth)-b.clockShift)}).ToArray();}
+    static object Rows(BulletWorld w){return w.bullets.Where(b=>b.birth<=w.Frame&&!b.dead).Select(b=>new{source=b.source.id,b.birth,b.index,b.generation,b.x,b.y,b.direction,b.speed,scale=b.scale*BulletLifetime.Scale(b),alpha=b.alpha*BulletLifetime.Alpha(b),b.kinematic,b.clockShift,b.sourceX,b.sourceY,b.collision,b.deathStart,sprite=b.sprite??b.source.sprite,color=b.color.R+b.color.G*256+b.color.B*65536,depth=DrawingDepth.Bullet(b),image=b.frozenImage>=0?b.frozenImage:Rainbow.Index(b.source,b.sequence,w.Frame-b.clockShift,(b.kinematic?w.Frame:b.birth)-b.clockShift)}).ToArray();}
     static Track Host(string id){return new Track{id=id,name=id,kind="object",start=0,end=28,x=-600,y=900};}
     static Track AddRegion(EditorState s,string id,string mode,bool follow=false)
     {

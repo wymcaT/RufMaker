@@ -11,6 +11,7 @@ internal sealed partial class MainForm
     private readonly SplitContainer keySplit=new SplitContainer{Dock=DockStyle.Fill,Orientation=Orientation.Horizontal,BackColor=Theme.Line,SplitterWidth=7,Size=new Size(340,450)};
     private readonly ParameterInspector keyProperties=new ParameterInspector{Dock=DockStyle.Fill,Compact=true};
     private readonly Label keyEmpty=new Label{Dock=DockStyle.Fill,TextAlign=ContentAlignment.MiddleCenter,ForeColor=Theme.Muted,Text="选择单个物件以编辑关键帧"};
+    private readonly Label keyDetailsEmpty=new Label{Dock=DockStyle.Fill,TextAlign=ContentAlignment.MiddleCenter,ForeColor=Theme.Muted,Text="在关键帧列表中选中一帧，在此修改帧数、数值与缓动。"};
     private ToolStrip keyframeTools;private bool layingOutKeys,resizingKeys,refreshingKeyDetails;private int keyWorkspaceHeight=220;
     private double keyDetailsRatio=.65;
     private bool keyWorkspaceOpen=true;
@@ -31,7 +32,8 @@ internal sealed partial class MainForm
         keyTimeline.InsertKey=(track,property,at)=>{timeline.SelectedProperty=property;SelectTrack(track,null);SetFrame(Math.Max(track.start,Math.Min(track.end,at)));AddKey();};
         keyTimeline.ContextMenuStrip=CreateContext(false);keyProperties.ContextMenuStrip=CreateContext(true);keyProperties.HelpVisible=false;
         keyProperties.BeginScrub=properties.BeginScrub;keyProperties.EndScrub=properties.EndScrub;
-        keyWorkspace.Controls.Add(keyTimeline);keySplit.Panel1.Controls.Add(keyWorkspace);keySplit.Panel1.Controls.Add(keyEmpty);keySplit.Panel2.Controls.Add(keyProperties);page.Controls.Add(rightTime,0,0);page.Controls.Add(tools,0,1);page.Controls.Add(keySplit,0,2);
+        keyProperties.Visible=false;keyDetailsEmpty.ContextMenuStrip=keyProperties.ContextMenuStrip;
+        keyWorkspace.Controls.Add(keyTimeline);keySplit.Panel1.Controls.Add(keyWorkspace);keySplit.Panel1.Controls.Add(keyEmpty);keySplit.Panel2.Controls.Add(keyProperties);keySplit.Panel2.Controls.Add(keyDetailsEmpty);page.Controls.Add(rightTime,0,0);page.Controls.Add(tools,0,1);page.Controls.Add(keySplit,0,2);
         keyDetailsRatio=restoredView!=null&&restoredView.inspectorDock!=null?Math.Max(.05,Math.Min(.95,restoredView.inspectorDock.details)):.65;
         keySplit.Resize+=(s,e)=>LayoutKeyWorkspace();keySplit.SplitterMoving+=(s,e)=>resizingKeys=true;
         keySplit.SplitterMoved+=(s,e)=>{if(resizingKeys&&!layingOutKeys){keyWorkspaceHeight=keySplit.SplitterDistance;int total=keySplit.ClientSize.Height-keySplit.SplitterWidth;if(total>0)keyDetailsRatio=keySplit.SplitterDistance/(double)total;}resizingKeys=false;};
@@ -44,7 +46,10 @@ internal sealed partial class MainForm
         try{
             bool available=keyWorkspaceTrack!=null&&Motion.Fields(keyWorkspaceTrack).Length>0;keyframeTools.Enabled=available;keyWorkspace.Visible=available;keyEmpty.Visible=!available;
             if(keySplit.ClientSize.Height>keySplit.SplitterWidth){int total=keySplit.ClientSize.Height-keySplit.SplitterWidth,minimum=Math.Min(total/2,70);
-                keySplit.Panel1MinSize=0;keySplit.Panel2MinSize=0;keySplit.SplitterDistance=Math.Max(minimum,Math.Min(total-minimum,(int)Math.Round(total*keyDetailsRatio)));keySplit.Panel1MinSize=minimum;keySplit.Panel2MinSize=minimum;
+                int distance=Math.Max(minimum,Math.Min(total-minimum,(int)Math.Round(total*keyDetailsRatio)));
+                if(keySplit.SplitterDistance!=distance||keySplit.Panel1MinSize!=minimum||keySplit.Panel2MinSize!=minimum){
+                    keySplit.Panel1MinSize=0;keySplit.Panel2MinSize=0;keySplit.SplitterDistance=distance;keySplit.Panel1MinSize=minimum;keySplit.Panel2MinSize=minimum;
+                }
             }
         }finally{layingOutKeys=false;}
     }
@@ -58,8 +63,15 @@ internal sealed partial class MainForm
         keyTimeline.SelectedKeys.Clear();if(track!=null)keyTimeline.SelectedKeys.UnionWith(timeline.SelectedKeys.Where(track.keyframes.Contains));
         keyTimeline.SelectedKey=selectedKey;keyTimeline.SelectedProperty=timeline.SelectedProperty;keyTimeline.Frame=frame;
         if(track!=null){keyWorkspaceStart=track.start;keyWorkspaceEnd=track.end;}
-        keyTimeline.RefreshLayout();if(fit)keyTimeline.FitSelection();LayoutKeyWorkspace();
-        if(refreshingKeyDetails)return;refreshingKeyDetails=true;try{var bag=new NativeProperties();if(track!=null&&selectedKey!=null&&track.keyframes.Contains(selectedKey)&&!MotionPresets.Generated(track,selectedKey.property))SelectedKeyFields(bag,track);else bag.Add("操作","关键帧",typeof(string),()=>track==null?"选择单个物件以编辑关键帧":"在关键帧列表中选中一帧，在此修改帧数、数值与缓动。",null);keyProperties.SelectedObject=bag;}finally{refreshingKeyDetails=false;}
+        if(fit&&track!=null)keyTimeline.FitSelection();else keyTimeline.RefreshLayout();LayoutKeyWorkspace();
+        if(refreshingKeyDetails)return;
+        refreshingKeyDetails=true;
+        try{
+            bool hasKey=track!=null&&selectedKey!=null&&track.keyframes.Contains(selectedKey)&&!MotionPresets.Generated(track,selectedKey.property);
+            if(hasKey){var bag=new NativeProperties();SelectedKeyFields(bag,track);keyProperties.SelectedObject=bag;}
+            keyProperties.Visible=hasKey;
+            keyDetailsEmpty.Visible=!hasKey;
+        }finally{refreshingKeyDetails=false;}
     }
     private void OpenKeyWorkspace(Track track)
     {

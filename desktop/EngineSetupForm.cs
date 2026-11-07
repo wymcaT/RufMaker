@@ -11,7 +11,7 @@ internal sealed class EngineSetupForm:LocalizedForm
     private readonly string root;private CancellationTokenSource cancellation;private bool working,closeAfterCancel;
     private readonly Label heading=new Label(),intro=new Label(),message=new Label(),source=new Label();
     private readonly TextBox details=new TextBox();private readonly ProgressBar progress=new ProgressBar();
-    private readonly Button download=new Button(),choose=new Button(),import=new Button(),rescan=new Button(),vc=new Button(),dx=new Button(),finish=new Button(),skip=new Button(),cancel=new Button();
+    private readonly Button download=new Button(),repair=new Button(),choose=new Button(),import=new Button(),rescan=new Button(),vc=new Button(),dx=new Button(),finish=new Button(),skip=new Button(),cancel=new Button();
     private readonly ComboBox language=new WheelSafeComboBox();
     public EngineInspection Result;
     public EngineSetupForm(string root)
@@ -23,7 +23,7 @@ internal sealed class EngineSetupForm:LocalizedForm
         top.Controls.Add(new Label{Text="切换语言",AutoSize=true,Margin=new Padding(0,9,6,0)});language.DropDownStyle=ComboBoxStyle.DropDownList;language.Width=125;language.BackColor=Theme.Raised;language.ForeColor=Theme.Text;language.Items.AddRange(new object[]{"简体中文","English"});language.SelectedIndex=Language.English?1:0;top.Controls.Add(language);table.Controls.Add(top,0,0);
         intro.Text="F5 试玩、导出游戏和生成原生底片需要 GM8.2。可以一键准备，也可以选择已有安装；暂时跳过仍可编辑工程。";intro.AutoSize=true;intro.Dock=DockStyle.Fill;intro.Margin=new Padding(0,4,0,14);table.Controls.Add(intro,0,1);
         details.Multiline=true;details.ReadOnly=true;details.ScrollBars=ScrollBars.Vertical;details.WordWrap=true;details.Dock=DockStyle.Fill;details.MinimumSize=new Size(0,180);details.BackColor=Theme.Panel;details.ForeColor=Theme.Text;details.BorderStyle=BorderStyle.FixedSingle;details.Margin=new Padding(0,0,0,10);Language.WatchText(details);table.Controls.Add(details,0,2);
-        var actions=new FlowLayoutPanel{Dock=DockStyle.Fill,AutoSize=true,WrapContents=true,Margin=Padding.Empty};SetupButton(download,"一键下载并配置",true);SetupButton(choose,"选择已有目录");SetupButton(import,"导入 ZIP / 7z");SetupButton(rescan,"重新检测");foreach(var button in new[]{download,choose,import,rescan})actions.Controls.Add(button);table.Controls.Add(actions,0,3);
+        var actions=new FlowLayoutPanel{Dock=DockStyle.Fill,AutoSize=true,WrapContents=true,Margin=Padding.Empty};SetupButton(download,"一键下载并配置",true);SetupButton(repair,"一键补全缺失扩展 (免下载)",true);repair.Visible=false;SetupButton(choose,"选择已有目录");SetupButton(import,"导入 ZIP / 7z");SetupButton(rescan,"重新检测");foreach(var button in new[]{download,repair,choose,import,rescan})actions.Controls.Add(button);table.Controls.Add(actions,0,3);
         var runtimes=new FlowLayoutPanel{Dock=DockStyle.Fill,AutoSize=true,WrapContents=true,Margin=Padding.Empty};SetupButton(vc,"安装 VC++ x86 运行库");SetupButton(dx,"安装 DirectX9 组件");runtimes.Controls.Add(vc);runtimes.Controls.Add(dx);table.Controls.Add(runtimes,0,4);
         source.Text="GM8.2 从项目官网的 Portable 下载入口获取，运行库从微软下载。准备好的引擎保存在 RufMaker 的 GameMaker8.2 文件夹。外部耐久所需的额外扩展仍需自行安装。";source.AutoSize=true;source.Dock=DockStyle.Fill;source.ForeColor=Theme.Muted;source.Margin=new Padding(0,8,0,10);table.Controls.Add(source,0,5);
         var lower=new TableLayoutPanel{Dock=DockStyle.Bottom,AutoSize=true,ColumnCount=1,RowCount=2,Padding=new Padding(16,4,16,16)};
@@ -33,6 +33,7 @@ internal sealed class EngineSetupForm:LocalizedForm
         download.Click+=async(s,e)=>await Work(async(token,p)=>{Result=await EngineSetup.DownloadPortable(root,token,p);},"引擎准备完成，可以 F5 试玩和导出游戏。");
         choose.Click+=async(s,e)=>{using(var dialog=new FolderBrowserDialog{Description="选择包含 GameMaker.exe 的 GM8.2 完整目录",SelectedPath=Result!=null&&Result.Ready?Path.GetDirectoryName(Result.Exe):root})if(Language.ShowDialog(dialog,this)==DialogResult.OK)await Work((token,p)=>{token.ThrowIfCancellationRequested();Result=EngineSetup.Use(root,dialog.SelectedPath);return Task.FromResult(0);},"已保存引擎位置，可以 F5 试玩和导出游戏。");};
         import.Click+=async(s,e)=>{using(var dialog=new OpenFileDialog{Title="导入 GM8.2 便携压缩包",Filter="GM8.2 便携包|*.7z;*.zip"})if(Language.ShowDialog(dialog,this)==DialogResult.OK)await Work(async(token,p)=>{Result=await EngineSetup.InstallArchive(root,dialog.FileName,token,p);},"引擎准备完成，可以 F5 试玩和导出游戏。");};
+        repair.Click+=async(s,e)=>await Work((token,p)=>{token.ThrowIfCancellationRequested();if(Result!=null&&EngineSetup.CanRepair(root,Result)){Result=EngineSetup.Repair(root,Result);if(Result.Ready)EngineSetup.Use(root,Result.Exe);}return Task.FromResult(0);},"已自动补全缺失的官方核心扩展，引擎准备完成！可以 F5 试玩和导出游戏。");
         vc.Click+=async(s,e)=>await InstallRuntime(true);dx.Click+=async(s,e)=>await InstallRuntime(false);rescan.Click+=(s,e)=>RefreshStatus();
         finish.Click+=(s,e)=>{if(Result!=null&&Result.Ready){Result=EngineSetup.Use(root,Result.Exe);DialogResult=DialogResult.OK;}};
         skip.Click+=(s,e)=>{EngineSetup.SkipStartup(root);DialogResult=DialogResult.Ignore;};cancel.Click+=(s,e)=>{if(cancellation!=null)cancellation.Cancel();};AcceptButton=finish;CancelButton=skip;
@@ -44,11 +45,13 @@ internal sealed class EngineSetupForm:LocalizedForm
     private void RefreshStatus()
     {
         Result=EngineSetup.Find(root);string folder=String.IsNullOrEmpty(Result.Exe)?"":Path.GetDirectoryName(Result.Exe);string[] missing=EngineSetup.MissingRuntimes(folder);
-        details.Text=(Result.Ready?"✓ GM8.2 必需文件齐全":"尚未找到完整的 GM8.2")+"\r\n"+Result.Exe+"\r\n\r\n"+(Result.Ready?"✓ Core / Sound / DirectX9 扩展齐全":"缺少文件：\r\n"+String.Join("\r\n",Result.Missing))+"\r\n\r\n"+(missing.Length==0?"✓ VC++ x86 / DirectX9 运行库已检测到":"未检测到系统运行库："+String.Join(", ",missing)+"\r\n如遇缺少 DLL 的报错，可使用下方按钮安装运行库。安装后点击重新检测。");
+        bool canRepair=EngineSetup.CanRepair(root,Result);repair.Visible=canRepair;
+        string repairHint=canRepair?"\r\n\r\n✓ 本地已内置所需核心扩展，可点击“一键补全缺失扩展 (免下载)”直接补齐。":"";
+        details.Text=(Result.Ready?"✓ GM8.2 必需文件齐全":"尚未找到完整的 GM8.2")+"\r\n"+Result.Exe+"\r\n\r\n"+(Result.Ready?"✓ Core / Sound / DirectX9 扩展齐全":"缺少文件：\r\n"+String.Join("\r\n",Result.Missing))+repairHint+"\r\n\r\n"+(missing.Length==0?"✓ VC++ x86 / DirectX9 运行库已检测到":"未检测到系统运行库："+String.Join(", ",missing)+"\r\n如遇缺少 DLL 的报错，可使用下方按钮安装运行库。安装后点击重新检测。");
         if(!working){finish.Enabled=Result.Ready;vc.Enabled=Array.Exists(missing,n=>n!="d3dx9_43.dll");dx.Enabled=Array.Exists(missing,n=>n=="d3dx9_43.dll");}
     }
     private void Busy(bool value)
-    {working=value;foreach(var button in new[]{download,choose,import,rescan,vc,dx,finish,skip})button.Enabled=!value;language.Enabled=!value;cancel.Enabled=value;CancelButton=value?cancel:skip;UseWaitCursor=value;}
+    {working=value;foreach(var button in new[]{download,repair,choose,import,rescan,vc,dx,finish,skip})button.Enabled=!value;language.Enabled=!value;cancel.Enabled=value;CancelButton=value?cancel:skip;UseWaitCursor=value;}
     private async Task Work(Func<CancellationToken,IProgress<EngineSetupProgress>,Task> action,string success)
     {
         if(working)return;cancellation=new CancellationTokenSource();Busy(true);message.ForeColor=Theme.Text;progress.Style=ProgressBarStyle.Marquee;

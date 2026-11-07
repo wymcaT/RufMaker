@@ -12,6 +12,7 @@ using System.Web.Script.Serialization;
 #pragma warning disable 0649 // JSON fields are populated by JavaScriptSerializer.
 internal sealed class EditorState
 {
+    [ScriptIgnore] public Dictionary<string,GmPath> nativePaths=new Dictionary<string,GmPath>();
     [ScriptIgnore] public GlobalVariableTimeline variableTimeline;[ScriptIgnore] public EditorState globalSource;
     public int version=2, fps=50, duration=1500;
     public double bpm=120,beatOffsetMs;public int beatDivision=4;public bool beatSnap,directStart;
@@ -77,20 +78,30 @@ internal sealed class Track
     public bool advancedBullets;
     public double emitWidth=240,emitHeight=160,emitArc=360,emitPhase,emitRotation,emitWaves=1,indexSpeed,indexAngle,indexScale;
     public int indexDelay,releaseFrame=-1,repeatCount=1,repeatGap;public double timeScale=1;
-    public string releaseDirection="radial";public List<CurvePoint> curvePoints=new List<CurvePoint>();
+    public string releaseDirection="radial";public bool releaseKeepShape;public List<CurvePoint> curvePoints=new List<CurvePoint>();
     public List<BulletAction> bulletActions=new List<BulletAction>(),spawnActions=new List<BulletAction>();public List<Track> children=new List<Track>();
     public bool templateOnly;
     public string targetSource="",targetTag="",targetParity="all",controlAction="speed",controlExpression="",controlEasing="linear";
     public int targetVolley=-1,targetMinAge,targetMaxAge=1000000;public bool includeFuture;
     public double controlFrom,controlValue;public string controlColor="#FFFFFF";
-    public string eventPreset="",eventNativeObjects="";public bool eventRestoreBirth=true,eventDisableMotion=true;public double eventAcceleration,eventTurn;
+    public string eventPreset="",eventNativeObjects="";public bool eventRestoreBirth=true,eventDisableMotion=true;public double eventAcceleration,eventFriction,eventTurn;
     public bool eventResetLife=true;public int eventLife=160;
+    public double playerTargetX=400,playerTargetY=304;public bool playerKeepMotion,playerResetJump=true;
+    public bool playerInfJump,playerInvincible,playerCanMove=true;
     public string eventGroup="",eventProperty="speed";public int eventCopyLife=160;public bool eventCopyTrail,eventCopyDestroyOriginal;
+    public double eventCenterX=400,eventCenterY=304,eventOrbitSpeed=1.5,eventRadius=120;public string eventRadiusMode="keep";
     [ScriptIgnore] public Track parent;[ScriptIgnore] public EditorState owner;
     [ScriptIgnore] public string scopeGroup;
     public int lane=-1;public string randomId="";public Dictionary<string,string> expressions=new Dictionary<string,string>();
     public string id, name, kind, sprite="sprBullet", easing="linear", color="#FFFFFF", effect="flash", code="", rodMode="center", motion="keyframes";
-    public bool enabled=true, trail, rolling, rotateSprite, trailRandom;
+    public string nativeObject="";
+    public int? depth;
+    public bool nativeKeepAlive;
+    public string nativePath="";
+    public int nativePathFrames=120;
+    public double nativePathSpeed=2;
+    public bool nativePathLoop,nativePathAbsolute;
+    public bool enabled=true, previewHidden, trail, rolling, rotateSprite, trailRandom;
     [ScriptIgnore] public int expressionSeed=12345,expressionFps=50;
     [ScriptIgnore] public bool liveExpressions;
     [ScriptIgnore] public double expressionPlayerX=400,expressionPlayerY=304;
@@ -103,6 +114,9 @@ internal sealed class Track
     public double fxZoom=1.13,fxFlash=.18;public int fxSlices=11,fxStutter=2;
     public string trailMode="legacy";
     public string lifetimeMode="fixed",deathEffect="none";
+    public int objectProperties,hiddenObjectProperties;
+    public bool bounceBricks;
+    public string boundaryMode="none";
     public string colorMode="fixed",colorExpression="random(360)",colorScope="wave";
     public int deathFrames=15,fadeInFrames;public double despawnMargin;
     public int trailInterval=3,trailLife=18;
@@ -149,23 +163,33 @@ internal sealed class Keyframe
 }
 internal sealed class RoomData
 {
-    public string name;
+    public string name,instanceRevision;
     public int width=800,height=608,fps=50,bgColor=0x202020;
+    public double playerDepth=-10;
     public List<RoomInstance> instances=new List<RoomInstance>();
-    public RoomData Snapshot(){return new RoomData{name=name,width=width,height=height,fps=fps,bgColor=bgColor,instances=instances.Select(i=>i.Snapshot()).ToList()};}
+    public RoomBackground[] backgrounds=new RoomBackground[0];
+    public RoomTile[] tiles=new RoomTile[0];
+    public RoomView[] views=new RoomView[0];
+    public RoomData Snapshot(){var copy=(RoomData)MemberwiseClone();copy.instances=instances.Select(i=>i.Snapshot()).ToList();return copy;}
     public bool SameContent(RoomData other)
     {
         if(other==null)return false;if(ReferenceEquals(this,other))return true;
-        if(name!=other.name||width!=other.width||height!=other.height||fps!=other.fps||bgColor!=other.bgColor||instances.Count!=other.instances.Count)return false;
-        for(int n=0;n<instances.Count;n++){var a=instances[n];var b=other.instances[n];if(a.id!=b.id||a.index!=b.index||a.name!=b.name||a.raw!=b.raw||a.x!=b.x||a.y!=b.y)return false;}return true;
+        return name==other.name&&width==other.width&&height==other.height&&fps==other.fps&&bgColor==other.bgColor&&playerDepth==other.playerDepth&&
+            instanceRevision==other.instanceRevision&&SceneComparison.Same(instances,other.instances)&&
+            SceneComparison.Same(backgrounds,other.backgrounds)&&SceneComparison.Same(tiles,other.tiles)&&SceneComparison.Same(views,other.views);
     }
 }
-internal sealed class RoomInstance {public int index;public string id,name,raw;public double x,y;public RoomInstance Snapshot(){return (RoomInstance)MemberwiseClone();}}
+// Static room art is replaced as a whole on disk refresh. Only instances are edited on the canvas.
+internal sealed class RoomBackground {public string source;public double x,y,speedX,speedY;public bool foreground,tileX,tileY,stretch;}
+internal sealed class RoomTile {public string source;public int left,top,width,height;public double depth,x,y,scaleX=1,scaleY=1;public long blend=4294967295;}
+internal sealed class RoomView {public int slot;public double x,y,width,height,portX,portY,portWidth,portHeight;public string follow;}
+internal sealed class RoomInstance {public int index;public string id,name,raw;public double x,y,scaleX=1,scaleY=1,angle,depth;public long blend=4294967295;public bool visible=true;public BulletBrick bulletBrick;public RoomInstance Snapshot(){var copy=(RoomInstance)MemberwiseClone();copy.bulletBrick=bulletBrick==null?null:bulletBrick.Snapshot();return copy;}}
 internal sealed class UndoKey {public string trackId,property;public int frame;}
 internal sealed class UndoSnapshot
 {
     public EditorState state;
     public RoomData room;
+    public int roomUndoEpoch;
     public string selectedTrack,selectedProperty,selectedInstance;
     public string[] selectedTracks=new string[0];
     public UndoKey selectedKey;
@@ -183,10 +207,10 @@ internal sealed class UndoEntry
     private static UndoSnapshot Copy(UndoSnapshot source)
     {
         Func<UndoKey,UndoKey> key=k=>k==null?null:new UndoKey{trackId=k.trackId,property=k.property,frame=k.frame};
-        return new UndoSnapshot{state=source.state==null?null:source.state.Snapshot(),room=source.room==null?null:source.room.Snapshot(),selectedTrack=source.selectedTrack,selectedTracks=(string[])source.selectedTracks.Clone(),selectedProperty=source.selectedProperty,selectedKey=key(source.selectedKey),selectedKeys=source.selectedKeys.Select(key).ToArray(),selectedInstance=source.selectedInstance};
+        return new UndoSnapshot{state=source.state==null?null:source.state.Snapshot(),room=source.room==null?null:source.room.Snapshot(),roomUndoEpoch=source.roomUndoEpoch,selectedTrack=source.selectedTrack,selectedTracks=(string[])source.selectedTracks.Clone(),selectedProperty=source.selectedProperty,selectedKey=key(source.selectedKey),selectedKeys=source.selectedKeys.Select(key).ToArray(),selectedInstance=source.selectedInstance};
     }
     public UndoSnapshot Restore(){return Copy(snapshot);}
-    public bool SameScene(UndoEntry other){return SceneComparison.Same(snapshot.state,other.snapshot.state)&&SceneComparison.Same(snapshot.room,other.snapshot.room);}
+    public bool SameScene(UndoEntry other){return snapshot.roomUndoEpoch==other.snapshot.roomUndoEpoch&&SceneComparison.Same(snapshot.state,other.snapshot.state)&&SceneComparison.Same(snapshot.room,other.snapshot.room);}
 }
 internal static class SceneComparison
 {
@@ -203,7 +227,7 @@ internal static class SceneComparison
 internal sealed class KeyClipboardItem {public string trackId;public Keyframe key;public int offset;}
 internal sealed class Inventory
 {
-    public string[] scripts,objects,sprites,rooms,pack;
+    public string[] scripts,objects,sprites,rooms,pack,paths=new string[0],timelines=new string[0];
     public Dictionary<string,string> objectSprites=new Dictionary<string,string>();
 }
 internal sealed class SpriteMeta {public int originX,originY,frames=1;}
@@ -216,6 +240,7 @@ internal sealed class LoadData
     public RoomData room;
     public string project,projectFile,descriptor,projectName,pack;
     public Dictionary<string,SpriteMeta> spriteMeta;
+    public Dictionary<string,GmPath> nativePaths=new Dictionary<string,GmPath>();
     public WaveData waveform;
 }
 internal sealed class SourceData {public string content,hash;}
@@ -233,10 +258,11 @@ internal sealed class NativeProject
 internal sealed class NativeRoomCandidate {public string name;public int width,height,fps,score;public NativeControllerCandidate[] controllers;public override string ToString(){return name+Language.Text(score>0?" · 候选":"");}}
 internal sealed class NativeControllerCandidate {public string name;public int score;public bool direct;}
 internal sealed class NativeScan:NativeScanBase {}
-internal class NativeScanBase {public string entry,name,room,controller,clock,timeline,music,confidence;public int fps,duration;public string[] entries,controllers,musicChoices,warnings;public NativeRoomCandidate[] rooms;public NativeEvent[] events,unresolved;}
+internal class NativeScanBase {public string entry,name,room,controller,clock,timeline,music,confidence;public double timelineSpeed=1;public int fps,duration;public string[] entries,controllers,musicChoices,warnings;public NativeRoomCandidate[] rooms;public NativeEvent[] events,unresolved;}
 internal sealed class NativeImportOptions {public string entry,name,parent,room,controller,music;public double duration;}
 internal sealed class NativeImportResult {public string path;public string[] warnings;public int events;}
 internal sealed class ImportResult {public string name;public Inventory inventory;public Dictionary<string,SpriteMeta> spriteMeta;}
+internal sealed class RoomResourceResult {public RoomData room;public Inventory inventory;public Dictionary<string,SpriteMeta> spriteMeta;public Dictionary<string,GmPath> nativePaths=new Dictionary<string,GmPath>();}
 internal sealed class RpcResponse {public int id;public bool ok;public object result;public string error;}
 #pragma warning restore 0649
 
@@ -388,6 +414,15 @@ internal sealed class SpriteStore : IDisposable
         using(var stream=new MemoryStream(File.ReadAllBytes(file)))using(var source=Image.FromStream(stream))image=new Bitmap(source);
         images[key]=image;return image;
     }
+    public Bitmap GetBackground(string name)
+    {
+        if(String.IsNullOrEmpty(name))return null;
+        string key="background|"+name;Bitmap image;
+        if(images.TryGetValue(key,out image))return image;
+        string file=Path.Combine(Project,"backgrounds",name+".png");
+        if(File.Exists(file))using(var stream=new MemoryStream(File.ReadAllBytes(file)))using(var source=Image.FromStream(stream))image=new Bitmap(source);
+        images[key]=image;return image;
+    }
     public RectangleF Bounds(string name,double x,double y)
     {
         var image=Get(name);SpriteMeta meta;Metadata.TryGetValue(name??"",out meta);
@@ -398,6 +433,14 @@ internal sealed class SpriteStore : IDisposable
         if(scaleX==0||scaleY==0||alpha<=0)return;var image=Get(name,frame);if(image==null)return;
         SpriteMeta meta;Metadata.TryGetValue(name,out meta);
         int ox=meta==null?0:meta.originX,oy=meta==null?0:meta.originY;
+        var attributes=Tint(alpha,tint);
+        if(scaleX==1&&scaleY==1&&Math.Abs(angle%360)<.0001&&x==Math.Floor(x)&&y==Math.Floor(y)){g.DrawImage(image,new Rectangle((int)x-ox,(int)y-oy,image.Width,image.Height),0,0,image.Width,image.Height,GraphicsUnit.Pixel,attributes);return;}
+        var state=g.Save();g.TranslateTransform((float)x,(float)y);g.RotateTransform((float)-angle);g.ScaleTransform((float)scaleX,(float)scaleY);
+        g.DrawImage(image,new Rectangle(-ox,-oy,image.Width,image.Height),0,0,image.Width,image.Height,GraphicsUnit.Pixel,attributes);
+        g.Restore(state);
+    }
+    internal ImageAttributes Tint(double alpha,Color tint)
+    {
         int alphaByte=(int)Math.Max(0,Math.Min(255,Math.Round(alpha*255)));int key=Color.FromArgb(alphaByte,tint).ToArgb();ImageAttributes attributes;
         if(!attributesCache.TryGetValue(key,out attributes))
         {attributes=new ImageAttributes();
@@ -405,14 +448,11 @@ internal sealed class SpriteStore : IDisposable
             attributes.SetColorMatrix(matrix);attributes.SetWrapMode(System.Drawing.Drawing2D.WrapMode.TileFlipXY);
             if(attributesCache.Count>=1024){foreach(var entry in attributesCache.Values)entry.Dispose();attributesCache.Clear();}attributesCache[key]=attributes;
         }
-        if(scaleX==1&&scaleY==1&&Math.Abs(angle%360)<.0001&&x==Math.Floor(x)&&y==Math.Floor(y)){g.DrawImage(image,new Rectangle((int)x-ox,(int)y-oy,image.Width,image.Height),0,0,image.Width,image.Height,GraphicsUnit.Pixel,attributes);return;}
-        var state=g.Save();g.TranslateTransform((float)x,(float)y);g.RotateTransform((float)-angle);g.ScaleTransform((float)scaleX,(float)scaleY);
-        g.DrawImage(image,new Rectangle(-ox,-oy,image.Width,image.Height),0,0,image.Width,image.Height,GraphicsUnit.Pixel,attributes);
-        g.Restore(state);
+        return attributes;
     }
     public void Draw(Graphics g,string name,double x,double y,double scale,double angle,double alpha,Color tint,int frame=0)
     {
         DrawExt(g,name,x,y,scale,scale,angle,alpha,tint,frame);
     }
-    public void Dispose(){foreach(var image in images.Values)image.Dispose();images.Clear();foreach(var attributes in attributesCache.Values)attributes.Dispose();attributesCache.Clear();}
+    public void Dispose(){foreach(var image in images.Values)if(image!=null)image.Dispose();images.Clear();foreach(var attributes in attributesCache.Values)attributes.Dispose();attributesCache.Clear();}
 }
