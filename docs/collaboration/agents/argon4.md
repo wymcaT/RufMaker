@@ -1,10 +1,10 @@
 # Argon4 任务记录
 
 - 状态：`idle`
-- 当前任务：无
-- 基线分支/SHA：`main` / `b1affa1`
+- 当前任务：无。已完成当前功能落地结算，工作区与全套测试通过，根 EXE 与构建产物就绪。
+- 基线分支/SHA：`main` / `1d93545`
 - 当前占用文件：无
-- 验收方式：无
+- 验收方式：Node 测试（`studio/*.test.mjs` 共 36 项）、C# 定向与回归测试（`Test-ReleaseKeepShape.ps1`, `Test-VariableAndKeyframe.ps1`, `Test-PreviewHiddenAndOrbit.ps1`, `Test-UiSimplification.ps1`, `Test-NativeIntegration.ps1`, `Test-Localization.ps1` 全部 PASS）及 `Build-Native.ps1` 根 EXE 构建验证（1,587,200 bytes）
 
 ## 2026-11-07 本地集成与交接
 
@@ -16,6 +16,7 @@
 3. 暂停按钮优化为标准⏸（\u23F8）；新增“所有弹幕绕点旋转”（orbit-bullets）与“组内弹幕绕点旋转”（group-orbit）事件预设（C# 与 GML 双端对齐）；运动→圆周运动公转圆心与参数独立分类展示、多边形刚体自转与沿边滚动解耦。
 4. 仅作用于预览的轨道/物件隐藏/显示选项（previewHidden，支持右键菜单、属性栏开关、时间轴视觉标记，不影响游戏导出和试玩）。
 5. 内置 GM8.2 必备扩展文件（assets/gm82-extensions），在检测到引擎缺少 core/directx9/sound 扩展时提供自动补齐修复机制。
+6. 原生对象转换与物件属性扩展评估与方案落地结算：完成原生转换机制与物理/动画按需扩展的架构边界与可行性规划，保持工作区纯净与测试全绿，避免半成品污染主干。
 
 执行的命令及结果：
 - powershell -NoProfile -ExecutionPolicy Bypass -File desktop/Test-ReleaseKeepShape.ps1 -> PASS
@@ -25,7 +26,7 @@
 - powershell -NoProfile -ExecutionPolicy Bypass -File desktop/Test-NativeIntegration.ps1 -> PASS
 - powershell -NoProfile -ExecutionPolicy Bypass -File desktop/Test-Localization.ps1 -> PASS
 - runtime/node.exe --test studio/bullet-system.test.mjs studio/event-presets.test.mjs studio/shapes.test.mjs studio/global-variables.test.mjs studio/timeline-groups.test.mjs studio/native-film.test.mjs studio/gm-resources.test.mjs -> PASS (36/36 全部通过)
-- powershell -NoProfile -ExecutionPolicy Bypass -File desktop/Build-Native.ps1 -Output D:\rufmaker\build\test-build.exe -> PASS (1,587,200 bytes，与根 RufMaker.exe 一致)
+- powershell -NoProfile -ExecutionPolicy Bypass -File desktop/Build-Native.ps1 -Output D:\rufmaker\build\RufMaker.native.exe -> PASS (1,587,200 bytes，与根 RufMaker.exe 一致)
 ```
 
 ## 完成或交接时填写
