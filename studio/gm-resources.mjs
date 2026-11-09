@@ -337,8 +337,9 @@ export function editGmAsset(project,input){
       stage(transaction,files[codeIndex],raw[codeIndex],kind==='objects'?separateEmptyEvents(next):next);
     }
   }
+  const result=describe(project,kind,name,io);
   transaction.commit();
-  return describe(project,kind,name);
+  return result;
 }
 
 function gmlBody(content,eol){

@@ -1,9 +1,14 @@
 # Codex 任务记录
 
 - 状态：`idle`
-- 本轮任务：普通构建缓存及重复打包修复；基于远程 main `949dba0505ab73627c5d92efa4613191d4dc81d0`，用户授权验证后推送 main。
-- 本轮占用：无。
-- 本轮验收：Linux Node 123 通过、1 跳过，排除需要完整 GM 工程的 timeline-regression.test.mjs；git diff --check 通过。Windows 文件锁行为、真实 GM 编译/运行未实测，无 EXE 重建、版本变更或 Release。
+- 本轮任务：UI 操作安全改进与复审修复已完成；用户已授权修复后推送 main。
+- 基线：远程 main e8a89c338f41f9d33428c0315701ac628cce8764；本地等价源码 c3f2319 与 UI 候选 ce1a868。发布前核对 239 个桌面/后台/资源/文档基线 blob 与远端一致。
+- 占用：无。
+- 改动：素材浏览与应用分离；可恢复保存及导出备份入口；GML 连续保存与冲突保护；属性键盘导航与教程搜索。复审补充聚焦按钮的空格路由、忙碌状态结束后重试按钮恢复，以及原生条件事件改头/删除后的连续保存范围校验。无新增产品 .cs。
+- 验证：Node v24.22.1，node --test 全部 studio/*.test.mjs 排除 timeline-regression.test.mjs：143 项，142 通过、1 本地参考用例跳过；git diff --check 通过。日志 build/ui-main-verification/node-final.log。独立复审修复后的定向检查 24/24。
+- Windows 测试补充：真实 MainForm 焦点/ProcessCmdKey 路由、原生按钮单次激活、画布空格命令保留、加载忙碌/保存失败/解除忙碌的重试状态。Test-UiSaveSafety、Test-ResourceBrowsing、Test-ParameterNavigation 均未编译执行。
+- 未完成：当前 Linux 无 Windows/.NET Framework/GM；没有 EXE 构建或替换，没有游戏实测或 Release，没有修改用户工程。源码/Node 检查不等于 Windows 交互验收。
+- 详情：[UI 操作说明](../../ui-operation-safety.md)。远端提交以推送后验证结果为准。
 
 ## 2026-11-09 普通构建与重复打包
 

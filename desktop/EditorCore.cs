@@ -163,7 +163,7 @@ internal sealed class Keyframe
 }
 internal sealed class RoomData
 {
-    public string name,instanceRevision;
+    public string name,instanceRevision,codeHash;
     public int width=800,height=608,fps=50,bgColor=0x202020;
     public double playerDepth=-10;
     public List<RoomInstance> instances=new List<RoomInstance>();
@@ -243,9 +243,9 @@ internal sealed class LoadData
     public Dictionary<string,GmPath> nativePaths=new Dictionary<string,GmPath>();
     public WaveData waveform;
 }
-internal sealed class SourceData {public string content,hash;}
+internal sealed class SourceData {public string content,hash;public int start,end;}
 internal sealed class SaveResult {public RoomData room;}
-internal sealed class BuildResult {public string exe,dir;public long bytes;public bool ready,cached;public int pid;public Dictionary<string,string> status;}
+internal sealed class BuildResult {public string exe,dir,previousDir;public long bytes;public bool ready,cached;public int pid;public Dictionary<string,string> status;}
 internal sealed class NativeRunProgress {public string phase,room,error;public int frame,target;}
 internal sealed class NativeEvent {public string id,file,expression,kind,label,snippet,reason;public int frame,line;public double period;public NativeEvent Snapshot(){return (NativeEvent)MemberwiseClone();}}
 internal sealed class NativeProject

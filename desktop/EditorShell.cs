@@ -53,7 +53,7 @@ internal sealed partial class MainForm
     private ToolStripDropDownButton displayTools,testTools,snapTools;private ToolStripButton filmBadge,rerollTool,returnToSource;
     private readonly Panel hiddenTools=new Panel{Visible=false};
     private readonly TreeView resourceTree=new TreeView{Dock=DockStyle.Top,Height=142,BackColor=Theme.Panel,ForeColor=Theme.Text,BorderStyle=BorderStyle.None,HideSelection=false,ShowLines=false,FullRowSelect=true};
-    private ToolStripButton materialsTab,presetsTab;private bool changingResourceTree;
+    private ToolStripButton materialsTab,presetsTab,applyResourceSprite;private bool changingResourceTree;
     private readonly List<string> recentProjects=new List<string>();
     private Track templateOrigin,templateEditing;private int sourceFrame;
     private ToolStrip NewStrip(string name)
@@ -93,7 +93,7 @@ internal sealed partial class MainForm
         rightSplit.Dock=DockStyle.Fill;rightSplit.SplitterWidth=6;rightSplit.FixedPanel=FixedPanel.Panel2;rightSplit.BackColor=Theme.Back;leftSplitControl.Panel2.Controls.Add(rightSplit);
         BuildResources(leftSplitControl.Panel1);BuildStage(rightSplit.Panel1);BuildInspector(rightSplit.Panel2);BuildTimeline(vertical.Panel2);Controls.Add(hiddenTools);hiddenTools.SendToBack();hiddenTools.Controls.Add(projectTitle);hiddenTools.Controls.Add(timeLabel);
         Shown+=(s,e)=>{RestorePanelLayout();leftSplit.Panel1Collapsed=!left.Checked;rightSplit.Panel2Collapsed=!right.Checked;};
-        var strip=new StatusStrip{Dock=DockStyle.Fill,BackColor=Theme.Panel,ForeColor=Theme.Muted,SizingGrip=true};status.Spring=true;status.TextAlign=ContentAlignment.MiddleLeft;status.Text="正在打开工程…";strip.Items.Add(status);strip.Items.Add(objectCount);strip.Items.Add(coordinates);layout.Controls.Add(strip,0,3);
+        var strip=new StatusStrip{Dock=DockStyle.Fill,BackColor=Theme.Panel,ForeColor=Theme.Muted,SizingGrip=true};status.Spring=true;status.TextAlign=ContentAlignment.MiddleLeft;status.Text="正在打开工程…";strip.Items.Add(status);strip.Items.Add(saveRetry);strip.Items.Add(exportBackup);strip.Items.Add(objectCount);strip.Items.Add(coordinates);layout.Controls.Add(strip,0,3);
     }
     private void FillAddMenu(ToolStripDropDownItem add)
     {
@@ -101,25 +101,77 @@ internal sealed partial class MainForm
         add.DropDownItems.Add(Command("添加对象",()=>AddTrack("object")));add.DropDownItems.Add(new ToolStripSeparator());add.DropDownItems.Add(Command("添加拉镜",()=>AddTrack("camera")));var effects=new ToolStripMenuItem("添加特效");FillEffectMenu(effects.DropDownItems);add.DropDownItems.Add(effects);var events=new ToolStripMenuItem("添加事件");foreach(string category in EventPresets.Categories){var folder=new ToolStripMenuItem(category);foreach(string value in EventPresets.KeysInCategory(category)){string key=value;folder.DropDownItems.Add(Command(EventPresets.Names[Array.IndexOf(EventPresets.Keys,key)],()=>AddEventPreset(key,frame)));}events.DropDownItems.Add(folder);}add.DropDownItems.Add(events);add.DropDownItems.Add(new ToolStripSeparator());add.DropDownItems.Add(Command("添加弹幕控制",AddBulletControl));AddMenu(add,Command("添加全局变量",AddGlobalVariable),Command("添加 GML 事件",()=>AddTrack("script")));
     }
     private void ChangeShellLanguage(string id){CommitInspectorEdits();Language.Select(root,id);RefreshLanguageUI();RefreshShell();SyncResourceTree();}
-    private void OpenLocalReadme(){string file=Path.Combine(root,Language.English&&File.Exists(Path.Combine(root,"docs/README.en.md"))?"docs/README.en.md":"README.md");if(File.Exists(file))using(var form=new Form{Text=Language.Text("使用教程"),Size=new Size(900,720),StartPosition=FormStartPosition.CenterParent,BackColor=Theme.Panel,Icon=Icon}){form.Controls.Add(new TextBox{Dock=DockStyle.Fill,Multiline=true,ReadOnly=true,ScrollBars=ScrollBars.Vertical,BackColor=Theme.Panel,ForeColor=Theme.Text,Font=Theme.Font,Text=CodeText.ForDisplay(File.ReadAllText(file))});Language.ShowDialog(form,this);}}
+    private void OpenLocalReadme()
+    {
+        string file=Path.Combine(root,Language.English&&File.Exists(Path.Combine(root,"docs/README.en.md"))?"docs/README.en.md":"README.md");
+        if(!File.Exists(file)){SetStatus(Language.Text("未找到本地教程。"));return;}
+        using(var form=new Form{Text=Language.Text("使用教程"),Size=new Size(900,720),MinimumSize=new Size(480,320),StartPosition=FormStartPosition.CenterParent,BackColor=Theme.Panel,Icon=Icon,KeyPreview=true})
+        {
+            var content=new TextBox{Dock=DockStyle.Fill,Multiline=true,ReadOnly=true,HideSelection=false,ScrollBars=ScrollBars.Vertical,BackColor=Theme.Panel,ForeColor=Theme.Text,Font=Theme.Font,Text=CodeText.ForDisplay(File.ReadAllText(file))};
+            var find=new TextBox{Width=200,BackColor=Theme.Raised,ForeColor=Theme.Text};
+            var result=new ToolStripLabel{ForeColor=Theme.Muted};Language.PreserveText(result);
+            var bar=NewStrip("TutorialSearch");bar.Dock=DockStyle.Top;
+            Action<bool> searchTutorial=next=>{
+                string query=find.Text;if(String.IsNullOrEmpty(query)){result.Text="";return;}
+                int start=next?Math.Min(content.TextLength,content.SelectionStart+content.SelectionLength):0;
+                int at=content.Text.IndexOf(query,start,StringComparison.CurrentCultureIgnoreCase);
+                if(at<0&&start>0)at=content.Text.IndexOf(query,StringComparison.CurrentCultureIgnoreCase);
+                result.Text=at<0?Language.Text("未找到匹配内容"):Language.Text("已找到；回车查找下一处");
+                if(at>=0){content.Select(at,query.Length);content.ScrollToCaret();}
+            };
+            bar.Items.Add(new ToolStripLabel("搜索教程"));bar.Items.Add(Host(find,200));
+            bar.Items.Add(Tool("下一处",()=>searchTutorial(true)));bar.Items.Add(result);
+            find.TextChanged+=(s,e)=>searchTutorial(false);
+            find.KeyDown+=(s,e)=>{if(e.KeyCode==Keys.Enter){searchTutorial(true);e.Handled=true;e.SuppressKeyPress=true;}};
+            form.KeyDown+=(s,e)=>{if(e.Control&&e.KeyCode==Keys.F){find.Focus();find.SelectAll();e.Handled=true;e.SuppressKeyPress=true;}else if(e.KeyCode==Keys.F3){searchTutorial(true);e.Handled=true;e.SuppressKeyPress=true;}};
+            form.Controls.Add(content);form.Controls.Add(bar);form.Shown+=(s,e)=>find.Focus();Language.ShowDialog(form,this);
+        }
+    }
+    private Track[] EligibleSpriteTargets()
+    {
+        var targets=timeline.SelectedTracks.Where(t=>Theme.Visual(t.kind)).ToArray();
+        if(timeline.SelectedTracks.Count==0&&selectedTrack!=null&&Theme.Visual(selectedTrack.kind))return new[]{selectedTrack};
+        return targets;
+    }
+    private void RefreshResourceActions()
+    {
+        if(applyResourceSprite==null)return;
+        int count=EligibleSpriteTargets().Length;
+        applyResourceSprite.Visible=resourceKind=="sprites";
+        applyResourceSprite.Enabled=!busy&&state!=null&&resources.SelectedItems.Count>0&&count>0;
+        applyResourceSprite.Text=String.Format(Language.Text("应用贴图到所选（{0}）"),count);
+        applyResourceSprite.ToolTipText=Language.Text("单击仅浏览；双击或点击此按钮应用到所有选中的可视物件。非可视轨道不受影响。");
+    }
+    private void ApplyBrowsedSprite()
+    {
+        if(busy||state==null||resourceKind!="sprites"||resources.SelectedItems.Count==0)return;
+        var item=resources.SelectedItems[0];ApplySprite(item.Tag as string??item.Text);RefreshResourceActions();
+    }
     private void BuildShellResources(Control parent)
     {
         resourceTree.DrawMode=TreeViewDrawMode.OwnerDrawText;resourceTree.DrawNode+=(sender,e)=>{using(var brush=new SolidBrush((e.State&TreeNodeStates.Selected)!=0?Theme.Raised:Theme.Panel))e.Graphics.FillRectangle(brush,new Rectangle(0,e.Bounds.Y,resourceTree.Width,e.Bounds.Height));TextRenderer.DrawText(e.Graphics,e.Node.Text,resourceTree.Font,e.Bounds,Theme.Text,TextFormatFlags.Left|TextFormatFlags.VerticalCenter);};
-        var table=new TableLayoutPanel{Dock=DockStyle.Fill,ColumnCount=1,RowCount=5,BackColor=Theme.Panel,Margin=Padding.Empty};table.RowStyles.Add(new RowStyle(SizeType.Absolute,Font.Height+24));table.RowStyles.Add(new RowStyle(SizeType.Absolute,Font.Height+16));table.RowStyles.Add(new RowStyle(SizeType.Absolute,Font.Height*5+30));table.RowStyles.Add(new RowStyle(SizeType.AutoSize));table.RowStyles.Add(new RowStyle(SizeType.Percent,100));
+        var table=new TableLayoutPanel{Dock=DockStyle.Fill,ColumnCount=1,RowCount=6,BackColor=Theme.Panel,Margin=Padding.Empty};table.RowStyles.Add(new RowStyle(SizeType.Absolute,Font.Height+24));table.RowStyles.Add(new RowStyle(SizeType.Absolute,Font.Height+16));table.RowStyles.Add(new RowStyle(SizeType.Absolute,Font.Height*5+30));table.RowStyles.Add(new RowStyle(SizeType.AutoSize));table.RowStyles.Add(new RowStyle(SizeType.Percent,100));table.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         var tabs=NewStrip("LibraryTabs");materialsTab=Tool("素材",()=>SetResourcePage(false));presetsTab=Tool("预设",()=>SetResourcePage(true));tabs.Items.Add(materialsTab);tabs.Items.Add(presetsTab);var manage=new ToolStripDropDownButton("管理"){ForeColor=Theme.Text,Alignment=ToolStripItemAlignment.Right};AddMenu(manage,Command("导入贴图…",async()=>await ImportAssets()),Command("导入预设…",ImportPresets),Command("新建分类文件夹…",NewPresetFolder),Command("重命名 / 移动分类…",RenamePreset),Command("导出所选…",()=>ExportPreset(false)),Command("导出当前分类（含子文件夹）…",()=>ExportPreset(true)));
         var newNative=Command("新建 GM 对象…",async()=>await CreateGmAsset(resourceKind));manage.DropDownItems.Add(newNative);
         manage.DropDownOpening+=(s,e)=>{newNative.Visible=GmAssetKind(resourceKind);newNative.Text=Language.Text(GmNewLabel(resourceKind));};
         tabs.Items.Add(manage);table.Controls.Add(tabs,0,0);
         search.Dock=DockStyle.Fill;search.Margin=new Padding(8,2,8,3);search.BackColor=Theme.Raised;search.ForeColor=Theme.Text;search.BorderStyle=BorderStyle.FixedSingle;search.TextChanged+=(s,e)=>FillResources();Language.ToolTip(tips,search,"按名称筛选当前分类的资源或预设");table.Controls.Add(search,0,1);
-        resourceTree.Dock=DockStyle.Fill;resourceTree.AfterSelect+=(s,e)=>{if(changingResourceTree)return;presetFolder="";resourceKind=(string)e.Node.Tag;resourceName=null;FillResources();};table.Controls.Add(resourceTree,0,2);table.Controls.Add(BuildPresetTools(),0,3);
+        resourceTree.Dock=DockStyle.Fill;resourceTree.AfterSelect+=(s,e)=>{if(changingResourceTree)return;presetFolder="";resourceKind=(string)e.Node.Tag;resourceName=null;FillResources();RefreshResourceActions();};table.Controls.Add(resourceTree,0,2);table.Controls.Add(BuildPresetTools(),0,3);
         resources.Dock=DockStyle.Fill;resources.View=View.Details;resources.HeaderStyle=ColumnHeaderStyle.None;resources.Columns.Add("资源",196);resources.FullRowSelect=true;resources.MultiSelect=false;resources.HideSelection=false;resources.BorderStyle=BorderStyle.None;resources.BackColor=Theme.Panel;resources.ForeColor=Theme.Text;
         resources.Resize+=(s,e)=>{if(resources.Columns.Count>0)resources.Columns[0].Width=Math.Max(60,resources.ClientSize.Width-6);};
-        resources.SelectedIndexChanged+=(s,e)=>{if(resources.SelectedItems.Count==0)return;var item=resources.SelectedItems[0];resourceName=item.Tag as string??item.Text;if(resourceKind!="rooms")SelectResource();};
+        resources.SelectedIndexChanged+=(s,e)=>{
+            if(resources.SelectedItems.Count==0){resourceName=null;RefreshResourceActions();return;}
+            var item=resources.SelectedItems[0];resourceName=item.Tag as string??item.Text;
+            if(resourceKind=="sprites")SetStatus(Language.Text("单击仅浏览；双击或点击应用按钮更换所选物件的贴图。"));
+            else if(resourceKind!="rooms")SelectResource();
+            RefreshResourceActions();
+        };
         resources.DoubleClick+=async(s,e)=>{
             if(IsPresetKind(resourceKind)){await ActivatePresetResource();return;}
+            if(resourceKind=="sprites"){ApplyBrowsedSprite();return;}
             if(resourceName==null)return;
             if(resourceKind=="rooms")await BrowseRoom(resourceName);
-            else if(resourceKind=="sprites")ApplySprite(resourceName);else await EditResource(resourceKind,resourceName);
+            else await EditResource(resourceKind,resourceName);
         };
         resources.ItemDrag+=(s,e)=>{
             if(resources.SelectedItems.Count==0||resourceKind=="rooms"||resourceKind=="timelines")return;
@@ -133,9 +185,11 @@ internal sealed partial class MainForm
             if(e.KeyCode==Keys.Enter&&GmAssetKind(resourceKind)&&resourceName!=null){e.Handled=true;await OpenGmAsset(resourceKind,resourceName);return;}
             if(e.KeyCode==Keys.Enter||e.KeyCode==Keys.Space){var entry=SelectedPresetEntry();if(entry!=null&&entry.isCategoryHeader&&resourceKind=="event-presets"){ToggleEventCategory(entry.key);e.Handled=true;}}
         };
-        table.Controls.Add(resources,0,4);parent.Controls.Add(table);SyncResourceTree();
+        var resourceActions=NewStrip("ResourceActions");resourceActions.AutoSize=true;
+        applyResourceSprite=Tool("应用贴图到所选（{0}）",ApplyBrowsedSprite);Language.PreserveText(applyResourceSprite);resourceActions.Items.Add(applyResourceSprite);
+        table.Controls.Add(resources,0,4);table.Controls.Add(resourceActions,0,5);parent.Controls.Add(table);SyncResourceTree();RefreshResourceActions();
     }
-    private void SetResourcePage(bool presets){resourceKind=presets?"generation-presets":"objects";resourceName=null;SyncResourceTree();FillResources();}
+    private void SetResourcePage(bool presets){resourceKind=presets?"generation-presets":"objects";resourceName=null;SyncResourceTree();FillResources();RefreshResourceActions();}
     private void SyncResourceTree()
     {
         if(materialsTab==null)return;changingResourceTree=true;bool preset=IsPresetKind(resourceKind);materialsTab.Checked=!preset;presetsTab.Checked=preset;
@@ -204,7 +258,8 @@ internal sealed partial class MainForm
     private void ExitTemplateContext(){if(templateEditing==null)return;var origin=templateOrigin;int value=sourceFrame;templateEditing=null;templateOrigin=null;stage.TemplatePreviewId=null;stage.SceneChanged();if(origin!=null&&state.tracks.Contains(origin))SelectTrack(origin,null);SetFrame(value);RefreshShell();}
     private void RefreshShell()
     {
-        if(shellProject==null)return;shellProject.Text=state==null?"RufMaker":(state.name??"RufMaker")+" · "+Language.Text(dirty?"正在保存…":"已保存");shellProject.ToolTipText=currentProjectPath;shellUndo.Enabled=!busy&&undo.Count>0;shellRedo.Enabled=!busy&&redo.Count>0;
+        saveRetry.Visible=saveFailure!=null;saveRetry.Enabled=!saving&&!busy;
+        RefreshResourceActions();if(shellProject==null)return;shellProject.Text=state==null?"RufMaker":(state.name??"RufMaker")+" · "+Language.Text(SaveStateText());shellProject.ToolTipText=currentProjectPath;shellUndo.Enabled=!busy&&undo.Count>0;shellRedo.Enabled=!busy&&redo.Count>0;
         if(snapTools!=null)snapTools.Text=Language.Text("吸附")+": "+(state!=null&&state.beatSnap?"1/"+state.beatDivision:Language.Text("关闭"))+(keySnap.Checked?" + ◆":"")+(timeline.ClipSnap?" + "+Language.Text("物件边缘"):"");
         if(displayTools!=null)displayTools.Text=Language.Text(stage.RenderCamera?"显示 · 拉镜":"显示");if(testTools!=null)testTools.Text=Language.Text(editNativeTest.Checked?"测试 · 编辑玩家":state!=null&&state.usePlayerTrace?"测试 · 轨迹":"测试");
         if(returnToRoom!=null)returnToRoom.Visible=browsedRoom!=null;

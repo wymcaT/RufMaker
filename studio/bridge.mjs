@@ -4,7 +4,7 @@ import crypto from 'node:crypto';
 import readline from 'node:readline';
 import {createProject,copySong,terrainLayout} from './project-files.mjs';
 import {scanNativeFolder,importNativeProject,analyzeNativeProject,refreshNativeState} from './native-import.mjs';
-import {nativeEventBlock,replaceNativeEventBlock} from './native-blocks.mjs';
+import {nativeEventBlock,replaceNativeEventRange} from './native-blocks.mjs';
 import {root,project,projectFile,descriptor,projectName,pack,readState,syncToGame,roomInfo,inventory,sourcePath,moveRoomInstance,editRoomInstances,importSprite,ensureRainbowSprite} from './project.mjs';
 import {fileRevision} from './native-room.mjs';
 import {ProjectSyncTransaction} from './project-sync.mjs';
@@ -70,24 +70,25 @@ async function execute(command,payload={}) {
       return state.nativeProject?.imported?analyzeNativeProject(projectFile,state.room,state.nativeProject.controller,true):null;
     }
     case 'gm-instance-code-read': return describeInstanceCode(project,payload.room,payload.id);
-    case 'gm-instance-code-save': return editRoomInstances(payload.room,payload.revision,(rows,transaction)=>{
+    case 'gm-instance-code-save': {let codeHash;const room=editRoomInstances(payload.room,payload.revision,(rows,transaction)=>{
       const index=rows.findIndex(row=>row.split(',')[3]===payload.id);
       if(index<0)throw Error('房间实例已不存在，请重新读取。');
       const result=updateInstanceCode(project,payload.room,payload.id,payload,transaction.io);
       const fields=rows[index].split(',');
       if(fields.length!==10)throw Error('当前房间格式无法安全写回实例创建代码。');
       fields[9]=result.source.trim()?'1':'0';rows[index]=fields.join(',');
+      codeHash=fileRevision(rows[index]+'\n'+result.source);
       transaction.write(result.file,result.source);
       const prepared=transaction.files.get(result.file);
       if(prepared&&(prepared.before?.toString('utf8')||'')!==result.before)throw Error('GameMaker 已修改实例代码，请重新打开后再编辑。');
-    });
+    });return {...room,codeHash};}
     case 'source-read': return resourceSource(sourcePath(payload.kind,payload.name));
     case 'asset-info': return {inventory:inventory(),spriteMeta:spriteMetadata()};
     case 'source-save': return saveResourceSource(sourcePath(payload.kind,payload.name),payload);
     case 'native-source-read': return resourceSource(nativeSourcePath(payload.path));
     case 'native-source-save': return saveResourceSource(nativeSourcePath(payload.path),payload);
     case 'native-event-read': {const file=nativeSourcePath(payload.event.file);return nativeEventBlock(fs.readFileSync(file,'utf8'),verifiedNativeEvent(payload.event));}
-    case 'native-event-save': {const file=nativeSourcePath(payload.event.file),source=fs.readFileSync(file,'utf8');fs.writeFileSync(file,replaceNativeEventBlock(source,verifiedNativeEvent(payload.event),payload.content,payload.hash),'utf8');return {ok:true};}
+    case 'native-event-save': {const file=nativeSourcePath(payload.event.file),source=fs.readFileSync(file,'utf8');const range=payload.start===undefined?nativeEventBlock(source,verifiedNativeEvent(payload.event)):payload;const saved=replaceNativeEventRange(source,range,payload.content,payload.hash);fs.writeFileSync(file,saved.content,'utf8');return {ok:true,hash:saved.hash,start:saved.start,end:saved.end};}
     case 'move-instance': return moveRoomInstance(payload.room,payload.index,payload.x,payload.y,payload.revision,payload.id,payload.transform);
     case 'delete-instance': {
       return editRoomInstances(payload.room,payload.revision,rows=>{

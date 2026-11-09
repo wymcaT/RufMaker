@@ -37,10 +37,18 @@ export function nativeEventBlock(source,event){
   if(start<0||end<start||end>source.length)throw new Error('无法确定事件代码块的边界，请重新读取工程。');
   return {content:source.slice(start,end),hash:digest(source),start,end};
 }
+// A long-lived editor owns this exact span of the hash-checked source. Do not
+// rediscover its event after the user changes or removes the editable if header.
+export function replaceNativeEventRange(source,{start,end},content,hash){
+  if(digest(source)!==hash)throw new Error('源文件在编辑期间已改变，请重新打开该事件后保存。');
+  if(!Number.isInteger(start)||!Number.isInteger(end)||start<0||end<start||end>source.length)throw new Error('事件编辑范围无效，请重新打开该事件。');
+  if(typeof content!=='string'||/^\s*#define\b/m.test(content))throw new Error('事件代码中不能添加 GM 资源事件头。');
+  const newline=source.includes('\r\n')?'\r\n':'\n';
+  let body=content.replace(/\r?\n/g,newline);if(source.slice(start,end).endsWith('\n')&&!body.endsWith('\n'))body+=newline;
+  const result=source.slice(0,start)+body+source.slice(end);
+  return {content:result,hash:digest(result),start,end:start+body.length};
+}
 export function replaceNativeEventBlock(source,event,content,hash){
   if(digest(source)!==hash)throw new Error('源文件在编辑期间已改变，请重新打开该事件后保存。');
-  if(typeof content!=='string'||/^\s*#define\b/m.test(content))throw new Error('事件代码中不能添加 GM 资源事件头。');
-  const block=nativeEventBlock(source,event);const newline=source.includes('\r\n')?'\r\n':'\n';
-  let body=content.replace(/\r?\n/g,newline);if(block.content.endsWith('\n')&&!body.endsWith('\n'))body+=newline;
-  return source.slice(0,block.start)+body+source.slice(block.end);
+  return replaceNativeEventRange(source,nativeEventBlock(source,event),content,hash).content;
 }

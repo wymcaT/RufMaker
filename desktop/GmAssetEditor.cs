@@ -208,7 +208,7 @@ internal sealed class GmAssetEditor : LocalizedForm
             }
             var source=await bridge.Call<SourceData>("gm-asset-read",new{data.kind,data.name,section=selected.id,action=index});
             using(var editor=new CodeForm(data.name+" · "+selected.id,source.content,
-                async content=>await Update(new{data.kind,data.name,revision=source.hash,operation="code",section=selected.id,action=index,content},selected.id)))
+                async content=>{await Update(new{data.kind,data.name,revision=source.hash,operation="code",section=selected.id,action=index,content},selected.id);source.hash=data.revision;}))
                 Language.ShowDialog(editor,this);
         }catch(Exception error){Language.Message(this,error.Message,Text);}
         finally{working=false;EnableCommands();}
@@ -221,7 +221,7 @@ internal sealed class GmAssetEditor : LocalizedForm
             var source=await bridge.Call<SourceData>("gm-asset-read",new{data.kind,data.name,whole=true});
             string selected=Selected==null?null:Selected.id;
             using(var editor=new CodeForm(data.name+".gml",source.content,
-                async content=>await Update(new{data.kind,data.name,revision=source.hash,operation="source",content},selected)))
+                async content=>{await Update(new{data.kind,data.name,revision=source.hash,operation="source",content},selected);source.hash=data.revision;}))
                 Language.ShowDialog(editor,this);
         }catch(Exception error){Language.Message(this,error.Message,Text);}
         finally{working=false;EnableCommands();}

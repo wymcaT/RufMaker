@@ -149,7 +149,7 @@ internal sealed partial class MainForm
     private void EditNativeObjectInit(Track track)
     {
         using(var editor=new CodeForm(Language.Text("实例初始化 GML · ")+track.nativeObject,track.code,async text=>{
-            PushUndo();track.code=text;MarkChanged();await SaveNow(false);
+            PushUndo();track.code=text;MarkChanged();if(!await SaveNow(false))throw new System.IO.IOException(saveFailure??Language.Text("保存失败"));
         }))Language.ShowDialog(editor,this);
     }
 }

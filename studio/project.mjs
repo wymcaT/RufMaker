@@ -486,11 +486,13 @@ export function editRoomInstances(room,revision,edit) {
   const text=original.toString('utf8'),newline=text.includes('\r\n')?'\r\n':'\n';
   const rows=text.split(/\r?\n/).filter(Boolean);
   edit(rows,transaction);
-  transaction.write(file,rows.length?rows.join(newline)+newline:'');
+  const savedInstances=rows.length?rows.join(newline)+newline:'';
+  transaction.write(file,savedInstances);
   const prepared=transaction.files.get(file);
   if(prepared&&(!prepared.before||!original.equals(prepared.before)))throw Error('GameMaker 已修改房间实例。请先使用「读取 GameMaker 修改」。');
+  const result=readRoom(project,room,transaction.io);
   transaction.commit();
-  return roomInfo(room);
+  return result;
 }
 
 export function moveRoomInstance(room,index,x,y,revision,id,transform) {

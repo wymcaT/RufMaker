@@ -161,8 +161,11 @@ internal sealed partial class MainForm
                 if(action==null)return;
                 if(action==options[0]){await EditObjectFields(instance,code,room,id,revision);return;}
             }
-            using(var editor=new CodeForm(Language.Text("实例创建 GML")+" · "+instance.name,code.content,async content=>
-                SaveRoomInstanceCode(await bridge.Call<RoomData>("gm-instance-code-save",new{room,id,revision,code.hash,content}))))
+            using(var editor=new CodeForm(Language.Text("实例创建 GML")+" · "+instance.name,code.content,async content=>{
+                var result=await bridge.Call<RoomData>("gm-instance-code-save",new{room,id,revision,code.hash,content});
+                revision=result.instanceRevision;code.hash=result.codeHash;
+                SaveRoomInstanceCode(result);
+            }))
                 Language.ShowDialog(editor,this);
         }catch(Exception error){Error(error);}
     }
