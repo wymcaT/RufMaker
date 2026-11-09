@@ -1,10 +1,24 @@
 # Codex 任务记录
 
 - 状态：`idle`
-- 当前任务：无，原生对象动态预览及错误瞄准线已本地完成。
+- 当前任务：review 修复候选已完成，补丁待 Windows/.NET Framework 与 GM8.2 验证；用户已授权推送独立审查分支；未构建或替换 EXE，不合并 main、不发布、不修改用户工程。
+- 本轮基线：GitHub main `58bed3aad774765774138780a318f928e3337538` 的连接器源码快照；Linux 隔离工作树 `fix/review-reliability`。只有 Node 可执行，Windows/.NET Framework/GM 验证不可用。
+- 本轮占用：无。
+- 本轮验收：可用 Node 测试 114 通过、1 跳过；3 项新增缓存回归修复前失败、修复后通过；git diff --check 通过。C#/WinForms/GM 未运行。
 - 基线：main/b1affa1；接手有Argon4已完成的释放保形、变量/事件、公转/预览隐藏、扩展修复等大量未提交改动，Argon4当前idle无占用。本轮无推送/发布授权，保留所有用户工程与现有改动。
 - 当前占用：无。
 - 本机入口：RufMaker.exe，ProductVersion 2.7.0，1,587,200 bytes，旧 EXE 备份 build/native-object-preview/RufMaker.before-native-preview-20261107.exe。
+
+## 2026-11-09　review 修复候选（隔离源码补丁）
+
+- 工程切换先在独立 NativeAudio 与模型中完成音乐解码、波形和归一化，再把 bridge/document/state 与撤销清理作为同一提交步骤；旧房间刷新异常不会把旧状态写到新 bridge。失败的候选音频与 bridge 单独释放。
+- 保存失败暂停自动重试，dirty 保留；后续显式保存或新编辑可以重试。成功保存期间产生的新编辑仍安排下一次自动保存。关闭时保存失败提供默认“否”的放弃更改确认；取消关闭不会重启错误弹窗循环。
+- C# 绕点旋转遵守 age>0，与生成 GML 一致。仅预览隐藏递归作用于私有快照的 pattern.children，保留源数据及导出 enabled 状态。
+- 原生预览构建指纹改为路径清单、文本内容及媒体大小/mtime，覆盖删除、改名与保留时间戳的文本编辑；底片签名包含根目录配置、GM 入口和实际复制的运行依赖。未增加媒体全量读取成本；相同大小且保留 mtime 的二进制替换仍需手动重建。
+- 新增 desktop/Test-ProjectLoadSafety.ps1 与 ProjectLoadSafetyTests.cs；补充 PreviewHiddenAndOrbitTests。前者测试准备失败保留旧状态/撤销、成功提交清空旧历史及音频移交、保存重试门控。实际 bridge 进程切换和关闭确认交互仍需 Windows 验证。
+- 新增 Node 源码顺序约束检查，只作为补充，不代表 C# 执行通过。Node v24.22.1 下执行所有 studio/*.test.mjs，但明确排除需要 GM/完整工程的 timeline-regression.test.mjs：115 项中 114 通过，Verse3 本地参考用例 1 项跳过。日志 build/review-fixes/node-final.log；缓存修复前/后日志在同目录。
+- 尚未解决：玩家移动表达式与瞄准预览的共享历史求值。PlayerTarget、ExpressionContext、PlayerAt 与 GlobalVariableTimeline 存在循环依赖，需另行定义事件顺序和缓存失效后测试，未加入临时递归规避补丁。
+- 未运行：Test-ProjectLoadSafety、Test-PreviewHiddenAndOrbit、Build-Native 和真实 GM 对照。先在 Windows 的隔离工程中验证，再考虑原工作区应用；随后用户授权推送本轮修复至独立审查分支；没有版本变更，不合并 main、不开 PR、不发布。
 
 ## 2026-11-07　原生对象动态预览与辅助线（本地完成）
 
@@ -688,3 +702,4 @@ GM 首次在沙箱内无法启动（3221225794），使用已安装引擎在沙�
 新闭合曲线按参数排列，非等弧长分布；star2 保留原脚本逐段次序。整形旋转用轮廓朝向。一般弹幕行为的旧 GM 探针整理工作仍在 STATUS 的 A1 中，本轮新增的是形状专用正式验证入口。
 
 启动根目录 `RufMaker.exe` 使用正式功能；历史 `RufMaker.Beta.exe` 不作为入口。用户本轮已授权推送，本轮以外仍遵守默认不推送约定。
+

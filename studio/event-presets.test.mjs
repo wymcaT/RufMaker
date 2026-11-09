@@ -74,3 +74,17 @@ test('orbit-bullets and group-orbit events generate orbit initialization and kin
   assert.match(tick,/if rf_scope_group=0 \{rf_orbiting=1;rf_orbit_cx=300;rf_orbit_cy=200;rf_orbit_spd=-1\.5;rf_orbit_r=150;rf_orbit_a=point_direction\(rf_orbit_cx,rf_orbit_cy,x,y\);/);
   assert.match(tick,/rf_orbit_a\+=rf_orbit_spd;x=rf_orbit_cx\+lengthdir_x\(rf_orbit_r,rf_orbit_a\);y=rf_orbit_cy\+lengthdir_y\(rf_orbit_r,rf_orbit_a\);rf_dir\+=rf_orbit_spd;/);
 });
+
+
+test('orbit movement stays behind age-zero guard after optional life reset',()=>{
+  for(const eventPreset of ['orbit-bullets','group-orbit'])for(const eventResetLife of [true,false]){
+    const event=track('age-orbit','control',{start:10,end:10,eventPreset,eventGroup:'orbit-group',eventResetLife,eventLife:160,eventRadiusMode:'fixed',eventRadius:50,eventOrbitSpeed:90});
+    const s=scene([event],[{id:'orbit-group',name:'Orbit group',color:'#00ff00'}]);
+    const tick=new Map(bulletSystemScripts(s)).get('rf_pattern_tick');
+    const movement=tick.indexOf('if rf_age>0 {if rf_orbiting {rf_orbit_a+=rf_orbit_spd;');
+    assert.ok(movement>=0,'Orbit position, direction and fixed-radius snap must wait until age > 0');
+    const reset=tick.indexOf('rf_birth=rf_world;rf_age=0;rf_life=160;');
+    if(eventResetLife)assert.ok(reset>=0&&reset<movement,'Life reset must precede the movement age check');
+    else assert.equal(reset,-1,'An orbit event with reset disabled must preserve the existing age');
+  }
+});

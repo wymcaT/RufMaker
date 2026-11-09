@@ -3,7 +3,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import {spawn} from 'node:child_process';
 import {codeOnly} from './native-import.mjs';
-import {writeNativeHarness,copyNativeExtras} from './native-preview.mjs';
+import {writeNativeHarness,copyNativeExtras,nativeExtraFiles} from './native-preview.mjs';
 import {expandPatterns} from './bullet-schema.mjs';
 import {nativeObjectSchedule} from './native-objects.mjs';
 import {readRoom} from './native-room.mjs';
@@ -30,6 +30,15 @@ export function nativeFilmStatus(project,state){
     return value;
   }
   hash.update(JSON.stringify({room:state.room,duration:state.duration,fps:state.fps,music:state.music,native:state.nativeProject,tracks:state.tracks.map(relevant).filter(Boolean)}));
+  // These root-level inputs are copied beside the recording EXE too. Omitting
+  // them leaves a film marked fresh after config/plugin or entry changes.
+  const entries=fs.readdirSync(project,{withFileTypes:true}).filter(e=>e.isFile()&&/\.gm82$/i.test(e.name)).map(e=>e.name);
+  for(const name of [...new Set([...nativeExtraFiles(project),...entries])].sort()){
+    const file=path.join(project,name),stat=fs.statSync(file);hash.update(name+'\0');
+    if(/\.(gm82|json|ini|cfg)$/i.test(name))hash.update(fs.readFileSync(file));
+    else hash.update(stat.size+':'+stat.mtimeMs);
+    hash.update('\0');
+  }
   for(const kind of ['objects','scripts','timelines','rooms','paths','sprites','backgrounds','settings','sounds','Data','fonts','datafiles']){
     const visit=folder=>{
       if(!fs.existsSync(folder))return;
@@ -139,3 +148,4 @@ export async function prepareNativeFilm({root,project,projectFile,gameMaker,stat
   const roomInstances=fs.readFileSync(path.join(project,'rooms',state.room,'instances.txt'),'utf8').split(/\r?\n/).filter(Boolean).map(line=>line.split(',')[3]);
   return {...status,exe,dir:base,statusFile:path.join(data,'rufmaker_film_status.txt'),frameFile:path.join(data,'rufmaker_film_frame.bmp'),ackDirectory:path.join(data,'rufmaker_film_ack'),fps:50,width:state.nativeProject.width,height:state.nativeProject.height,frameCount:state.nativeProject.duration+1,room:state.room,playerX:400,playerY:304,nativeIds:roomInstances,players};
 }
+

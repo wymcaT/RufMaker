@@ -58,6 +58,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File desktop/Build-Native.ps1 -Ou
 
 ### 对应桌面检查
 
+`Test-ProjectLoadSafety.ps1` 在隔离目录检查工程加载准备失败、撤销边界、音频所有权和保存重试；不启动 GM、不读用户工程。`Test-PreviewHiddenAndOrbit.ps1` 增加嵌套隐藏与绕点旋转出生帧回归。源码约束检查 `studio/editor-safety-contract.test.mjs` 不替代这些 Windows 测试。
+
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File desktop/Test-BulletSystem.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File desktop/Test-PlayerExpressions.ps1
@@ -173,3 +175,4 @@ F5/复制后续性能与R快照见[实施记录](PLAY-COPY-PERFORMANCE-2026-10-2
 Git 推送以根 `AGENTS.md` 为准。`.github/workflows/release.yml` 在推送 `v*` 标签或手动触发时发布正式 Release。
 
 正式版通过 `Package-Release.ps1` 生成完整便携包、兼容更新包和 SHA256；它要求纯数字 Version，并核对 ProductVersion。推送前确认标签 `v版本号` 与 `AppVersion.Current` 一致，发布说明放 `docs/releases/v版本号.md`。若以后制作 Beta 包，需要单独验证预发布流程并取得用户授权，不能去掉 Beta 后缀绕过校验。
+

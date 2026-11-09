@@ -43,6 +43,68 @@ internal static class PreviewHiddenAndOrbitTests
         Console.WriteLine("PASS: previewHidden disables tracks in preview renderState and skips hit testing while preserving project enabled state.");
     }
 
+    public static void TestNestedPreviewHidden(string root)
+    {
+        var hidden = new Track { id = "hidden", kind = "emitter", previewHidden = true, start = 0, end = 20 };
+        var visible = new Track { id = "visible", kind = "emitter", start = 0, end = 20 };
+        var disabled = new Track { id = "disabled", kind = "emitter", enabled = false, start = 0, end = 20 };
+        var blocked = new Track { id = "blocked", kind = "emitter", start = 0, end = 20 };
+        var hiddenPattern = new Track { id = "hidden-pattern", kind = "pattern", previewHidden = true, children = new System.Collections.Generic.List<Track> { blocked } };
+        var nested = new Track { id = "nested", kind = "pattern", children = new System.Collections.Generic.List<Track> { hidden, visible, disabled, hiddenPattern } };
+        var pattern = new Track { id = "outer", kind = "pattern", repeatCount = 2, children = new System.Collections.Generic.List<Track> { nested } };
+        var state = new EditorState { duration = 200, tracks = new System.Collections.Generic.List<Track> { pattern } };
+        using (var sprites = new SpriteStore { Project = root })
+        using (var stage = new StageCanvas { State = state, Room = new RoomData(), Sprites = sprites })
+        {
+            stage.SceneChanged();
+            var render = (EditorState)typeof(StageCanvas).GetField("renderState", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(stage);
+            Check(render.tracks.Count(t => t.id.EndsWith("/hidden")) == 2, "Both outer repetitions must expand hidden leaf tracks");
+            Check(render.tracks.Where(t => t.id.EndsWith("/hidden")).All(t => !t.enabled), "Hidden leaves must remain disabled through nested expansion");
+            Check(!render.tracks.Any(t => t.id.EndsWith("/blocked")), "A hidden nested pattern must suppress its entire subtree");
+            Check(render.tracks.Where(t => t.id.EndsWith("/visible")).All(t => t.enabled), "Visible nested siblings must remain enabled");
+            Check(render.tracks.Where(t => t.id.EndsWith("/disabled")).All(t => !t.enabled), "Preview flags must not enable disabled tracks");
+            Check(hidden.enabled && hiddenPattern.enabled && blocked.enabled, "Preview filtering must not change editable source enabled flags");
+            var exported = BulletSystem.Expand(state.Snapshot());
+            Check(exported.tracks.Where(t => t.id.EndsWith("/hidden")).All(t => t.enabled), "Export expansion must ignore preview-only hiding");
+            Check(exported.tracks.Count(t => t.id.EndsWith("/blocked") && t.enabled) == 2, "Export must retain hidden pattern descendants");
+            hidden.previewHidden = false; hiddenPattern.previewHidden = false;
+            stage.SceneChanged();
+            render = (EditorState)typeof(StageCanvas).GetField("renderState", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(stage);
+            Check(render.tracks.Count(t => t.id.EndsWith("/blocked") && t.enabled) == 2, "Unhiding must restore nested descendants on the next snapshot");
+            Check(render.tracks.Where(t => t.id.EndsWith("/hidden")).All(t => t.enabled), "Unhiding must restore nested leaf tracks");
+        }
+    }
+
+    public static void TestOrbitEventAgeBoundary()
+    {
+        foreach (bool resetLife in new[] { true, false })
+        foreach (int eventFrame in new[] { 0, 10 })
+        {
+            var emitter = new Track { id = "age-shot", kind = "emitter", start = 0, end = 0, count = 1, speed = 0, x = 500, y = 304, life = 200 };
+            var orbit = new Track { id = "age-orbit", start = eventFrame };
+            EventPresets.ApplyPreset(orbit, "orbit-bullets");
+            orbit.eventCenterX = 400; orbit.eventCenterY = 304; orbit.eventOrbitSpeed = 90;
+            orbit.eventResetLife = resetLife; orbit.eventRadiusMode = "fixed"; orbit.eventRadius = 50;
+            var state = new EditorState { duration = 200, tracks = new System.Collections.Generic.List<Track> { emitter, orbit } };
+            Motion.Normalize(state);
+            var world = new BulletWorld(state);
+            world.Seek(eventFrame);
+            var bullet = world.bullets.Single();
+            bool ageZero = resetLife || eventFrame == 0;
+            Check(Math.Abs(bullet.x - (ageZero ? 500 : 400)) < .001, "Orbit must not move or snap radius at age zero");
+            Check(Math.Abs(bullet.y - (ageZero ? 304 : 254)) < .001, "An older non-reset bullet must rotate immediately");
+            Check(Math.Abs(bullet.direction - (ageZero ? 0 : 90)) < .001, "Direction must obey the same age boundary as position");
+            world.Seek(eventFrame + 1);
+            bullet = world.bullets.Single();
+            Check(Math.Abs(bullet.x - (ageZero ? 400 : 350)) < .001, "Next frame must advance exactly one orbit step");
+            Check(Math.Abs(bullet.y - (ageZero ? 254 : 304)) < .001, "Fixed radius applies when orbit movement first advances");
+            string expected = Json.Write(new[] { bullet.x, bullet.y, bullet.direction, bullet.orbitAngle });
+            world.Seek(0); world.Seek(eventFrame + 1);
+            bullet = world.bullets.Single();
+            Check(expected == Json.Write(new[] { bullet.x, bullet.y, bullet.direction, bullet.orbitAngle }), "Backward seek must reproduce orbit state");
+        }
+    }
+
     public static void TestOrbitMotionParameters()
     {
         var track = new Track
@@ -179,6 +241,8 @@ internal static class PreviewHiddenAndOrbitTests
         {
             string root = args.Length > 0 ? args[0] : Path.GetFullPath("projects/rufmaker-demo.gm82");
             TestPreviewHidden(root);
+            TestNestedPreviewHidden(root);
+            TestOrbitEventAgeBoundary();
             TestOrbitMotionParameters();
             TestOrbitBulletEvents();
             TestPolygonRigidRotation();
@@ -192,3 +256,4 @@ internal static class PreviewHiddenAndOrbitTests
         }
     }
 }
+

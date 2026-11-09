@@ -57,21 +57,47 @@ internal sealed partial class MainForm
         try
         {
             candidate=new NativeBridge(root,path);var loaded=await candidate.Call<LoadData>("load",new{});
-            var previous=bridge;bridge=candidate;candidate=null;restoredDocumentView=true;frame=0;stage.ResetView();
-            try{await LoadProject(loaded);currentProjectPath=loaded.descriptor;SaveWorkspaceView();}finally{previous.Dispose();}
+            // Decoding audio and preparing the new model can fail. Keep the current
+            // bridge, document and undo history together until those steps succeed.
+            using(var prepared=await PrepareProjectLoad(loaded,candidate)){
+                var previous=bridge;
+                try{await LoadProject(loaded,prepared,candidate);SaveWorkspaceView();}
+                finally{if(!ReferenceEquals(bridge,previous)){candidate=null;previous.Dispose();}}
+            }
         }
         catch(Exception error){Error(error);}finally{if(candidate!=null)candidate.Dispose();Enabled=true;SetBusy(false);}
     }
+    private sealed class PreparedProject : IDisposable
+    {
+        public LoadData Document;public NativeAudio Audio=new NativeAudio();public bool Migrated;public int Separated;
+        public NativeAudio TakeAudio(){var result=Audio;Audio=null;return result;}
+        public void Dispose(){if(Audio!=null){Audio.Dispose();Audio=null;}}
+    }
+    private async Task<PreparedProject> PrepareProjectLoad(LoadData loaded,NativeBridge source)
+    {
+        var prepared=new PreparedProject{Document=loaded};
+        try{
+            var next=loaded.state;next.nativePaths=loaded.nativePaths;Motion.Normalize(next);prepared.Separated=TimelineLayout.EnsureExclusive(next);
+            prepared.Audio.Volume=audio.Volume;await LoadProjectMusic(loaded,prepared.Audio,source);
+            prepared.Migrated=!next.timelineInitialized;
+            if(prepared.Migrated){if(next.nativeProject==null&&next.duration==1500)next.duration=Math.Max(next.tracks.Count==0?next.fps:next.tracks.Max(t=>Math.Max(t.end,t.keyframes.Count==0?0:t.keyframes.Max(k=>k.frame))),(int)Math.Ceiling(loaded.waveform.duration*next.fps));next.timelineInitialized=true;}
+            return prepared;
+        }catch{prepared.Dispose();throw;}
+    }
+    private async Task LoadProjectMusic(LoadData target,NativeAudio player,NativeBridge source)
+    {
+        var next=target.state;
+        if(next.nativeProject!=null&&(String.IsNullOrEmpty(next.music)||!File.Exists(Path.Combine(target.project,next.music)))){player.Dispose();target.waveform=new WaveData{duration=0,peaks=new double[0],source=next.music};return;}
+        string file=Path.Combine(target.project,next.music.Replace('/',Path.DirectorySeparatorChar));await Task.Run(()=>player.Load(file));
+        if(target.waveform==null||target.waveform.duration<=0||target.waveform.source!=next.music)
+        {
+            SetStatus("正在分析歌曲波形与节拍…");target.waveform=await Task.Run(()=>AudioAnalyzer.Analyze(file));target.waveform.source=next.music;
+            if(source!=null)await source.Call<object>("audio-cache",target.waveform);
+        }
+    }
     private async Task LoadCurrentMusic()
     {
-        if(state.nativeProject!=null&&(String.IsNullOrEmpty(state.music)||!File.Exists(Path.Combine(document.project,state.music)))){audio.Dispose();document.waveform=new WaveData{duration=0,peaks=new double[0],source=state.music};timeline.Wave=document.waveform;return;}
-        string file=Path.Combine(document.project,state.music.Replace('/',Path.DirectorySeparatorChar));await Task.Run(()=>audio.Load(file));
-        if(document.waveform==null||document.waveform.duration<=0||document.waveform.source!=state.music)
-        {
-            SetStatus("正在分析歌曲波形与节拍…");document.waveform=await Task.Run(()=>AudioAnalyzer.Analyze(file));document.waveform.source=state.music;
-            await bridge.Call<object>("audio-cache",document.waveform);
-        }
-        timeline.Wave=document.waveform;
+        await LoadProjectMusic(document,audio,bridge);timeline.Wave=document.waveform;
     }
     private async Task ImportMusic()
     {
@@ -102,3 +128,4 @@ internal sealed partial class MainForm
     }
     private async void NewFromKeyboard(){await NewProject();}private async void OpenFromKeyboard(){await OpenProject();}
 }
+

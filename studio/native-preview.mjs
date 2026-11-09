@@ -13,9 +13,22 @@ const generator=crypto.createHash('sha256').update(fs.readFileSync(new URL(impor
 const section=(event,code)=>`#define ${event}\n${action}\n${code}\n`;
 const write=(f,text)=>fs.writeFileSync(f,text,'utf8');
 function append(file,line){const source=fs.readFileSync(file,'utf8');if(!source.split(/\r?\n/).includes(line))fs.appendFileSync(file,(source.endsWith('\n')?'':'\n')+line+'\n');}
-export function copyNativeExtras(project,destination){for(const entry of fs.readdirSync(project,{withFileTypes:true}).filter(e=>e.isFile()&&e.name!=='rufmaker.json'&&(/\.(dll|ini|dat|cfg|bin|png|jpe?g|bmp|gif|webp|mp3|ogg|wav|flac|mp4|avi|wmv|json)$/i.test(e.name)||/^save\d*$/i.test(e.name))))fs.copyFileSync(path.join(project,entry.name),path.join(destination,entry.name));}
-function allFiles(folder){const result=[];for(const e of fs.readdirSync(folder,{withFileTypes:true})){const f=path.join(folder,e.name);if(e.isDirectory()&&!['cache','build'].includes(e.name))result.push(...allFiles(f));else if(e.isFile()&&!/rufmaker_(?:preview|native)/.test(e.name))result.push(f);}return result;}
-export function nativePreviewStamp(project){return allFiles(project).reduce((n,f)=>Math.max(n,fs.statSync(f).mtimeMs),0);}
+export function nativeExtraFiles(project){return fs.readdirSync(project,{withFileTypes:true}).filter(e=>e.isFile()&&e.name!=='rufmaker.json'&&(/\.(dll|ini|dat|cfg|bin|png|jpe?g|bmp|gif|webp|mp3|ogg|wav|flac|mp4|avi|wmv|json)$/i.test(e.name)||/^save\d*$/i.test(e.name))).map(e=>e.name).sort();}
+export function copyNativeExtras(project,destination){for(const name of nativeExtraFiles(project))fs.copyFileSync(path.join(project,name),path.join(destination,name));}
+function allFiles(folder){const result=[];for(const e of fs.readdirSync(folder,{withFileTypes:true}).sort((a,b)=>a.name.localeCompare(b.name))){const f=path.join(folder,e.name);if(e.isDirectory()&&!['cache','build','.git','.rufmaker-sync'].includes(e.name))result.push(...allFiles(f));else if(e.isFile()&&!/rufmaker_(?:preview|native)|\.rufmaker-sync\.tmp$/.test(e.name))result.push(f);}return result;}
+export function nativePreviewStamp(project){
+  // A maximum timestamp misses deletions, renames and restored source files.
+  // Hash the complete input list and small text sources; media retain the
+  // existing size/mtime contract without rereading large songs every F5.
+  const hash=crypto.createHash('sha256');
+  for(const file of allFiles(project)){
+    const stat=fs.statSync(file);hash.update(path.relative(project,file).replaceAll('\\','/')+'\0');
+    if(/\.(gml|txt|yyd|gm82|json|ini|cfg)$/i.test(file))hash.update(fs.readFileSync(file));
+    else hash.update(stat.size+':'+stat.mtimeMs);
+    hash.update('\0');
+  }
+  return hash.digest('hex');
+}
 export function commandText(frame,playing=false,playable=false,position={},godMode=false){return `[control]\r\nserial=1\r\nframe=${Math.max(0,Math.round(frame))}\r\nplaying=${playing?1:0}\r\nplayable=${playable?1:0}\r\ntest_x=${gmlNumber(position.x,400)}\r\ntest_y=${gmlNumber(position.y,304)}\r\ngod=${godMode?1:0}\r\nseek=1\r\n` ;}
 export function nativePlayers(project){return fs.readdirSync(path.join(project,'objects')).filter(n=>/^(?:(?:obj_?|o)?player[12]?)\.txt$/i.test(n)).map(n=>n.slice(0,-4));}
 export function patchTestPlayerEvents(source,player=false){
@@ -170,3 +183,4 @@ export async function prepareNativeSession({project,projectFile,buildDir,cacheDi
     return {exe,dir:base,commandFile,statusFile,frameFile,cached,width:state.nativeProject.width||800,height:state.nativeProject.height||608};
   })();try{return await building;}finally{building=null;}
 }
+

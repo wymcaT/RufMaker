@@ -20,6 +20,14 @@ test('capture handoff only checks unique ack markers and never opens acknowledge
 const root=fileURLToPath(new URL('..',import.meta.url)),parent=path.join(root,'build');fs.mkdirSync(parent,{recursive:true});const fixture=fs.mkdtempSync(path.join(parent,'film-source-test-'));
 const write=(file,text)=>{const f=path.join(fixture,file);fs.mkdirSync(path.dirname(f),{recursive:true});fs.writeFileSync(f,text);};
 after(()=>{assert.equal(path.dirname(fixture),parent);assert(path.basename(fixture).startsWith('film-source-test-'));fs.rmSync(fixture,{recursive:true,force:true});});
+test('native film signature includes root configuration, entry and runtime dependencies',()=>{
+  const state=normalizeState({version:2,room:'rAvoidance',fps:50,duration:30,music:'',tracks:[]});
+  write('options.ini','mode=easy');write('game.gm82','gm82_version=1\nextensions=core');write('plugin.dll','first');
+  let before=nativeFilmStatus(fixture,state).sourceSignature;
+  write('options.ini','mode=hard');let after=nativeFilmStatus(fixture,state).sourceSignature;assert.notEqual(after,before);before=after;
+  write('game.gm82','gm82_version=1\nextensions=sound');after=nativeFilmStatus(fixture,state).sourceSignature;assert.notEqual(after,before);before=after;
+  fs.unlinkSync(path.join(fixture,'plugin.dll'));assert.notEqual(nativeFilmStatus(fixture,state).sourceSignature,before);
+});
 test('recording clone keeps native event logic and excludes RufMaker live objects',()=>{
   for(const folder of ['objects','scripts']){write(folder+'/index.yyd','');write(folder+'/tree.yyd','');}
   write('objects/player.txt','');write('objects/player.gml','#define Create_0\nwudi=0;\n#define Step_0\nx+=3;\n');
@@ -50,3 +58,4 @@ test('native clip recording keeps a schedule controller and fingerprints code an
   assert(!controller.includes('rf_pattern_step('));
   assert(fs.readFileSync(path.join(fixture,'rooms','rAvoidance','instances.txt'),'utf8').includes('objRufController,'));
 });
+

@@ -1,9 +1,33 @@
 import fs from 'node:fs';
+import path from 'node:path';
+import {fileURLToPath} from 'node:url';
 import assert from 'node:assert/strict';
 import {test} from 'node:test';
-import {rewriteNativeRuntime,makeNativeHarness,commandText} from './native-preview.mjs';
+import {rewriteNativeRuntime,makeNativeHarness,commandText,nativePreviewStamp} from './native-preview.mjs';
 
 const state={fps:50,nativeProject:{hasFmod:true}};
+function stampFixture(t){
+  const parent=fileURLToPath(new URL('../build/',import.meta.url));fs.mkdirSync(parent,{recursive:true});
+  const folder=fs.mkdtempSync(path.join(parent,'native-stamp-test-'));
+  t.after(()=>fs.rmSync(folder,{recursive:true,force:true}));
+  const write=(name,text,time)=>{const file=path.join(folder,name);fs.mkdirSync(path.dirname(file),{recursive:true});fs.writeFileSync(file,text);if(time!==undefined)fs.utimesSync(file,new Date(time),new Date(time));return file;};
+  return {folder,write};
+}
+test('native preview cache invalidates when a non-newest source is removed or renamed',t=>{
+  const {folder,write}=stampFixture(t);write('newest.gml','x=3;',200000);const older=write('older.gml','x=1;',100000);
+  const before=nativePreviewStamp(folder);fs.renameSync(older,path.join(folder,'renamed.gml'));
+  const renamed=nativePreviewStamp(folder);assert.notEqual(renamed,before);
+  fs.unlinkSync(path.join(folder,'renamed.gml'));assert.notEqual(nativePreviewStamp(folder),renamed);
+});
+test('native preview cache detects same-size source edits with preserved timestamps',t=>{
+  const {folder,write}=stampFixture(t);write('newest.gml','x=3;',200000);write('older.gml','x=1;',100000);
+  const before=nativePreviewStamp(folder);write('older.gml','x=2;',100000);assert.notEqual(nativePreviewStamp(folder),before);
+});
+test('generated build and cache output does not invalidate native preview sources',t=>{
+  const {folder,write}=stampFixture(t);write('source.gml','x=1;',100000);const before=nativePreviewStamp(folder);
+  write('build/output.log','generated');write('cache/film.rufvideo','generated');
+  assert.equal(nativePreviewStamp(folder),before);
+});
 test('generated preview uses the host rewind protocol without unsupported GM game_restart',()=>{
   const code=makeNativeHarness({...state,room:'rAvoidance',duration:6700});
   assert(!/\bgame_restart\s*\(/.test(code));assert(code.includes('rf_native_wait_rewind()'));
@@ -33,3 +57,4 @@ test('real Verse3 world object keeps every original room_speed write target',t=>
   assert(writes.length>=3);for(const statement of writes)assert(result.includes(statement),statement);
   assert(!/\b50\s*(?:[+\-*/]=|\+\+|--)/.test(result));
 });
+

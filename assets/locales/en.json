@@ -1826,5 +1826,6 @@
   "原生底片缓存无法读取，可重新生成。": "The native movie cache cannot be read. Regenerate it.",
   "按空格生成原生事件动态预览，随后可拖动时间轴查看。修改参数后再次播放会更新预览。F5 进入真实试玩。": "Press Space to cache native event animation, then scrub the timeline to review it. Playing again updates changed native parameters. F5 starts a playtest.",
   "原生对象的 Create、Step、Draw 和生成内容交给 GM 运行并缓存。首次按空格会生成，修改原生对象后会更新缓存；拖动时间轴直接读取缓存。参考玩家为 (400,304)。": "GameMaker runs and caches native Create, Step, Draw and spawned objects. The first Space playback generates the cache, and changed native objects regenerate it. Timeline scrubbing reads cached frames. The reference player is at (400,304).",
-  "生成原生对象动态预览": "Generate native object animation"
+  "生成原生对象动态预览": "Generate native object animation",
+  "保存失败。是否放弃尚未保存的更改并关闭？": "Saving failed. Discard unsaved changes and close?"
 }

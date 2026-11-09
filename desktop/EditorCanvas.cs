@@ -70,9 +70,15 @@ internal sealed partial class StageCanvas : Control
         if(assetOwner!=Sprites){assetOwner=Sprites;assetVersion++;}
         renderState=new EditorState{nativePaths=State.nativePaths,timelineGroups=State.timelineGroups.Select(g=>g.Snapshot()).ToList(),nativeProject=State.nativeProject==null?null:State.nativeProject.Snapshot(),version=State.version,fps=State.fps,bpm=State.bpm,duration=State.duration,room=State.room,music=State.music,timelineInitialized=State.timelineInitialized,randomSeed=State.randomSeed,usePlayerTrace=State.usePlayerTrace,playerTrace=State.playerTrace.Select(p=>p.Snapshot()).ToList(),nativeTest=new NativeTestPosition{x=State.nativeTest.x,y=State.nativeTest.y},tracks=State.tracks.Select(t=>t.Snapshot()).ToList()};
         if(InspectRoomOnly){renderState.tracks.Clear();renderState.usePlayerTrace=false;}
-        foreach(var t in renderState.tracks)if(t.previewHidden)t.enabled=false;
+        ApplyPreviewVisibility(renderState.tracks);
         if(!String.IsNullOrEmpty(TemplatePreviewId)){renderState.nativeProject=null;var visible=new HashSet<string>{TemplatePreviewId};bool added;do{added=false;foreach(var child in renderState.tracks)if(visible.Contains(child.parentId))added|=visible.Add(child.id);}while(added);foreach(var track in renderState.tracks){track.templateOnly=!visible.Contains(track.id);if(track.templateOnly&&(track.kind=="camera"||track.kind=="effect"))track.enabled=false;if(track.id==TemplatePreviewId){track.enabled=true;track.parentId="";}}}
         renderState=BulletSystem.Expand(renderState);RandomParameters.Attach(renderState);renderRoom=Room.Snapshot();renderObjects=ObjectSprites;renderProject=Sprites.Project;renderMetadata=Sprites.Metadata;RequestRender();
+    }
+    // Only alter the private snapshot, before pattern expansion drops its containers.
+    private static void ApplyPreviewVisibility(IEnumerable<Track> tracks)
+    {
+        var pending=new Stack<Track>(tracks);
+        while(pending.Count>0){var track=pending.Pop();if(track.previewHidden)track.enabled=false;foreach(var child in track.children)pending.Push(child);}
     }
     private void RequestRender(){serial++;if(renderCancellation!=null)renderCancellation.Cancel();QueueRender();Invalidate();}
     public void ShowFrame(int frame){if(Frame==frame&&image!=null)return;Frame=frame;if(!InspectRoomOnly)RequestRender();}
@@ -333,3 +339,4 @@ internal sealed partial class StageCanvas : Control
     protected override void OnDragDrop(DragEventArgs e){var text=e.Data.GetData(DataFormats.Text) as string;if(InspectRoomOnly||text==null||ResourceDropped==null)return;var parts=text.Split('|');if(parts.Length==2)ResourceDropped(parts[0],parts[1],Position(PointToClient(new Point(e.X,e.Y))));}
     protected override void Dispose(bool disposing){if(disposing){if(renderCancellation!=null)renderCancellation.Cancel();if(pickMenu!=null){pickMenu.Dispose();pickMenu=null;}if(image!=null){image.Dispose();image=null;}if(!rendering){if(workerSprites!=null){workerSprites.Dispose();workerSprites=null;}previewCache.Dispose();}}base.Dispose(disposing);}
 }
+

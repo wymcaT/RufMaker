@@ -203,7 +203,7 @@ internal sealed partial class BulletWorld
             }
             age=frame-b.birth;
             if(b.dead&&!BulletLifetime.Request(b,age))return;
-            if(b.orbiting){b.orbitAngle+=b.orbitSpeed;b.x=b.orbitCenterX+Math.Cos(b.orbitAngle*Math.PI/180)*b.orbitRadius;b.y=b.orbitCenterY-Math.Sin(b.orbitAngle*Math.PI/180)*b.orbitRadius;b.direction+=b.orbitSpeed;}else if(age>0){if(!stopSpeed){b.speed+=b.acceleration;if(b.friction>0){if(b.speed>b.friction)b.speed-=b.friction;else if(b.speed<-b.friction)b.speed+=b.friction;else b.speed=0;}}b.direction+=b.turn;boundaries.Move(b);}
+            if(b.orbiting&&age>0){b.orbitAngle+=b.orbitSpeed;b.x=b.orbitCenterX+Math.Cos(b.orbitAngle*Math.PI/180)*b.orbitRadius;b.y=b.orbitCenterY-Math.Sin(b.orbitAngle*Math.PI/180)*b.orbitRadius;b.direction+=b.orbitSpeed;}else if(age>0){if(!stopSpeed){b.speed+=b.acceleration;if(b.friction>0){if(b.speed>b.friction)b.speed-=b.friction;else if(b.speed<-b.friction)b.speed+=b.friction;else b.speed=0;}}b.direction+=b.turn;boundaries.Move(b);}
             if(b.deathStart<0)Templates.FromBullet(b,frame);
             age=frame-b.birth;
             if(b.dead&&!BulletLifetime.Request(b,age))return;
@@ -220,3 +220,4 @@ internal sealed partial class BulletWorld
     }
     internal static double BulletAngle(SimBullet b,double direction){return b.kinematic?b.visualAngle:b.detachedAppearance?b.visualAngle+(b.source.rotateSprite?direction-b.baseDirection:0):Motion.Value(b.source,"spriteAngle",b.birth-b.clockShift)+(b.source.rotateSprite?direction:0);}
 }
+
