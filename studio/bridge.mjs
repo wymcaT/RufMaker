@@ -59,7 +59,7 @@ async function execute(command,payload={}) {
     case 'terrain-preview': return terrainLayout(payload);
     case 'import-song': return copySong(project,payload.path);
     case 'audio-cache': fs.mkdirSync(path.join(project,'cache'),{recursive:true});fs.writeFileSync(path.join(project,'cache','rufmaker-waveform.json'),JSON.stringify(payload));return {ok:true};
-    case 'save': syncToGame(payload); return {room:roomInfo(payload.room),export:exportStatus()};
+    case 'save': syncToGame(payload); return {room:roomInfo(payload.room),export:exportStatus(false)};
     case 'room-read': return roomInfo(payload.room);
     case 'gm-resources-read': return {room:roomInfo(payload.room),inventory:inventory(),spriteMeta:spriteMetadata(),nativePaths:nativePathAssets(project)};
     case 'gm-asset-read': return readGmAsset(project,payload);

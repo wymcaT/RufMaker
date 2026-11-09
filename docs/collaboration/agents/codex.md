@@ -1,13 +1,18 @@
 # Codex 任务记录
 
 - 状态：`idle`
-- 当前任务：review 修复候选已完成，补丁待 Windows/.NET Framework 与 GM8.2 验证；用户已授权推送独立审查分支；未构建或替换 EXE，不合并 main、不发布、不修改用户工程。
-- 本轮基线：GitHub main `58bed3aad774765774138780a318f928e3337538` 的连接器源码快照；Linux 隔离工作树 `fix/review-reliability`。只有 Node 可执行，Windows/.NET Framework/GM 验证不可用。
+- 本轮任务：普通构建缓存及重复打包修复；基于远程 main `949dba0505ab73627c5d92efa4613191d4dc81d0`，用户授权验证后推送 main。
 - 本轮占用：无。
-- 本轮验收：可用 Node 测试 114 通过、1 跳过；3 项新增缓存回归修复前失败、修复后通过；git diff --check 通过。C#/WinForms/GM 未运行。
-- 基线：main/b1affa1；接手有Argon4已完成的释放保形、变量/事件、公转/预览隐藏、扩展修复等大量未提交改动，Argon4当前idle无占用。本轮无推送/发布授权，保留所有用户工程与现有改动。
-- 当前占用：无。
-- 本机入口：RufMaker.exe，ProductVersion 2.7.0，1,587,200 bytes，旧 EXE 备份 build/native-object-preview/RufMaker.before-native-preview-20261107.exe。
+- 本轮验收：Linux Node 123 通过、1 跳过，排除需要完整 GM 工程的 timeline-regression.test.mjs；git diff --check 通过。Windows 文件锁行为、真实 GM 编译/运行未实测，无 EXE 重建、版本变更或 Release。
+
+## 2026-11-09 普通构建与重复打包
+
+- 普通 F5/export 使用内容指纹与成功构建清单，不再用最大 mtime。指纹覆盖资源路径、文本/二进制内容、选中 .gm82 入口及编译器；复用前也校验 EXE 内容，缺失或损坏清单必须重建。64 KiB 分块读取，避免整首歌曲进内存。保存响应使用 verified:false/fresh:false 的轻量状态；显式 status、试玩、导出才完整检查，避免自动保存每次全量读取。
+- 打包先在同级临时目录完整准备，再替换活动目录；移除已删除的受管 Data 和根配置，不将旧包直接覆盖合并。新清单识别受管文件，保留后来生成的普通存档/手工附加文件；预览运行控制文件明确不继承，防止陈旧 ready/checkpoint 影响 F5。
+- 首次遇到没有打包清单的旧包，整个原目录保留为 build/preview.previous-<id> 或 build/release.previous-<id>，其中手工文件/存档可自行恢复。以后备份仅保留与新包不相同的文件；完全相同包再次打包不留下重复歌曲/EXE。previousDir 在打包返回值中给出，桌面尚未显示此字段。旧差异备份不会自动全部清空，可在确认不需恢复后自行清理。
+- 复制/重命名失败保持或恢复旧包；恢复失败的错误明确给出旧包所在路径。新增 9 个隔离回归，包含删除/改名/保留时间戳的文本与二进制编辑、同目录多入口、清单损坏、连续打包/存档、旧运行控制文件、复制/锁定/回滚失败。Node 子进程编译协议 stub 覆盖并发合并、成功、失败、无效 MZ 和编译中源变更；stub 不是 GM 验收。
+- 改动文件：studio/bridge.mjs、native.mjs、native-build-cache.mjs、native-package.mjs、native-build-package.test.mjs，以及 STATUS 与本记录。验证命令：node --test studio/native-build-package.test.mjs；全部 studio/*.test.mjs 排除 timeline-regression.test.mjs。日志 build/verification/node-final.log。
+- 784b219 性能候选未合入本轮。仍待 Windows 验证的预览请求合并/片段展开，以及曲线追踪重复计算、动态模糊历史保留、强制移动表达式预览/导出差异，均未声明解决。PlayerTarget→ExpressionContext→PlayerAt 存在历史求值循环依赖，需双端语义与 GM 数值对照。
 
 ## 2026-11-09　review 修复候选（隔离源码补丁）
 
