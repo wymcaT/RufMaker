@@ -1,0 +1,61 @@
+using System;
+using System.IO;
+using System.Runtime.InteropServices;
+
+// Uses the same FMOD Ex runtime supplied with the avoidance engine. All positions are milliseconds.
+internal sealed class NativeAudio : IDisposable
+{
+    private const string Dll="runtime\\fmodex.dll";
+    [DllImport(Dll,CallingConvention=CallingConvention.StdCall)] private static extern int FMOD_System_Create(out IntPtr system);
+    [DllImport(Dll,CallingConvention=CallingConvention.StdCall)] private static extern int FMOD_System_GetVersion(IntPtr system,out uint version);
+    [DllImport(Dll,CallingConvention=CallingConvention.StdCall)] private static extern int FMOD_System_Init(IntPtr system,int channels,uint flags,IntPtr data);
+    [DllImport(Dll,CallingConvention=CallingConvention.StdCall)] private static extern int FMOD_System_CreateSound(IntPtr system,byte[] file,uint mode,IntPtr info,out IntPtr sound);
+    [DllImport(Dll,CallingConvention=CallingConvention.StdCall)] private static extern int FMOD_System_PlaySound(IntPtr system,int index,IntPtr sound,int paused,out IntPtr channel);
+    [DllImport(Dll,CallingConvention=CallingConvention.StdCall)] private static extern int FMOD_System_Update(IntPtr system);
+    [DllImport(Dll,CallingConvention=CallingConvention.StdCall)] private static extern int FMOD_System_Release(IntPtr system);
+    [DllImport(Dll,CallingConvention=CallingConvention.StdCall)] private static extern int FMOD_Sound_Release(IntPtr sound);
+    [DllImport(Dll,CallingConvention=CallingConvention.StdCall)] private static extern int FMOD_Sound_GetLength(IntPtr sound,out uint length,uint unit);
+    [DllImport(Dll,CallingConvention=CallingConvention.StdCall)] private static extern int FMOD_Channel_SetPosition(IntPtr channel,uint position,uint unit);
+    [DllImport(Dll,CallingConvention=CallingConvention.StdCall)] private static extern int FMOD_Channel_GetPosition(IntPtr channel,out uint position,uint unit);
+    [DllImport(Dll,CallingConvention=CallingConvention.StdCall)] private static extern int FMOD_Channel_SetPaused(IntPtr channel,int paused);
+    [DllImport(Dll,CallingConvention=CallingConvention.StdCall)] private static extern int FMOD_Channel_SetVolume(IntPtr channel,float volume);
+    [DllImport(Dll,CallingConvention=CallingConvention.StdCall)] private static extern int FMOD_Channel_Stop(IntPtr channel);
+    [DllImport(Dll,CallingConvention=CallingConvention.StdCall)] private static extern int FMOD_Channel_GetFrequency(IntPtr channel,out float frequency);
+    [DllImport(Dll,CallingConvention=CallingConvention.StdCall)] private static extern int FMOD_Channel_SetFrequency(IntPtr channel,float frequency);
+    private readonly LinuxAudio linux=Environment.OSVersion.Platform==PlatformID.Win32NT?null:new LinuxAudio();
+    private IntPtr system,sound,channel;
+    private float baseFrequency;
+    public uint Version {get;private set;}
+    public double Duration {get;private set;}
+    public bool Playing {get;private set;}
+    public double Rate {get;private set;}
+    public float Volume=.65f;
+    private static void Check(int error){if(error!=0)throw new InvalidOperationException("音乐播放失败（FMOD "+error+"）");}
+    public void Load(string file)
+    {
+        if(linux!=null){linux.Load(file);Duration=linux.Duration;return;}
+        Dispose();if(!File.Exists(file))throw new FileNotFoundException("找不到工程音乐",file);
+        Check(FMOD_System_Create(out system));uint version;Check(FMOD_System_GetVersion(system,out version));Version=version;
+        Check(FMOD_System_Init(system,16,0,IntPtr.Zero));
+        // Decode a software PCM sample so negative frequency can play music backwards.
+        Check(FMOD_System_CreateSound(system,System.Text.Encoding.Unicode.GetBytes(Path.GetFullPath(file)+"\0"),0x01000000|0x00000001|0x00000008|0x00000040|0x00000100,IntPtr.Zero,out sound));
+        uint length;Check(FMOD_Sound_GetLength(sound,out length,1));Duration=length/1000.0;
+    }
+    public void Play(double seconds,double rate=1)
+    {
+        if(linux!=null){linux.Volume=Volume;linux.Play(seconds,rate);Playing=linux.Playing;Rate=rate;return;}
+        Pause();if(sound==IntPtr.Zero)throw new InvalidOperationException("音乐尚未载入");if(seconds>=Duration)return;
+        if(channel!=IntPtr.Zero)FMOD_Channel_Stop(channel);
+        Check(FMOD_System_PlaySound(system,-1,sound,1,out channel));
+        Check(FMOD_Channel_GetFrequency(channel,out baseFrequency));Check(FMOD_Channel_SetFrequency(channel,baseFrequency*(float)rate));Rate=rate;
+        Check(FMOD_Channel_SetPosition(channel,(uint)Math.Max(0,Math.Min(Duration-.001,seconds)*1000),1));
+        Check(FMOD_Channel_SetVolume(channel,Volume));Check(FMOD_Channel_SetPaused(channel,0));Playing=true;Update();
+    }
+    public void SetVolume(float volume){Volume=volume;if(linux!=null){linux.SetVolume(volume);return;}if(channel!=IntPtr.Zero)FMOD_Channel_SetVolume(channel,volume);}
+    public void SetRate(double rate){if(linux!=null){linux.SetRate(rate);Rate=rate;return;}if(!Playing||Rate==rate)return;Check(FMOD_Channel_SetFrequency(channel,baseFrequency*(float)rate));Rate=rate;}
+    public void Seek(double seconds){if(linux!=null){linux.Seek(seconds);return;}if(channel!=IntPtr.Zero)Check(FMOD_Channel_SetPosition(channel,(uint)Math.Max(0,Math.Min(Duration-.001,seconds)*1000),1));}
+    public void Pause(){if(linux!=null){linux.Pause();Playing=false;return;}if(channel!=IntPtr.Zero)FMOD_Channel_SetPaused(channel,1);Playing=false;}
+    public double Position {get{if(linux!=null)return linux.Position;uint value;return channel!=IntPtr.Zero&&FMOD_Channel_GetPosition(channel,out value,1)==0?value/1000.0:-1;}}
+    public void Update(){if(linux!=null){linux.Update();Playing=linux.Playing;return;}if(system!=IntPtr.Zero)FMOD_System_Update(system);}
+    public void Dispose(){if(linux!=null){linux.Dispose();Duration=0;Playing=false;Rate=1;return;}Playing=false;if(channel!=IntPtr.Zero){FMOD_Channel_Stop(channel);channel=IntPtr.Zero;}if(sound!=IntPtr.Zero){FMOD_Sound_Release(sound);sound=IntPtr.Zero;}if(system!=IntPtr.Zero){FMOD_System_Release(system);system=IntPtr.Zero;}Duration=0;baseFrequency=0;Rate=1;}
+}

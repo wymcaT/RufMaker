@@ -1,0 +1,9 @@
+import test from 'node:test';import assert from 'node:assert/strict';import {plainCheckpointScripts,plainRetryEvents,checkpointScripts} from './native-checkpoint.mjs';
+test('F5 R guards keep original export code and preserve valid event metadata',()=>{
+  const header=`/*"/*'/**//* YYD ACTION\nlib_id=1\naction_id=603\napplies_to=self\n*/\n`,source=`#define Create_0\n${header}x=1;\n#define KeyPress_82\n${header}loadGame();\n#define Draw_0\n${header}draw_self();\n`,patched=plainRetryEvents(source);
+  assert.equal(plainRetryEvents(patched),patched);assert.ok(patched.includes(header+'// RufMaker F5 retry'));assert.ok(patched.includes('loadGame();'));assert.ok(patched.includes('rf_preview && objRufController.rf_checkpoint_ready'));assert.ok(patched.endsWith(header+'draw_self();\n'));
+});
+test('checkpoint retries load saved state and never rebuild the historical timeline',()=>{
+  for(const randomizeOnPlay of [false,true]){const scripts=Object.fromEntries(plainCheckpointScripts({fps:50,randomizeOnPlay,tracks:[]}));assert.ok(scripts.rf_preview_checkpoint.includes('game_save('));assert.ok(scripts.rf_preview_retry.includes('game_load('));assert.ok(!/rf_pattern_step|game_restart|room_restart|rf_global_init|rf_template_init/.test(scripts.rf_preview_retry+scripts.rf_preview_restore));assert.equal(scripts.rf_preview_restore.includes('randomize();'),randomizeOnPlay);assert.equal(scripts.rf_preview_restore.includes('random_set_seed(rf_checkpoint_seed)'),!randomizeOnPlay);assert.ok(scripts.rf_preview_restore.includes('FMODInstanceSetPosition'));assert.ok(!scripts.rf_preview_restore.includes('rf_p_'));}
+  const native=checkpointScripts({nativeProject:{hasFmod:true},randomizeOnPlay:true,tracks:[]});assert.ok(native.rf_native_restore.includes('randomize();'));assert.ok(!native.rf_native_retry.includes('rf_pattern_step'));
+});

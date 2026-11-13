@@ -1,0 +1,13 @@
+using System;
+using System.IO;
+using System.Linq;
+using System.Collections.Generic;
+internal static class RadialFullIntegrationTests
+{
+ static long states,checks;static void Check(bool ok,string msg){checks++;if(!ok)throw new Exception(msg);}
+ static void Near(double a,double b,string msg){Check(Math.Abs(a-b)<1e-8,msg+": "+a+"/"+b);}
+ static EditorState Load(string path){var s=Json.Read<EditorState>(File.ReadAllText(path));Motion.Normalize(s);return s;}
+ static string Key(SimBullet b){return b.source.id+"|"+b.birth+"|"+b.index+"|"+b.generation+"|"+b.clockShift;}
+ static SimBullet[] Rows(BulletWorld w){return w.bullets.Where(b=>!b.dead&&b.source.tag!="pre_transition").OrderBy(Key).ThenBy(b=>b.sourceX).ThenBy(b=>b.sourceY).ThenBy(b=>b.x).ThenBy(b=>b.y).ThenBy(b=>b.direction).ToArray();}
+ public static int Main(string[] args){try{var before=Load(args[0]);var after=Load(args[1]);var room=Json.Read<RoomData>(File.ReadAllText(args[3]));var metadata=Json.Read<Dictionary<string,SpriteMeta>>(File.ReadAllText(args[4]));Func<string,SpriteMeta> meta=name=>metadata.ContainsKey(name)?metadata[name]:null;var a=new BulletWorld(before,room,null,meta);var b=new BulletWorld(after,room,null,meta);int end=before.duration;for(int frame=0;frame<=end;frame++){a.Seek(frame);b.Seek(frame);var aa=Rows(a);var bb=Rows(b);Check(aa.Length==bb.Length,"Unrelated count at "+frame+": "+aa.Length+"/"+bb.Length);for(int i=0;i<aa.Length;i++){var x=aa[i];var y=bb[i];states++;string context=frame+" "+Key(x);Check(Key(x)==Key(y),"Identity "+context);Near(x.x,y.x,"X "+context);Near(x.y,y.y,"Y "+context);Near(x.direction,y.direction,"Direction "+context);Near(x.speed,y.speed,"Speed "+context);Near(x.alpha,y.alpha,"Alpha "+context);Near(x.scale,y.scale,"Scale "+context);Near(x.axisX,y.axisX,"AxisX "+context);Near(x.axisY,y.axisY,"AxisY "+context);Near(DrawingDepth.Bullet(x),DrawingDepth.Bullet(y),"Depth "+context);Check(x.collision==y.collision,"Collision "+context);Check(x.life==y.life,"Life "+context);Check(x.color.ToArgb()==y.color.ToArgb(),"Color "+context);Check((x.sprite??x.source.sprite)==(y.sprite??y.source.sprite),"Sprite "+context);Check(ObjectDynamics.Image(x,frame)==ObjectDynamics.Image(y,frame),"Image "+context);}if(frame%1000==0)Console.WriteLine("Frame "+frame+" states "+states);}var result=new{status="pass",frames=end+1,unrelatedStates=states,checks,comparisonTolerance=1e-8,fullScene=true,spriteMasks=true,roomDimensions=true,nativeRoomInstances=false,nativeGameMaker=false};File.WriteAllText(args[2],Json.Write(result));Console.WriteLine(Json.Write(result));return 0;}catch(Exception e){Console.Error.WriteLine(e);return 1;}}
+}

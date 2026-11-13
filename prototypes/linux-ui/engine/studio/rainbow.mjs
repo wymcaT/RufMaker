@@ -1,0 +1,44 @@
+import {gmlNumber as n} from './gml.mjs';
+import {frozenImageCheck} from './object-dynamics.mjs';
+import {expressionCall} from './random-parameters.mjs';
+export const rainbowSprite='sprrainbowcherry';
+// Match Rainbow.ExplicitFrame: a binding opts into tint even when its sample is negative.
+export const explicitFrame=t=>(t.spriteFrame??-1)>=0||t.keyframes?.some(k=>k.property==='spriteFrame')||Object.hasOwn(t.expressions||{},'spriteFrame');
+export const rainbowUsesWhiteTint=t=>t.rainbow&&!explicitFrame(t);
+export function normalizeRainbow(t) {
+  const defaults={rainbow:false,rainbowReverse:false,rainbowDynamic:false,rainbowRandom:false,rainbowSourceSprite:'',rainbowSourceColor:'',rainbowSprite:'',rainbowMode:'sequence',rainbowDensity:1,rainbowOffset:0,rainbowSpeed:.25};
+  for(const [key,value] of Object.entries(defaults))if(t[key]===undefined)t[key]=value;
+  if(!['sequence','distance','angle'].includes(t.rainbowMode))t.rainbowMode='sequence';
+  if(t.rainbow){t.sprite=t.rainbowSprite||rainbowSprite;if(rainbowUsesWhiteTint(t))t.color='#FFFFFF';}
+}
+export function rainbowCode(t,sequence,time,{sampled=true,randomSampled=false}={}) {
+  const explicit=sampled?'rf_spriteFrame':n(t.spriteFrame??-1),choose=automatic=>`((${explicit}>=0)*floor(${explicit})+(${explicit}<0)*(${automatic}))`;
+  if(!t.rainbow)return choose(`floor(rf_imageIndex+max(0,${time}-(${n(t.clockStart??t.start)})-rf_imageDelay)*rf_imageSpeed)`);
+  if(t.rainbowRandom&&!randomSampled&&t.kind!=='emitter')sequence=randomRainbowSequence(t,{randomOffset:`(${sequence}*9176)`});
+  return choose(`rf_rainbow_index(${sequence},${time},${sampled?'rf_rainbowDensity':n(t.rainbowDensity,1)},${sampled?'rf_rainbowOffset':n(t.rainbowOffset)},${sampled?'rf_rainbowSpeed':n(t.rainbowSpeed,.25)},${n(t.clockStart??t.start)},${t.rainbowDynamic?1:0},${t.rainbowReverse?1:0},32)`);
+}
+// Fixed formations keep their initial palette when R rerolls future emissions.
+export function randomRainbowSequence(t,context={}){return `floor(${expressionCall('random(32)',t,'rainbowColor',null,{seed:t.kind==='emitter'?'objRufController.rf_random_seed':'objRufController.rf_rainbow_seed',...context,randomFrame:'0',randomMix:true})})`;}
+export function rodSequence(t,{rotation='0'}={}) {
+  if(t.rainbowRandom)return 'rf_j';
+  // Match the PointF preview at palette boundaries (one ten-thousandth of a color step).
+  if(t.rainbowMode==='distance')return '(round(point_distance(rf_x,rf_y,rf_px,rf_py)*10000)/10000)';
+  if(t.rainbowMode==='angle')return `(round((((point_direction(rf_x,rf_y,rf_px,rf_py)+${rotation}) mod 360+360) mod 360)*32/360*10000)/10000)`;
+  return (t.shape||'rod')==='rod'&&t.rodMode==='center'?'abs(rf_fraction-.5)*(rf_count-1)':'rf_j';
+}
+export const spatialRainbow=t=>t.rainbow&&['distance','angle'].includes(t.rainbowMode);
+export function releasedRainbow(t,time,target='rf_inst') {
+  return spatialRainbow(t)&&!t.rainbowRandom?`if instance_exists(${target}) {${target}.rf_r_sequence=rf_color_sequence;${target}.image_index=${rainbowCode(t,'rf_color_sequence',time)};}`:'';
+}
+export const rainbowGml=`// sequence, timeline frame, density, phase, speed, start, dynamic, reverse, frame count
+var p,n;p=argument0*argument2+argument3;
+if argument6 p+=(argument1-argument5)*argument4;
+if argument7 p=-p;
+n=max(1,argument8);return ((floor(p) mod n)+n) mod n;
+`;
+
+// Call with world time: rf_r_start already includes the template clock shift.
+// Shared by mask checks and appearance capture so inherited/explicit frames win.
+export function bulletImageCode(time){
+  return `(${frozenImageCheck}*rf_frozen_image+(!${frozenImageCheck})*(rf_rainbow*rf_rainbow_index(rf_r_sequence,${time},rf_r_density,rf_r_offset,rf_r_speed,rf_r_start,rf_r_dynamic,rf_r_reverse,32)+(!rf_rainbow)*floor(image_index)))`;
+}

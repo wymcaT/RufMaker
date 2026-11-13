@@ -1,0 +1,11 @@
+{
+  "name": "rufmaker",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "..\\RufMaker.exe",
+    "bridge": "node bridge.mjs",
+    "build:effects": "node build-effects.mjs"
+  }
+}

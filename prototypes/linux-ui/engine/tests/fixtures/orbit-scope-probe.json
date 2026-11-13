@@ -1,0 +1,162 @@
+{
+  "version": 2,
+  "fps": 50,
+  "duration": 20,
+  "randomSeed": 103,
+  "tracks": [
+    {
+      "id": "seed",
+      "name": "seed",
+      "kind": "emitter",
+      "enabled": true,
+      "start": 0,
+      "end": 0,
+      "x": 0,
+      "y": 0,
+      "count": 1,
+      "interval": 10000,
+      "life": 20,
+      "speed": 0,
+      "spread": 0,
+      "sprite": "CWspr",
+      "keyframes": [],
+      "expressions": {},
+      "bulletActions": [
+        {
+          "type": "spawn",
+          "templateId": "branches",
+          "start": 1,
+          "duration": 0,
+          "maxGeneration": 3,
+          "destroyParent": true
+        }
+      ],
+      "spawnActions": [],
+      "lane": 0
+    },
+    {
+      "id": "branches",
+      "name": "branches",
+      "kind": "group",
+      "enabled": true,
+      "start": 0,
+      "end": 0,
+      "x": 0,
+      "y": 0,
+      "count": 1,
+      "interval": 10000,
+      "life": 1000,
+      "speed": 0,
+      "spread": 0,
+      "sprite": "CWspr",
+      "keyframes": [],
+      "expressions": {},
+      "bulletActions": [],
+      "spawnActions": [],
+      "templateOnly": true,
+      "lane": 1
+    },
+    {
+      "id": "fast",
+      "name": "fast",
+      "kind": "emitter",
+      "enabled": true,
+      "start": 0,
+      "end": 0,
+      "x": 100,
+      "y": 0,
+      "count": 1,
+      "interval": 10000,
+      "life": 20,
+      "speed": 0,
+      "spread": 0,
+      "sprite": "CWspr",
+      "keyframes": [],
+      "expressions": {},
+      "bulletActions": [],
+      "spawnActions": [],
+      "parentId": "branches",
+      "tag": "fast",
+      "lane": 2
+    },
+    {
+      "id": "slow",
+      "name": "slow",
+      "kind": "emitter",
+      "enabled": true,
+      "start": 0,
+      "end": 0,
+      "x": 0,
+      "y": 100,
+      "count": 1,
+      "interval": 10000,
+      "life": 20,
+      "speed": 0,
+      "spread": 0,
+      "sprite": "CWspr",
+      "keyframes": [],
+      "expressions": {},
+      "bulletActions": [],
+      "spawnActions": [],
+      "parentId": "branches",
+      "tag": "slow",
+      "lane": 3
+    },
+    {
+      "id": "select-fast",
+      "name": "select-fast",
+      "kind": "control",
+      "enabled": true,
+      "start": 2,
+      "end": 2,
+      "x": 0,
+      "y": 0,
+      "count": 1,
+      "interval": 10000,
+      "life": 1000,
+      "speed": 0,
+      "spread": 0,
+      "sprite": "CWspr",
+      "keyframes": [],
+      "expressions": {},
+      "bulletActions": [],
+      "spawnActions": [],
+      "eventPreset": "group-orbit",
+      "eventGroup": "family",
+      "targetTag": "fast",
+      "targetSource": "fast",
+      "eventCenterX": 0,
+      "eventCenterY": 0,
+      "eventOrbitSpeed": 0.8,
+      "eventDisableMotion": true,
+      "eventResetLife": false,
+      "lane": 4
+    }
+  ],
+  "timelineGroups": [
+    {
+      "id": "family",
+      "name": "Family",
+      "color": "#FFFFFF",
+      "lanes": [
+        0
+      ]
+    },
+    {
+      "id": "fast-template",
+      "name": "Fast template",
+      "color": "#FFFFFF",
+      "lanes": [
+        2
+      ]
+    },
+    {
+      "id": "slow-template",
+      "name": "Slow template",
+      "color": "#FFFFFF",
+      "lanes": [
+        3
+      ]
+    }
+  ]
+}

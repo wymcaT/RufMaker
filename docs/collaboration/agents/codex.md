@@ -1,3 +1,7 @@
+## 2026-11-13 Linux UI 原型快照（独立分支）
+
+用户授权推送当前版本。基线 9bcc4d4；占用范围仅 prototypes/linux-ui 与本记录。已完成文案版源码恢复、公共资源复用构建入口、21 项 Node 定向测试和 Mono 编译/结构音频测试。未提交用户工程、音频、运行库或 EXE，未改正式产品源码。Windows/GM 与新版 GUI 回归未完成，详见原型 README。状态：completed，释放文件。
+
 # Codex 任务记录
 
 - 状态：`idle`

@@ -1,0 +1,79 @@
+using System;
+using System.Collections.Generic;
+using System.Drawing;
+using System.Linq;
+using System.Windows.Forms;
+
+internal sealed partial class MainForm
+{
+    private List<Track> CloneBulletTracks(IEnumerable<Track> tracks){return BulletSystem.CloneTracks(tracks);}
+    private void BuildBulletTools(Control bar)
+    {
+        bar.Controls.Add(Button("弹幕行为…",OpenBulletBehavior,false,100));bar.Controls.Add(Button("添加弹幕控制",()=>AddBulletControl(),false,110));
+        bar.Controls.Add(Button("物件生成…",OpenTemplateBehavior,false,105));BuildTraceTools(bar);
+    }
+    private void OpenBulletBehavior(){OpenBulletBehavior(-1);}
+    private void OpenBulletBehavior(int actionIndex)
+    {
+        if(selectedTrack==null||!new[]{"emitter","rod"}.Contains(selectedTrack.kind)){SetStatus("请先选中弹幕发射器或整体对象。");return;}StopPlaying();CommitInspectorEdits();var t=selectedTrack;
+        using(var dialog=new BulletBehaviorForm(t,state,false,actionIndex))if(Language.ShowDialog(dialog,this)==DialogResult.OK){PushUndo();t.bulletActions=dialog.Actions;t.advancedBullets=true;MarkChanged();timeline.RefreshLayout();ShowProperties();SetStatus("已应用弹幕出生后的行为；时间单位为弹幕年龄。");}
+    }
+    private void AddBulletControl()
+    {var source=selectedTrack!=null&&new[]{"emitter","rod"}.Contains(selectedTrack.kind)?selectedTrack.id:"";AddTrack("control",t=>{t.name="弹幕控制 · 停止";t.targetSource=source;t.end=t.start;t.controlAction="speed";t.controlValue=0;});}
+    private void BulletFields(NativeProperties bag,Track t)
+    {
+        TemplateFields(bag,t);
+        if(t.kind=="emitter"||t.kind=="rod"){
+            if(ObjectProperties.Shows(t,2))LifetimeFields(bag,t);
+            if(ObjectProperties.Shows(t,4))BoundaryFields(bag,t);
+        }
+        ColorFields(bag,t);
+        DynamicsFields(bag,t);
+        if(new[]{"emitter","rod","object","group"}.Contains(t.kind)){
+            Field(bag,"弹幕标签","高级设置",()=>t.tag,v=>t.tag=(v??"").Trim());var groups=state.tracks.Where(g=>g.kind=="group"&&g!=t&&!Ancestors(g).Contains(t)).ToArray();var names=new[]{"无父级"}.Concat(groups.Select(g=>g.name+" · "+g.id.Substring(0,Math.Min(6,g.id.Length)))).ToArray();
+            Field(bag,"变换父级（旧工程）","高级设置",()=>names[Math.Max(0,Array.FindIndex(groups,g=>g.id==t.parentId)+1)],v=>{int i=Array.IndexOf(names,v)-1;t.parentId=i<0?"":groups[i].id;},names,"有父级时坐标、角度、大小为组内局部值。右键创建分组会保留当前摆放。");
+        }
+        if(t.kind=="group") {EaseField(bag,t,null);MotionControls(bag,t);AnimatedFields(bag,t);bag.Add("说明","分组",typeof(string),()=>"控制子物件发射位置与整体对象的变换。普通弹幕发出后独立飞行。",null);}
+        if(t.kind=="emitter"){
+            Field(bag,"出生帧执行移动","高级设置",()=>t.moveOnBirth,v=>t.moveOnBirth=v,null,"关闭时弹幕出生帧只执行行为与控制，下一帧开始移动。开启时出生帧按相同顺序执行加速度、转向和移动，再生成子弹；不改变寿命或后续重设年龄的规则。");
+            Field(bag,"启用进阶弹幕控制","高级设置",()=>t.advancedBullets,v=>t.advancedBullets=v);Field(bag,"生成形状","发射",()=>BulletSystem.ShapeNames[Math.Max(0,Array.IndexOf(BulletSystem.Shapes,t.emissionShape))],v=>{t.emissionShape=BulletSystem.Shapes[Array.IndexOf(BulletSystem.ShapeNames,v)];t.advancedBullets=true;QueueInspectorUpdate();},BulletSystem.ShapeNames);
+            string[] facing={"扇形方向","固定方向","从中心向外","沿切线","出生时瞄准玩家"},values={"fan","fixed","radial","tangent","aim"};Field(bag,"发射朝向","发射",()=>facing[Math.Max(0,Array.IndexOf(values,t.emissionFacing))],v=>{t.emissionFacing=values[Array.IndexOf(facing,v)];t.advancedBullets=true;},facing);
+            Field(bag,"每颗延迟 / 帧","高级设置",()=>t.indexDelay,v=>t.indexDelay=Math.Max(0,v),null,"编号 i 从 0 开始，第 i 颗在本轮开始后 i × 延迟帧出生。");Field(bag,"每颗弹速递增","高级设置",()=>t.indexSpeed,v=>t.indexSpeed=v);Field(bag,"每颗方向递增","高级设置",()=>t.indexAngle,v=>t.indexAngle=v);Field(bag,"每颗大小比例递增","高级设置",()=>t.indexScale,v=>t.indexScale=v);
+            string[] scopes={"每颗一次","每轮齐射一次","整个物件共用一次"},scopeValues={"bullet","volley","group"};Field(bag,"出生随机取样范围","高级设置",()=>scopes[Math.Max(0,Array.IndexOf(scopeValues,t.randomScope))],v=>{t.randomScope=scopeValues[Array.IndexOf(scopes,v)];t.advancedBullets=true;},scopes);
+            if(t.emissionShape=="bezier")bag.Add("曲线控制点","发射",typeof(string),()=>"选中物件后拖动画布中的四个方块；也可右键重置曲线。",null);
+        }
+        if(t.kind=="rod"&&ObjectProperties.Shows(t,3)){
+            const string category=ObjectProperties.Scatter;
+            Field(bag,"开始散开的帧（-1 关闭）",category,()=>t.releaseFrame,v=>{t.releaseFrame=Math.Max(-1,Math.Min(state.duration,v));QueueInspectorUpdate();},null,"这一帧起，每颗弹幕从当时的位置独立飞行。后续行为在“行为”页编辑。");
+            Field(bag,"散开后的弹速",category,()=>t.speed,v=>t.speed=v);
+            if(t.releaseFrame>=0){
+                string[] names={"径向散开","沿切线","指定角度","朝玩家"},values={"radial","tangent","fixed","aim"};
+                Field(bag,"飞行方向",category,()=>names[Math.Max(0,Array.IndexOf(values,t.releaseDirection))],v=>{t.releaseDirection=values[Array.IndexOf(names,v)];QueueInspectorUpdate();},names);
+                if(t.releaseDirection=="radial")Field(bag,"保持原形状",category,()=>t.releaseKeepShape,v=>t.releaseKeepShape=v,null,"开启时各弹幕速度正比于到中心的距离，使心形、星形、多边形等散开时保持几何外形等比放大；关闭时全部弹幕统一弹速。");
+            }
+        }
+        if(EventPresets.IsEvent(t)){EventFields(bag,t);return;}
+        if(t.kind=="control"){
+            var sources=state.tracks.Where(s=>new[]{"emitter","rod"}.Contains(s.kind)).ToArray();var names=new[]{"全部来源"}.Concat(sources.Select(s=>s.name+" · "+s.id.Substring(0,Math.Min(6,s.id.Length)))).ToArray();Field(bag,"来源物件","作用范围",()=>names[Math.Max(0,Array.FindIndex(sources,s=>s.id==t.targetSource)+1)],v=>{int i=Array.IndexOf(names,v)-1;t.targetSource=i<0?"":sources[i].id;},names);
+            Field(bag,"标签（留空不限）","作用范围",()=>t.targetTag,v=>t.targetTag=(v??"").Trim());Field(bag,"齐射编号（-1 不限）","作用范围",()=>t.targetVolley,v=>t.targetVolley=Math.Max(-1,v));string[] parities={"全部编号","偶数编号 0,2,4…","奇数编号 1,3,5…"},pvalues={"all","even","odd"};Field(bag,"编号筛选","作用范围",()=>parities[Math.Max(0,Array.IndexOf(pvalues,t.targetParity))],v=>t.targetParity=pvalues[Array.IndexOf(parities,v)],parities);Field(bag,"最小年龄 / 帧","作用范围",()=>t.targetMinAge,v=>t.targetMinAge=Math.Max(0,v));Field(bag,"最大年龄 / 帧","作用范围",()=>t.targetMaxAge,v=>t.targetMaxAge=Math.Max(t.targetMinAge,v));Field(bag,"包含期间新生弹幕","作用范围",()=>t.includeFuture,v=>t.includeFuture=v,null,"关闭：仅在事件开始帧选中当时已有弹幕。开启：在整个事件时段接收符合条件的新弹幕。");
+            var types=BulletSystem.ActionTypes.Where(v=>v!="split"&&v!="spawn").Concat(new[]{"color"}).ToArray();var labels=types.Select(v=>v=="color"?"颜色":BulletSystem.ActionName(v)).ToArray();Field(bag,"控制动作","控制参数",()=>labels[Math.Max(0,Array.IndexOf(types,t.controlAction))],v=>{t.controlAction=types[Array.IndexOf(labels,v)];t.name="弹幕控制 · "+v;QueueInspectorUpdate();},labels);
+            if(t.controlAction=="color")Field(bag,"目标颜色","控制参数",()=>Motion.ColorOf(t.controlColor),v=>t.controlColor=ColorTranslator.ToHtml(v));else {Field(bag,"起始值","控制参数",()=>t.controlFrom,v=>t.controlFrom=v);Field(bag,"结束值","控制参数",()=>t.controlValue,v=>t.controlValue=v);Field(bag,"逐帧公式（留空用数值）","控制参数",()=>t.controlExpression,v=>{if(!String.IsNullOrWhiteSpace(v))RandomExpression.Evaluate(v,state.randomSeed,t.id,ScalarExpressions.InstanceContext(t));t.controlExpression=(v??"").Trim();});Field(bag,"控制缓动","控制参数",()=>Motion.EaseNames[Math.Max(0,Array.IndexOf(Motion.EaseValues,t.controlEasing))],v=>t.controlEasing=Motion.EaseValues[Array.IndexOf(Motion.EaseNames,v)],Motion.EaseNames);}
+        }
+        if(t.kind=="pattern"){
+            Field(bag,"循环次数","片段",()=>t.repeatCount,v=>{t.repeatCount=Math.Max(1,Math.Min(100,v));UpdatePatternEnd(t);});Field(bag,"循环间隔 / 帧","片段",()=>t.repeatGap,v=>{t.repeatGap=Math.Max(0,v);UpdatePatternEnd(t);});Field(bag,"片段播放倍率","片段",()=>t.timeScale,v=>{t.timeScale=Math.Max(.1,Math.Min(10,v));UpdatePatternEnd(t);});bag.Add("包含物件","片段",typeof(int),()=>t.children.Count,null);bag.Add("编辑方法","片段",typeof(string),()=>"右键拆开片段后可编辑内部物件，再重新组合。支持存为自定义预设跨工程复用。",null);
+        }
+    }
+    private IEnumerable<Track> Ancestors(Track t){var seen=new HashSet<string>();while(t!=null&&seen.Add(t.id)){t=state.tracks.FirstOrDefault(g=>g.id==t.parentId&&g.kind=="group");if(t!=null)yield return t;}}
+    private Track[] WithGroupChildren(IEnumerable<Track> tracks)
+    {var result=new HashSet<Track>(tracks);bool added;do{added=false;foreach(var t in state.tracks)if(result.Any(g=>g.kind=="group"&&g.id==t.parentId))added|=result.Add(t);}while(added);return state.tracks.Where(result.Contains).ToArray();}
+    private void PackPattern()
+    {
+        var selected=WithGroupChildren(timeline.SelectedTracks).Where(t=>t.kind!="native"&&t.kind!="script").ToArray();if(selected.Length==0)return;if(selected.Any(t=>!String.IsNullOrEmpty(t.parentId)&&!selected.Any(p=>p.id==t.parentId))){SetStatus("请将父级分组一并选中后再组合片段。");return;}PushUndo();int start=selected.Min(t=>t.start);var clip=new Track{id=Guid.NewGuid().ToString("N"),name="弹幕片段",kind="pattern",start=start,lane=selected.Min(t=>t.lane),x=0,y=0};
+        foreach(var original in selected){var t=original.Snapshot();t.start-=start;t.end-=start;TimelineLayout.ShiftClock(t,-start);foreach(var k in t.keyframes)k.frame-=start;if(t.releaseFrame>=0)t.releaseFrame-=start;clip.children.Add(t);state.tracks.Remove(original);}UpdatePatternEnd(clip);state.tracks.Add(clip);MarkChanged();SelectTrack(clip,null);
+    }
+    private void UpdatePatternEnd(Track t){int span=t.children.Select(c=>c.end).DefaultIfEmpty(0).Max()+1;t.end=t.start+(int)BulletSystem.Round(t.repeatCount*span/t.timeScale+(t.repeatCount-1)*t.repeatGap)-1;state.duration=Math.Max(state.duration,t.end);}
+    private void UnpackPattern()
+    {
+        var t=selectedTrack;if(t==null||t.kind!="pattern")return;PushUndo();var temporary=new EditorState{timelineGroups=state.timelineGroups.Select(g=>g.Snapshot()).ToList(),fps=state.fps,duration=state.duration,tracks=new List<Track>{t},nativeTest=state.nativeTest,randomSeed=state.randomSeed};var items=BulletSystem.Expand(temporary).tracks;state.tracks.Remove(t);var map=items.ToDictionary(c=>c.id,c=>Guid.NewGuid().ToString("N"));foreach(var c in items){string id=c.id;c.id=map[id];string renamed;if(map.TryGetValue(c.parentId,out renamed))c.parentId=renamed;if(map.TryGetValue(c.targetSource,out renamed))c.targetSource=renamed;foreach(var a in TemplateRuntime.Actions(c))if(map.TryGetValue(a.templateId,out renamed))a.templateId=renamed;c.lane=t.lane;c.scopeGroup=null;state.tracks.Add(c);}MarkChanged();timeline.SetTrackSelection(items,items.FirstOrDefault());
+    }
+}

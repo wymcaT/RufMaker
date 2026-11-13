@@ -1,0 +1,59 @@
+using System;
+using System.Drawing;
+using System.Linq;
+
+internal static class Rainbow
+{
+    public static bool ExplicitFrame(Track t){return t.spriteFrame>=0||t.keyframes.Any(k=>k.property=="spriteFrame")||t.expressions.ContainsKey("spriteFrame");}
+    public const string Sprite="sprrainbowcherry";
+    public static readonly string[] Parameters={"rainbowDensity","rainbowOffset","rainbowSpeed"};
+    public static readonly string[] Modes={"sequence","distance","angle"};
+    public static readonly string[] ModeNames={"原有顺序","距中心点距离","中心点角度"};
+    public static string Mode(Track t){return Array.IndexOf(Modes,t.rainbowMode)<0?"sequence":t.rainbowMode;}
+    public static bool IsCherry(Track t){return t.sprite!=null&&t.sprite.IndexOf("cherry",StringComparison.OrdinalIgnoreCase)>=0;}
+    public static void Enable(Track t,bool enabled)
+    {
+        if(enabled&&!t.rainbow){t.rainbowSourceSprite=t.sprite;t.rainbowSourceColor=t.color;}
+        t.rainbow=enabled;
+        if(enabled){t.sprite=String.IsNullOrEmpty(t.rainbowSprite)?Sprite:t.rainbowSprite;if(!Rainbow.ExplicitFrame(t))t.color="#FFFFFF";}
+        else {if(!String.IsNullOrEmpty(t.rainbowSourceSprite))t.sprite=t.rainbowSourceSprite;if(!String.IsNullOrEmpty(t.rainbowSourceColor))t.color=t.rainbowSourceColor;}
+    }
+    public static void SetSprite(Track t,string sprite){if(t.rainbow&&sprite!=(String.IsNullOrEmpty(t.rainbowSprite)?Sprite:t.rainbowSprite))Enable(t,false);t.sprite=sprite;}
+    public static double RodSequence(Track t,int index,int count,double frame,PointF? point=null,Keyframe center=null,double rotation=0)
+    {
+        if(t.rainbowRandom)return index;
+        string mode=Mode(t);
+        if(mode!="sequence")
+        {
+            var p=point??Motion.RodPoints(t,frame)[index];var c=center??Motion.At(t,frame);
+            // PointF preview coordinates must not flicker across integer color boundaries.
+            if(mode=="distance"){double dx=p.X-c.x,dy=p.Y-c.y;return Math.Round(Math.Sqrt(dx*dx+dy*dy),4,MidpointRounding.AwayFromZero);}
+            double angle=ExpressionContext.Direction(c.x,c.y,p.X,p.Y)+rotation;
+            return Math.Round(((angle%360+360)%360)*32/360,4,MidpointRounding.AwayFromZero);
+        }
+        if(t.shape!="rod"||t.rodMode!="center")return index;
+        double u=count<=1?.5:t.rolling?index/(double)count:index/(double)(count-1);
+        if(t.rolling){var ends=Motion.Endpoints(t,frame);double dx=ends[1].X-ends[0].X,dy=ends[1].Y-ends[0].Y,len=Math.Sqrt(dx*dx+dy*dy);if(len>.001)u+=(frame-TimelineLayout.ClockStart(t))*Motion.Value(t,"rollSpeed",frame)/len;u-=Math.Floor(u);}
+        return Math.Abs(u-.5)*(count-1);
+    }
+    public static double SampleSequence(Track t,ExpressionContext context)
+    {var c=context.Clone();c.randomMix=true;c.randomFrame=0;return Math.Floor(RandomExpression.Evaluate("random(32)",t.expressionSeed,(t.randomId??t.id)+"|rainbowColor|base",c));}
+    public static int FlyingIndex(SimBullet b,int frame)
+    {
+        var t=b.source;double time=frame-b.clockShift;
+        if(!b.rainbowSampled)return Index(t,b.sequence,time,b.birth-b.clockShift,false);
+        double sequence=b.sequence;if(t.rainbowRandom&&t.kind!="emitter")sequence=SampleSequence(t,new ExpressionContext{randomOffset=sequence*9176});
+        double phase=b.rainbowOffset+sequence*b.rainbowDensity;if(t.rainbowDynamic)phase+=(time-TimelineLayout.ClockStart(t))*b.rainbowSpeed;if(t.rainbowReverse)phase=-phase;
+        return (int)((Math.Floor(phase)%32+32)%32);
+    }
+    public static int Index(Track t,double sequence,double time,double sampleTime=-1,bool sampleExplicit=true)
+    {
+        if(sampleTime<0)sampleTime=time;double explicitFrame=sampleExplicit?Motion.Value(t,"spriteFrame",sampleTime):-1;if(explicitFrame>=0)return (int)Math.Floor(explicitFrame);
+        if(!t.rainbow)return ObjectDynamics.TrackImage(t,time,sampleTime);
+        if(t.rainbowRandom&&t.kind!="emitter")sequence=SampleSequence(t,new ExpressionContext{randomOffset=sequence*9176});
+        double phase=Motion.Value(t,"rainbowOffset",sampleTime)+sequence*Motion.Value(t,"rainbowDensity",sampleTime);
+        if(t.rainbowDynamic)phase+=(time-TimelineLayout.ClockStart(t))*Motion.Value(t,"rainbowSpeed",sampleTime);
+        if(t.rainbowReverse)phase=-phase;
+        return (int)((Math.Floor(phase)%32+32)%32);
+    }
+}

@@ -1,0 +1,52 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import {normalizeState} from '../../studio/motion.mjs';
+import {starEchoTracks} from '../../tools/examples/create-star-echo.mjs';
+const tracks=[];
+const add=t=>(tracks.push({name:t.id,sprite:'sprCherry',color:'#FFFFFF',start:0,end:30,interval:25,keyframes:[],...t}),tracks.at(-1));
+const spawn=(templateId,more={})=>({type:'spawn',templateId,start:0,duration:0,...more});
+add({id:'moving-heart',rainbow:true,rainbowMode:'angle',rainbowDynamic:true,rainbowDensity:.81,rainbowSpeed:.13,kind:'rod',shape:'heart',templateOnly:true,start:100,end:130,count:10,x:200,y:200,radius:20,motion:'velocity',velocityY:-1,keyframes:[{frame:100,property:'radius',value:20},{frame:130,property:'radius',value:50},{frame:100,property:'orientation',value:0},{frame:130,property:'orientation',value:120}]});
+add({id:'flying-mother',kind:'emitter',end:0,x:30,y:30,count:3,spread:0,speed:2,life:90,bulletActions:[spawn('moving-heart',{start:5,spawnParity:'odd',destroyParent:true})]});
+add({id:'moving-object',kind:'object',templateOnly:true,start:1000,end:1040,x:700,y:700,keyframes:[{frame:1000,property:'x',value:700},{frame:1040,property:'x',value:740},{frame:1000,property:'y',value:700},{frame:1040,property:'y',value:680}]});
+add({id:'host-rod',rainbow:true,rainbowMode:'distance',rainbowDensity:.23,kind:'rod',shape:'rod',count:4,x:300,y:300,length:120,spawnActions:[spawn('moving-object',{start:3,spawnOrigin:'each',spawnParity:'even',spawnIndexTo:2,destroyParent:true})]});
+add({id:'group-template',kind:'group',templateOnly:true,start:200,end:240,x:500,y:500,angle:30,scale:.8,motion:'velocity',velocityX:.5,spawnActions:[spawn('moving-object',{start:10,maxGeneration:2,spawnOffsetY:10})]});
+add({id:'group-object',kind:'object',parentId:'group-template',start:200,end:240,x:20,y:0,angle:10});
+add({id:'group-emitter',kind:'emitter',parentId:'group-template',start:205,end:225,x:0,y:25,count:2,interval:10,speed:2,spread:30,life:80,emissionFacing:'fixed',expressions:{speed:'random_range(1,3)+i*.1'}});
+add({id:'repeat-host',kind:'object',start:1,end:490,x:100,y:100,angle:90,spawnActions:[spawn('group-template',{spawnRepeat:70,inheritAngle:true})]});
+add({id:'sacrifice-group',kind:'group',start:0,end:30,x:450,y:300,spawnActions:[spawn('moving-object',{start:2,destroyParent:true})]});
+add({id:'sacrifice-child',kind:'rod',parentId:'sacrifice-group',shape:'ring',start:0,end:30,x:0,y:0,count:5,radius:20});
+add({id:'release-template',rainbow:true,rainbowMode:'distance',rainbowReverse:true,rainbowDynamic:true,rainbowSpeed:.13,rainbowDensity:.73,kind:'rod',shape:'star2',templateOnly:true,start:0,end:20,count:5,radius:20,releaseFrame:7,releaseDirection:'fixed',angle:45,speed:3,life:40,bulletActions:[spawn('moving-object',{start:2,maxGeneration:2})]});
+add({id:'release-host',kind:'object',start:40,end:40,x:550,y:350,spawnActions:[spawn('release-template')]});
+add({id:'repeating-bullet',kind:'emitter',end:0,x:60,y:300,count:1,speed:1,life:35,bulletActions:[spawn('moving-object',{start:2,duration:10,spawnRepeat:5})]});
+add({id:'recursive-template',kind:'object',templateOnly:true,start:0,end:50,x:0,y:0,spawnActions:[spawn('recursive-template',{destroyParent:true,maxGeneration:3,spawnOffsetX:10})]});
+add({id:'recursive-host',kind:'object',start:0,end:0,x:650,y:100,spawnActions:[spawn('recursive-template')]});
+add({id:'group-rainbow',kind:'rod',parentId:'group-template',start:200,end:240,shape:'ellipse',x:12,y:18,count:7,radius:23.5,shapeAspect:-.6,rainbow:true,rainbowMode:'angle',rainbowDynamic:true,rainbowSpeed:.13,rainbowDensity:.67,trailMode:'fade'});
+add({id:'release-rainbow',kind:'rod',start:0,end:30,shape:'ellipse',x:610,y:230,count:7,radius:73.7,orientation:21,shapeAspect:-.6,rainbow:true,rainbowMode:'angle',rainbowDynamic:true,rainbowSpeed:.13,rainbowDensity:.67,releaseFrame:12,speed:2,life:40});
+tracks.push(...starEchoTracks());
+add({id:'echo-star-other',kind:'rod',shape:'star2',start:0,end:300,x:540,y:230,count:15,radius:55,orientation:15,spawnActions:[spawn('echo-shot',{start:100,spawnOrigin:'each',inheritAngle:true})]});
+add({id:'nested-echo',kind:'rod',parentId:'group-template',start:200,end:240,x:25,y:10,shape:'star2',count:5,radius:12,spawnActions:[spawn('echo-shot',{start:7,spawnOrigin:'each',inheritAngle:true,maxGeneration:2})]});
+
+add({id:'life-camera',kind:'camera',start:0,end:50,x:400,y:304,cameraZoom:2,angle:90});
+add({id:'life-fixed',kind:'emitter',end:0,x:120,y:120,count:1,speed:0,scale:2,alpha:.8,life:10,deathEffect:'shrink-fade',deathFrames:4});
+add({id:'life-room',kind:'emitter',end:0,x:790,y:200,count:1,speed:10,life:1,lifetimeMode:'room',deathEffect:'shrink-fade',deathFrames:4});
+add({id:'life-room-none',kind:'emitter',end:0,x:790,y:230,count:1,speed:10,life:1,lifetimeMode:'room'});
+add({id:'life-view',kind:'emitter',end:0,x:530,y:304,count:1,speed:10,life:1,lifetimeMode:'view',deathEffect:'fade',deathFrames:4});
+add({id:'life-room-vs-view',kind:'emitter',end:0,x:530,y:304,count:1,speed:10,life:1,lifetimeMode:'room'});
+add({id:'life-clear',kind:'emitter',end:0,x:100,y:150,count:1,speed:0,life:40,deathEffect:'fade',deathFrames:4,bulletActions:[{type:'clear',start:3,duration:0}]});
+add({id:'life-clear-overlap',kind:'emitter',end:0,x:100,y:180,count:1,speed:0,life:4,deathEffect:'fade',deathFrames:6,bulletActions:[{type:'clear',start:3,duration:0}]});
+add({id:'life-born-outside',kind:'emitter',end:0,x:-10,y:200,count:1,speed:10,life:100,lifetimeMode:'room'});
+add({id:'life-inset',kind:'emitter',end:0,x:790,y:260,count:1,speed:0,life:100,lifetimeMode:'room',despawnMargin:-20,deathEffect:'fade',deathFrames:3});
+add({id:'life-stagger-shot',kind:'emitter',templateOnly:true,end:0,x:0,y:0,count:1,speed:3,life:60,emissionFacing:'fixed'});
+add({id:'life-stagger-host',kind:'rod',shape:'rod',count:4,start:0,end:50,x:350,y:250,length:60,spawnActions:[spawn('life-stagger-shot',{start:5,duration:20,spawnRepeat:20,stagger:3,spawnOrigin:'each',spawnAngle:10,spawnAngleStep:15,inheritAngle:false})]});
+
+add({id:'look-shot',kind:'emitter',templateOnly:true,start:0,end:0,x:0,y:0,count:1,speed:0,life:100,scale:.4,sprite:'sprCherryWhite'});
+add({id:'look-host',kind:'rod',shape:'star2',start:0,end:80,x:300,y:200,count:5,radius:40,scale:1.3,rainbow:true,rainbowDynamic:true,rainbowSpeed:.3,
+ spawnActions:[spawn('look-shot',{start:5,spawnOrigin:'each',inheritAppearance:true,inheritScale:true})]});
+add({id:'color-host',kind:'rod',shape:'ring',start:0,end:60,x:200,y:200,count:4,radius:30,
+ spawnActions:[spawn('look-shot',{start:5,spawnOrigin:'each',stagger:2,spawnRepeat:20,duration:20,spawnColorExpression:'choose("#FF75AD","#6DE8FF","#FFC65C")'})]});
+add({id:'color-wave',kind:'emitter',start:0,end:30,x:100,y:200,count:4,interval:10,speed:0,life:50,sprite:'sprCherryWhite',colorMode:'random',colorExpression:'random(360)',colorScope:'wave'});
+add({id:'color-bullet',kind:'emitter',start:0,end:30,x:150,y:200,count:4,interval:10,speed:0,life:50,sprite:'sprCherryWhite',colorMode:'random',colorExpression:'choose("#FF75AD","#6DE8FF","#FFC65C")',colorScope:'bullet'});
+add({id:'look-fixed',kind:'object',templateOnly:true,start:0,end:20,x:0,y:0,scale:.4,sprite:'sprCherryWhite',keyframes:[{property:'scale',frame:0,value:.4},{property:'scale',frame:20,value:.8}]});
+add({id:'look-object-host',kind:'object',start:0,end:0,x:400,y:200,scale:1.2,sprite:'sprCherryBlue',spawnActions:[spawn('look-fixed',{inheritAppearance:true,inheritScale:true})]});
+const scene=normalizeState({version:2,name:'Template runtime check',room:'rAvoidance',duration:1500,fps:50,randomSeed:781,nativeTest:{x:400,y:500},tracks});
+fs.mkdirSync(process.argv[2],{recursive:true});fs.writeFileSync(path.join(process.argv[2],'scene.json'),JSON.stringify(scene));

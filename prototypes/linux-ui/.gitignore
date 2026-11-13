@@ -1,0 +1,13 @@
+engine/assets
+engine/templates
+engine/*.exe
+engine/*.mdb
+engine/build/
+engine/projects/
+engine/user-data/
+engine/.rufmaker*.json
+__pycache__/
+
+engine/studio/waveform.json
+engine/tests/*oracle.json
+engine/tests/spawn-legacy-generated.json
