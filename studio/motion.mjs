@@ -1,3 +1,4 @@
+import {dynamicsDefaults} from './object-dynamics.mjs';
 import {normalizeRainbow} from './rainbow.mjs';
 import {normalizeBulletState,groupTransformCode} from './bullet-schema.mjs';
 import {gmlNumber as num} from './gml.mjs';
@@ -5,8 +6,8 @@ import {resolveRandomState,parameterCode as parameterBase,evaluateExpression,isD
 import {motionBound,motionLegacyKeysMatch,motionPoint,motionPresetCode} from './motion-presets.mjs';
 import {cameraBound,cameraPresetFields,cameraSample,cameraPresetCode} from './camera-presets.mjs';
 export const basic=['x','y','angle','scale','alpha'];
-export const fields=['emitWidth','emitHeight','emitArc','emitPhase','emitRotation','emitWaves','x','y','angle','scale','alpha','speed','spread','count','life','x1','y1','x2','y2','length','rollSpeed','rainbowDensity','rainbowOffset','rainbowSpeed','spriteAngle','strength','fxOpacity','fxAngle','fxRetention','radius','orientation','sides','shapeAspect','shapeInner','cameraZoom','orbitRadius','orbitPhase','pathStartX','pathStartY','pathEndX','pathEndY','pathPeakX','pathPeakY','pathProgress','cameraIntensity','cameraBlur','cameraBlurAngle','fxZoom','fxFlash'];
-export const defaults={emitWidth:240,emitHeight:160,emitArc:360,emitPhase:0,emitRotation:0,emitWaves:1,cameraIntensity:1,cameraBlur:0,cameraBlurAngle:0,fxZoom:1.13,fxFlash:.18,radius:120,orientation:0,sides:5,shapeAspect:1,shapeInner:.45,cameraZoom:1,x:400,y:304,angle:0,scale:1,alpha:1,speed:3,spread:30,count:12,life:160,x1:280,y1:304,x2:520,y2:304,length:240,rollSpeed:2,rainbowDensity:1,rainbowOffset:0,rainbowSpeed:.25,spriteAngle:0,strength:6,fxOpacity:1,fxAngle:0,fxRetention:.5};
+export const fields=[...Object.keys(dynamicsDefaults),'emitWidth','emitHeight','emitArc','emitPhase','emitRotation','emitWaves','x','y','angle','scale','alpha','speed','spread','count','life','x1','y1','x2','y2','length','rollSpeed','rainbowDensity','rainbowOffset','rainbowSpeed','spriteAngle','strength','fxOpacity','fxAngle','fxRetention','radius','orientation','sides','shapeAspect','shapeInner','cameraZoom','orbitRadius','orbitPhase','pathStartX','pathStartY','pathEndX','pathEndY','pathPeakX','pathPeakY','pathProgress','cameraIntensity','cameraBlur','cameraBlurAngle','fxZoom','fxFlash'];
+export const defaults={...dynamicsDefaults,emitWidth:240,emitHeight:160,emitArc:360,emitPhase:0,emitRotation:0,emitWaves:1,cameraIntensity:1,cameraBlur:0,cameraBlurAngle:0,fxZoom:1.13,fxFlash:.18,radius:120,orientation:0,sides:5,shapeAspect:1,shapeInner:.45,cameraZoom:1,x:400,y:304,angle:0,scale:1,alpha:1,speed:3,spread:30,count:12,life:160,x1:280,y1:304,x2:520,y2:304,length:240,rollSpeed:2,rainbowDensity:1,rainbowOffset:0,rainbowSpeed:.25,spriteAngle:0,strength:6,fxOpacity:1,fxAngle:0,fxRetention:.5};
 export function normalizeState(s,globalSource=null) {
   if(globalSource)Object.defineProperty(s,'_globalSource',{value:globalSource,configurable:true});
   if(s.version===1) {

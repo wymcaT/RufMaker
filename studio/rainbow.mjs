@@ -8,7 +8,7 @@ export function normalizeRainbow(t) {
   if(t.rainbow){t.sprite=t.rainbowSprite||rainbowSprite;t.color='#FFFFFF';}
 }
 export function rainbowCode(t,sequence,time,{sampled=true,randomSampled=false}={}) {
-  if(!t.rainbow)return '0';
+  if(!t.rainbow)return `floor(rf_imageIndex+max(0,${time}-(${n(t.clockStart??t.start)})-rf_imageDelay)*rf_imageSpeed)`;
   if(t.rainbowRandom&&!randomSampled&&t.kind!=='emitter')sequence=randomRainbowSequence(t,{randomOffset:`(${sequence}*9176)`});
   return `rf_rainbow_index(${sequence},${time},${sampled?'rf_rainbowDensity':n(t.rainbowDensity,1)},${sampled?'rf_rainbowOffset':n(t.rainbowOffset)},${sampled?'rf_rainbowSpeed':n(t.rainbowSpeed,.25)},${n(t.clockStart??t.start)},${t.rainbowDynamic?1:0},${t.rainbowReverse?1:0},32)`;
 }

@@ -1,3 +1,4 @@
+import {spriteFrame} from './object-dynamics.mjs';
 import {hasGroupEvents} from './group-events.mjs';
 import {trackDepth,sourceDepthGml} from './drawing-depth.mjs';
 import {ProjectSyncTransaction,recoverProjectSync} from './project-sync.mjs';
@@ -131,7 +132,7 @@ function rodUpdate(t,index) {
   parts.push(`rf_inst.depth=${gnum(trackDepth(t))};`);
   parts.push(shapePoint(t));
   parts.push(`rf_inst.x=rf_px;rf_inst.y=rf_py;rf_inst.image_angle=rf_spriteAngle+${t.rotateSprite?'rf_angle':'0'};rf_inst.sprite_index=${t.sprite};rf_inst.image_blend=${gcolor(t.color)};rf_inst.image_xscale=rf_scale;rf_inst.image_yscale=rf_scale;rf_inst.image_alpha=rf_alpha;rf_inst.rf_trail=${t.trail?1:0};`);
-  if(t.rainbow)parts.push(`rf_inst.image_speed=0;rf_inst.image_blend=c_white;rf_inst.image_index=${rainbowCode(t,rodSequence(t),'rf_frame')};`);
+  parts.push(`rf_inst.image_speed=0;${t.rainbow?'rf_inst.image_blend=c_white;':''}rf_inst.image_index=${rainbowCode(t,rodSequence(t),'rf_frame')};`);
   if(hasGroupEvents(t._state))parts.push(`rf_inst.rf_birth=${gnum(t.start)};with(rf_inst)rf_event_fixed(${source},other.rf_frame,noone);`);
   parts.push(`}} ${prefix}_count=rf_count; } else if ${prefix}_count>0 {for(rf_j=0;rf_j<${prefix}_count;rf_j+=1) {if instance_exists(${prefix}[rf_j]) with (${prefix}[rf_j]) instance_destroy();${prefix}[rf_j]=noone;}${prefix}_count=0;}`);
   return parts.join('\n');
@@ -156,7 +157,7 @@ function visualDrawCode(s){
     if(t.kind!=='object'||t.enabled===false)return;
     const depth=trackDepth(t);
     if(!groups.has(depth))groups.set(depth,[]);
-    groups.get(depth).push(`if rf_template_visible(${index},-1,noone) && (${activeCode(t,'rf_frame',s.tracks)}) { ${stateAt(t,'rf_frame')} draw_sprite_ext(${t.sprite},${rainbowCode(t,'0','rf_frame')},rf_x,rf_y,rf_scale,rf_scale,rf_angle,${gcolor(t.color)},rf_alpha); }`);
+    groups.get(depth).push(`if rf_template_visible(${index},-1,noone) && (${activeCode(t,'rf_frame',s.tracks)}) { ${stateAt(t,'rf_frame')} draw_sprite_ext(${t.sprite},${spriteFrame(t.sprite,rainbowCode(t,'0','rf_frame'))},rf_x,rf_y,rf_scale,rf_scale,rf_angle,${gcolor(t.color)},rf_alpha); }`);
   });
   return `var ${fields.map(f=>'rf_'+f).join(',')},rf_u;\nswitch(argument0){`+
     [...groups].map(([depth,code])=>`case ${gnum(depth)}:\n${code.join('\n')}break;`).join('\n')+'}\nreturn 0;';
@@ -233,7 +234,7 @@ function makeController(s,schedule) {
 
 const bulletGml = `#define Create_0
 ${action}
-image_speed=0;image_index=0;rf_frozen_image=-1;rf_rainbow=0;rf_r_sequence=0;rf_r_density=1;rf_r_offset=0;rf_r_speed=.25;rf_r_start=0;rf_r_dynamic=0;rf_r_reverse=0;
+image_speed=0;image_index=0;rf_anim_enabled=0;rf_anim_birth=0;rf_anim_delay=0;rf_anim_index=0;rf_anim_speed=0;rf_gravity=0;rf_gravity_dir=270;rf_frozen_image=-1;rf_rainbow=0;rf_r_sequence=0;rf_r_density=1;rf_r_offset=0;rf_r_speed=.25;rf_r_start=0;rf_r_dynamic=0;rf_r_reverse=0;
 ${lifetimeDefaults}
 rf_scope_group=-1;rf_generation=0;rf_volley=0;rf_n=1;rf_source_x=0;rf_source_y=0;rf_kinematic=0;rf_template_owner=noone;rf_static_source=-1;rf_clock_shift=0;rf_system=0;rf_source=-1;rf_behavior=-1;rf_last_update=-1;rf_motion_reset=0;rf_spin=0;rf_accel=0;rf_friction=0;rf_collision=1;rf_dead=0;rf_sprite=sprite_index;rf_birth_aim=0;rf_aim_offset=0;
 rf_flight=-1;rf_turn=3;rf_delay=0;rf_age=0;rf_life=120;rf_speed=0;rf_dir=0;rf_trail=0;rf_fixed=0;rf_rotate=0;rf_sprite_angle=0;rf_birth=0;rf_index=0;
@@ -246,11 +247,12 @@ rf_bullet_advance();
 if rf_age>=rf_life instance_destroy();
 #define Draw_0
 ${action}
-var rf_sample,rf_tail,rf_drift,rf_seed,rf_world,rf_subimage;
+var rf_sample,rf_tail,rf_drift,rf_seed,rf_world,rf_subimage,rf_draw_sprite,rf_draw_frames;
 rf_world=rf_birth+rf_age;if instance_exists(objRufController) rf_world=objRufController.rf_frame;
+if rf_system && rf_anim_enabled && !rf_kinematic && !rf_fixed && !rf_rainbow && rf_frozen_image<0 image_index=floor(rf_anim_index+max(0,rf_world-rf_anim_birth-rf_anim_delay)*rf_anim_speed);
 if rf_frozen_image>=0 image_index=rf_frozen_image;
 if rf_rainbow {image_speed=0;image_index=rf_rainbow_index(rf_r_sequence,rf_world,rf_r_density,rf_r_offset,rf_r_speed,rf_r_start,rf_r_dynamic,rf_r_reverse,32);}
-if !rf_system || rf_world>=rf_birth draw_sprite_ext(rf_system*rf_sprite+(!rf_system)*sprite_index,image_index,x,y,image_xscale,image_yscale,image_angle,image_blend,image_alpha);
+if !rf_system || rf_world>=rf_birth {rf_draw_sprite=rf_system*rf_sprite+(!rf_system)*sprite_index;if rf_draw_sprite>=0 {rf_draw_frames=max(1,sprite_get_number(rf_draw_sprite));draw_sprite_ext(rf_draw_sprite,((floor(image_index) mod rf_draw_frames)+rf_draw_frames) mod rf_draw_frames,x,y,image_xscale,image_yscale,image_angle,image_blend,image_alpha);}}
 `;
 
 
@@ -261,7 +263,7 @@ if !rf_fixed && rf_t_mode!='off' && (!rf_system || rf_world>=rf_birth) {
 for(rf_sample=floor(rf_age/max(1,rf_t_interval))*max(1,rf_t_interval);rf_sample>=max(0,rf_age-rf_t_life+1);rf_sample-=max(1,rf_t_interval)) {
 rf_tail=rf_age-rf_sample;rf_seed=(rf_birth+rf_sample)*301+rf_index;
 rf_drift=rf_t_direction;if rf_t_random rf_drift=(sin((rf_seed+1)*12.9898)*43758.5453-floor(sin((rf_seed+1)*12.9898)*43758.5453))*360;
-rf_subimage=image_index;if rf_rainbow rf_subimage=rf_rainbow_index(rf_r_sequence,rf_world-rf_tail,rf_r_density,rf_r_offset,rf_r_speed,rf_r_start,rf_r_dynamic,rf_r_reverse,32);
+rf_subimage=image_index;if rf_system && rf_anim_enabled && !rf_rainbow && rf_frozen_image<0 rf_subimage=floor(rf_anim_index+max(0,rf_world-rf_tail-rf_anim_birth-rf_anim_delay)*rf_anim_speed);if rf_rainbow rf_subimage=rf_rainbow_index(rf_r_sequence,rf_world-rf_tail,rf_r_density,rf_r_offset,rf_r_speed,rf_r_start,rf_r_dynamic,rf_r_reverse,32);
 rf_tx=x-lengthdir_x(rf_speed*rf_tail,rf_dir);rf_ty=y-lengthdir_y(rf_speed*rf_tail,rf_dir);rf_ta=image_angle;rf_ts=image_xscale;rf_talpha=image_alpha;rf_tsprite=sprite_index;if rf_flight>=0 || rf_system {if rf_tail>300 continue;rf_slot=rf_sample mod 301;rf_tx=rf_hx[rf_slot];rf_ty=rf_hy[rf_slot];rf_ta=rf_ha[rf_slot];if rf_system {rf_ts=rf_hs[rf_slot];rf_talpha=rf_hal[rf_slot];rf_tsprite=rf_sprite;if rf_kinematic rf_subimage=rf_himage[rf_slot];}}
 rf_trail_draw(rf_tsprite,rf_tx,rf_ty,rf_ts,rf_ta,rf_talpha,image_blend,rf_tail,rf_t_mode,rf_t_life,rf_t_alpha,rf_t_scale_decay,rf_t_alpha_decay,rf_t_speed,rf_drift,rf_subimage);
 }}

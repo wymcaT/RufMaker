@@ -1,10 +1,23 @@
 # Codex 任务记录
 
-- 状态：`idle`
-- 当前任务：无，原生对象动态预览及错误瞄准线已本地完成。
-- 基线：main/b1affa1；接手有Argon4已完成的释放保形、变量/事件、公转/预览隐藏、扩展修复等大量未提交改动，Argon4当前idle无占用。本轮无推送/发布授权，保留所有用户工程与现有改动。
-- 当前占用：无。
-- 本机入口：RufMaker.exe，ProductVersion 2.7.0，1,587,200 bytes，旧 EXE 备份 build/native-object-preview/RufMaker.before-native-preview-20261107.exe。
+- 状态：`in_progress`
+- 当前任务：按用户“跟进 GitHub 最新版本”合入远端 main 的 3 次修复提交，保留本地原生转换与物理/动画工作，补齐 Windows 定向验证并重建 EXE。
+- 基线：main/58bed3a；GitHub main/9bcc4d4（2026-11-09），正式 Release 仍 v2.7.0。本地上一轮应用改动未提交，20 个 tracked 用户 demo 文件和个人工程/示例、RufMaker.old.exe 全部保留。Argon4 idle 无占用；无远程推送/发布授权。
+- 当前占用：远端差异涉及的 desktop/、studio/、assets/locales/en.json，合并冲突涉及的既有应用文件，根 RufMaker.exe，本记录与 docs/collaboration/STATUS.md；诊断目录 build/github-followup-20261113/。
+- 验收：先记录本地应用检查点并备份；核对合并差异，执行新保存/加载/资源浏览/参数导航回归、转换/物理回归与相应 Node 检查；补齐实际 GM 缓存/打包验证；正式 EXE 构建与用户工程未变检查。
+- 本机入口：RufMaker.exe，ProductVersion 2.7.0，1,600,512 bytes，旧 EXE 备份 build/object-dynamics-check/RufMaker.before-argon-20261108-175512.exe。
+
+## 2026-11-08　承接 Argon：原生转换与按需物理、动画（本地完成）
+
+- 用户确认接的是 Argon 记录中只写了评估的“原生对象转换、物理与动画属性”，并明确方向为 GM obj → RufMaker 可编辑物件。接手基线 main/58bed3a，应用源码干净，Argon idle 无占用；用户 demo 及个人工程原有改动全部保留。
+- 资源 → 对象右键新增“转换为可编辑物件…”。后台 gm-object-convert 只读检查对象、Create GML 和常见原生参数动作，识别贴图/深度、初始速度方向/分量速度、重力阻力、颜色透明度、等比缩放和动画；接受换行/分号及可执行的随机初始化。先显示检查结果，再添加独立单发来源；使用标准 RufMaker 弹幕碰撞，不改原对象或房间实例。继承、Step/Draw/闹钟/碰撞等复杂事件、控制器或特殊属性会列出原因，提供保留原生片段。没有宣称可反编译任意 GML，也不把未支持代码静默丢弃。
+- 左栏物件属性增加“弹幕物理”“贴图动画”，默认不显示右侧参数，拖入后才展开。Track 新增 bulletAcceleration/bulletFriction/bulletGravity/bulletGravityDirection、imageIndex/imageSpeed/imageDelay；旧值默认零（重力方向270°）。支持参数键、随机表达式、快照/JSON/撤销/复制/预设和片段变速。出生时取样，整体对象散开后应用物理。重设/公转事件清除原重力后接管运动；组复制仍冻结当时外观。彩虹优先控制贴图帧。
+- C# 与 GML 共用明确顺序：出生0帧不移动；后续加速度、阻力、转向、重力、移动。动画按独立出生时钟计算，不因寿命重设回卷，拖影用历史动画帧，负速率循环正确；仅配置动画时接管运行帧，保留默认原生 GML 的后期覆盖能力。转换会保留实测的 GM 一帧动画启动延迟。
+- 另补齐 Argon 的真实运行验收并修复：①公转并重设寿命时 C# 提前移动一帧；②已平移/旋转的模板在 GML 保形散开中混用局部与世界坐标，速度被放大；③部分成员提前消失时 GML 用剩余外沿重新归一化速度，改为与 C# 一样按完整原形状取最大距离。新增隔离回归夹具，涵盖普通/模板星星、直线、成员销毁、组公转与寿命重设。
+- 新增 desktop/ObjectDynamics.cs 并列入 Build-Native 显式源码表；新增 studio/object-dynamics.mjs、gm-convert.mjs 及测试。主要接入 EditorCore/Motion/BulletSystem/ObjectProperties/GmResources/GroupEvents/SpawnAppearance/Rainbow、JS motion/bullet-schema/bullet-system/project/template-system/event-presets/bridge/random-parameters/trails。README 中英入口和 docs/native-object-conversion.md 说明范围；补齐英文词条。
+- 检查入口：desktop/Test-ObjectDynamics.ps1（数值、倒拖、可选模块UI、步长/限幅、JSON/转换协议、中英）；Test-ArgonHandoff.ps1（复用既有模板状态采样器）；desktop/tests/verify-argon-handoff-gml.mjs、verify-object-dynamics-gml.mjs、verify-gm-conversion.mjs（实际GM）。本轮 Node 31项全部通过，NativeIntegration/UiSimplification/Localization 通过。UiSimplification 原测试固定5项且只应用5模块，已适配新增7项并保持 Undo 断言。
+- 最终 GM 证据：build/argon-handoff-check/Template GM 1794131367200（752状态/22帧）；build/object-dynamics-check/Template GM 1794131604933（317状态/21帧）；Native conversion 1794131613627（原生内建与转换后位置/速度/方向/动画/透明度20帧一致）。汇总 final-gm.log、final-conversion.log、node-final.log 在对应 build 目录；属性图 properties.png 为自身离屏控件截图。初次失败夹具与运行日志保留，包括动画/关键帧取样修复过程和探针中间记录阶段修正，没有遗留测试进程/错误弹窗。
+- Build-Native 最终通过并 File.Replace 备份更新根 EXE；git diff --check 应用范围通过。没有提交、推送或发布；本轮占用全部释放。进一步扩大复杂原生代码转换是后续范围，当前产品会明确提示保留原生执行。
 
 ## 2026-11-07　原生对象动态预览与辅助线（本地完成）
 

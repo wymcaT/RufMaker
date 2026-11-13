@@ -187,6 +187,7 @@ internal sealed partial class MainForm
     private static string ParameterCategory(Track track,string property)
     {
         if(track!=null&&track.motion=="orbit"&&new[]{"x","y","orbitRadius","orbitPhase"}.Contains(property))return "圆周运动";
+        if(ObjectDynamics.Physics.Contains(property))return "弹幕物理";if(ObjectDynamics.Animation.Contains(property))return "贴图动画";
         if(property=="life")return "弹幕寿命";
         if(new[]{"x","y","scale","angle","cameraZoom"}.Contains(property))return "变换";
         if(new[]{"alpha","imageAngle"}.Contains(property))return "外观";

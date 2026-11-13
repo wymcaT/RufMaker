@@ -115,6 +115,8 @@ internal sealed class Track
     public string trailMode="legacy";
     public string lifetimeMode="fixed",deathEffect="none";
     public int objectProperties,hiddenObjectProperties;
+    public double bulletAcceleration,bulletFriction,bulletGravity,bulletGravityDirection=270,imageIndex,imageSpeed;
+    public int imageDelay;
     public bool bounceBricks;
     public string boundaryMode="none";
     public string colorMode="fixed",colorExpression="random(360)",colorScope="wave";

@@ -193,7 +193,7 @@ internal sealed class ScrubNumber : Control
         switch(property??""){
             case "trailScaleDecay":case "trailAlphaDecay":return .001;
             case "scale":case "alpha":case "cameraZoom":case "shapeAspect":case "shapeInner":case "pathProgress":case "fxOpacity":case "fxRetention":case "fxFlash":case "fxZoom":case "cameraIntensity":case "trailStartAlpha":case "rainbowDensity":case "easePeriod":case "fxFrequency":return .01;
-            case "turns":case "hold":case "accelerationX":case "accelerationY":return .01;
+            case "bulletAcceleration":case "bulletFriction":case "bulletGravity":case "imageSpeed":case "turns":case "hold":case "accelerationX":case "accelerationY":return .01;
             case "speed":case "velocityX":case "velocityY":case "rollSpeed":case "trailSpeed":case "angularSpeed":case "orbitSpeed":case "turnRate":case "rainbowSpeed":case "easePower":return .1;
         }
         if(!String.IsNullOrEmpty(property))return 1;

@@ -9,6 +9,7 @@ $names+=@('BulletSystem','BulletBehaviorForm','BulletTools','CurveControls','Pla
 $names+=@('AudioSpectrogram','TimelineAudio','AudioTimelineTools','ObjectStatistics','StatisticsTools')
 $names+=@('BulletLifetime')
 $names+=@('ObjectProperties','BulletBoundaries')
+$names+=@('ObjectDynamics')
 $names+=@('RoomPresentation','NativeRoomTools')
 $names+=@('GmPath','GmPathEditor','GmAssetEditor','GmObjectEditor','GmResources')
 $names+=@('DrawingDepth')

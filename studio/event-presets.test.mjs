@@ -45,7 +45,7 @@ test('group-set event supports complete motion and life reset and disintegrates 
   assert.match(scripts.get('rf_pattern_tick'),/rf_spin=-2/);
   assert.match(scripts.get('rf_pattern_tick'),/rf_life=90/);
   const tick=scripts.get('rf_pattern_tick');
-  assert.match(tick,/if rf_scope_group=0 \{rf_stop_speed=0;rf_orbiting=0;rf_speed=7;rf_dir=120;rf_accel=0\.3;rf_friction=0;rf_spin=-2;rf_motion_reset=1;if rf_cmd\[0\]=0 \{rf_cmd\[0\]=1;rf_birth=rf_world;rf_age=0;rf_life=90;\}\}/);
+  assert.match(tick,/if rf_scope_group=0 \{rf_stop_speed=0;rf_orbiting=0;rf_gravity=0;rf_speed=7;rf_dir=120;rf_accel=0\.3;rf_friction=0;rf_spin=-2;rf_motion_reset=1;if rf_cmd\[0\]=0 \{rf_cmd\[0\]=1;rf_birth=rf_world;rf_age=0;rf_life=90;\}\}/);
 });
 test('player-move and player-set events generate player actions in rf_event_prepare and support friction',()=>{
   const move=track('mv','control',{start:30,end:30,eventPreset:'player-move',playerTargetX:250,playerTargetY:450,playerKeepMotion:false,playerResetJump:true});
@@ -70,7 +70,7 @@ test('orbit-bullets and group-orbit events generate orbit initialization and kin
   const scripts=new Map(bulletSystemScripts(s));
   const tick=scripts.get('rf_pattern_tick');
   assert.ok(tick);
-  assert.match(tick,/rf_orbiting=1;rf_orbit_cx=400;rf_orbit_cy=304;rf_orbit_spd=2\.5;rf_orbit_r=point_distance\(rf_orbit_cx,rf_orbit_cy,x,y\);rf_orbit_a=point_direction\(rf_orbit_cx,rf_orbit_cy,x,y\);/);
-  assert.match(tick,/if rf_scope_group=0 \{rf_orbiting=1;rf_orbit_cx=300;rf_orbit_cy=200;rf_orbit_spd=-1\.5;rf_orbit_r=150;rf_orbit_a=point_direction\(rf_orbit_cx,rf_orbit_cy,x,y\);/);
+  assert.match(tick,/rf_orbiting=1;rf_gravity=0;rf_orbit_cx=400;rf_orbit_cy=304;rf_orbit_spd=2\.5;rf_orbit_r=point_distance\(rf_orbit_cx,rf_orbit_cy,x,y\);rf_orbit_a=point_direction\(rf_orbit_cx,rf_orbit_cy,x,y\);/);
+  assert.match(tick,/if rf_scope_group=0 \{rf_orbiting=1;rf_gravity=0;rf_orbit_cx=300;rf_orbit_cy=200;rf_orbit_spd=-1\.5;rf_orbit_r=150;rf_orbit_a=point_direction\(rf_orbit_cx,rf_orbit_cy,x,y\);/);
   assert.match(tick,/rf_orbit_a\+=rf_orbit_spd;x=rf_orbit_cx\+lengthdir_x\(rf_orbit_r,rf_orbit_a\);y=rf_orbit_cy\+lengthdir_y\(rf_orbit_r,rf_orbit_a\);rf_dir\+=rf_orbit_spd;/);
 });

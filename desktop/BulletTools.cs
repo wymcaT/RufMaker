@@ -28,6 +28,7 @@ internal sealed partial class MainForm
             if(ObjectProperties.Shows(t,4))BoundaryFields(bag,t);
         }
         ColorFields(bag,t);
+        DynamicsFields(bag,t);
         if(new[]{"emitter","rod","object","group"}.Contains(t.kind)){
             Field(bag,"弹幕标签","高级设置",()=>t.tag,v=>t.tag=(v??"").Trim());var groups=state.tracks.Where(g=>g.kind=="group"&&g!=t&&!Ancestors(g).Contains(t)).ToArray();var names=new[]{"无父级"}.Concat(groups.Select(g=>g.name+" · "+g.id.Substring(0,Math.Min(6,g.id.Length)))).ToArray();
             Field(bag,"变换父级（旧工程）","高级设置",()=>names[Math.Max(0,Array.FindIndex(groups,g=>g.id==t.parentId)+1)],v=>{int i=Array.IndexOf(names,v)-1;t.parentId=i<0?"":groups[i].id;},names,"有父级时坐标、角度、大小为组内局部值。右键创建分组会保留当前摆放。");

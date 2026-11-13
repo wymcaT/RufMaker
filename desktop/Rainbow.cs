@@ -38,7 +38,8 @@ internal static class Rainbow
     {var c=context.Clone();c.randomMix=true;c.randomFrame=0;return Math.Floor(RandomExpression.Evaluate("random(32)",t.expressionSeed,(t.randomId??t.id)+"|rainbowColor|base",c));}
     public static int Index(Track t,double sequence,double time,double sampleTime=-1)
     {
-        if(!t.rainbow)return 0;if(sampleTime<0)sampleTime=time;
+        if(sampleTime<0)sampleTime=time;
+        if(!t.rainbow)return ObjectDynamics.TrackImage(t,time,sampleTime);
         if(t.rainbowRandom&&t.kind!="emitter")sequence=SampleSequence(t,new ExpressionContext{randomOffset=sequence*9176});
         double phase=Motion.Value(t,"rainbowOffset",sampleTime)+sequence*Motion.Value(t,"rainbowDensity",sampleTime);
         if(t.rainbowDynamic)phase+=(time-TimelineLayout.ClockStart(t))*Motion.Value(t,"rainbowSpeed",sampleTime);

@@ -73,8 +73,8 @@ internal static class UiSimplificationTests
             foreach(string group in ObjectProperties.Names)Check(!Bag(form).Cast<PropertyDescriptor>().Any(p=>p.Category==group),"An optional group is shown initially: "+group);
             Set(form,"resourceKind",ObjectProperties.Kind);
             Call(form,"FillResources");
-            Check(((ListView)Get(form,"resources")).Items.Count==5,"Object property library does not list all presets");
-            foreach(string key in new[]{"rainbow","trail","lifetime","bounce","scatter"})
+            Check(((ListView)Get(form,"resources")).Items.Count==ObjectProperties.Keys.Length,"Object property library does not list all presets");
+            foreach(string key in new[]{"rainbow","trail","lifetime","bounce","physics","animation","scatter"})
                 ((System.Threading.Tasks.Task)Call(form,"UsePreset",ObjectProperties.Kind,key,rod,71)).GetAwaiter().GetResult();
             var fields=Bag(form);
             Check(rod.rainbow&&rod.sprite==Rainbow.Sprite&&Trails.Mode(rod)=="fade"&&rod.lifetimeMode=="room"&&rod.boundaryMode=="reflect"&&rod.releaseFrame==71,"Preset application did not configure formation");

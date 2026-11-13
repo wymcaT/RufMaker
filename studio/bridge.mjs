@@ -9,6 +9,7 @@ import {root,project,projectFile,descriptor,projectName,pack,readState,syncToGam
 import {fileRevision} from './native-room.mjs';
 import {ProjectSyncTransaction} from './project-sync.mjs';
 import {readGmAsset,editGmAsset,nativePathAssets,gmObjectReferences} from './gm-resources.mjs';
+import {convertGmObject} from './gm-convert.mjs';
 import {describeInstanceCode,updateInstanceCode} from './gm-instance-fields.mjs';
 import {ensureBuild,exportStatus,packageGame,runNative,openNative,nativeRunStatus,cancelNativeRun,closeNativePlay} from './native.mjs';
 import {prepareNativeSession} from './native-preview.mjs';
@@ -63,6 +64,7 @@ async function execute(command,payload={}) {
     case 'room-read': return roomInfo(payload.room);
     case 'gm-resources-read': return {room:roomInfo(payload.room),inventory:inventory(),spriteMeta:spriteMetadata(),nativePaths:nativePathAssets(project)};
     case 'gm-asset-read': return readGmAsset(project,payload);
+    case 'gm-object-convert': return convertGmObject(project,payload);
     case 'gm-asset-edit': return editGmAsset(project,payload);
     case 'gm-object-references': return gmObjectReferences(project,payload.name);
     case 'gm-native-timing': {

@@ -23,7 +23,7 @@ export function eventTick(e,s,index=-1){const active=activeCode(e,'rf_world',s.t
     const group=isGroup?eventGroupIndex(s,e):-1;
     if(isGroup&&group<0)return '';
     const groupGuard=isGroup?`if rf_scope_group=${group} `:'';
-    let resetAction=`rf_stop_speed=0;rf_orbiting=0;${e.eventRestoreBirth?'rf_speed=rf_base_speed;rf_dir=rf_base_dir;':eventAssignment(e,'controlValue',s,'rf_speed')+eventAssignment(e,'controlFrom',s,'rf_dir')}${eventAssignment(e,'eventAcceleration',s,'rf_accel')}${eventAssignment(e,'eventFriction',s,'rf_friction')}${eventAssignment(e,'eventTurn',s,'rf_spin')}rf_motion_reset=${e.eventDisableMotion?1:0};`;
+    let resetAction=`rf_stop_speed=0;rf_orbiting=0;rf_gravity=0;${e.eventRestoreBirth?'rf_speed=rf_base_speed;rf_dir=rf_base_dir;':eventAssignment(e,'controlValue',s,'rf_speed')+eventAssignment(e,'controlFrom',s,'rf_dir')}${eventAssignment(e,'eventAcceleration',s,'rf_accel')}${eventAssignment(e,'eventFriction',s,'rf_friction')}${eventAssignment(e,'eventTurn',s,'rf_spin')}rf_motion_reset=${e.eventDisableMotion?1:0};`;
     if(e.eventResetLife){
       const lifeCode=`rf_birth=rf_world;rf_age=0;rf_life=${e.eventLife>0?num(e.eventLife):'rf_life'};`;
       resetAction+=index>=0?`if rf_cmd[${index}]=0 {rf_cmd[${index}]=1;${lifeCode}}`:lifeCode;
@@ -39,7 +39,7 @@ export function eventTick(e,s,index=-1){const active=activeCode(e,'rf_world',s.t
     const cy=eventAssignment(e,'eventCenterY',s,'rf_orbit_cy');
     const spd=eventAssignment(e,'eventOrbitSpeed',s,'rf_orbit_spd');
     const rCode=e.eventRadiusMode==='fixed'?eventAssignment(e,'eventRadius',s,'rf_orbit_r'):'rf_orbit_r=point_distance(rf_orbit_cx,rf_orbit_cy,x,y);';
-    let orbitAction=`rf_orbiting=1;${cx}${cy}${spd}${rCode}rf_orbit_a=point_direction(rf_orbit_cx,rf_orbit_cy,x,y);rf_speed=0;rf_accel=0;rf_friction=0;rf_spin=0;rf_motion_reset=${e.eventDisableMotion?1:0};`;
+    let orbitAction=`rf_orbiting=1;rf_gravity=0;${cx}${cy}${spd}${rCode}rf_orbit_a=point_direction(rf_orbit_cx,rf_orbit_cy,x,y);rf_speed=0;rf_accel=0;rf_friction=0;rf_spin=0;rf_motion_reset=${e.eventDisableMotion?1:0};`;
     if(e.eventResetLife){
       const lifeCode=`rf_birth=rf_world;rf_age=0;rf_life=${e.eventLife>0?num(e.eventLife):'rf_life'};`;
       orbitAction+=index>=0?`if rf_cmd[${index}]=0 {rf_cmd[${index}]=1;${lifeCode}}`:lifeCode;
@@ -60,7 +60,7 @@ export function eventScripts(s,bundles=templateBundles(s)){if(!hasEvents(s))retu
     return s.tracks.map((t,index)=>{
       if(t.templateOnly||t.kind!=='rod'||e.eventPreset.startsWith('group-')&&groupIndex(s,t)!==group)return '';
       const heading=t.releaseDirection==='fixed'?'rf_angle':t.releaseDirection==='aim'?'point_direction(rf_px,rf_py,rf_expression_player(0),rf_expression_player(1))':'point_direction(rf_x,rf_y,rf_px,rf_py)'+(t.releaseDirection==='tangent'?'+90':'');
-      return `if (${activeCode(e,'rf_now',s.tracks)}) && rf_template_visible(${index},-1,noone) && (${activeCode(t,'rf_now',s.tracks)})${t.releaseFrame>=0?' && rf_now<'+num(t.releaseFrame):''} {${stateCode(t,'rf_now')}${shapeSetup(t,'rf_now')}rf_n=rf_count;${t.releaseKeepShape&&t.releaseDirection==='radial'?`rf_max_dist=0;for(rf_j=0;rf_j<rf_n;rf_j+=1){if !rf_template_visible(${index},rf_j,noone) continue;${shapePoint(t)}rf_d=point_distance(rf_x,rf_y,rf_px,rf_py);if rf_d>rf_max_dist rf_max_dist=rf_d;}`:''}for(rf_j=0;rf_j<rf_n;rf_j+=1){if !rf_template_visible(${index},rf_j,noone) continue;${shapePoint(t)}rf_color_sequence=${rodSequence(t)};rf_heading=${heading};${t.releaseKeepShape&&t.releaseDirection==='radial'?`rf_spd_out=rf_speed;if rf_max_dist>0.0001 rf_spd_out=rf_speed*(point_distance(rf_x,rf_y,rf_px,rf_py)/rf_max_dist);`:''}rf_inst=rf_pattern_spawn(${index},rf_now,rf_j,rf_n,0,1,rf_px,rf_py,rf_heading,${t.releaseKeepShape&&t.releaseDirection==='radial'?'rf_spd_out':'rf_speed'},0,0,0,noone,rf_x,rf_y);${releasedRainbow(t,'rf_now','rf_inst')}if instance_exists(rf_inst){rf_inst.rf_motion_reset=${e.eventDisableMotion?1:0};}}rf_template_hide(${index},-1,noone);}`;
+      return `if (${activeCode(e,'rf_now',s.tracks)}) && rf_template_visible(${index},-1,noone) && (${activeCode(t,'rf_now',s.tracks)})${t.releaseFrame>=0?' && rf_now<'+num(t.releaseFrame):''} {${stateCode(t,'rf_now')}${shapeSetup(t,'rf_now')}rf_n=rf_count;${t.releaseKeepShape&&t.releaseDirection==='radial'?`rf_max_dist=0;for(rf_j=0;rf_j<rf_n;rf_j+=1){${shapePoint(t)}rf_d=point_distance(rf_x,rf_y,rf_px,rf_py);if rf_d>rf_max_dist rf_max_dist=rf_d;}`:''}for(rf_j=0;rf_j<rf_n;rf_j+=1){if !rf_template_visible(${index},rf_j,noone) continue;${shapePoint(t)}rf_color_sequence=${rodSequence(t)};rf_heading=${heading};${t.releaseKeepShape&&t.releaseDirection==='radial'?`rf_spd_out=rf_speed;if rf_max_dist>0.0001 rf_spd_out=rf_speed*(point_distance(rf_x,rf_y,rf_px,rf_py)/rf_max_dist);`:''}rf_inst=rf_pattern_spawn(${index},rf_now,rf_j,rf_n,0,1,rf_px,rf_py,rf_heading,${t.releaseKeepShape&&t.releaseDirection==='radial'?'rf_spd_out':'rf_speed'},0,0,0,noone,rf_x,rf_y);${releasedRainbow(t,'rf_now','rf_inst')}if instance_exists(rf_inst){rf_inst.rf_motion_reset=${e.eventDisableMotion?1:0};}}rf_template_hide(${index},-1,noone);}`;
     }).filter(Boolean).join('\n');
   }).join('\n');
   // Find members by owner, not the root track's rf_tf row: group children and

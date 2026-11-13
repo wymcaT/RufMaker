@@ -10,7 +10,7 @@ internal sealed class BirthAppearance
     public static BirthAppearance TrackAt(Track t,int frame,int index,PointF point,Keyframe pose,double rotation=0,int count=1)
     {return new BirthAppearance{sprite=t.sprite,color=t.rainbow?Color.White:Motion.ColorOf(t.color),image=Rainbow.Index(t,t.kind=="rod"?Rainbow.RodSequence(t,index,count,frame,point,pose,rotation):0,frame),scale=pose.scale};}
     public static BirthAppearance BulletAt(SimBullet b,int frame)
-    {return new BirthAppearance{sprite=b.sprite??b.source.sprite,color=b.color,image=b.frozenImage>=0?b.frozenImage:Rainbow.Index(b.source,b.sequence,frame-b.clockShift,b.birth-b.clockShift),scale=b.scale*BulletLifetime.Scale(b)};}
+    {return new BirthAppearance{sprite=b.sprite??b.source.sprite,color=b.color,image=ObjectDynamics.Image(b,frame),scale=b.scale*BulletLifetime.Scale(b)};}
 }
 internal static class SpawnColors
 {

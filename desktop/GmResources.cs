@@ -5,6 +5,9 @@ using System.Linq;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 
+internal sealed class GmConversionResult
+{public bool supported=false;public string name="";public Track track=null;public string[] issues=new string[0],recognized=new string[0];}
+
 internal sealed partial class MainForm
 {
     private static bool GmAssetKind(string kind){return kind=="objects"||kind=="paths"||kind=="timelines";}
@@ -18,7 +21,10 @@ internal sealed partial class MainForm
         string name=resources.SelectedItems.Count==0?null:resources.SelectedItems[0].Tag as string;
         if(CanEditGmAsset(name)){
             menu.Items.Add("打开编辑器…",null,async(s,e)=>await OpenGmAsset(kind,name));
-            if(kind=="objects")menu.Items.Add("删除 GM 对象…",null,async(s,e)=>await DeleteGmObject(name));
+            if(kind=="objects"){
+                menu.Items.Add("转换为可编辑物件…",null,async(s,e)=>await ConvertNativeObject(name));
+                menu.Items.Add("删除 GM 对象…",null,async(s,e)=>await DeleteGmObject(name));
+            }
             if(kind=="paths"&&AcceptsGmPath(selectedTrack))menu.Items.Add("应用到选中物件",null,(s,e)=>AttachGmPath(selectedTrack,name));
         }
         menu.Items.Add(GmNewLabel(kind),null,async(s,e)=>await CreateGmAsset(kind));
@@ -33,6 +39,34 @@ internal sealed partial class MainForm
             await bridge.Call<GmAssetData>("gm-asset-edit",new{kind,name,operation="create"});
             await RefreshEditedGmResources();
             await OpenGmAsset(kind,name);
+        }catch(Exception error){Error(error);}
+    }
+
+    private async Task ConvertNativeObject(string name)
+    {
+        if(state==null||bridge==null||busy)return;
+        StopPlaying();CommitInspectorEdits();
+        var current=state;int at=frame,end=Math.Min(state.duration,frame+state.fps*5-1);
+        try{
+            var result=await bridge.Call<GmConversionResult>("gm-object-convert",new{name,start=at,end,x=document.room.width/2.0,y=document.room.height/2.0,seed=state.randomSeed});
+            if(current!=state||IsDisposed)return;
+            using(var dialog=GmResourceUi.Dialog(Language.Text("转换原生对象")+" · "+name,new Size(560,380))){
+                var body=new TextBox{Dock=DockStyle.Fill,Multiline=true,ReadOnly=true,ScrollBars=ScrollBars.Vertical,BackColor=Theme.Panel,ForeColor=Theme.Text,BorderStyle=BorderStyle.None,Margin=new Padding(12)};
+                string text=result.supported?Language.Text("已识别为单发弹幕来源，使用标准弹幕碰撞。添加后可以编辑位置、速度、物理、贴图动画及关键帧。原生对象保留，已有房间实例不受影响。"):
+                    Language.Text("此对象含有暂时无法等价转换的功能。可保留为原生对象片段，由 GM 执行原事件。");
+                if(result.issues.Length>0)text+="\r\n\r\n"+String.Join("\r\n",result.issues.Select(s=>"• "+s));
+                if(result.supported)text+="\r\n\r\n"+Language.Text("贴图")+": "+result.track.sprite+"\r\n"+Language.Text("已识别属性")+": "+String.Join(", ",result.recognized);
+                body.Text=Language.Text(text);var content=new Panel{Dock=DockStyle.Fill,Padding=new Padding(14)};content.Controls.Add(body);
+                var footer=GmResourceUi.Footer();var cancel=GmResourceUi.Button("取消",()=>dialog.DialogResult=DialogResult.Cancel);
+                var accept=GmResourceUi.Button(result.supported?"添加到时间轴":"保留为原生片段",()=>dialog.DialogResult=DialogResult.OK);
+                footer.Controls.Add(cancel);footer.Controls.Add(accept);dialog.Controls.Add(content);dialog.Controls.Add(footer);dialog.AcceptButton=accept;dialog.CancelButton=cancel;
+                if(Language.ShowDialog(dialog,this)!=DialogResult.OK)return;
+            }
+            if(!result.supported){AddNativeObject(name,at);return;}
+            ReturnToTimelineRoom(false);PushUndo();
+            var track=result.track.Snapshot();track.id=Guid.NewGuid().ToString("N");track.randomId=track.id;track.lane=Math.Max(0,timeline.ActiveLane);
+            state.tracks.Add(track);Motion.Normalize(state);SelectTrack(track,null);MarkChanged();SetFrame(at);
+            SetStatus("已转换为可编辑物件。原生对象及其代码保留。");
         }catch(Exception error){Error(error);}
     }
 

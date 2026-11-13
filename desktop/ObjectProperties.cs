@@ -9,8 +9,8 @@ internal static class ObjectProperties
     public const string Help="拖到物件上添加属性，或双击应用到当前物件。";
     public const string Scatter="散开飞行";
     public const string Boundaries="反弹设置";
-    public static readonly string[] Keys={"rainbow","trail","lifetime","scatter","bounce"};
-    public static readonly string[] Names={"彩虹 Cherry","拖影","弹幕寿命",Scatter,Boundaries};
+    public static readonly string[] Keys={"rainbow","trail","lifetime","scatter","bounce","physics","animation"};
+    public static readonly string[] Names={"彩虹 Cherry","拖影","弹幕寿命",Scatter,Boundaries,"弹幕物理","贴图动画"};
     private static readonly string[] BoundaryNames={"按寿命设置","出屏幕反弹","出屏幕从另一边穿回来"};
     private static readonly string[] BoundaryModes={"none","reflect","wrap"};
 
@@ -19,6 +19,8 @@ internal static class ObjectProperties
         if(track==null)return false;
         if(key=="rainbow"||key=="trail")return Theme.Visual(track.kind);
         if(key=="scatter")return track.kind=="rod";
+        if(key=="physics")return track.kind=="emitter"||track.kind=="rod";
+        if(key=="animation")return Theme.Visual(track.kind);
         return (key=="lifetime"||key=="bounce")&&(track.kind=="emitter"||track.kind=="rod");
     }
 
@@ -35,6 +37,8 @@ internal static class ObjectProperties
                 (BulletLifetime.Mode(track)=="fixed"&&(track.life!=160||Motion.HasKeys(track,"life")||track.expressions.ContainsKey("life")));
             case 3:return track.releaseFrame>=0;
             case 4:return track.bounceBricks||Mode(track)!="none";
+            case 5:return ObjectDynamics.HasPhysics(track);
+            case 6:return ObjectDynamics.HasAnimation(track);
             default:return false;
         }
     }
