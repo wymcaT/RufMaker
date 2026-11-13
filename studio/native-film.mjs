@@ -3,7 +3,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import {spawn} from 'node:child_process';
 import {codeOnly} from './native-import.mjs';
-import {writeNativeHarness,copyNativeExtras} from './native-preview.mjs';
+import {writeNativeHarness,copyNativeExtras,nativeExtraFiles} from './native-preview.mjs';
 import {expandPatterns} from './bullet-schema.mjs';
 import {nativeObjectSchedule} from './native-objects.mjs';
 import {readRoom} from './native-room.mjs';
@@ -30,6 +30,15 @@ export function nativeFilmStatus(project,state){
     return value;
   }
   hash.update(JSON.stringify({room:state.room,duration:state.duration,fps:state.fps,music:state.music,native:state.nativeProject,tracks:state.tracks.map(relevant).filter(Boolean)}));
+  // These root-level inputs are copied beside the recording EXE too. Omitting
+  // them leaves a film marked fresh after config/plugin or entry changes.
+  const entries=fs.readdirSync(project,{withFileTypes:true}).filter(e=>e.isFile()&&/\.gm82$/i.test(e.name)).map(e=>e.name);
+  for(const name of [...new Set([...nativeExtraFiles(project),...entries])].sort()){
+    const file=path.join(project,name),stat=fs.statSync(file);hash.update(name+'\0');
+    if(/\.(gm82|json|ini|cfg)$/i.test(name))hash.update(fs.readFileSync(file));
+    else hash.update(stat.size+':'+stat.mtimeMs);
+    hash.update('\0');
+  }
   for(const kind of ['objects','scripts','timelines','rooms','paths','sprites','backgrounds','settings','sounds','Data','fonts','datafiles']){
     const visit=folder=>{
       if(!fs.existsSync(folder))return;

@@ -321,8 +321,13 @@ internal sealed class GmObjectEditor : LocalizedForm
         string kind=ActionKinds[Array.IndexOf(labels,label)].Key;
         await Run(async()=>{
             if(kind=="code"){
-                using(var editor=new CodeForm(data.name+" · "+GmResourceUi.EventName(current.id),"",content=>
-                    Update(new{data.kind,data.name,data.revision,operation="add-action",section=current.id,content},current.id,current.actions.Length)))
+                int actionIndex=-1;
+                using(var editor=new CodeForm(data.name+" · "+GmResourceUi.EventName(current.id),"",async content=>{
+                    if(actionIndex<0){
+                        await Update(new{data.kind,data.name,data.revision,operation="add-action",section=current.id,content},current.id,current.actions.Length);
+                        actionIndex=data.events.Single(item=>item.id==current.id).actions.Last().index;
+                    }else await Update(new{data.kind,data.name,data.revision,operation="code",section=current.id,action=actionIndex,content},current.id,actionIndex);
+                }))
                     Language.ShowDialog(editor,this);
             }else{
                 var choices=kind=="sprite"?inventory.sprites:kind=="script"?inventory.scripts:inventory.objects;
@@ -402,8 +407,10 @@ internal sealed class GmObjectEditor : LocalizedForm
             }else{
                 var source=await bridge.Call<SourceData>("gm-asset-read",new{data.kind,data.name,section=current.id,action=action.index});
                 if(source.hash!=data.revision)throw new InvalidOperationException(Language.Text("GM 资源已被修改，请重新打开后再编辑。"));
-                using(var editor=new CodeForm(data.name+" · "+GmResourceUi.EventName(current.id),source.content,content=>
-                    Update(new{data.kind,data.name,revision=source.hash,operation="code",section=current.id,action=action.index,content},current.id,action.index)))
+                using(var editor=new CodeForm(data.name+" · "+GmResourceUi.EventName(current.id),source.content,async content=>{
+                    await Update(new{data.kind,data.name,revision=source.hash,operation="code",section=current.id,action=action.index,content},current.id,action.index);
+                    source.hash=data.revision;
+                }))
                     Language.ShowDialog(editor,this);
             }
         });

@@ -1,11 +1,53 @@
 # Codex 任务记录
 
-- 状态：`in_progress`
-- 当前任务：按用户“跟进 GitHub 最新版本”合入远端 main 的 3 次修复提交，保留本地原生转换与物理/动画工作，补齐 Windows 定向验证并重建 EXE。
+- 状态：`idle`
+- 当前任务：无。“跟进 GitHub 最新版本”已完成，本地合入 9bcc4d4，Windows 验证及正式 EXE 更新完成。
 - 基线：main/58bed3a；GitHub main/9bcc4d4（2026-11-09），正式 Release 仍 v2.7.0。本地上一轮应用改动未提交，20 个 tracked 用户 demo 文件和个人工程/示例、RufMaker.old.exe 全部保留。Argon4 idle 无占用；无远程推送/发布授权。
-- 当前占用：远端差异涉及的 desktop/、studio/、assets/locales/en.json，合并冲突涉及的既有应用文件，根 RufMaker.exe，本记录与 docs/collaboration/STATUS.md；诊断目录 build/github-followup-20261113/。
-- 验收：先记录本地应用检查点并备份；核对合并差异，执行新保存/加载/资源浏览/参数导航回归、转换/物理回归与相应 Node 检查；补齐实际 GM 缓存/打包验证；正式 EXE 构建与用户工程未变检查。
-- 本机入口：RufMaker.exe，ProductVersion 2.7.0，1,600,512 bytes，旧 EXE 备份 build/object-dynamics-check/RufMaker.before-argon-20261108-175512.exe。
+- 当前占用：无。
+- 验收：73 项 Node 定向、8 组 Windows 检查；实际 GM 构建打包、资源动作/实例、25 帧原生底片、21 帧 317 条弹幕状态通过；构建及用户工程未变检查通过。
+- 本机入口：RufMaker.exe，ProductVersion 2.7.0，1,616,384 bytes；旧 EXE 备份 build/github-followup-20261113/RufMaker.before-followup.exe 和 RufMaker.replaced-20261113.exe。
+
+## 2026-11-13 跟进 GitHub 最新 main（本地完成）
+
+- GitHub API 核实 main 为 9bcc4d4，最新正式 Release 为 2026-10-31 的 v2.7.0。原本地 main/58bed3a 落后 3 次修复，同时有上一轮未提交的转换与物理/动画。先备份 EXE、应用 patch 和项目 hash，仅精确暂存 46 个应用文件建立本地检查点 3d0e21d，再原分支合并；未 stash/reset/切分支，也未提交用户资料。最终合并提交见 git log。
+- 合入工程加载事务、保存失败恢复、贴图浏览/应用分离、GML 重复保存 hash/范围、导出差异备份入口、参数键盘导航/提示、教程搜索和构建/原生缓存修复。处理 locale、BulletSystem 和双方交接文档冲突；出生首帧规则保留本地 age>0 包裹与 ObjectDynamics.Gravity，既有原生转换入口和新模块没有丢失。清理远端新增文件尾空行，没有改运行语义。
+- Windows ParameterNavigation 发现数字 Esc 先隐藏输入框会触发 Leave 并误提交，修复 desktop/ParameterInspector.cs 使用既有 CancelUncommitted 提交保护；复用远端测试中的 Escape/Enter/F2/焦点/空格用例。其余新产品行为来自上述 3 次远端提交。
+- Node 命令：runtime/node.exe --test studio/{gm-convert,object-dynamics,editor-safety-contract,resource-browsing-contract,parameter-navigation-contract,ui-save-safety-contract,code-editor-save,gm-resources,native-build-package,native-preview,native-film,event-presets,project-sync}.test.mjs，73/73。Esc 修复后单独参数契约 4/4。日志 node-tests.log、node-parameter-final.log 在 build/github-followup-20261113。
+- Windows：build/github-followup-20261113/Run-Windows.ps1 编译真实源码与 ProjectLoadSafetyTests、UiSaveSafetyTests、ResourceBrowsingTests、ParameterNavigationTests、PreviewHiddenAndOrbitTests，逐进程调用入口、记录错误并移出桌面显示区域，五组全部通过。原始测试函数未改。首次运行辅助脚本因 Start-Process 的 ExitCode 未捕获误判，改为持有 Process 后消除；参数 Esc 是实际失败并已修复。另运行 desktop/Test-ObjectDynamics.ps1、Test-NativeIntegration.ps1、Test-Localization.ps1，全部通过。无遗留测试进程/错误弹窗。
+- 新增 desktop/tests/verify-build-package-gml.mjs（build 内隔离），真实 GM 两次编译、三次运行验证代码 101→102，mtime/大小不变也重编译、缓存复用、重复导出/资源删除、存档/差异备份保留和预览控制文件清理；证据 build/build-package-gml/Build package 1794573556486，日志 gm-build-package.log。
+- 另外实际运行 verify-object-dynamics-gml.mjs（317 状态/21 帧，Template GM 1794573678391）、verify-gm-resources.mjs（动作与 18 处路径位置，GM resources 1794573700566）、verify-native-object-film.mjs（25 帧 Create/Step/Draw、子对象、缓存/实时叠加，Native animation 1794573741110）。日志 gm-dynamics.log、gm-resources.log、gm-native-film.log 在本轮 build 目录。
+- Build-Native 通过，File.Replace 备份并更新根 EXE；核对全部 20 个原有 tracked 用户文件 SHA256 和全部 3,539 个未跟踪工程路径一致。没有推送、标签或 Release。未扩大玩家移动表达式历史求值/性能候选等远端明确未完成的范围；测试不替代用户完整交互验收。同步更新 UI 操作说明和开发测试入口，文件占用释放。
+
+## 2026-11-09 GitHub UI 操作安全修复（远端交接原记录）
+
+- 本轮任务：UI 操作安全改进与复审修复已完成；用户已授权修复后推送 main。
+- 基线：远程 main e8a89c338f41f9d33428c0315701ac628cce8764；本地等价源码 c3f2319 与 UI 候选 ce1a868。发布前核对 239 个桌面/后台/资源/文档基线 blob 与远端一致。
+- 占用：无。
+- 改动：素材浏览与应用分离；可恢复保存及导出备份入口；GML 连续保存与冲突保护；属性键盘导航与教程搜索。复审补充聚焦按钮的空格路由、忙碌状态结束后重试按钮恢复，以及原生条件事件改头/删除后的连续保存范围校验。无新增产品 .cs。
+- 验证：Node v24.22.1，node --test 全部 studio/*.test.mjs 排除 timeline-regression.test.mjs：143 项，142 通过、1 本地参考用例跳过；git diff --check 通过。日志 build/ui-main-verification/node-final.log。独立复审修复后的定向检查 24/24。
+- Windows 测试补充：真实 MainForm 焦点/ProcessCmdKey 路由、原生按钮单次激活、画布空格命令保留、加载忙碌/保存失败/解除忙碌的重试状态。Test-UiSaveSafety、Test-ResourceBrowsing、Test-ParameterNavigation 均未编译执行。
+- 未完成：当前 Linux 无 Windows/.NET Framework/GM；没有 EXE 构建或替换，没有游戏实测或 Release，没有修改用户工程。源码/Node 检查不等于 Windows 交互验收。
+- 详情：[UI 操作说明](../../ui-operation-safety.md)。远端提交以推送后验证结果为准。
+
+## 2026-11-09 普通构建与重复打包
+
+- 普通 F5/export 使用内容指纹与成功构建清单，不再用最大 mtime。指纹覆盖资源路径、文本/二进制内容、选中 .gm82 入口及编译器；复用前也校验 EXE 内容，缺失或损坏清单必须重建。64 KiB 分块读取，避免整首歌曲进内存。保存响应使用 verified:false/fresh:false 的轻量状态；显式 status、试玩、导出才完整检查，避免自动保存每次全量读取。
+- 打包先在同级临时目录完整准备，再替换活动目录；移除已删除的受管 Data 和根配置，不将旧包直接覆盖合并。新清单识别受管文件，保留后来生成的普通存档/手工附加文件；预览运行控制文件明确不继承，防止陈旧 ready/checkpoint 影响 F5。
+- 首次遇到没有打包清单的旧包，整个原目录保留为 build/preview.previous-<id> 或 build/release.previous-<id>，其中手工文件/存档可自行恢复。以后备份仅保留与新包不相同的文件；完全相同包再次打包不留下重复歌曲/EXE。previousDir 在打包返回值中给出，桌面尚未显示此字段。旧差异备份不会自动全部清空，可在确认不需恢复后自行清理。
+- 复制/重命名失败保持或恢复旧包；恢复失败的错误明确给出旧包所在路径。新增 9 个隔离回归，包含删除/改名/保留时间戳的文本与二进制编辑、同目录多入口、清单损坏、连续打包/存档、旧运行控制文件、复制/锁定/回滚失败。Node 子进程编译协议 stub 覆盖并发合并、成功、失败、无效 MZ 和编译中源变更；stub 不是 GM 验收。
+- 改动文件：studio/bridge.mjs、native.mjs、native-build-cache.mjs、native-package.mjs、native-build-package.test.mjs，以及 STATUS 与本记录。验证命令：node --test studio/native-build-package.test.mjs；全部 studio/*.test.mjs 排除 timeline-regression.test.mjs。日志 build/verification/node-final.log。
+- 784b219 性能候选未合入本轮。仍待 Windows 验证的预览请求合并/片段展开，以及曲线追踪重复计算、动态模糊历史保留、强制移动表达式预览/导出差异，均未声明解决。PlayerTarget→ExpressionContext→PlayerAt 存在历史求值循环依赖，需双端语义与 GM 数值对照。
+
+## 2026-11-09　review 修复候选（隔离源码补丁）
+
+- 工程切换先在独立 NativeAudio 与模型中完成音乐解码、波形和归一化，再把 bridge/document/state 与撤销清理作为同一提交步骤；旧房间刷新异常不会把旧状态写到新 bridge。失败的候选音频与 bridge 单独释放。
+- 保存失败暂停自动重试，dirty 保留；后续显式保存或新编辑可以重试。成功保存期间产生的新编辑仍安排下一次自动保存。关闭时保存失败提供默认“否”的放弃更改确认；取消关闭不会重启错误弹窗循环。
+- C# 绕点旋转遵守 age>0，与生成 GML 一致。仅预览隐藏递归作用于私有快照的 pattern.children，保留源数据及导出 enabled 状态。
+- 原生预览构建指纹改为路径清单、文本内容及媒体大小/mtime，覆盖删除、改名与保留时间戳的文本编辑；底片签名包含根目录配置、GM 入口和实际复制的运行依赖。未增加媒体全量读取成本；相同大小且保留 mtime 的二进制替换仍需手动重建。
+- 新增 desktop/Test-ProjectLoadSafety.ps1 与 ProjectLoadSafetyTests.cs；补充 PreviewHiddenAndOrbitTests。前者测试准备失败保留旧状态/撤销、成功提交清空旧历史及音频移交、保存重试门控。实际 bridge 进程切换和关闭确认交互仍需 Windows 验证。
+- 新增 Node 源码顺序约束检查，只作为补充，不代表 C# 执行通过。Node v24.22.1 下执行所有 studio/*.test.mjs，但明确排除需要 GM/完整工程的 timeline-regression.test.mjs：115 项中 114 通过，Verse3 本地参考用例 1 项跳过。日志 build/review-fixes/node-final.log；缓存修复前/后日志在同目录。
+- 尚未解决：玩家移动表达式与瞄准预览的共享历史求值。PlayerTarget、ExpressionContext、PlayerAt 与 GlobalVariableTimeline 存在循环依赖，需另行定义事件顺序和缓存失效后测试，未加入临时递归规避补丁。
+- 未运行：Test-ProjectLoadSafety、Test-PreviewHiddenAndOrbit、Build-Native 和真实 GM 对照。先在 Windows 的隔离工程中验证，再考虑原工作区应用；随后用户授权推送本轮修复至独立审查分支；没有版本变更，不合并 main、不开 PR、不发布。
 
 ## 2026-11-08　承接 Argon：原生转换与按需物理、动画（本地完成）
 

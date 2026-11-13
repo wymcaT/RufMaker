@@ -2,10 +2,12 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 import crypto from 'node:crypto';
-import { root, project, projectFile, makerFile, gameMaker, buildDir, gameExe, readState } from './project.mjs';
+import { root, project, projectFile, gameMaker, buildDir, gameExe, readState } from './project.mjs';
 import {prepareNativeSession,copyNativeExtras} from './native-preview.mjs';
 import {NativePlaySession} from './native-play-session.mjs';
 import {waitForNativeReplay} from './native-replay.mjs';
+import {buildFingerprint,buildIsFresh,recordBuild} from './native-build-cache.mjs';
+import {replacePackage} from './native-package.mjs';
 
 const exportedExe=gameExe;
 let buildTask=null;
@@ -17,29 +19,19 @@ export function nativeRunStatus(){return nativeReplay?{phase:nativeReplay.phase,
 export async function cancelNativeRun(){const session=nativeReplay;session?.cancel.abort();if(nativePlay)await nativePlay.stop();if(session?.plain&&previewProcess&&previewProcess.exitCode===null)previewProcess.kill();if(session)session.phase='ended';return {cancelled:!!session};}
 export async function closeNativePlay(){if(nativePlay){const previous=nativePlay;nativePlay=null;await previous.stop();}}
 
-function sourceStamp() {
-  let latest=Math.max(fs.statSync(makerFile).mtimeMs,fs.statSync(projectFile).mtimeMs);
-  const visit=dir=>{
-    if (!fs.existsSync(dir)) return;
-    for (const item of fs.readdirSync(dir,{withFileTypes:true})) {
-      const file=path.join(dir,item.name);
-      if (item.isDirectory()) visit(file);
-      else if (item.isFile()) latest=Math.max(latest,fs.statSync(file).mtimeMs);
-    }
-  };
-  for (const folder of ['backgrounds','datafiles','fonts','objects','paths','rooms','scripts','settings','sounds','sprites','timelines','triggers','Data']) visit(path.join(project,folder));
-  return latest;
-}
+const buildManifest=exportedExe+'.build.json';
+function sourceStamp(){return buildFingerprint(project,gameMaker,projectFile);}
 
-export function exportStatus() {
+// Autosave may request existence only. Never report unverified output as fresh.
+export function exportStatus(verify=true) {
   const exists=fs.existsSync(exportedExe);
   const modified=exists?fs.statSync(exportedExe).mtimeMs:0;
-  return {expectedExe:exportedExe,exists,fresh:exists&&modified>=sourceStamp(),modified,building:buildTask!==null};
+  return {expectedExe:exportedExe,exists,fresh:exists&&verify&&buildIsFresh(exportedExe,buildManifest,sourceStamp()),modified,verified:verify,building:buildTask!==null};
 }
 
 export async function ensureBuild(force=false) {
   if (buildTask) return buildTask;
-  if (!force && exportStatus().fresh) return {cached:true,...exportStatus()};
+  if (!force) {const status=exportStatus();if(status.fresh)return {cached:true,...status};}
   buildTask=(async()=>{
     readState();
     const stamp=sourceStamp();
@@ -64,6 +56,7 @@ export async function ensureBuild(force=false) {
     if (signature.toString()!=='MZ') throw new Error('GameMaker 输出不是 Windows 可执行文件');
     if (sourceStamp()!==stamp) throw new Error('编译期间工程已修改，请再次试玩或导出');
     fs.mkdirSync(path.dirname(exportedExe),{recursive:true});fs.copyFileSync(output,exportedExe);
+    recordBuild(exportedExe,buildManifest,stamp);
     fs.unlinkSync(output);
     fs.appendFileSync(log,`\n完成：${exportedExe} (${fs.statSync(exportedExe).size} bytes)\n`);
     return {cached:false,log,...exportStatus()};
@@ -82,18 +75,21 @@ export async function openNative() {
 export function packageGame(preview,frame=0,godMode=false) {
   if (!exportStatus().fresh) throw new Error('工程已修改，请重新编译游戏');
   const dir=path.join(buildDir,preview?'preview':'release');
-  fs.mkdirSync(dir,{recursive:true});
   const exe=path.join(dir,'rufmaker-game.exe');
-  fs.copyFileSync(exportedExe,exe);
-  if(fs.existsSync(path.join(project,'Data')))fs.cpSync(path.join(project,'Data'),path.join(dir,'Data'),{recursive:true,force:true});else fs.mkdirSync(path.join(dir,'Data'),{recursive:true});
-  if(readState().nativeProject?.imported)copyNativeExtras(project,dir);else for(const item of fs.readdirSync(project,{withFileTypes:true}).filter(e=>e.isFile()&&/\.(dll|ini|dat|cfg)$/i.test(e.name)))fs.copyFileSync(path.join(project,item.name),path.join(dir,item.name));
-  const ini=path.join(dir,'Data','rufmaker_preview.ini');
-  const status=path.join(dir,'Data','rufmaker_preview_status.ini');
-  if (fs.existsSync(status)) fs.unlinkSync(status);
-  for(const name of ['rufmaker_plain_checkpoint.sav','rufmaker_plain_restore','rufmaker_plain_restore_count.ini']){const file=path.join(dir,'Data',name);if(fs.existsSync(file))fs.unlinkSync(file);}
-  if (preview) fs.writeFileSync(ini,`[preview]\r\nframe=${Math.max(0,Math.min(readState().duration,Math.floor(frame)))}\r\ngod=${godMode?1:0}\r\n`);
-  else if (fs.existsSync(ini)) fs.unlinkSync(ini);
-  return {exe,dir,bytes:fs.statSync(exe).size};
+  const transient=['rufmaker_preview.ini','rufmaker_preview_status.ini','rufmaker_plain_checkpoint.sav','rufmaker_plain_restore','rufmaker_plain_restore_count.ini'];
+  const {previousDir}=replacePackage(dir,stage=>{
+    fs.copyFileSync(exportedExe,path.join(stage,'rufmaker-game.exe'));
+    if(fs.existsSync(path.join(project,'Data')))fs.cpSync(path.join(project,'Data'),path.join(stage,'Data'),{recursive:true,force:true});else fs.mkdirSync(path.join(stage,'Data'),{recursive:true});
+    if(readState().nativeProject?.imported)copyNativeExtras(project,stage);else for(const item of fs.readdirSync(project,{withFileTypes:true}).filter(e=>e.isFile()&&/\.(dll|ini|dat|cfg)$/i.test(e.name)))fs.copyFileSync(path.join(project,item.name),path.join(stage,item.name));
+    const ini=path.join(stage,'Data','rufmaker_preview.ini');
+    const status=path.join(stage,'Data','rufmaker_preview_status.ini');
+    if (fs.existsSync(status)) fs.unlinkSync(status);
+    for(const name of ['rufmaker_plain_checkpoint.sav','rufmaker_plain_restore','rufmaker_plain_restore_count.ini']){const file=path.join(stage,'Data',name);if(fs.existsSync(file))fs.unlinkSync(file);}
+    if (preview) fs.writeFileSync(ini,`[preview]\r\nframe=${Math.max(0,Math.min(readState().duration,Math.floor(frame)))}\r\ngod=${godMode?1:0}\r\n`);
+    else if (fs.existsSync(ini)) fs.unlinkSync(ini);
+    if (!exportStatus().fresh) throw new Error('打包期间工程已修改，请重新编译游戏');
+  },fs,{skipUnmanaged:transient.map(name=>'Data/'+name)});
+  return {exe,dir,bytes:fs.statSync(exe).size,previousDir};
 }
 
 async function stopPreviousPreview() {
