@@ -4,6 +4,7 @@ import {readGmAsset,gmAssetNames} from './gm-resources.mjs';
 import {codeOnly} from './native-import.mjs';
 import {evaluateExpression} from './random-parameters.mjs';
 import {normalizeState} from './motion.mjs';
+import {hasPhysics} from './object-dynamics.mjs';
 
 const properties={x:'x',y:'y',speed:'speed',direction:'angle',gravity:'bulletGravity',gravity_direction:'bulletGravityDirection',friction:'bulletFriction',image_speed:'imageSpeed',image_index:'imageIndex',image_angle:'spriteAngle',image_alpha:'alpha',depth:'depth'};
 const colors={c_white:'#FFFFFF',c_black:'#000000',c_red:'#FF0000',c_lime:'#00FF00',c_blue:'#0000FF',c_yellow:'#FFFF00',c_aqua:'#00FFFF',c_fuchsia:'#FF00FF',c_gray:'#808080',c_silver:'#C0C0C0'};
@@ -78,7 +79,7 @@ export function convertGmObject(project,{name,start=0,end=1499,x=400,y=304,seed=
         if(v&&v.appliesTo!=='self')throw Error('动作作用于其他对象');
         if(v?.kind==='variable')assign(v.name,v.value,v.relative);
         else if(v?.kind==='motion'){assign('direction',v.direction,v.relative);assign('speed',v.speed,v.relative);}
-        else if(v?.kind==='sprite'){assign('sprite_index',v.target);assign('image_index',v.subimage);assign('image_speed',v.animationSpeed);}
+        else if(v?.kind==='sprite'){assign('sprite_index',v.target);if(String(v.subimage??'').trim()!=='-1')assign('image_index',v.subimage);assign('image_speed',v.animationSpeed);}
         else if(action.editable){
           const source=readGmAsset(project,{kind:'objects',name,section:event.id,action:action.index}).content;
           const code=codeOnly(source).trim();
@@ -98,7 +99,7 @@ export function convertGmObject(project,{name,start=0,end=1499,x=400,y=304,seed=
   if(issues.length)return {supported:false,name,issues:[...new Set(issues)],recognized:[...new Set(recognized)]};
   const track={id:'converted',name,kind:'emitter',enabled:true,start,end,lane:0,x,y,sprite,color,easing:'linear',keyframes:[],count:1,spread:0,interval:end-start+1,life:end-start+1,lifetimeMode:'room',advancedBullets:true,emissionFacing:'fixed',...values,expressions};
   normalizeState({version:2,fps:50,duration:end,randomSeed:seed,tracks:[track]});
-  if(track.bulletAcceleration||track.bulletFriction||track.bulletGravity)track.objectProperties=(track.objectProperties||0)|(1<<5);
+  if(hasPhysics(track))track.objectProperties=(track.objectProperties||0)|(1<<5);
   track.objectProperties=(track.objectProperties||0)|(1<<6);
   return {supported:true,name,issues:[],recognized:[...new Set(recognized)],track};
 }

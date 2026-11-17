@@ -4,6 +4,7 @@ import path from 'node:path';
 import test from 'node:test';
 import {convertGmObject} from './gm-convert.mjs';
 import {editGmAsset} from './gm-resources.mjs';
+import {normalizeState} from './motion.mjs';
 
 const marker=`/*"/*'/**//* YYD ACTION\nlib_id=1\naction_id=603\napplies_to=self\n*/\n`;
 function fixture(code){
@@ -40,4 +41,15 @@ test('accepts semicolon-free initialization and does not replace an empty native
   assert.equal(convertGmObject(dir,{name:'objSimple'}).supported,true);
   fs.appendFileSync(path.join(dir,'objects/objSimple.gml'),'\n#define Draw_0\n\n');
   const result=convertGmObject(dir,{name:'objSimple'});assert.equal(result.supported,false);assert.ok(result.issues.some(s=>s.includes('Draw_0')));
+});
+test('keeps image_index on action 541 subimage -1 and marks physics bit for random physics expressions',()=>{
+  const dir=fixture('image_index=3;gravity=random(0);');
+  const spriteAction=`/*"/*'/**//* YYD ACTION\nlib_id=1\naction_id=541\napplies_to=self\narg0=sprCherry\narg1=-1\narg2=0.25\n*/\n`;
+  fs.writeFileSync(path.join(dir,'objects/objSimple.gml'),'#define Create_0\n'+marker+'image_index=3;gravity=random(0);\n'+spriteAction);
+  const result=convertGmObject(dir,{name:'objSimple'});
+  assert.equal(result.supported,true);assert.equal(result.track.imageIndex,3);assert.equal(result.track.imageSpeed,0.25);
+  assert.equal(result.track.bulletGravity,0);assert.equal(result.track.expressions.bulletGravity,'random(0)');
+  assert.equal(result.track.objectProperties,(1<<5)|(1<<6));
+  const normalized=normalizeState({version:2,fps:50,duration:100,tracks:[result.track]});
+  assert.equal(normalized.tracks[0].objectProperties,(1<<5)|(1<<6));
 });

@@ -12,6 +12,8 @@ add({id:'template',kind:'rod',templateOnly:true,shape:'ring',x:400,y:304,count:5
 add({id:'host',kind:'object',start:3,end:3,x:100,y:100,spawnActions:[{type:'spawn',templateId:'template',start:0,duration:0,maxGeneration:1}]});
 add({id:'reset',kind:'control',lane:7,start:12,end:12,eventPreset:'group-set',eventGroup:'gravity',eventRestoreBirth:false,controlValue:2,controlFrom:0,eventResetLife:true,eventLife:40});
 add({id:'clip',kind:'pattern',start:20,end:45,repeatCount:1,timeScale:2,children:[{id:'child',name:'child',kind:'emitter',start:0,end:20,x:500,y:100,sprite:'sprCherry',count:1,interval:10,life:70,speed:2,bulletGravity:.1,imageSpeed:.2,keyframes:[{frame:0,property:'bulletFriction',value:.01},{frame:20,property:'bulletFriction',value:.03}]}]});
+add({id:'animChild',lane:8,templateOnly:true,start:0,end:0,x:0,y:0,count:1,speed:0,life:30});
+add({id:'animSpawn',lane:9,start:0,end:0,x:260,y:180,imageIndex:1.9,imageSpeed:.5,life:30,bulletActions:[{type:'spawn',templateId:'animChild',start:0,duration:0,maxGeneration:1,inheritAppearance:true},{type:'spawn',templateId:'animChild',start:3,duration:0,maxGeneration:1,inheritAppearance:true}]});
 const scene=normalizeState({version:2,name:'Object physics and animation',room:'rAvoidance',duration:100,fps:50,randomSeed:781,nativeTest:{x:400,y:500},tracks,timelineGroups:[{id:'gravity',name:'Gravity',color:'#557755',lanes:[0,7]}]});
 // The shared GM probe uses source indices, so give it the final expanded order.
 fs.mkdirSync(base,{recursive:true});fs.writeFileSync(path.join(base,'scene.json'),JSON.stringify(normalizeState(expandPatterns(scene))));

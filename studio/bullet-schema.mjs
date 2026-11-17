@@ -34,8 +34,8 @@ export function normalizeBulletState(s,depth=0){
     if(!Number.isInteger(t.indexDelay)||t.indexDelay<0||t.indexDelay>1000000||!Number.isInteger(t.repeatCount)||t.repeatCount<1||t.repeatCount>100||!Number.isFinite(t.timeScale)||t.timeScale<.1||t.timeScale>10||!Number.isInteger(t.repeatGap)||t.repeatGap<0)throw new Error('阵列延迟或片段循环设置无效');
     for(const key of ['clockStart','clockEnd'])if(t[key]!=null&&(!Number.isSafeInteger(t[key])||Math.abs(t[key])>2000000))throw new Error('裁剪时间原点无效');
     if(t.keyframeCycle!=null){const cycle=t.keyframeCycle;if(!Number.isInteger(cycle.length)||cycle.length<1||cycle.length>2000000||!Array.isArray(cycle.keys)||cycle.keys.length>2010000||cycle.keys.some(k=>!Number.isInteger(k.frame)||k.frame<0||k.frame>cycle.length||!Number.isFinite(k.value)))throw new Error('重复关键帧样式无效');}
-    t.objectProperties=Number.isInteger(t.objectProperties)?t.objectProperties&31:0;
-    t.hiddenObjectProperties=Number.isInteger(t.hiddenObjectProperties)?t.hiddenObjectProperties&31:0;
+    t.objectProperties=Number.isInteger(t.objectProperties)?t.objectProperties&127:0;
+    t.hiddenObjectProperties=Number.isInteger(t.hiddenObjectProperties)?t.hiddenObjectProperties&127:0;
     t.bounceBricks=t.bounceBricks===true;
     if(!boundaryMode(t))t.boundaryMode='none';
     if(t.kind==='pattern')normalizeBulletState({tracks:t.children},depth+1);
