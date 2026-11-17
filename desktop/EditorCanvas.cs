@@ -7,16 +7,38 @@ using System.Windows.Forms;
 
 internal static class Theme
 {
-    public static readonly Color Back=Color.FromArgb(19,23,31),Panel=Color.FromArgb(26,31,42),Raised=Color.FromArgb(35,42,56),Line=Color.FromArgb(48,57,75),Text=Color.FromArgb(225,231,241),Muted=Color.FromArgb(141,155,179),Accent=Color.FromArgb(242,113,153);
-    public static readonly Font Font=new Font("Microsoft YaHei UI",9f),Small=new Font("Microsoft YaHei UI",8f),Bold=new Font("Microsoft YaHei UI",9f,FontStyle.Bold);
-    public static Color TrackColor(string kind){return kind=="variable"?Color.FromArgb(95,190,177):kind=="native"||kind=="native-instance"?Color.FromArgb(97,165,130):kind=="camera"?Color.FromArgb(245,203,104):kind=="rod"?Color.FromArgb(175,130,230):kind=="emitter"?Color.FromArgb(218,96,140):kind=="effect"?Color.FromArgb(206,165,83):kind=="script"?Color.FromArgb(75,170,146):Color.FromArgb(83,144,210);}
+    public static readonly Color Back=Color.FromArgb(13,16,23),Void=Color.FromArgb(11,14,21),Panel=Color.FromArgb(21,25,36),Raised=Color.FromArgb(28,34,49),CardHover=Color.FromArgb(35,43,61),Input=Color.FromArgb(17,21,32),Line=Color.FromArgb(42,52,73),LineBright=Color.FromArgb(58,71,99),Text=Color.FromArgb(232,238,247),Muted=Color.FromArgb(149,163,189),Accent=Color.FromArgb(242,113,153),AccentSoft=Color.FromArgb(62,34,52),BadgeGreen=Color.FromArgb(74,222,128),BadgeGreenFill=Color.FromArgb(24,58,44),BadgeGold=Color.FromArgb(245,198,99),BadgeGoldFill=Color.FromArgb(62,48,22),BadgeCyan=Color.FromArgb(95,190,177);
+    public static readonly Font Font=new Font("Microsoft YaHei UI",9f),Small=new Font("Microsoft YaHei UI",8f),Bold=new Font("Microsoft YaHei UI",9f,FontStyle.Bold),SmallBold=new Font("Microsoft YaHei UI",8f,FontStyle.Bold);
+    public static Color TrackColor(string kind){return kind=="variable"?Color.FromArgb(95,190,177):kind=="native"||kind=="native-instance"?Color.FromArgb(86,192,138):kind=="camera"?Color.FromArgb(245,198,99):kind=="rod"?Color.FromArgb(168,125,238):kind=="emitter"?Color.FromArgb(234,98,145):kind=="effect"?Color.FromArgb(214,166,78):kind=="script"?Color.FromArgb(75,176,152):Color.FromArgb(92,154,230);}
+    public static System.Drawing.Drawing2D.GraphicsPath RoundedPath(Rectangle bounds,int radius)
+    {
+        var path=new System.Drawing.Drawing2D.GraphicsPath();int d=Math.Max(2,Math.Min(radius*2,Math.Min(bounds.Width,bounds.Height)));
+        if(bounds.Width<2||bounds.Height<2){path.AddRectangle(bounds);return path;}
+        path.AddArc(bounds.X,bounds.Y,d,d,180,90);path.AddArc(bounds.Right-d,bounds.Y,d,d,270,90);
+        path.AddArc(bounds.Right-d,bounds.Bottom-d,d,d,0,90);path.AddArc(bounds.X,bounds.Bottom-d,d,d,90,90);path.CloseFigure();return path;
+    }
+    public static void FillRoundRect(Graphics g,Rectangle bounds,int radius,Color fill)
+    {
+        if(bounds.Width<=0||bounds.Height<=0)return;
+        var prev=g.SmoothingMode;g.SmoothingMode=System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+        using(var path=RoundedPath(bounds,radius))using(var brush=new SolidBrush(fill))g.FillPath(brush,path);
+        g.SmoothingMode=prev;
+    }
+    public static void DrawRoundRect(Graphics g,Rectangle bounds,int radius,Color stroke,float width=1f)
+    {
+        if(bounds.Width<=1||bounds.Height<=1)return;
+        var rect=new Rectangle(bounds.X,bounds.Y,bounds.Width-1,bounds.Height-1);
+        var prev=g.SmoothingMode;g.SmoothingMode=System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+        using(var path=RoundedPath(rect,radius))using(var pen=new Pen(stroke,width))g.DrawPath(pen,path);
+        g.SmoothingMode=prev;
+    }
     public static string KindName(string kind){return kind=="native-instance"?"原生对象":kind=="variable"?"全局变量":kind=="group"?"分组":kind=="control"?"弹幕控制":kind=="pattern"?"弹幕片段":kind=="camera"?"拉镜":kind=="rod"?"整体对象":kind=="emitter"?"弹幕":kind=="object"?"对象":kind=="effect"?"特效":"GML";}
     public static bool Visual(string kind){return kind=="rod"||kind=="emitter"||kind=="object";}
     public static bool Spatial(string kind){return kind=="group"||kind=="camera"||kind=="rod"||kind=="emitter"||kind=="object"||kind=="native-instance";}
     public static void Workspace(Graphics g,Rectangle bounds)
     {
         using(var tile=new Bitmap(24,24)){
-            using(var t=Graphics.FromImage(tile)){t.Clear(Color.FromArgb(53,55,60));using(var b=new SolidBrush(Color.FromArgb(65,67,72))){t.FillRectangle(b,0,0,12,12);t.FillRectangle(b,12,12,12,12);}}
+            using(var t=Graphics.FromImage(tile)){t.Clear(Color.FromArgb(18,22,33));using(var b=new SolidBrush(Color.FromArgb(23,28,42))){t.FillRectangle(b,0,0,12,12);t.FillRectangle(b,12,12,12,12);}}
             using(var brush=new TextureBrush(tile))g.FillRectangle(brush,bounds);
         }
     }
@@ -167,9 +189,16 @@ internal sealed partial class StageCanvas : Control
         PaintCurve(g);g.Restore(saved);PaintRoomCaption(g,Room.name+" · "+Frame+" F");
     }
     private void PaintRoomCaption(Graphics g,string caption)
-    {using(var pen=new Pen(Theme.Line))g.DrawRectangle(pen,view.X,view.Y,view.Width,view.Height);
-        using(var brush=new SolidBrush(Color.FromArgb(215,Theme.Panel)))g.FillRectangle(brush,8,Height-31,Math.Max(0,Math.Min(Width-16,420)),24);
-        Theme.Label(g,caption+" · "+(view.Width/Room.width*100).ToString("0")+Language.Text("% · Ctrl+滚轮 / 中键平移"),new Rectangle(14,Height-31,Math.Max(1,Width-28),24),Theme.Text,Theme.Small,localize:false);}
+    {
+        using(var glow=new Pen(Color.FromArgb(48,Theme.Accent),4f))g.DrawRectangle(glow,view.X-1,view.Y-1,view.Width+2,view.Height+2);
+        using(var pen=new Pen(Color.FromArgb(190,Theme.Accent),1.5f))g.DrawRectangle(pen,view.X,view.Y,view.Width,view.Height);
+        string text=(SelectedTrack!=null?"☆ "+SelectedTrack.name+" · ":"")+caption+" · "+(view.Width/Room.width*100).ToString("0")+Language.Text("% · Ctrl+滚轮 / 中键平移");
+        int pillWidth=Math.Max(0,Math.Min(Width-24,TextRenderer.MeasureText(text,Theme.Small).Width+24));
+        var pill=new Rectangle(12,Height-34,pillWidth,24);
+        Theme.FillRoundRect(g,pill,12,Color.FromArgb(230,Theme.Void));
+        Theme.DrawRoundRect(g,pill,12,Theme.LineBright,1f);
+        Theme.Label(g,text,new Rectangle(pill.X+10,pill.Y,Math.Max(1,pill.Width-18),pill.Height),Theme.Text,Theme.Small,localize:false);
+    }
     private static bool Near(PointF a,PointF b,double radius){return Math.Abs(a.X-b.X)<radius&&Math.Abs(a.Y-b.Y)<radius;}
     private void PaintPlayerTrace(Graphics g)
     {

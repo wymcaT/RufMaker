@@ -10,8 +10,8 @@ using System.Windows.Forms;
 internal sealed class ParameterInspector : UserControl
 {
     private readonly InspectorScrollPanel scroll=new InspectorScrollPanel{Dock=DockStyle.Fill,AutoScroll=true};
-    private readonly TableLayoutPanel rows=new TableLayoutPanel{Dock=DockStyle.Top,AutoSize=true,ColumnCount=2,Padding=new Padding(8,0,8,8)};
-    private readonly Label help=new Label{Dock=DockStyle.Bottom,Height=52,ForeColor=Theme.Muted,BackColor=Theme.Back,Padding=new Padding(8),Text="数字：按住上下拖动；单击输入。Shift 加速，Ctrl 微调。"};
+    private readonly TableLayoutPanel rows=new TableLayoutPanel{Dock=DockStyle.Top,AutoSize=true,ColumnCount=2,Padding=new Padding(10,4,10,12),BackColor=Theme.Panel};
+    private readonly Label help=new Label{Dock=DockStyle.Bottom,Height=34,Font=Theme.Small,ForeColor=Theme.Muted,BackColor=Theme.Void,Padding=new Padding(8,3,8,3),Text="数字：按住上下拖动；单击输入。Shift 加速，Ctrl 微调。"};
     private readonly ToolTip tips=new ToolTip();
     private readonly List<Action> refreshers=new List<Action>();
     private readonly Dictionary<TextBox,Action> textReverters=new Dictionary<TextBox,Action>();
@@ -84,9 +84,9 @@ internal sealed class ParameterInspector : UserControl
             number.Enter+=(s,e)=>Select(p);number.MouseDown+=(s,e)=>Select(p);number.BeginScrub=()=>{scrubbing=true;if(BeginScrub!=null)BeginScrub();};number.EndScrub=()=>{scrubbing=false;if(EndScrub!=null)EndScrub();Refresh();};editor=number;binding.updates.Add(number.RefreshValue);
             if(actions!=null){
                 var wrap=new TableLayoutPanel{Dock=DockStyle.Fill,ColumnCount=4,RowCount=1,Margin=Padding.Empty};wrap.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute,Compact?30:Math.Max(58,TextRenderer.MeasureText(Language.Text("表达式"),Font).Width+14)));wrap.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,100));wrap.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute,actions.ToggleKey==null?0:34));
-                var random=new CheckBox{Text=Compact?"ƒ":"表达式",Name="random:"+p.Name,AccessibleName=Language.Text(p.Name)+"："+Language.Text("表达式开关"),TabIndex=0,Enabled=!p.IsReadOnly,Appearance=Appearance.Button,Dock=DockStyle.Fill,TextAlign=ContentAlignment.MiddleCenter,FlatStyle=FlatStyle.Flat,BackColor=Theme.Raised,ForeColor=Theme.Text,Margin=new Padding(0,3,4,3)};random.Checked=actions.Random();random.ForeColor=random.Checked?Theme.Accent:Theme.Muted;random.Click+=(s,e)=>{Select(p);CommitPending();actions.ToggleRandom();Refresh();};wrap.Controls.Add(random,0,0);number.TabIndex=1;wrap.Controls.Add(number,1,0);Language.ToolTip(tips,random,"表达式开关");binding.updates.Add(()=>{random.Checked=actions.Random();random.ForeColor=random.Checked?Theme.Accent:Theme.Muted;});
-                wrap.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute,36));var fx=new Button{Text="ƒx",Name="expression:"+p.Name,AccessibleName=Language.Text(p.Name)+"："+Language.Text("编辑表达式"),TabIndex=3,Enabled=!p.IsReadOnly&&actions.EditExpression!=null,Dock=DockStyle.Fill,FlatStyle=FlatStyle.Flat,BackColor=Theme.Raised,ForeColor=Theme.Accent,Margin=new Padding(3,3,0,3)};fx.Click+=(s,e)=>{Select(p);CommitPending();if(actions.EditExpression!=null)actions.EditExpression();};wrap.Controls.Add(fx,3,0);Language.ToolTip(tips,fx,"编辑表达式");
-                if(actions.ToggleKey!=null){var key=new CheckBox{Text="◇",Name="key:"+p.Name,TabIndex=2,Enabled=!p.IsReadOnly,Appearance=Appearance.Button,Dock=DockStyle.Fill,TextAlign=ContentAlignment.MiddleCenter,FlatStyle=FlatStyle.Flat,BackColor=Theme.Raised,ForeColor=Theme.Muted,Margin=new Padding(4,3,0,3)};UpdateKeyState(key,p,actions);key.Click+=(s,e)=>{Select(p);CommitPending();actions.ToggleKey();Refresh();};wrap.Controls.Add(key,2,0);binding.updates.Add(()=>{UpdateKeyState(key,p,actions);});}
+                var random=new CheckBox{Text=Compact?"ƒ":"表达式",Name="random:"+p.Name,AccessibleName=Language.Text(p.Name)+"："+Language.Text("表达式开关"),TabIndex=0,Enabled=!p.IsReadOnly,Appearance=Appearance.Button,Dock=DockStyle.Fill,TextAlign=ContentAlignment.MiddleCenter,FlatStyle=FlatStyle.Flat,BackColor=Theme.Input,ForeColor=Theme.Text,Margin=new Padding(0,3,4,3)};random.FlatAppearance.BorderColor=Theme.LineBright;random.FlatAppearance.BorderSize=1;random.Checked=actions.Random();random.ForeColor=random.Checked?Theme.Accent:Theme.Muted;random.BackColor=random.Checked?Theme.AccentSoft:Theme.Input;random.Click+=(s,e)=>{Select(p);CommitPending();actions.ToggleRandom();Refresh();};wrap.Controls.Add(random,0,0);number.TabIndex=1;wrap.Controls.Add(number,1,0);Language.ToolTip(tips,random,"表达式开关");binding.updates.Add(()=>{random.Checked=actions.Random();random.ForeColor=random.Checked?Theme.Accent:Theme.Muted;random.BackColor=random.Checked?Theme.AccentSoft:Theme.Input;random.FlatAppearance.BorderColor=random.Checked?Theme.Accent:Theme.LineBright;});
+                wrap.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute,36));var fx=new Button{Text="ƒx",Name="expression:"+p.Name,AccessibleName=Language.Text(p.Name)+"："+Language.Text("编辑表达式"),TabIndex=3,Enabled=!p.IsReadOnly&&actions.EditExpression!=null,Dock=DockStyle.Fill,FlatStyle=FlatStyle.Flat,BackColor=Theme.Input,ForeColor=Theme.Accent,Margin=new Padding(3,3,0,3)};fx.FlatAppearance.BorderColor=Theme.LineBright;fx.FlatAppearance.BorderSize=1;fx.Click+=(s,e)=>{Select(p);CommitPending();if(actions.EditExpression!=null)actions.EditExpression();};wrap.Controls.Add(fx,3,0);Language.ToolTip(tips,fx,"编辑表达式");
+                if(actions.ToggleKey!=null){var key=new CheckBox{Text="◇",Name="key:"+p.Name,TabIndex=2,Enabled=!p.IsReadOnly,Appearance=Appearance.Button,Dock=DockStyle.Fill,TextAlign=ContentAlignment.MiddleCenter,FlatStyle=FlatStyle.Flat,BackColor=Theme.Input,ForeColor=Theme.Muted,Margin=new Padding(4,3,0,3)};key.FlatAppearance.BorderSize=1;UpdateKeyState(key,p,actions);key.BackColor=key.Checked?Theme.AccentSoft:Theme.Input;key.FlatAppearance.BorderColor=key.Checked?Theme.Accent:Theme.LineBright;key.Click+=(s,e)=>{Select(p);CommitPending();actions.ToggleKey();Refresh();};wrap.Controls.Add(key,2,0);binding.updates.Add(()=>{UpdateKeyState(key,p,actions);key.BackColor=key.Checked?Theme.AccentSoft:Theme.Input;key.FlatAppearance.BorderColor=key.Checked?Theme.Accent:Theme.LineBright;});}
                 editor=wrap;
             }
         }
@@ -101,7 +101,7 @@ internal sealed class ParameterInspector : UserControl
         }
         else
         {
-            var text=new TextBox{Dock=DockStyle.Fill,ReadOnly=p.IsReadOnly,TabStop=!p.IsReadOnly,BorderStyle=BorderStyle.FixedSingle,BackColor=Theme.Raised,ForeColor=p.IsReadOnly?Theme.Muted:Theme.Text,Margin=new Padding(0,4,1,3),Text=Convert.ToString(get())};if(p.IsReadOnly&&new[]{"说明","提示","操作","操作提示","编辑方式","原生设置","导入方式","底片状态","兼容提示与建议","路径说明","排列方式","生成方式"}.Contains(p.Name))Language.WatchText(text);
+            var text=new TextBox{Dock=DockStyle.Fill,ReadOnly=p.IsReadOnly,TabStop=!p.IsReadOnly,BorderStyle=BorderStyle.FixedSingle,BackColor=p.IsReadOnly?Theme.Panel:Theme.Input,ForeColor=p.IsReadOnly?Theme.Muted:Theme.Text,Margin=new Padding(0,4,1,3),Text=Convert.ToString(get())};if(p.IsReadOnly&&new[]{"说明","提示","操作","操作提示","编辑方式","原生设置","导入方式","底片状态","兼容提示与建议","路径说明","排列方式","生成方式"}.Contains(p.Name))Language.WatchText(text);
             binding.reverts[text]=()=>{text.Text=Convert.ToString(get());text.Modified=false;};
             text.Enter+=(s,e)=>Select(p);text.Validated+=(s,e)=>{if(!text.Modified)return;string value=text.Text;text.Modified=false;if(value!=Convert.ToString(get()))set(value);};text.KeyDown+=(s,e)=>{if(e.KeyCode==Keys.Enter){if(text.Modified){string value=text.Text;text.Modified=false;if(value!=Convert.ToString(get()))set(value);}ActiveControl=null;e.Handled=true;e.SuppressKeyPress=true;}else if(e.KeyCode==Keys.Escape){text.Text=Convert.ToString(get());text.Modified=false;ActiveControl=null;e.Handled=true;e.SuppressKeyPress=true;}};editor=text;binding.updates.Add(()=>{if(!text.ContainsFocus){text.Text=Convert.ToString(get());text.Modified=false;}});
         }
@@ -127,7 +127,7 @@ internal sealed class ParameterInspector : UserControl
     private void ToggleSection(string category)
     {
         Point position=scroll.AutoScrollPosition;scroll.PreservePosition=true;
-        try{CommitPending();RememberSection(category,!collapsed.Contains(category));UpdateRows();scroll.AutoScrollPosition=new Point(-position.X,-position.Y);}
+        try{CommitPending();RememberSection(category,!collapsed.Contains(category));UpdateRows();Button toggled;if(headings.TryGetValue(category,out toggled))toggled.Invalidate();scroll.AutoScrollPosition=new Point(-position.X,-position.Y);}
         finally{scroll.PreservePosition=false;}
     }
     private void UpdateRows()
@@ -142,7 +142,7 @@ internal sealed class ParameterInspector : UserControl
             foreach(var group in descriptors.GroupBy(p=>p.Category).OrderBy(group=>!Compact?0:group.Key=="变换"||group.Key=="位置"?0:group.Key=="物件"?1:group.Key=="整体对象"||group.Key=="形状"?2:group.Key=="外观"?3:4))
             {
                 string category=group.Key;if(!knownSections.Contains(category))RememberSection(category,DefaultFolded(category));
-                Button heading;if(!headings.TryGetValue(category,out heading)){heading=new Button{Text=category,Height=30,Dock=DockStyle.Fill,TextAlign=ContentAlignment.MiddleLeft,ForeColor=Theme.Text,BackColor=Theme.Raised,FlatStyle=FlatStyle.Flat,Font=Theme.Bold,Margin=new Padding(0,6,0,1),AutoEllipsis=true};heading.FlatAppearance.BorderSize=0;heading.Click+=(sender,args)=>ToggleSection(category);headings[category]=heading;}
+                Button heading;if(!headings.TryGetValue(category,out heading)){heading=new Button{Text=category,Height=30,Dock=DockStyle.Fill,TextAlign=ContentAlignment.MiddleLeft,ForeColor=Theme.Text,BackColor=Theme.Raised,FlatStyle=FlatStyle.Flat,Font=Theme.Bold,Margin=new Padding(0,6,0,2),AutoEllipsis=true,Cursor=Cursors.Hand};heading.FlatAppearance.BorderSize=0;heading.Paint+=(sender,pe)=>{var b=(Button)sender;pe.Graphics.Clear(Theme.Panel);var card=new Rectangle(0,1,Math.Max(2,b.Width-1),Math.Max(2,b.Height-3));bool open=!collapsed.Contains(category);Theme.FillRoundRect(pe.Graphics,card,6,Theme.Raised);Theme.DrawRoundRect(pe.Graphics,card,6,b.Focused?Theme.Accent:Theme.Line,1f);if(open)Theme.FillRoundRect(pe.Graphics,new Rectangle(3,6,3,Math.Max(4,b.Height-12)),2,Theme.Accent);Theme.Label(pe.Graphics,b.Text,new Rectangle(12,0,Math.Max(1,b.Width-18),b.Height),open?Theme.Text:Theme.Muted,Theme.Bold,TextFormatFlags.Left|TextFormatFlags.VerticalCenter|TextFormatFlags.EndEllipsis,false);};heading.Click+=(sender,args)=>ToggleSection(category);headings[category]=heading;}
                 bool folded=collapsed.Contains(category);string summary="";if(folded){var first=group.FirstOrDefault(p=>p.Name=="贴图"||p.Name=="种类"||p.Name=="拖影样式"||p.Name=="运动模式");if(first!=null)summary=" · "+Language.Text(Convert.ToString(first.GetValue(selectedObject)));}heading.AccessibleName=Language.Text(category);heading.AccessibleDescription=Language.Text(folded?"展开属性分组":"折叠属性分组");heading.Text=(folded?"▸ ":"▾ ")+Language.Text(category)+summary;
                 Place(heading,0,row++,2);styles.Add(new RowStyle(SizeType.Absolute,Font.Height+22));
                 foreach(var property in group)
@@ -188,7 +188,7 @@ internal sealed class ColorParameterButton : Button
 internal sealed class ScrubNumber : Control
 {
     private readonly Func<object> get;private readonly Action<object> set;private readonly Type numberType;private readonly string label;
-    private readonly TextBox input=new TextBox{BorderStyle=BorderStyle.FixedSingle,Dock=DockStyle.Fill,BackColor=Theme.Raised,ForeColor=Theme.Text,Visible=false};
+    private readonly TextBox input=new TextBox{BorderStyle=BorderStyle.FixedSingle,Dock=DockStyle.Fill,BackColor=Theme.Input,ForeColor=Theme.Text,Visible=false};
     private readonly ParameterActions actions;private readonly ToolTip errorTip=new ToolTip();
     private Point start;private double original,step;private bool down,dragging,committing;
     private object displayedValue;private string displayedExpression;private bool displayedRandom,hasDisplay;
@@ -246,7 +246,7 @@ internal sealed class ScrubNumber : Control
     }
     protected override void OnPaint(PaintEventArgs e)
     {
-        base.OnPaint(e);e.Graphics.Clear(dragging?Color.FromArgb(68,48,68):Theme.Raised);
+        base.OnPaint(e);e.Graphics.Clear(Theme.Panel);Theme.FillRoundRect(e.Graphics,ClientRectangle,5,dragging?Theme.AccentSoft:Theme.Input);Theme.DrawRoundRect(e.Graphics,ClientRectangle,5,dragging||Focused?Theme.Accent:Theme.LineBright,Focused?1.5f:1f);
         if(!hasDisplay)RefreshValue();string value=Convert.ToDouble(displayedValue).ToString("0.######",CultureInfo.CurrentCulture);bool random=displayedRandom;
         if(random){Theme.Label(e.Graphics,displayedExpression,new Rectangle(7,0,Math.Max(1,Width-107),Height),Theme.Text,localize:false);Theme.Label(e.Graphics,"= "+value,new Rectangle(Math.Max(7,Width-95),0,90,Height),Theme.Accent,Theme.Small,localize:false);}
         else Theme.Label(e.Graphics,value,new Rectangle(7,0,Math.Max(1,Width-23),Height),ReadOnly?Theme.Muted:Theme.Text,localize:false);

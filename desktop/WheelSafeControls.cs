@@ -23,7 +23,7 @@ internal sealed class WheelSafeComboBox : ComboBox
     protected override void OnFontChanged(EventArgs e){base.OnFontChanged(e);ItemHeight=Math.Max(20,Font.Height+6);}
     protected override void OnDrawItem(DrawItemEventArgs e)
     {
-        bool highlighted=DroppedDown&&(e.State&DrawItemState.Selected)!=0;Color back=highlighted?Theme.Line:BackColor;
+        bool highlighted=DroppedDown&&(e.State&DrawItemState.Selected)!=0;Color back=highlighted?Theme.AccentSoft:Theme.Input;
         using(var brush=new SolidBrush(back))e.Graphics.FillRectangle(brush,e.Bounds);
         string text=e.Index>=0&&e.Index<Items.Count?GetItemText(Items[e.Index]):Text;
         Theme.Label(e.Graphics,text,new Rectangle(e.Bounds.X+4,e.Bounds.Y,Math.Max(0,e.Bounds.Width-8),e.Bounds.Height),Enabled?ForeColor:Theme.Muted,Font,localize:false);
@@ -63,7 +63,7 @@ internal sealed class WheelSafeNumericUpDown : NumericUpDown
         using(var brush=new SolidBrush(Theme.Raised))g.FillRectangle(brush,bounds);int cx=bounds.Width/2,cy=bounds.Height/2;
         using(var brush=new SolidBrush(Enabled?Theme.Text:Theme.Muted)){g.FillPolygon(brush,new[]{new Point(cx-3,cy/2+2),new Point(cx+3,cy/2+2),new Point(cx,cy/2-2)});g.FillPolygon(brush,new[]{new Point(cx-3,cy+cy/2-2),new Point(cx+3,cy+cy/2-2),new Point(cx,cy+cy/2+2)});}
     }
-    protected override void OnPaint(PaintEventArgs e){base.OnPaint(e);using(var pen=new Pen(Focused?Theme.Accent:Theme.Line))e.Graphics.DrawRectangle(pen,0,0,Width-1,Height-1);}
+    protected override void OnPaint(PaintEventArgs e){base.OnPaint(e);using(var pen=new Pen(Focused?Theme.Accent:Theme.LineBright))e.Graphics.DrawRectangle(pen,0,0,Width-1,Height-1);}
     protected override void OnMouseWheel(MouseEventArgs e){SettingsWheel.Scroll(this,e);}
     protected override void WndProc(ref Message m){if(m.Msg==0x020A){SettingsWheel.Scroll(this,new MouseEventArgs(MouseButtons.None,0,0,0,(short)((long)m.WParam>>16)));return;}base.WndProc(ref m);}
 }

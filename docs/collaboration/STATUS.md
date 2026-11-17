@@ -1,6 +1,14 @@
 # 当前协作交接
 
-更新日期：2026-11-13。集成者：Argon4 / Codex。此页记录阶段事实；任务占用以 [Codex](agents/codex.md) 与 [Argon4](agents/argon4.md) 各自的记录为准。
+更新日期：2026-11-18。集成者：Argon4 / Codex。此页记录阶段事实；任务占用以 [Codex](agents/codex.md) 与 [Argon4](agents/argon4.md) 各自的记录为准。
+
+## 2026-11-18 UI 视觉重构、上轮审阅修复合入与推送 `main`（已完成）
+
+按用户授权确认测试版界面并将当前版本推送至 GitHub `main`（不创建或推送发布标签）：
+- 合入上轮审阅修复：`studio/bullet-system.mjs`、`studio/bullet-schema.mjs`、`studio/gm-convert.mjs` 与 `desktop/PresetLibrary.cs` 及对应单测（补齐 `objectProperties` / `hiddenObjectProperties` 位掩码到 `&127`、模板动画时序与 `TrackPreset.Instantiate` 跨帧率缩放）。
+- 合入原生 WinForms/GDI+ 界面视觉重构与新手引导：深色板岩/樱花粉主题、圆角胶囊按钮、右栏常规设置在上/关键帧在下默认布局（保留旧视图迁移兼容）、`ScrubNumber`/折叠卡片分组、一键可折叠“可选属性模块”、`UiGuideDialog` 新手 3 步引导与快捷命令面板（`Ctrl+Shift+K` / `F1`，保留 `Ctrl+K` 全插键）、全轨道语义色条与不透明融合片段绘制，并补齐 `assets/locales/en.json` 双语词条。
+- 根正式入口 `RufMaker.exe` 已通过 `desktop/Build-Native.ps1` 重建更新为 `2.7.0` / `1,638,912` 字节（原 `RufMaker.exe` 备份在 `build/ui-beta-check/RufMaker.before-ui-merge.exe`）；`projects/` 下用户工程与未跟踪个人文件、`RufMaker.old.exe` 均保持未动且未入库。
+- 验证：14 项桌面端 UI/功能回归测试通过（`Test-UiSimplification`、`Test-InspectorDocking`、`Test-KeyframeWorkspace`、`Test-Localization`、`Test-ParameterNavigation`、`Test-ResourceBrowsing`、`Test-ShellLayout`、`Test-ScrollbarTheme`、`Test-CursorSnapping`、`Test-UiSaveSafety`、`Test-TimelineEventMarkers`、`Test-PreviewHiddenAndOrbit`、`Test-ObjectDynamics`、`Test-TemplateSystem`）；Node `studio/*.test.mjs`（除 `timeline-regression.test.mjs`）151/151 通过。实际 GM8.2 实机运行对照仍以各单项记录说明为准，本次未触发 `v*` 发布标签。
 
 ## 2026-11-13 本地跟进 GitHub main（已完成）
 
@@ -88,9 +96,9 @@
 | 项目 | 状态 |
 | --- | --- |
 | 本机仓库 | `D:\rufmaker` |
-| 正式分支 | `main`；2.7.0功能提交 `1c603bf` 与标签 `v2.7.0` 已推送。后续交接文档提交不改变发布标签 |
-| 功能版本 | `2.7.0` 已正式发布；原SHA256更新方式与兼容包保留 |
-| 本机正式入口 | `RufMaker.exe`，2.7.0/1,408,000 bytes，包含本地物件属性预设、反弹与此前完成改动 |
+| 正式分支 | `main`；功能与界面修复已推送远端 `main`；正式发布标签仍为 `v2.7.0`（1c603bf），后续提交不自动改变发布标签 |
+| 功能版本 | `2.7.0`（Release 仍为 v2.7.0）；源码与本地入口已包含审阅修复与新版原生 UI |
+| 本机正式入口 | `RufMaker.exe`，2.7.0/1,638,912 bytes（备份 `build/ui-beta-check/RufMaker.before-ui-merge.exe`） |
 | 历史测试入口 | 忽略文件 `RufMaker.Beta.exe` 可能仍是旧 Beta，不作为正式入口 |
 | 远程 | [v2.7.0](https://github.com/wymcaT/RufMaker/releases/tag/v2.7.0) 为latest，非草稿/非预发布；[Actions41195027387](https://github.com/wymcaT/RufMaker/actions/runs/41195027387)成功；两个ZIP与两个SHA256均uploaded |
 | 验证 | 功能定向与真实GM已通过；本地包、原2.0/当前更新器、完整包首次建工程通过。线上更新器实际下载/校验/解包及公开便携包下载/校验/无GM首次建工程重开均通过；尚无2.7.0用户实操验收 |

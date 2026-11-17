@@ -6,8 +6,8 @@ using System.Windows.Forms;
 
 internal sealed class InspectorDockView
 {
-    public string mode="rows",first="keys",active="general";
-    public double rows=.45,columns=.5,details=.65;
+    public string mode="rows",first="general",active="general";
+    public double rows=.66,columns=.5,details=.65;
 }
 
 // Two native pages keep their controls mounted while changing docking arrangement.
@@ -83,7 +83,7 @@ internal sealed class InspectorDockWorkspace : UserControl
     public InspectorDockView CaptureView(){int total=Extent()-split.SplitterWidth;return new InspectorDockView{mode=view.mode,first=view.first,active=view.active,rows=legacyRowsHeight>0&&view.mode=="rows"&&total>0?split.SplitterDistance/(double)total:view.rows,columns=view.columns,details=view.details};}
     public void Restore(InspectorDockView saved,bool legacyOpen=true,int legacyHeight=0)
     {
-        legacyRowsHeight=saved==null&&legacyOpen?Math.Max(0,legacyHeight):0;view=saved==null?new InspectorDockView{mode=legacyOpen?"rows":"tabs"}:new InspectorDockView{mode=new[]{"rows","columns","tabs"}.Contains(saved.mode)?saved.mode:"rows",first=saved.first=="general"?"general":"keys",active=saved.active=="keys"?"keys":"general",rows=Ratio(saved.rows,.45),columns=Ratio(saved.columns,.5),details=Ratio(saved.details,.65)};Arrange();
+        legacyRowsHeight=saved==null&&legacyOpen?Math.Max(0,legacyHeight):0;view=saved==null?new InspectorDockView{mode=legacyOpen?"rows":"tabs",first=legacyRowsHeight>0?"keys":"general"}:new InspectorDockView{mode=new[]{"rows","columns","tabs"}.Contains(saved.mode)?saved.mode:"rows",first=saved.first=="general"?"general":"keys",active=saved.active=="keys"?"keys":"general",rows=Ratio(saved.rows,.66),columns=Ratio(saved.columns,.5),details=Ratio(saved.details,.65)};Arrange();
     }
     private static double Ratio(double value,double fallback){return Double.IsNaN(value)||Double.IsInfinity(value)?fallback:Math.Max(.05,Math.Min(.95,value));}
     private void Arrange()

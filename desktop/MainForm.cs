@@ -71,8 +71,10 @@ internal sealed partial class MainForm : LocalizedForm
 
     private Button Button(string text,Action click,bool primary=false,int width=90)
     {
-        var button=new Button{Text=text,AutoSize=true,AutoSizeMode=AutoSizeMode.GrowAndShrink,MinimumSize=new Size(Math.Max(width,TextRenderer.MeasureText(text,Theme.Font).Width+22),Math.Max(32,Theme.Font.Height+14)),Margin=new Padding(4,5,4,5),FlatStyle=FlatStyle.Flat,BackColor=primary?Theme.Accent:Theme.Raised,ForeColor=primary?Color.FromArgb(22,25,34):Theme.Text,UseVisualStyleBackColor=false,TabStop=false};
+        var button=new Button{Text=text,AutoSize=true,AutoSizeMode=AutoSizeMode.GrowAndShrink,MinimumSize=new Size(Math.Max(width,TextRenderer.MeasureText(text,Theme.Font).Width+22),Math.Max(32,Theme.Font.Height+14)),Margin=new Padding(4,5,4,5),FlatStyle=FlatStyle.Flat,BackColor=primary?Theme.Accent:Theme.Raised,ForeColor=primary?Color.FromArgb(20,22,30):Theme.Text,UseVisualStyleBackColor=false,TabStop=false,Cursor=Cursors.Hand};
         button.FlatAppearance.BorderSize=0;button.FlatAppearance.MouseOverBackColor=primary?Color.FromArgb(255,148,180):Color.FromArgb(50,61,80);
+        bool hovered=false;button.MouseEnter+=(s,e)=>{hovered=true;button.Invalidate();};button.MouseLeave+=(s,e)=>{hovered=false;button.Invalidate();};
+        button.Paint+=(s,e)=>{var b=(Button)s;var parentBg=b.Parent!=null&&b.Parent.BackColor!=Color.Transparent?b.Parent.BackColor:Theme.Panel;e.Graphics.Clear(parentBg);var rect=new Rectangle(1,1,Math.Max(2,b.Width-2),Math.Max(2,b.Height-2));Color fill=primary?(b.Enabled?(hovered?Color.FromArgb(255,134,174):Theme.Accent):Theme.Line):(hovered&&b.Enabled?Theme.CardHover:Theme.Raised);Color stroke=primary?(b.Enabled?Color.FromArgb(255,175,200):Theme.LineBright):(b.Focused?Theme.Accent:Theme.LineBright);Theme.FillRoundRect(e.Graphics,rect,7,fill);Theme.DrawRoundRect(e.Graphics,rect,7,stroke,b.Focused?1.5f:1f);Color fg=!b.Enabled?Theme.Muted:primary?Color.FromArgb(20,22,30):Theme.Text;Theme.Label(e.Graphics,b.Text,rect,fg,primary?Theme.Bold:b.Font,TextFormatFlags.HorizontalCenter|TextFormatFlags.VerticalCenter,false);};
         button.Click+=(s,e)=>click();return button;
     }
     private Label Heading(string text)
@@ -296,7 +298,7 @@ internal sealed partial class MainForm : LocalizedForm
         if(document==null)return;if(IsPresetKind(resourceKind)){FillPresetResources();return;}presetTools.Visible=false;
         string[] names=resourceKind=="rooms"?document.inventory.rooms:resourceKind=="objects"?document.inventory.objects:resourceKind=="sprites"?document.inventory.sprites:
             resourceKind=="paths"?document.inventory.paths:resourceKind=="timelines"?document.inventory.timelines:document.inventory.scripts;
-        resources.BeginUpdate();resources.Items.Clear();var previous=resources.SmallImageList;var icons=new ImageList{ImageSize=new Size(24,24),ColorDepth=ColorDepth.Depth32Bit};
+        resources.BeginUpdate();resources.Items.Clear();var previous=resources.SmallImageList;var icons=new ImageList{ImageSize=new Size(28,28),ColorDepth=ColorDepth.Depth32Bit};
         foreach(string name in (names??new string[0]).Where(n=>n.IndexOf(ResourceFilter,StringComparison.OrdinalIgnoreCase)>=0))
         {
             string spriteName=name;if(resourceKind=="objects")document.inventory.objectSprites.TryGetValue(name,out spriteName);
@@ -529,7 +531,7 @@ internal sealed partial class MainForm : LocalizedForm
         {
             selectionTitle.Text=Language.Text("属性检查器");bag.Add("操作","编辑",typeof(string),()=>"选中画布或时间轴物件以编辑参数。工程设置请点击顶栏按钮。",null);
         }
-        properties.SelectedObject=bag;if(refreshKeys)RefreshKeyWorkspace();RefreshBehavior();RefreshShell();RefreshObjectPropertyPresets();
+        properties.SelectedObject=bag;if(refreshKeys)RefreshKeyWorkspace();RefreshBehavior();RefreshShell();RefreshObjectPropertyPresets();RefreshOptionalModuleShelf();
     }
     private void ShowGroupProperties(NativeProperties bag)
     {
@@ -824,7 +826,7 @@ internal sealed partial class MainForm : LocalizedForm
         if(!editing)
         {
             if(stage.ContainsFocus&&keyData==(Keys.Control|Keys.D0)){stage.ResetView();return true;}
-            if(keyData==Keys.Space||keyData==Keys.P){TogglePlaying();return true;}if(keyData==Keys.K){AddKey();return true;}if(keyData==(Keys.Control|Keys.K)){AddAllKeys();return true;}if(keyData==Keys.Delete){RemoveSelection();return true;}
+            if(keyData==Keys.Space||keyData==Keys.P){TogglePlaying();return true;}if(keyData==Keys.K){AddKey();return true;}if(keyData==(Keys.Control|Keys.K)){AddAllKeys();return true;}if(keyData==(Keys.Control|Keys.Shift|Keys.K)||keyData==Keys.F1){ShowGuidePalette();return true;}if(keyData==Keys.Delete){RemoveSelection();return true;}
             if(keyData==(Keys.Control|Keys.D)){DuplicateTrack();return true;}if(keyData==(Keys.Control|Keys.C)){CopySelection();return true;}if(keyData==(Keys.Control|Keys.V)){PasteFromKeyboard();return true;}
             if(keyData==(Keys.Control|Keys.A)){if(keyTimeline.ContainsFocus&&selectedTrack!=null){var keys=selectedTrack.keyframes.Where(k=>k.frame>=selectedTrack.start&&k.frame<=selectedTrack.end&&!MotionPresets.Generated(selectedTrack,k.property)).ToArray();timeline.SetSelection(keys,selectedTrack,keys.FirstOrDefault());}else if(timeline.ContainsFocus&&timeline.SelectedKeys.Count==0)timeline.SetTrackSelection(state.tracks);else timeline.SelectAllKeys(selectedTrack);return true;}
         }

@@ -11,11 +11,11 @@ internal static class PresetIcons
 {
     public static ImageList Create()
     {
-        var icons=new ImageList{ImageSize=new Size(24,24),ColorDepth=ColorDepth.Depth32Bit};
+        var icons=new ImageList{ImageSize=new Size(28,28),ColorDepth=ColorDepth.Depth32Bit};
         // Materialize the native list first, so Add copies each bitmap before it is disposed.
         IntPtr handle=icons.Handle;
-        foreach(string glyph in new[]{"↗","▸","◆","▾"})using(var icon=new Bitmap(24,24)){
-            using(var g=Graphics.FromImage(icon))Theme.Label(g,glyph,new Rectangle(0,0,24,24),Theme.Accent,Theme.Bold,TextFormatFlags.HorizontalCenter|TextFormatFlags.VerticalCenter);
+        for(int kind=0;kind<4;kind++)using(var icon=new Bitmap(28,28)){
+            using(var g=Graphics.FromImage(icon)){g.SmoothingMode=System.Drawing.Drawing2D.SmoothingMode.AntiAlias;Theme.FillRoundRect(g,new Rectangle(2,2,24,24),6,Theme.Raised);Theme.DrawRoundRect(g,new Rectangle(2,2,24,24),6,kind==3?Theme.Accent:kind==2?Theme.BadgeGold:kind==1?Theme.BadgeCyan:Theme.LineBright,1f);if(kind==0){using(var pen=new Pen(Theme.Accent,1.6f))for(int i=0;i<6;i++){double a=i*Math.PI/3;g.DrawLine(pen,14f+(float)(3.2*Math.Cos(a)),14f+(float)(3.2*Math.Sin(a)),14f+(float)(7.5*Math.Cos(a)),14f+(float)(7.5*Math.Sin(a)));}using(var b=new SolidBrush(Color.White))g.FillEllipse(b,11.5f,11.5f,5f,5f);}else if(kind==1){var pts=new[]{new PointF(11f,9f),new PointF(18.5f,14f),new PointF(11f,19f)};using(var b=new SolidBrush(Theme.BadgeCyan))g.FillPolygon(b,pts);}else if(kind==2){var pts=new[]{new PointF(14f,7.5f),new PointF(20.5f,14f),new PointF(14f,20.5f),new PointF(7.5f,14f)};using(var b=new SolidBrush(Color.FromArgb(65,Theme.BadgeGold)))g.FillPolygon(b,pts);using(var pen=new Pen(Theme.BadgeGold,1.6f))g.DrawPolygon(pen,pts);}else{var pts=new[]{new PointF(9f,11f),new PointF(19f,11f),new PointF(14f,18f)};using(var b=new SolidBrush(Theme.Accent))g.FillPolygon(b,pts);}}
             icons.Images.Add(icon);
         }
         return icons;

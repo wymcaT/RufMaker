@@ -1,10 +1,76 @@
 # Argon4 任务记录
 
 - 状态：`idle`
-- 当前任务：无。已完成当前功能落地结算，工作区与全套测试通过，根 EXE 与构建产物就绪。
-- 基线分支/SHA：`main` / `1d93545`
-- 当前占用文件：无
-- 验收方式：Node 测试（`studio/*.test.mjs` 共 36 项）、C# 定向与回归测试（`Test-ReleaseKeepShape.ps1`, `Test-VariableAndKeyframe.ps1`, `Test-PreviewHiddenAndOrbit.ps1`, `Test-UiSimplification.ps1`, `Test-NativeIntegration.ps1`, `Test-Localization.ps1` 全部 PASS）及 `Build-Native.ps1` 根 EXE 构建验证（1,587,200 bytes）
+- 当前任务：无（已完成上轮审阅修复与原生 UI 视觉重构的合入，重建 `RufMaker.exe` 并按用户授权推送至 `origin/main`）
+- 基线分支/SHA：`main` / `014675c`
+- 当前占用文件：无（全部释放）
+- 验收方式：无进行中任务。
+
+## 2026-11-14/18 原生界面重设、审阅修复合入与推送 `main`（已完成）
+
+```text
+状态：completed
+基线：main / 014675c
+改动文件（仅 UI 与双语展示层，未改动 studio/、弹幕逻辑与导出机制）：
+- desktop/EditorCanvas.cs（升级 Theme 深色板岩/樱花粉配色与圆角卡片绘制辅助；舞台棋盘背景与发光边框胶囊状态栏）
+- desktop/WorkspaceView.cs（默认布局放宽左右栏 leftWidth=264 / rightWidth=396 / timelineHeight=270，保持向后兼容）
+- desktop/InspectorDockWorkspace.cs（默认上下堆叠改为常规设置在上 rows=0.66、关键帧在下，兼容旧布局恢复）
+- desktop/PresetBrowser.cs（PresetIcons 升级为 28×28 抗锯齿矢量卡片图标）
+- desktop/WheelSafeControls.cs（下凹高亮输入框与组合框边框对比度优化）
+- desktop/MainForm.cs（Button 圆角胶囊自绘与悬停高光、FillResources 28×28 图标、Ctrl+Shift+K / F1 唤醒新手引导面板；保留 Ctrl+K 仍为 AddAllKeys）
+- desktop/EditorShell.cs（顶部“引导 / 命令”入口、▶ 试玩 F5 / ◆ 调试 F6 / 导出游戏主按钮；左栏搜索提示 CueBanner 与底部单行拖拽提示；舞台工具栏直达“# 网格”；右栏头部直接显示 </> GML；状态栏右侧显示快捷键提示）
+- desktop/StatisticsTools.cs（新增 UiGuideDialog 新手 3 步引导与快捷命令面板；右栏常规页底部新增可折叠“可选属性模块（x/y 已启用）”一键挂载条，不改 PropertyDescriptorCollection）
+- desktop/ParameterInspector.cs（紧凑帮助栏、卡片式折叠分组标题与左侧樱花粉指示条、ScrubNumber 圆角下凹滑拖槽、◇/◆ 与 fx 高对比胶囊按钮，完整复用原有控件实例与 Tab 顺序）
+- desktop/SelectionTimeControl.cs（起终点按钮与边框配色统一）
+- desktop/TimelineCanvas.cs（全轨道左侧语义色条、混合不透明色胶囊片段与高亮边框，消除 ClearType 白字杂边）
+- desktop/TimelineRendering.cs（樱花粉圆角胶囊播放头游标与发光指针线）
+- assets/locales/en.json（补齐全部新增中文 UI 与新手引导英文词条）
+- `RufMaker.Beta.exe` & `RufMaker.exe`（均通过 `desktop/Build-Native.ps1` 编译更新为 `1,638,912` 字节；原文件已分别备份至 `build/ui-beta-check/RufMaker.Beta.before-ui.exe` 与 `build/ui-beta-check/RufMaker.before-ui-merge.exe`；`RufMaker.old.exe` 保持未动）
+- `docs/collaboration/STATUS.md`（同步 2026-11-18 `main` 推送状态与正式入口字节数）
+
+执行的命令及结果：
+- `powershell -NoProfile -ExecutionPolicy Bypass -File d:\rufmaker\desktop\Build-Native.ps1 -Output d:\rufmaker\RufMaker.exe` -> PASS（1,638,912 字节）
+- `powershell -NoProfile -ExecutionPolicy Bypass -File d:\rufmaker\desktop\Build-Native.ps1 -Output d:\rufmaker\RufMaker.Beta.exe` -> PASS（1,638,912 字节）
+- `powershell -NoProfile -ExecutionPolicy Bypass -File d:\rufmaker\build\ui-beta-check\run-tests.ps1` -> PASS（14 套全部通过：Test-UiSimplification / Test-InspectorDocking / Test-KeyframeWorkspace / Test-Localization / Test-ParameterNavigation / Test-ResourceBrowsing / Test-ShellLayout / Test-ScrollbarTheme / Test-CursorSnapping / Test-UiSaveSafety / Test-TimelineEventMarkers / Test-PreviewHiddenAndOrbit / Test-ObjectDynamics / Test-TemplateSystem）
+- `runtime/node.exe --test`（studio/*.test.mjs 排除 timeline-regression.test.mjs）-> PASS（151/151 通过，0 失败，0 跳过）
+- 通过 build/ui-v2/check/shell-zh.png、shell-narrow.png、shell-en.png 及 build/inspector-docking-check/inspector-rows-zh.png、build/keyframe-workspace-check/workspace-zh.png 离线截图视觉复核确认无重叠/裁切/豆腐块字符。
+```
+
+## 2026-11-14 修复 Review 实查问题（已完成，本地未提交）
+
+```text
+状态：completed
+基线：main / 014675c
+改动文件：
+- studio/bullet-system.mjs（将 ${animationTick} 与 rf_frozen_image 检查移至 rf_template_bullet_actions(rf_world) 之前）
+- studio/bullet-schema.mjs（normalizeBulletState 中 objectProperties / hiddenObjectProperties 位掩码从 &31 扩为 &127）
+- studio/gm-convert.mjs（引入 hasPhysics；541 动作 subimage=-1 跳过 image_index 赋值；objectProperties 第 5 位改由 hasPhysics(track) 判定）
+- studio/object-dynamics.test.mjs（新增位掩码 bits 5/6 在 normalizeState 与 expandPatterns 保留的用例）
+- studio/gm-convert.test.mjs（新增 subimage=-1 与 gravity=random(0) 转换用例）
+- desktop/PresetLibrary.cs（TrackPreset.Instantiate 补调 ObjectDynamics.Scale(t, ratio)）
+- desktop/tests/ObjectDynamicsTests.cs（新增跨帧率 100->50 TrackPreset.Instantiate 缩放断言）
+- desktop/tests/verify-object-dynamics-gml.mjs（新增 animChild/animSpawn 生成 GML 检查用例）
+- RufMaker.exe（由 desktop/Build-Native.ps1 重新编译并安全替换，ProductVersion 2.7.0，Size 1616384 字节；原文件已备份至 build/fix-release-check/RufMaker.before-fixes.exe）
+
+执行的命令及结果：
+- powershell -ExecutionPolicy Bypass -File desktop\Test-ObjectDynamics.ps1 -> PASS（exit 0，PASS: gravity at birth/next frames, animation, reverse seek, snapshot/JSON, optional property UI and numeric step.）
+- runtime\node.exe --test （studio 下除 timeline-regression.test.mjs 外的全部 37 个 *.test.mjs） -> PASS（151/151 通过，0 失败，0 跳过）
+- powershell -ExecutionPolicy Bypass -File desktop\Test-ArgonHandoff.ps1 -> PASS
+- powershell -ExecutionPolicy Bypass -File desktop\Test-TemplateSystem.ps1 -> PASS（5 项通过）
+- powershell -ExecutionPolicy Bypass -File desktop\Test-PreviewHiddenAndOrbit.ps1 -> PASS（4 项 + 总结通过）
+- powershell -ExecutionPolicy Bypass -File desktop\Test-UiSimplification.ps1 -> PASS（3 项通过）
+- powershell -ExecutionPolicy Bypass -File desktop\Test-Localization.ps1 -> PASS
+- powershell -ExecutionPolicy Bypass -File desktop\Test-NativeIntegration.ps1 -> PASS
+- powershell -ExecutionPolicy Bypass -File desktop\Test-ProjectLoadSafety.ps1 -> PASS（2 项通过）
+- powershell -ExecutionPolicy Bypass -File desktop\Test-UiSaveSafety.ps1 -> PASS
+- powershell -ExecutionPolicy Bypass -File desktop\Test-ParameterNavigation.ps1 -> PASS
+- powershell -ExecutionPolicy Bypass -File desktop\Test-ResourceBrowsing.ps1 -> PASS
+- powershell -ExecutionPolicy Bypass -File desktop\Build-Native.ps1 -Output d:\rufmaker\build\fix-release-check\RufMaker.exe -> PASS（生成 1616384 字节并覆盖根目录 RufMaker.exe）
+
+未完成与环境限制：
+- GM8.2 编译（GameMaker.exe --build）可正常生成 template-probe.exe，生成脚本 build/object-dynamics-check/Template GM 1794587099610/GameMaker.gm82/scripts/rf_pattern_tick.gml 已静态核对符合预期顺序；但当前 Windows 会话处于无可用 Direct3D8 显示设备状态，启动 GM8.2 运行器在 TLoadForm 阶段弹出 D3D.CreateDevice() Error: ... (Error: -2005530518 / D3DERR_NOTAVAILABLE)，故 verify-object-dynamics-gml.mjs 与 verify-gm-conversion.mjs 的实机运行数值对照未能在当前会话完成，需在已解锁本地桌面会话中复跑。
+- 本地改动尚未提交（git commit / git push 未执行）。
+```
 
 ## 2026-11-07 本地集成与交接
 

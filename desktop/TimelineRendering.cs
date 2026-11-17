@@ -33,7 +33,7 @@ internal sealed partial class TimelineCanvas
         var saved=e.Graphics.Save();e.Graphics.SetClip(new Rectangle(Names,0,width-Names,height),CombineMode.Intersect);
         if(clipSnapGuide.HasValue)DrawGuide(e.Graphics,X(clipSnapGuide.Value),Header,height);
         if(cursorSnapGuide.HasValue)DrawGuide(e.Graphics,X(cursorSnapGuide.Value),0,height);
-        float playhead=PlayheadX;if(playhead>=Names&&playhead<width){using(var pen=new Pen(Theme.Accent,1.5f))e.Graphics.DrawLine(pen,playhead,8,playhead,height);using(var brush=new SolidBrush(Theme.Accent))e.Graphics.FillPolygon(brush,new[]{new PointF(playhead-6,0),new PointF(playhead+6,0),new PointF(playhead+6,9),new PointF(playhead,15),new PointF(playhead-6,9)});}
+        float playhead=PlayheadX;if(playhead>=Names&&playhead<width){using(var glow=new Pen(Color.FromArgb(55,Theme.Accent),4f))e.Graphics.DrawLine(glow,playhead,12,playhead,height);using(var pen=new Pen(Theme.Accent,1.8f))e.Graphics.DrawLine(pen,playhead,8,playhead,height);Theme.FillRoundRect(e.Graphics,new Rectangle((int)Math.Round(playhead)-7,1,14,12),4,Theme.Accent);using(var brush=new SolidBrush(Theme.Accent))e.Graphics.FillPolygon(brush,new[]{new PointF(playhead-5,11),new PointF(playhead+5,11),new PointF(playhead,17)});}
         e.Graphics.Restore(saved);CursorPaints++;
     }
     private static void DrawGuide(Graphics g,float x,int top,int bottom)
