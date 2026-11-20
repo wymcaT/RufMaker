@@ -1,15 +1,16 @@
 # Codex 任务记录
 
-- 状态：`in_progress`
-- 当前任务：按用户授权发布 v2.8.0。检查 main 及标签、构建两种发行包、验证更新并跟进 GitHub Actions。
-- 基线：main/53ac569，Argon4 idle。用户 demo 及个人工程已有改动。
-- 当前占用：版本常量、EXE、两种语言的首页、本版发行说明、交接与上一轮特效修改。验收涵盖本地包、远端标签、正式 Release 附件及更新器查询。
+- 状态：`idle`
+- 当前任务：无。v2.8.0 已推送并发布，公开包验证完成。
+- 本次发布基线：main/53ac569，发行提交 d8868da。Argon4 idle，用户 demo 及个人工程已有改动。
+- 当前占用：无。
 - 本机入口：`RufMaker.exe` 2.8.0，1,639,424 字节。
 
 ## 2026-11-21 发布 2.8.0
 
 - 用户授权推送并发布当前版本。基线 main/53ac569，与远端 main 一致，上一正式标签 v2.7.0。本次统一桌面版本、双语首页与发行说明，带上已验证的特效修复。用户 demo、个人工程及 RufMaker.old.exe 保留在工作区。
 - 本地两种发行包经 Package-Release 和 VerifyPackages 检查通过，包含完整便携版 2,711 个文件与更新包 2,664 个条目。原 2.0.0 更新器验证 2,663 个清单文件。Test-Updater 检查版本提示、包选择、替换、旧程序备份及重启通过。根 EXE 与本机打包 EXE 哈希相同，更新前的入口在 build/release-check-2.8.0/RufMaker.before-release.exe。
+- main 与 v2.8.0 已原子推送，标签指向 d8868da。GitHub Actions 44804851554 成功，latest 正式版和四个已上传附件经 API 核对。线上完整包 62,262,112 字节、更新包 60,181,199 字节。Test-Updater -Online 使用实际更新器成功查询、下载、SHA256 校验及解包。公开便携包校验通过，并在隔离目录中完成无 GM 首次建工程与重开。元数据在 build/release-check-2.8.0/published.json。
 
 ## 2026-11-21 核对遗留项，修复动态模糊及故障转场历史
 
