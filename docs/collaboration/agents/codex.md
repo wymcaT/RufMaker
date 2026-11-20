@@ -1,11 +1,23 @@
 # Codex 任务记录
 
-- 状态：`idle`
-- 当前任务：无。“跟进 GitHub 最新版本”已完成，本地合入 9bcc4d4，Windows 验证及正式 EXE 更新完成。
-- 基线：main/58bed3a；GitHub main/9bcc4d4（2026-11-09），正式 Release 仍 v2.7.0。本地上一轮应用改动未提交，20 个 tracked 用户 demo 文件和个人工程/示例、RufMaker.old.exe 全部保留。Argon4 idle 无占用；无远程推送/发布授权。
-- 当前占用：无。
-- 验收：73 项 Node 定向、8 组 Windows 检查；实际 GM 构建打包、资源动作/实例、25 帧原生底片、21 帧 317 条弹幕状态通过；构建及用户工程未变检查通过。
-- 本机入口：RufMaker.exe，ProductVersion 2.7.0，1,616,384 bytes；旧 EXE 备份 build/github-followup-20261113/RufMaker.before-followup.exe 和 RufMaker.replaced-20261113.exe。
+- 状态：`in_progress`
+- 当前任务：按用户授权发布 v2.8.0。检查 main 及标签、构建两种发行包、验证更新并跟进 GitHub Actions。
+- 基线：main/53ac569，Argon4 idle。用户 demo 及个人工程已有改动。
+- 当前占用：版本常量、EXE、两种语言的首页、本版发行说明、交接与上一轮特效修改。验收涵盖本地包、远端标签、正式 Release 附件及更新器查询。
+- 本机入口：`RufMaker.exe` 2.8.0，1,639,424 字节。
+
+## 2026-11-21 发布 2.8.0
+
+- 用户授权推送并发布当前版本。基线 main/53ac569，与远端 main 一致，上一正式标签 v2.7.0。本次统一桌面版本、双语首页与发行说明，带上已验证的特效修复。用户 demo、个人工程及 RufMaker.old.exe 保留在工作区。
+- 本地两种发行包经 Package-Release 和 VerifyPackages 检查通过，包含完整便携版 2,711 个文件与更新包 2,664 个条目。原 2.0.0 更新器验证 2,663 个清单文件。Test-Updater 检查版本提示、包选择、替换、旧程序备份及重启通过。根 EXE 与本机打包 EXE 哈希相同，更新前的入口在 build/release-check-2.8.0/RufMaker.before-release.exe。
+
+## 2026-11-21 核对遗留项，修复动态模糊及故障转场历史
+
+- 桌面修改涉及 PreviewEffects、PreviewRenderer、StyleEffects 和 StylePresetTests。动态模糊轮换复用两个位图，同帧重复绘制只从前一帧混入。退出片段释放已结束的历史，重叠片段各自处理。修正 UseScene 对原始循环片段及展开快照的识别，同时把房间快照计入缓存判断。
+- 后台修改涉及 effects、style-effects、native-compositor、native-checkpoint、native-preview。普通与原生合成统一释放历史与重设尺寸，恢复试玩快照时清空 GPU 句柄。运行器根据实际展开后的效果槽数处理，原生试玩构建指纹计入特效生成模块。工程格式及用户操作入口沿用现有版本。
+- Windows 通过 `desktop/Test-StylePresets.ps1`（含同帧输入变化、倒拖、远跳、尺寸变化、循环快照和画布跳过特效路径）和 `desktop/Test-Optimizations.ps1`。Node 的 style-presets、native-compositor、native-preview、native-play-session、play-checkpoint、music-sync、retry-particles 共 20 项通过。
+- 新增 `desktop/tests/verify-effect-history-gml.mjs`，运行器日志及 CSV 在 `build/effect-history-check/History 1795203006989/GameMaker.gm82/`。普通模式与导入模式各采样 12 次，覆盖同帧混色和当前输入变化、倒退、跳转、片段重叠回收及尺寸缓存失效。另运行 `desktop/tests/verify-play-checkpoint-gml.mjs`，固定/随机种子下各两次 R 均恢复 34 条已有状态，预热与 Create 仅执行一次。
+- 已构建并核对根 EXE，更新前的入口在 `build/effect-history-check/RufMaker.before-history.exe`。本轮本地工作未提交、未推送。更新 STATUS、开发入口、10 月调研与音乐校时说明。后续优先处理玩家传送表达式的历史求值，再处理普通跟踪弹的重复轨迹计算。
 
 ## 2026-11-13 跟进 GitHub 最新 main（本地完成）
 

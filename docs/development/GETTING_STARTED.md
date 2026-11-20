@@ -156,6 +156,8 @@ const project = await import('./studio/project.mjs');
 
 ## 5. 从哪里改
 
+动态模糊和故障转场的预览像素回归使用 `desktop/Test-StylePresets.ps1`。运行 `runtime/node.exe desktop/tests/verify-effect-history-gml.mjs` 会在 `build/effect-history-check/` 建隔离工程，分别编译运行普通与原生导入模式，采样同帧重绘、倒拖、跳帧、特效叠加和画面尺寸变化后的像素及历史画面句柄。
+
 F5/复制后续性能与R快照见[实施记录](PLAY-COPY-PERFORMANCE-2026-10-29.md)。plainCheckpointScripts/plainRetryEvents在studio/native-checkpoint.mjs，普通F5首次Begin Step保存，R仅game_load；不要在恢复中调用Create、rf_template_init或历史重放。随机模式只换未来种子，不重跑静态绑定。项目同步把条件守卫接入R事件与loadGame，导出保留原引擎行为。运行studio/play-checkpoint.test.mjs及desktop/tests/verify-play-checkpoint-gml.mjs；完整/优化重放对照为verify-play-replay-gml.mjs，普通进度/ready/取消为verify-plain-play.mjs（可传build内工程入口）。geometry缓存按来源、上下文、世界帧和局部时间区分，数量关键帧需考虑超调，不可只按端点缩小容量。
 
 本地保存/预览/历史优化见[使用说明](../performance-and-saving.md)及[验证记录](OPTIMIZATION-STAGE-2026-10-28.md)。保存由`studio/project-sync.mjs`准备文件计划、提交和恢复，`project.mjs`与`plain-room.mjs`通过其虚拟文件入口生成；不要在计划期间直接写真实工程。预览修订由`PreviewRevision.cs`判定受影响时间，`PreviewCache.UseScene`保留世界并从早期检查点重算；保持未修改生成动作的引用身份。`UndoHistory.cs`管理共享估算预算，不能在压入另一端后再弹出当前端，以免预算淘汰待恢复记录。

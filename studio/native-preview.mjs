@@ -9,7 +9,10 @@ import {retryParticleCleanup,guardPendingDeath} from './retry-particles.mjs';
 import {nativeMusicPolicy,installNativeMusicSync} from './music-sync.mjs';
 
 const action=`/*"/*'/**//* YYD ACTION\nlib_id=1\naction_id=603\napplies_to=self\n*/`;
-const generator=crypto.createHash('sha256').update(fs.readFileSync(new URL(import.meta.url))).update(fs.readFileSync(new URL('./native-import.mjs',import.meta.url))).update(fs.readFileSync(new URL('./native-checkpoint.mjs',import.meta.url))).update(fs.readFileSync(new URL('./retry-particles.mjs',import.meta.url))).update(fs.readFileSync(new URL('./music-sync.mjs',import.meta.url))).digest('hex');
+const generatorHash=crypto.createHash('sha256');
+for(const module of ['./native-preview.mjs','./native-import.mjs','./native-checkpoint.mjs','./effects.mjs','./retry-particles.mjs','./music-sync.mjs'])
+  generatorHash.update(fs.readFileSync(new URL(module,import.meta.url)));
+const generator=generatorHash.digest('hex');
 const section=(event,code)=>`#define ${event}\n${action}\n${code}\n`;
 const write=(f,text)=>fs.writeFileSync(f,text,'utf8');
 function append(file,line){const source=fs.readFileSync(file,'utf8');if(!source.split(/\r?\n/).includes(line))fs.appendFileSync(file,(source.endsWith('\n')?'':'\n')+line+'\n');}

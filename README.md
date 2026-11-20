@@ -1,8 +1,8 @@
 # RufMaker
 
-本地新增：GM 对象右键可“转换为可编辑物件”；简单初始化可转成单发弹幕，复杂事件会列出原因并保留原生运行。左侧“物件属性”新增按需添加的**弹幕物理**和**贴图动画**。[使用方法与转换范围](docs/native-object-conversion.md)。
+**RufMaker 2.8.0** 加入了 GM 原生对象的事件与动作编辑、物件转换和可选的弹幕物理与贴图动画。新版界面可以按 F1 查找命令。动态模糊在暂停重绘时也能保留残影。[本版更新说明](docs/releases/v2.8.0.md) · [原生对象转换指南](docs/native-object-conversion.md)
 
-**2.7.0**：修复重设事件对整体对象和圆周、网格、嵌套复制弹幕的控制；速度与方向可直接修改或填写随机公式。新增 F6 无敌调试，试玩玩家的贴图、动画与位置可回看；游戏卡顿后会自动校正音乐同步。[下载完整便携版](https://github.com/wymcaT/RufMaker/releases/tag/v2.7.0)，完整解压后运行 `RufMaker.exe`；已有版本可使用“检测更新”。[本版更新说明](docs/releases/v2.7.0.md) · [轨道组与重设事件](docs/timeline-groups.md) · [性能与保存](docs/performance-and-saving.md)。
+首次使用请下载 Windows 完整便携包，解压后运行 `RufMaker.exe`。已安装的用户可以在编辑器里点“检测更新”。[下载 RufMaker 2.8.0](https://github.com/wymcaT/RufMaker/releases/tag/v2.8.0)
 
 [轨道共享组与组事件](docs/timeline-groups.md)：可跨轨道归组、用底色区分，并按组复制、清除或设置弹幕属性；运动数值框支持随机与选择表达式。
 

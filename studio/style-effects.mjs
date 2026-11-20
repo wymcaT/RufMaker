@@ -43,7 +43,7 @@ if kind='rgb-impact' {
  }
 }else{
  age=max(0,floor(rf_frame-start));bucket=floor(age/hold);
- if !surface_exists(rf_fx_history[index]) rf_fx_history[index]=surface_create(room_width,room_height);
+ if !surface_exists(rf_fx_history[index]) {rf_fx_history[index]=surface_create(room_width,room_height);rf_fx_history_frame[index]=-1000000;}
  if surface_exists(rf_fx_history[index]) {
   if rf_frame<rf_fx_history_frame[index] || rf_frame-rf_fx_history_frame[index]>hold || floor((rf_fx_history_frame[index]-start)/hold)!=bucket {
    surface_reset_target();surface_copy_part(rf_fx_history[index],0,0,src,0,0,room_width,room_height);surface_set_target(dst);rf_fx_history_frame[index]=rf_frame;

@@ -16,13 +16,13 @@ internal sealed class PreviewCache : IDisposable
     private EditorState inputScene;private RoomData inputRoom;
     public Func<bool> Cancelled;
     public void ThrowIfCancelled(){if(Cancelled!=null&&Cancelled())throw new OperationCanceledException();}
-    private void ClearEffects(){foreach(var entry in history.Values)entry.Dispose();history.Clear();}
+    public void ClearEffects(){foreach(var entry in history.Values)entry.Dispose();history.Clear();}
     public void UseScene(EditorState scene,RoomData room)
     {
-        if(ReferenceEquals(scene,inputScene)||ReferenceEquals(scene,expandedState))return;
-        var expanded=BulletSystem.Expand(scene);int first=PreviewRevision.SimulationFrom(inputScene,expanded,inputRoom,room);
+        if(ReferenceEquals(room,inputRoom)&&(ReferenceEquals(scene,inputScene)||ReferenceEquals(scene,expandedState)))return;
+        var expanded=BulletSystem.Expand(scene);int first=PreviewRevision.SimulationFrom(expandedState,expanded,inputRoom,room);
         if(bulletWorld!=null){if(first==0)bulletWorld=null;else if(first>0)bulletWorld.Revise(expanded,first);}
-        ClearEffects();expandedState=expanded;inputScene=expanded;inputRoom=room;
+        ClearEffects();expandedState=expanded;inputScene=scene;inputRoom=room;
     }
     private NativeFilmReader film;private string filmKey;private bool filmActive;
     public NativeFilmInfo FilmInfo {get{return !filmActive||film==null?null:film.Info;}}
@@ -40,7 +40,34 @@ internal sealed class PreviewCache : IDisposable
         return film.Frame((int)Math.Round(frame*film.Info.fps/(double)Math.Max(1,fps)));
     }
     public readonly Dictionary<string,History> history=new Dictionary<string,History>();
-    internal sealed class History : IDisposable {public Bitmap image;public int frame;public void Dispose(){if(image!=null)image.Dispose();image=null;}}
+    private readonly List<string> expired=new List<string>();
+    public History EffectHistory(Track clip)
+    {
+        History entry;
+        if(!history.TryGetValue(clip.id,out entry)){
+            entry=new History{start=clip.start,end=clip.end};
+            history.Add(clip.id,entry);
+        }
+        return entry;
+    }
+    public void TrimEffects(int frame)
+    {
+        foreach(var pair in history)
+            if(frame<pair.Value.start||frame>pair.Value.end)expired.Add(pair.Key);
+        foreach(string id in expired){history[id].Dispose();history.Remove(id);}
+        expired.Clear();
+    }
+    internal sealed class History : IDisposable
+    {
+        public Bitmap image,previous;
+        public int start,end,frame=-1;
+        public void Dispose()
+        {
+            if(image!=null)image.Dispose();
+            if(previous!=null)previous.Dispose();
+            image=null;previous=null;frame=-1;
+        }
+    }
     public void ClearHistory(){ClearEffects();bulletWorld=null;expandedState=null;inputScene=null;inputRoom=null;}
     public void Clear(){if(roomLayer!=null)roomLayer.Dispose();roomLayer=null;roomKey=null;if(film!=null)film.Dispose();film=null;filmKey=null;filmActive=false;ClearHistory();}
     public void Dispose(){Clear();}
@@ -89,6 +116,7 @@ internal static partial class Effects
     // Owns and returns the current bitmap. Geometry is reconstructed independently of edit/playback state.
     public static Bitmap Apply(Bitmap image,EditorState state,int frame,PreviewCache cache)
     {
+        cache.TrimEffects(frame);
         foreach(var t in state.tracks.Where(t=>t.enabled&&t.kind=="effect"&&frame>=t.start&&frame<=t.end))
         {
             double u=(frame-TimelineLayout.ClockStart(t))/(double)Math.Max(1,TimelineLayout.ClockEnd(t)-TimelineLayout.ClockStart(t));u=Motion.Ease(t.easing,u,t.easePower,t.easePeriod);
@@ -102,9 +130,21 @@ internal static partial class Effects
                 next=Blur(image,strength,angle,t.fxSamples,opacity);
                 if(t.effect=="motion-blur")
                 {
-                    PreviewCache.History history;if(!cache.history.TryGetValue(t.id,out history)){history=new PreviewCache.History();cache.history[t.id]=history;}
-                    if(history.image!=null&&frame>history.frame&&frame-history.frame<=Math.Max(1,state.fps/5)&&history.image.Size==next.Size)using(var g=Graphics.FromImage(next))DrawAlpha(g,history.image,0,0,Unit(Motion.Value(t,"fxRetention",frame))*.95*opacity);
-                    if(history.frame!=frame||history.image==null){history.Dispose();history.image=(Bitmap)next.Clone();history.frame=frame;}
+                    var history=cache.EffectHistory(t);
+                    if(history.image!=null){
+                        if(history.image.Size!=next.Size||frame<history.frame||frame-history.frame>Math.Max(1,state.fps/5))history.Dispose();
+                        else if(frame>history.frame){
+                            var spare=history.previous;history.previous=history.image;history.image=spare;
+                        }
+                    }
+                    if(history.previous!=null)using(var g=Graphics.FromImage(next))
+                        DrawAlpha(g,history.previous,0,0,Unit(Motion.Value(t,"fxRetention",frame))*.95*opacity);
+                    if(history.image==null)history.image=(Bitmap)next.Clone();
+                    else using(var g=Graphics.FromImage(history.image)){
+                        g.CompositingMode=System.Drawing.Drawing2D.CompositingMode.SourceCopy;
+                        g.DrawImageUnscaled(next,0,0);
+                    }
+                    history.frame=frame;
                 }
             }
             else if(t.effect=="invert")

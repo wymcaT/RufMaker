@@ -1,5 +1,5 @@
 import {fields} from './motion.mjs';
-import {fxPassesGml} from './effects.mjs';
+import {fxPassesGml,trimFxHistory,prepareFxTargets} from './effects.mjs';
 import {codeOnly} from './native-import.mjs';
 
 // Keep native view objects and projections in the native pass. RufMaker's preview
@@ -9,8 +9,8 @@ export function nativeComposeGml(state) {
   return `if !instance_exists(objRufController) {${present}return 0;}
 with(objRufController) {
 var rf_src,rf_dst,rf_swap,rf_u,rf_dx,rf_dy,rf_age,rf_i,rf_offset,rf_samples,rf_band,rf_inset,rf_coverage,${fields.map(f=>'rf_'+f).join(',')};
-if rf_fx_w!=room_width || rf_fx_h!=room_height {if surface_exists(rf_fx_scene)surface_free(rf_fx_scene);if surface_exists(rf_fx_a)surface_free(rf_fx_a);if surface_exists(rf_fx_b)surface_free(rf_fx_b);rf_fx_w=room_width;rf_fx_h=room_height;}
-${['rf_fx_scene','rf_fx_a','rf_fx_b'].map(v=>`if !surface_exists(${v}) ${v}=surface_create(room_width,room_height);`).join('\n')}
+${trimFxHistory(state)}
+${prepareFxTargets}
 if !surface_exists(rf_fx_scene) || !surface_exists(rf_fx_a) || !surface_exists(rf_fx_b) {${present}return 0;}
 surface_set_target(rf_fx_scene);d3d_set_projection_ortho(0,0,room_width,room_height,0);
 draw_set_blend_mode_ext(bm_one,bm_zero);draw_set_color(c_white);draw_set_alpha(1);draw_clear(c_black);

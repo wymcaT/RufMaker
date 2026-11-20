@@ -80,6 +80,7 @@ internal static class PreviewRenderer
                     area=Effects.Apply(area,state,frame,cache);
                     using(area)using(var g=Graphics.FromImage(bitmap))g.DrawImage(area,effectsFrame.Value);
                 }
+                else cache.ClearEffects();
             }
             else if(applyEffects)result=Effects.Apply(bitmap,state,frame,cache);
             if(displayClip.HasValue)using(var g=Graphics.FromImage(result)){g.SetClip(displayClip.Value,CombineMode.Exclude);Theme.Workspace(g,new Rectangle(0,0,result.Width,result.Height));}
