@@ -2,9 +2,9 @@
 
 更新日期：2026-11-21。集成者：Codex。任务占用见 [Codex](agents/codex.md) 与 [Argon4](agents/argon4.md) 的记录。
 
-## 2026-11-21 · v2.8.1 预览优化发布
+## 2026-11-21 正式版 2.8.1
 
-从 2.8.0 基线单独集成 Direct3D 预览、分项计时、打包路径与离屏基准。用户已授权本次推送与 Release。发行内容见 [v2.8.1](../releases/v2.8.1.md)。
+预览优化已随 `v2.8.1` 发布，标签指向 `41ebcf8`。GitHub 已将其标为最新正式版。公开便携包和更新包均已下载校验，包含 2.8.1 编辑器和 x86 GPU 模块。[发行说明与下载](https://github.com/wymcaT/RufMaker/releases/tag/v2.8.1) · [发布构建](https://github.com/wymcaT/RufMaker/actions/runs/44895186874)
 
 ## 2026-11-21 正式版 2.8.0
 

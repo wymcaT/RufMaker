@@ -1,10 +1,12 @@
 # Codex 任务记录
 
-- 当前阶段：v2.8.1 发行。基线 main/8d4cf50。发行构建已通过压力场景、像素对照与 50 Hz 控件复测。
+- 状态：`idle`。v2.8.1 已发布，发行文件占用已释放。
 
 ## 2026-11-21 · v2.8.1 预览优化发布
 
-从 2.8.0 基线单独集成 Direct3D 预览、分项计时、打包路径与离屏基准。用户已授权本次推送与 Release。发行内容见 [v2.8.1](../../releases/v2.8.1.md)。
+- 基线 `8d4cf50`，发行提交 `41ebcf8`。本次只集成预览绘制、分项计时、GPU 资源打包及相应的测试和文档。
+- 使用 desktop/Test-PreviewProfile.ps1 复测发行候选，同一密集场景在 800×608 下平均每帧 4.74 ms，P95 为 5.62 ms。720×550 的 WinForms 预览控件以 50 Hz 离屏绘制，300 帧均在 20 ms 内完成，最慢 13.36 ms。
+- Publish Windows release 成功。重新下载公开的两个 ZIP 及其校验文件，VerifyPackages.ps1 验证 EXE 版本、GPU DLL 和更新清单通过。便携包有 2,713 个条目，更新包有 2,665 个条目。[Release](https://github.com/wymcaT/RufMaker/releases/tag/v2.8.1) · [构建记录](https://github.com/wymcaT/RufMaker/actions/runs/44895186874)
 
 ## 2026-11-21 发布 2.8.0
 
