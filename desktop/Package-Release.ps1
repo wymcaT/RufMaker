@@ -18,6 +18,7 @@ $addFile={param($relative,$source)
     $manifestFiles.Add(@{path=$relative;sha256=(Get-FileHash -LiteralPath $source -Algorithm SHA256).Hash.ToLowerInvariant()})
 }
 & $addFile 'RufMaker.exe' $executable
+& $addFile 'templates/avoidance.gm82/rufmaker-assets/native/x86/RufPreviewGpu.dll' (Join-Path $taskRoot 'assets/native/x86/RufPreviewGpu.dll')
 foreach($relative in @('README.md','LICENSE','runtime/node.exe','runtime/fmodex.dll')){& $addFile $relative (Join-Path $taskRoot $relative)}
 # Keep transport paths compatible with the 1.6 updater. The new EXE arranges
 # these shipped assets into assets/ before loading a project.

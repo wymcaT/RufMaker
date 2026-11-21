@@ -6,6 +6,7 @@ using System.IO;
 internal static class AppPaths
 {
     private static readonly string[][] AssetMoves={
+        new[]{"templates/avoidance.gm82/rufmaker-assets/native/x86/RufPreviewGpu.dll","assets/native/x86/RufPreviewGpu.dll"},
         new[]{"icon.ico","assets/icons/icon.ico"},new[]{"icon.png","assets/icons/icon.png"},
         new[]{"sprrainbowcherry.gmspr","assets/sprites/sprrainbowcherry.gmspr"},
         new[]{"desktop/assets","assets/terrain"},

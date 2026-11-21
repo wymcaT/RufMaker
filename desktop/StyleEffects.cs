@@ -29,14 +29,14 @@ internal static partial class Effects
             var pose=new CameraPose{x=w/2.0,y=h/2.0,zoom=zoom,mirror=true};var image=CameraFrame(source,pose);
             double retention=Unit(Motion.Value(t,"fxRetention",frame))*opacity;
             if(retention>0){pose.zoom=1+(zoom-1)*1.75;using(var echo=CameraFrame(source,pose))using(var g=Graphics.FromImage(image))DrawAlpha(g,echo,(float)(strength*.55*opacity),0,retention);}
-            var split=Rgb(image,(int)Math.Round(Math.Cos(angle*Math.PI/180)*strength*opacity),(int)Math.Round(-Math.Sin(angle*Math.PI/180)*strength*opacity),1);image.Dispose();
+            var split=Rgb(image,(int)Math.Round(Math.Cos(angle*Math.PI/180)*strength*opacity),(int)Math.Round(-Math.Sin(angle*Math.PI/180)*strength*opacity),1,cache);image.Dispose();
             double flash=Unit(Motion.Value(t,"fxFlash",frame))*opacity;if(flash>0)using(var g=Graphics.FromImage(split))using(var brush=new SolidBrush(Color.FromArgb((int)(flash*255),Motion.ColorOf(t.color))))g.FillRectangle(brush,0,0,w,h);
             return split;
         }
         var history=cache.EffectHistory(t);
         int hold=Math.Max(1,Math.Min(12,t.fxStutter)),bucket=(frame-TimelineLayout.ClockStart(t))/hold;
         if(history.image==null||history.image.Size!=source.Size||frame<history.frame||frame-history.frame>hold||(history.frame-TimelineLayout.ClockStart(t))/hold!=bucket){history.Dispose();history.image=(Bitmap)source.Clone();history.frame=frame;}
-        var result=Rgb(history.image,(int)Math.Round(Math.Cos(angle*Math.PI/180)*8*opacity),(int)Math.Round(-Math.Sin(angle*Math.PI/180)*8*opacity),1);
+        var result=Rgb(history.image,(int)Math.Round(Math.Cos(angle*Math.PI/180)*8*opacity),(int)Math.Round(-Math.Sin(angle*Math.PI/180)*8*opacity),1,cache);
         using(var bands=(Bitmap)result.Clone())using(var g=Graphics.FromImage(result)){
             g.InterpolationMode=InterpolationMode.NearestNeighbor;g.PixelOffsetMode=PixelOffsetMode.Half;
             int count=Math.Max(1,Math.Min(32,t.fxSlices));for(int i=0;i<count;i++){

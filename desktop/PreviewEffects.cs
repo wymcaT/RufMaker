@@ -7,6 +7,51 @@ using System.Runtime.InteropServices;
 
 internal sealed class PreviewCache : IDisposable
 {
+    // Adjacent frames reuse the exact same historical formation samples for their trails.
+    private sealed class SampleRing {public FormationSample[] slots;}
+    internal sealed class FormationSample {public int frame;public Keyframe pose;public PointF[] points;public int[] images;public double angle;}
+    private readonly Dictionary<Track,SampleRing> formations=new Dictionary<Track,SampleRing>();
+    private readonly List<Track> inactiveFormations=new List<Track>();
+    internal void TrimFormations(int frame)
+    {
+        foreach(var t in formations.Keys)if(!BulletSystem.Active(t,frame))inactiveFormations.Add(t);
+        foreach(var t in inactiveFormations)formations.Remove(t);
+        inactiveFormations.Clear();
+    }
+    internal FormationSample Formation(Track t,int frame)
+    {
+        SampleRing ring;if(!formations.TryGetValue(t,out ring)){
+            ring=new SampleRing{slots=new FormationSample[Trails.Mode(t)=="off"?1:Trails.Life(t)+1]};formations.Add(t,ring);
+        }
+        int index=(frame%ring.slots.Length+ring.slots.Length)%ring.slots.Length;
+        var sample=ring.slots[index];if(sample!=null&&sample.frame==frame)return sample;
+        var pose=Motion.At(t,frame);var points=Motion.RodPoints(t,frame);
+        var images=sample!=null&&sample.images.Length==points.Length?sample.images:new int[points.Length];
+        Rainbow.FormationImages(t,frame,points,pose,images);
+        ring.slots[index]=sample??new FormationSample();
+        var result=ring.slots[index];result.frame=frame;result.pose=pose;result.points=points;result.images=images;
+        result.angle=Motion.Value(t,"spriteAngle",frame)+(t.rotateSprite?pose.angle:0);
+        return result;
+    }
+    // The UI returns the previously displayed frame only after the worker has completed
+    // and the front buffer has been swapped. The worker always overwrites every pixel.
+    private Bitmap spareFrame;
+    internal Bitmap TakeFrame(Size size)
+    {
+        var frame=spareFrame;spareFrame=null;
+        if(frame!=null&&frame.Size==size)return frame;
+        if(frame!=null)frame.Dispose();return new Bitmap(size.Width,size.Height,PixelFormat.Format32bppPArgb);
+    }
+    internal void RecycleFrame(Bitmap frame)
+    {
+        if(spareFrame!=null)spareFrame.Dispose();spareFrame=null;
+        if(frame!=null&&UseGpu&&frame.PixelFormat==PixelFormat.Format32bppPArgb)spareFrame=frame;
+        else if(frame!=null)frame.Dispose();
+    }
+    public bool UseGpu;
+    private PreviewGpu gpu;
+    public PreviewGpu Gpu { get {return UseGpu?(gpu??(gpu=new PreviewGpu())):null;} }
+    public PreviewTiming Timing=new PreviewTiming();
     private RoomData artRoom;
     private RoomPresentation art;
     public RoomPresentation RoomArt(RoomData room)
@@ -20,6 +65,7 @@ internal sealed class PreviewCache : IDisposable
     public void UseScene(EditorState scene,RoomData room)
     {
         if(ReferenceEquals(room,inputRoom)&&(ReferenceEquals(scene,inputScene)||ReferenceEquals(scene,expandedState)))return;
+        if(gpu!=null)gpu.InvalidateBase();formations.Clear();
         var expanded=BulletSystem.Expand(scene);int first=PreviewRevision.SimulationFrom(expandedState,expanded,inputRoom,room);
         if(bulletWorld!=null){if(first==0)bulletWorld=null;else if(first>0)bulletWorld.Revise(expanded,first);}
         ClearEffects();expandedState=expanded;inputScene=scene;inputRoom=room;
@@ -68,8 +114,8 @@ internal sealed class PreviewCache : IDisposable
             image=null;previous=null;frame=-1;
         }
     }
-    public void ClearHistory(){ClearEffects();bulletWorld=null;expandedState=null;inputScene=null;inputRoom=null;}
-    public void Clear(){if(roomLayer!=null)roomLayer.Dispose();roomLayer=null;roomKey=null;if(film!=null)film.Dispose();film=null;filmKey=null;filmActive=false;ClearHistory();}
+    public void ClearHistory(){formations.Clear();ClearEffects();bulletWorld=null;expandedState=null;inputScene=null;inputRoom=null;}
+    public void Clear(){if(spareFrame!=null){spareFrame.Dispose();spareFrame=null;}if(gpu!=null){gpu.Dispose();gpu=null;}if(roomLayer!=null)roomLayer.Dispose();roomLayer=null;roomKey=null;if(film!=null)film.Dispose();film=null;filmKey=null;filmActive=false;ClearHistory();}
     public void Dispose(){Clear();}
 }
 
@@ -91,9 +137,10 @@ internal static partial class Effects
     private static byte[] s_rgbOriginal;
     [ThreadStatic]
     private static byte[] s_rgbPixels;
-    private static Bitmap Rgb(Bitmap source,int dx,int dy,double opacity)
+    private static Bitmap Rgb(Bitmap source,int dx,int dy,double opacity,PreviewCache cache=null)
     {
         if(opacity<=0||(dx==0&&dy==0))return (Bitmap)source.Clone();
+        if(cache!=null&&cache.Gpu!=null){var accelerated=cache.Gpu.Rgb(source,dx,dy,opacity,cache.Timing);if(accelerated!=null)return accelerated;}
         int width=source.Width,height=source.Height;var bounds=new Rectangle(0,0,width,height);var data=source.LockBits(bounds,ImageLockMode.ReadOnly,PixelFormat.Format32bppArgb);int stride=data.Stride;
         int needed=stride*height;
         if(s_rgbOriginal==null||s_rgbOriginal.Length<needed){s_rgbOriginal=new byte[needed];s_rgbPixels=new byte[needed];}
@@ -116,7 +163,7 @@ internal static partial class Effects
     // Owns and returns the current bitmap. Geometry is reconstructed independently of edit/playback state.
     public static Bitmap Apply(Bitmap image,EditorState state,int frame,PreviewCache cache)
     {
-        cache.TrimEffects(frame);
+        long phase=PreviewTiming.Now();cache.TrimEffects(frame);
         foreach(var t in state.tracks.Where(t=>t.enabled&&t.kind=="effect"&&frame>=t.start&&frame<=t.end))
         {
             double u=(frame-TimelineLayout.ClockStart(t))/(double)Math.Max(1,TimelineLayout.ClockEnd(t)-TimelineLayout.ClockStart(t));u=Motion.Ease(t.easing,u,t.easePower,t.easePeriod);
@@ -124,10 +171,11 @@ internal static partial class Effects
             if(t.effect=="rgb-impact"||t.effect=="glitch")next=Style(image,t,state,frame,cache,strength,opacity,angle);
             else if(t.effect=="shake")
             {double age=frame-TimelineLayout.ClockStart(t);next=Shift(image,(int)Math.Round(Math.Sin(age*t.fxFrequency*2.17)*strength*opacity),(int)Math.Round(Math.Cos(age*t.fxFrequency*1.61)*strength*opacity));}
-            else if(t.effect=="rgb")next=Rgb(image,(int)Math.Round(Math.Cos(angle*Math.PI/180)*strength),(int)Math.Round(-Math.Sin(angle*Math.PI/180)*strength),opacity);
+            else if(t.effect=="rgb")next=Rgb(image,(int)Math.Round(Math.Cos(angle*Math.PI/180)*strength),(int)Math.Round(-Math.Sin(angle*Math.PI/180)*strength),opacity,cache);
             else if(t.effect=="blur"||t.effect=="motion-blur")
             {
-                next=Blur(image,strength,angle,t.fxSamples,opacity);
+                next=cache.Gpu==null?null:cache.Gpu.Blur(image,strength,angle,t.fxSamples,opacity,cache.Timing);
+                if(next==null)next=Blur(image,strength,angle,t.fxSamples,opacity);
                 if(t.effect=="motion-blur")
                 {
                     var history=cache.EffectHistory(t);
@@ -162,6 +210,6 @@ internal static partial class Effects
             }
             if(next!=null){image.Dispose();image=next;}
         }
-        return image;
+        cache.Timing.Effects+=PreviewTiming.Since(phase);return image;
     }
 }

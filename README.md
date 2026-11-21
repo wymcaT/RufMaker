@@ -1,8 +1,8 @@
 # RufMaker
 
-**RufMaker 2.8.0** 加入了 GM 原生对象的事件与动作编辑、物件转换和可选的弹幕物理与贴图动画。新版界面可以按 F1 查找命令。动态模糊在暂停重绘时也能保留残影。[本版更新说明](docs/releases/v2.8.0.md) · [原生对象转换指南](docs/native-object-conversion.md)
+**RufMaker 2.8.1** 加快了密集弹幕、拖影和全屏特效的编辑器预览。在预览的「显示」菜单中可以切换 GPU 加速，也可以查看每帧的分项耗时。[本版更新说明](docs/releases/v2.8.1.md)
 
-首次使用请下载 Windows 完整便携包，解压后运行 `RufMaker.exe`。已安装的用户可以在编辑器里点“检测更新”。[下载 RufMaker 2.8.0](https://github.com/wymcaT/RufMaker/releases/tag/v2.8.0)
+首次使用请下载 Windows 完整便携包，解压后运行 `RufMaker.exe`。已安装的用户可以在编辑器里点“检测更新”。[下载 RufMaker 2.8.1](https://github.com/wymcaT/RufMaker/releases/tag/v2.8.1)
 
 [轨道共享组与组事件](docs/timeline-groups.md)：可跨轨道归组、用底色区分，并按组复制、清除或设置弹幕属性；运动数值框支持随机与选择表达式。
 

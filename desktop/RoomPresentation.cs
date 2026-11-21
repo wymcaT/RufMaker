@@ -14,6 +14,8 @@ internal sealed class RoomPresentation
 
     private readonly Drawable[] drawables;
     private readonly Dictionary<double,Drawable[]> layers;
+    private readonly HashSet<double> spriteLayers;
+    public bool DenseSprites(double depth){return spriteLayers.Contains(depth);}
     public IEnumerable<double> Depths {get{return layers.Keys;}}
     public RoomPresentation(RoomData room)
     {
@@ -21,6 +23,7 @@ internal sealed class RoomPresentation
             .Concat(room.instances.Select(i=>new Drawable{Depth=i.depth,Instance=i}))
             .OrderByDescending(item=>item.Depth).ToArray();
         layers=drawables.GroupBy(item=>item.Depth).ToDictionary(group=>group.Key,group=>group.ToArray());
+        spriteLayers=new HashSet<double>(layers.Where(layer=>layer.Value.Length>=PreviewGpu.MinimumBatch&&layer.Value.All(item=>item.Tile==null)).Select(layer=>layer.Key));
     }
 
     public static Color Blend(long packed)

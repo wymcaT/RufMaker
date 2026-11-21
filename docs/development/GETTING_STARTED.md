@@ -179,3 +179,12 @@ Git 推送以根 `AGENTS.md` 为准。`.github/workflows/release.yml` 在推送 
 正式版通过 `Package-Release.ps1` 生成完整便携包、兼容更新包和 SHA256；它要求纯数字 Version，并核对 ProductVersion。推送前确认标签 `v版本号` 与 `AppVersion.Current` 一致，发布说明放 `docs/releases/v版本号.md`。若以后制作 Beta 包，需要单独验证预发布流程并取得用户授权，不能去掉 Beta 后缀绕过校验。
 
 普通构建缓存与重复导出的真实 GM 检查入口为 `runtime/node.exe desktop/tests/verify-build-package-gml.mjs`。它在 `build/build-package-gml/` 创建隔离工程，实际编译运行修改前后 GML，核对内容指纹、缓存复用、旧资源清理、运行存档/差异备份与预览控制文件隔离；不会使用用户 demo。无需 GM 的同类检查为 `studio/native-build-package.test.mjs`。
+
+
+### 预览绘制与性能对照
+
+预览的「显示 → 预览分项耗时」列出上一张成功显示的帧在后台各阶段所用的毫秒数。「GPU 预览加速」默认开启，可在同一工程关闭以对照。计时包含显卡结果回读、场景合成和对象统计。普通发射器随绘制求出的坐标计入本体或拖影，复杂弹幕的历史推进单列为演算。合批帧的显卡提交、同批特效和最后一次回读计入「GPU 合成」；需要单独运行的特效计入「独立特效」。窗口消息排队、屏幕刷新和 F5 游戏运行时间另计。
+
+`desktop/Test-PreviewProfile.ps1` 只读加载演示工程和房间资源，使用同一段连续 60 帧分别运行原场景和高密度场景。高密度场景在内存中将三组弹幕的成员数乘五，叠加 RGB 分离和九采样方向模糊。每次先预热 12 帧。默认输出在 `build/preview-gpu-check/`，包含逐帧 CSV、均值和 P95、成对 PNG、像素差异以及旋转裁切对照。GPU 组需要在硬件上执行成功才能作为 GPU 测量。可传入 `-Project`、`-Start`、`-Frames` 或单独传 `-Modes cpu`。传 `-PacedFrames 300` 可将同一段压力场景在 720×550 的实际 WinForms 预览控件中按 50 Hz 重放到内存画布，记录请求、后台生成和控件绘制延迟、漏帧和超时数。明细见 `paced-playback.csv` 及 `paced-summary.json`。
+
+硬件路径使用 Direct3D 11。保持原有深度顺序，分层批绘密集精灵，在着色器中处理 RGB 和方向模糊，预览仍使用 WinForms 合成和交互。便携版附带 `assets/native/x86/RufPreviewGpu.dll`，无法创建设备时使用原 GDI+ 路径。只有修改 `desktop/gpu/` 中的 C++ 或 HLSL 源码时才需要安装 Visual Studio C++ x86 构建工具和 Windows 10 SDK 并运行 `desktop/gpu/Build-PreviewGpu.ps1`。着色器字节码随 DLL 提供。

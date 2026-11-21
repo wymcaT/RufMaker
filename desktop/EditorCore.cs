@@ -402,6 +402,10 @@ internal sealed class ChoiceConverter : StringConverter
 
 internal sealed class SpriteStore : IDisposable
 {
+    internal PreviewTiming Timing;
+    internal PreviewGpu Batch;
+    private string lastSprite;private Dictionary<int,Bitmap> lastFrames;
+    private readonly Dictionary<string,Dictionary<int,Bitmap>> spriteFrames=new Dictionary<string,Dictionary<int,Bitmap>>();
     private readonly Dictionary<string,Bitmap> images=new Dictionary<string,Bitmap>();
     private readonly Dictionary<int,ImageAttributes> attributesCache=new Dictionary<int,ImageAttributes>();
     public string Project;
@@ -409,12 +413,17 @@ internal sealed class SpriteStore : IDisposable
     public Bitmap Get(string name,int frame=0)
     {
         if(String.IsNullOrEmpty(name))return null;
-        SpriteMeta meta;Metadata.TryGetValue(name,out meta);int count=meta==null?1:Math.Max(1,meta.frames);frame=(frame%count+count)%count;
-        string key=name+"|"+frame;Bitmap image;if(images.TryGetValue(key,out image))return image;
+        SpriteMeta meta;Metadata.TryGetValue(name,out meta);int count=meta==null?1:Math.Max(1,meta.frames);
+        frame%=count;if(frame<0)frame+=count;
+        if(lastSprite!=name){
+            if(!spriteFrames.TryGetValue(name,out lastFrames))spriteFrames[name]=lastFrames=new Dictionary<int,Bitmap>();
+            lastSprite=name;
+        }
+        Bitmap image;if(lastFrames.TryGetValue(frame,out image))return image;
         string file=Path.Combine(Project,"sprites",name,frame+".png");
         if(!File.Exists(file)){file=Path.Combine(Project,"sprites",name,"0.png");if(!File.Exists(file))return null;}
         using(var stream=new MemoryStream(File.ReadAllBytes(file)))using(var source=Image.FromStream(stream))image=new Bitmap(source);
-        images[key]=image;return image;
+        return lastFrames[frame]=image;
     }
     public Bitmap GetBackground(string name)
     {
@@ -434,7 +443,13 @@ internal sealed class SpriteStore : IDisposable
     {
         if(scaleX==0||scaleY==0||alpha<=0)return;var image=Get(name,frame);if(image==null)return;
         SpriteMeta meta;Metadata.TryGetValue(name,out meta);
+        if(Timing!=null)Timing.Sprites++;
         int ox=meta==null?0:meta.originX,oy=meta==null?0:meta.originY;
+        if(Batch!=null&&Batch.Add(g,image,ox,oy,x,y,scaleX,scaleY,angle,alpha,tint))return;
+        DrawCpu(g,image,ox,oy,x,y,scaleX,scaleY,angle,alpha,tint);
+    }
+    internal void DrawCpu(Graphics g,Bitmap image,int ox,int oy,double x,double y,double scaleX,double scaleY,double angle,double alpha,Color tint)
+    {
         var attributes=Tint(alpha,tint);
         if(scaleX==1&&scaleY==1&&Math.Abs(angle%360)<.0001&&x==Math.Floor(x)&&y==Math.Floor(y)){g.DrawImage(image,new Rectangle((int)x-ox,(int)y-oy,image.Width,image.Height),0,0,image.Width,image.Height,GraphicsUnit.Pixel,attributes);return;}
         var state=g.Save();g.TranslateTransform((float)x,(float)y);g.RotateTransform((float)-angle);g.ScaleTransform((float)scaleX,(float)scaleY);
@@ -456,5 +471,5 @@ internal sealed class SpriteStore : IDisposable
     {
         DrawExt(g,name,x,y,scale,scale,angle,alpha,tint,frame);
     }
-    public void Dispose(){foreach(var image in images.Values)if(image!=null)image.Dispose();images.Clear();foreach(var attributes in attributesCache.Values)attributes.Dispose();attributesCache.Clear();}
+    public void Dispose(){lastSprite=null;lastFrames=null;foreach(var frames in spriteFrames.Values)foreach(var sprite in frames.Values)sprite.Dispose();spriteFrames.Clear();foreach(var image in images.Values)if(image!=null)image.Dispose();images.Clear();foreach(var attributes in attributesCache.Values)attributes.Dispose();attributesCache.Clear();}
 }

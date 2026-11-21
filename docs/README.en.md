@@ -1,10 +1,10 @@
 # RufMaker
 
-**RufMaker 2.8.0** adds a native GM object event and action editor. Right-click an object under Assets → Objects and choose **Convert to editable item** to turn supported initialization into an independent bullet source. For complex Step, Draw or collision events, the editor lists what requires GM and offers **Keep as native clip**.
+**RufMaker 2.8.1** accelerates editor previews with dense bullets, trails and full-screen effects. Open the preview’s **Display** menu to toggle GPU acceleration or inspect frame timings.
 
 Presets → Object properties now includes optional **Bullet physics** (acceleration, friction, gravity and gravity direction) and **Sprite animation** (initial frame, speed and delay). Values are sampled at birth, support expressions/keys and are preserved in saving, undo, copies and presets. Physics begins on the next age frame; formations use it after release. Gravity at 270° points down. Animation speed 0 freezes, 0.25 advances one sprite frame every four logic frames, and negative speeds run backwards. Converted native objects keep GM's one-frame animation startup delay. Rainbow colors take precedence over ordinary animation. Clip speed changes scale physics and animation together. [Detailed guide, Chinese](native-object-conversion.md).
 
-Press F1 in the redesigned editor to find a command. Motion blur now preserves its blend when a paused frame is redrawn. For a first installation, extract the full Windows portable ZIP and run `RufMaker.exe`. Existing users can choose **Check for updates** in the editor. [Download RufMaker 2.8.0](https://github.com/wymcaT/RufMaker/releases/tag/v2.8.0) · [Release notes](releases/v2.8.0.md)
+For a first installation, extract the full Windows portable ZIP and run RufMaker.exe. Existing users can select **Check for updates** in the editor. [Download RufMaker 2.8.1](https://github.com/wymcaT/RufMaker/releases/tag/v2.8.1) · [Release notes](releases/v2.8.1.md)
 
 The previous 200-item/lane limit and 20,000-bullet cutoff in simple preview rendering have been removed. **Tools → Undo memory budget** selects an estimated shared Undo/Redo budget (128 MiB by default). See the [performance and saving guide](performance-and-saving.md) (Chinese).
 

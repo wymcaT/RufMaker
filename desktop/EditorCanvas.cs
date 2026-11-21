@@ -83,6 +83,8 @@ internal sealed partial class StageCanvas : Control
     private SpriteStore workerSprites;private readonly PreviewCache previewCache=new PreviewCache();
     private SpriteStore assetOwner;private int assetVersion,workerAssetVersion=-1;
     public Action<ObjectStatisticsSnapshot> StatisticsReady;public Action<int> StatisticsPending;
+    internal bool ShowTimings,UseGpu=true;
+    private PreviewTiming displayedTiming;
     public double LastRenderMilliseconds {get;private set;}
     public StageCanvas(){DoubleBuffered=true;ResizeRedraw=true;BackColor=Theme.Back;AllowDrop=true;TabStop=true;}
     public void SceneChanged()
@@ -102,20 +104,40 @@ internal sealed partial class StageCanvas : Control
         var pending=new Stack<Track>(tracks);
         while(pending.Count>0){var track=pending.Pop();if(track.previewHidden)track.enabled=false;foreach(var child in track.children)pending.Push(child);}
     }
-    private void RequestRender(){serial++;if(renderCancellation!=null)renderCancellation.Cancel();QueueRender();Invalidate();}
-    public void ShowFrame(int frame){if(Frame==frame&&image!=null)return;Frame=frame;if(!InspectRoomOnly)RequestRender();}
+    private void RequestRender(bool immediate=true){serial++;if(renderCancellation!=null)renderCancellation.Cancel();QueueRender();if(immediate)Invalidate();}
+    public void ShowFrame(int frame){if(Frame==frame&&image!=null)return;Frame=frame;if(!InspectRoomOnly)RequestRender(false);}
     public void DisplayOptionsChanged(){RequestRender();}
     private async void QueueRender()
     {
         if(rendering||renderState==null||!IsHandleCreated||IsDisposed||finished==serial)return;
         if(StatisticsPending!=null&&!InspectRoomOnly)StatisticsPending(Frame);ObjectStatisticsSnapshot statistics=null;
-        rendering=true;int request=serial,frame=InspectRoomOnly?0:Frame,assets=assetVersion;var state=renderState;var room=renderRoom;var objects=renderObjects;bool roomOnly=InspectRoomOnly;string project=renderProject,film=!roomOnly&&String.IsNullOrEmpty(TemplatePreviewId)?NativeFilmPath:null;var metadata=renderMetadata;bool grid=Grid,hitboxes=Hitboxes;var cameraPose=RenderCamera&&!roomOnly?Camera.At(Camera.Active(state,frame),frame,room):null;Fit();var transform=DisplayMatrix();int width=Math.Max(1,Width),height=Math.Max(1,Height);RectangleF frameBounds=view;RectangleF? clip=RenderCamera&&!roomOnly?(RectangleF?)view:null;
+        rendering=true;int request=serial,frame=InspectRoomOnly?0:Frame,assets=assetVersion;var state=renderState;var room=renderRoom;var objects=renderObjects;bool roomOnly=InspectRoomOnly;string project=renderProject,film=!roomOnly&&String.IsNullOrEmpty(TemplatePreviewId)?NativeFilmPath:null;var metadata=renderMetadata;bool grid=Grid,hitboxes=Hitboxes,useGpu=UseGpu;var cameraPose=RenderCamera&&!roomOnly?Camera.At(Camera.Active(state,frame),frame,room):null;Fit();var transform=DisplayMatrix();int width=Math.Max(1,Width),height=Math.Max(1,Height);RectangleF frameBounds=view;RectangleF? clip=RenderCamera&&!roomOnly?(RectangleF?)view:null;
         var clock=System.Diagnostics.Stopwatch.StartNew();var cancellation=new System.Threading.CancellationTokenSource();renderCancellation=cancellation;
         try
         {
-            var next=await System.Threading.Tasks.Task.Run(()=>{previewCache.Cancelled=()=>cancellation.IsCancellationRequested;previewCache.ThrowIfCancelled();if(workerSprites==null||workerSprites.Project!=project||workerAssetVersion!=assets){if(workerSprites!=null)workerSprites.Dispose();workerSprites=new SpriteStore{Project=project};workerAssetVersion=assets;previewCache.Clear();}workerSprites.Metadata=metadata;var bitmap=PreviewRenderer.Render(state,room,objects,workerSprites,frame,grid,hitboxes,previewCache,transform,width,height,clip,frameBounds,film,cameraPose,roomOnly:roomOnly);try{previewCache.ThrowIfCancelled();if(!roomOnly)statistics=ObjectStatistics.Capture(state,room,frame,previewCache);return bitmap;}catch{bitmap.Dispose();throw;}});
+            var next=await System.Threading.Tasks.Task.Run(()=>{
+                previewCache.Cancelled=()=>cancellation.IsCancellationRequested;
+                previewCache.ThrowIfCancelled();
+                if(workerSprites==null||workerSprites.Project!=project||workerAssetVersion!=assets){
+                    if(workerSprites!=null)workerSprites.Dispose();
+                    workerSprites=new SpriteStore{Project=project};workerAssetVersion=assets;previewCache.Clear();
+                }
+                workerSprites.Metadata=metadata;previewCache.UseGpu=useGpu;
+                var bitmap=PreviewRenderer.Render(state,room,objects,workerSprites,frame,grid,hitboxes,previewCache,
+                    transform,width,height,clip,frameBounds,film,cameraPose,roomOnly:roomOnly);
+                try{
+                    previewCache.ThrowIfCancelled();
+                    if(!roomOnly){
+                        long start=PreviewTiming.Now();
+                        statistics=ObjectStatistics.Capture(state,room,frame,previewCache);
+                        previewCache.Timing.Statistics=PreviewTiming.Since(start);
+                        previewCache.Timing.Total+=previewCache.Timing.Statistics;
+                    }
+                    return bitmap;
+                }catch{bitmap.Dispose();throw;}
+            });
             LastRenderMilliseconds=clock.Elapsed.TotalMilliseconds;
-            if(IsDisposed||cancellation.IsCancellationRequested||request!=serial||state!=renderState||!roomOnly&&frame!=Frame){next.Dispose();finished=request;return;}lastRenderFailure=null;if(StatisticsReady!=null&&statistics!=null)StatisticsReady(statistics);var previous=image;image=next;DisplayedFrame=frame;if(previous!=null)previous.Dispose();finished=request;Invalidate();
+            if(IsDisposed||cancellation.IsCancellationRequested||request!=serial||state!=renderState||!roomOnly&&frame!=Frame){next.Dispose();finished=request;return;}lastRenderFailure=null;displayedTiming=previewCache.Timing;if(StatisticsReady!=null&&statistics!=null)StatisticsReady(statistics);var previous=image;image=next;DisplayedFrame=frame;previewCache.RecycleFrame(previous);finished=request;Invalidate();
         }
         catch(OperationCanceledException){finished=request;}
         catch(Exception error){previewCache.ClearHistory();if(!IsDisposed){System.Diagnostics.Debug.WriteLine(error);finished=request;string key=error.GetType().FullName+error.Message;if(request==serial&&key!=lastRenderFailure){lastRenderFailure=key;if(RenderFailed!=null)RenderFailed(error);}}}
@@ -151,8 +173,9 @@ internal sealed partial class StageCanvas : Control
     protected override void OnResize(EventArgs e){base.OnResize(e);if(previewCache!=null)DisplayOptionsChanged();}
     protected override void OnPaint(PaintEventArgs e)
     {
-        base.OnPaint(e);Fit();var g=e.Graphics;Theme.Workspace(g,ClientRectangle);
-        if(image!=null){g.InterpolationMode=InterpolationMode.NearestNeighbor;g.DrawImageUnscaled(image,0,0);}else{Theme.Label(g,"正在绘制房间…",ClientRectangle,Theme.Muted,null,TextFormatFlags.HorizontalCenter|TextFormatFlags.VerticalCenter);QueueRender();}
+        base.OnPaint(e);Fit();var g=e.Graphics;
+        if(image==null||image.Width<Width||image.Height<Height)Theme.Workspace(g,ClientRectangle);
+        if(image!=null){g.InterpolationMode=InterpolationMode.NearestNeighbor;var mode=g.CompositingMode;g.CompositingMode=CompositingMode.SourceCopy;g.DrawImageUnscaled(image,0,0);g.CompositingMode=mode;}else{Theme.Label(g,"正在绘制房间…",ClientRectangle,Theme.Muted,null,TextFormatFlags.HorizontalCenter|TextFormatFlags.VerticalCenter);QueueRender();}
         if(State==null||Room==null)return;
         var saved=g.Save();if(RenderCamera&&!InspectRoomOnly)g.SetClip(view);using(var m=DisplayMatrix())g.Transform=m;g.SmoothingMode=SmoothingMode.AntiAlias;
         if(ShowNativeViews&&(InspectRoomOnly||NativeFilmPath==null))using(var pen=new Pen(Theme.Accent,1.5f)){
@@ -198,6 +221,11 @@ internal sealed partial class StageCanvas : Control
         Theme.FillRoundRect(g,pill,12,Color.FromArgb(230,Theme.Void));
         Theme.DrawRoundRect(g,pill,12,Theme.LineBright,1f);
         Theme.Label(g,text,new Rectangle(pill.X+10,pill.Y,Math.Max(1,pill.Width-18),pill.Height),Theme.Text,Theme.Small,localize:false);
+        if(ShowTimings&&displayedTiming!=null){
+            var metrics=displayedTiming.Caption();var size=TextRenderer.MeasureText(metrics,Theme.Small);
+            var area=new Rectangle(6,6,size.Width+10,size.Height+6);Theme.FillRoundRect(g,area,6,Color.FromArgb(235,Theme.Void));
+            TextRenderer.DrawText(g,metrics,Theme.Small,new Point(11,9),Color.White);
+        }
     }
     private static bool Near(PointF a,PointF b,double radius){return Math.Abs(a.X-b.X)<radius&&Math.Abs(a.Y-b.Y)<radius;}
     private void PaintPlayerTrace(Graphics g)

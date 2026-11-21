@@ -1,4 +1,7 @@
 {
+  "GPU 预览加速": "GPU preview acceleration",
+  "预览分项耗时": "Preview frame timings",
+  "预览 {0:0.0} ms · 演算 {1:0.0} · 拖影 {2:0.0} · 本体 {3:0.0} · 独立特效 {4:0.0}\n底片 {5:0.0} · 场景 {6:0.0} · 统计 {7:0.0} · {8}\nGPU 合成（含同批特效）{9:0.0} ms · 回读 {10} 次": "Preview {0:0.0} ms · simulation {1:0.0} · trails {2:0.0} · sprites {3:0.0} · separate effects {4:0.0}\nFilm {5:0.0} · scene {6:0.0} · statistics {7:0.0} · {8}\nGPU composite (includes batched effects) {9:0.0} ms · {10} readbacks",
   "撤销内存预算": "Undo memory budget",
   "撤销内存预算已更新；超出预算时淘汰最早的历史。": "Undo memory budget updated; the oldest history is discarded when the budget is exceeded.",
   "预览绘制失败：": "Preview rendering failed: ",

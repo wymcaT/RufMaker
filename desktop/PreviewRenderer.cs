@@ -9,10 +9,21 @@ internal static class PreviewRenderer
     public static Bitmap Render(EditorState state,RoomData room,Dictionary<string,string> objectSprites,SpriteStore sprites,int frame,bool grid,bool hitboxes,PreviewCache cache=null,Matrix transform=null,int width=0,int height=0,RectangleF? displayClip=null,RectangleF? effectsFrame=null,string nativeFilmPath=null,CameraPose camera=null,bool applyEffects=true,bool roomOnly=false)
     {
         if(cache==null)using(var temporary=new PreviewCache())return Render(state,room,objectSprites,sprites,frame,grid,hitboxes,temporary,transform,width,height,displayClip,effectsFrame,nativeFilmPath,camera,applyEffects,roomOnly);
-        cache.ThrowIfCancelled();cache.UseScene(state,room);state=cache.expandedState;
-        var film=cache.FilmFrame(nativeFilmPath,frame,state.fps);bool advanced=BulletSystem.Advanced(state);if(advanced){if(cache.bulletWorld==null)cache.bulletWorld=new BulletWorld(state,room,f=>cache.FilmInfo==null?null:cache.FilmInfo.View((int)Math.Round(f*cache.FilmInfo.fps/(double)Math.Max(1,state.fps))));cache.bulletWorld.Seek(frame,cache.Cancelled);}cache.ThrowIfCancelled();
+        long start=PreviewTiming.Now();var timing=new PreviewTiming();cache.Timing=timing;
+        sprites.Timing=timing;
+        try{return RenderScene(state,room,objectSprites,sprites,frame,grid,hitboxes,cache,transform,width,height,displayClip,effectsFrame,nativeFilmPath,camera,applyEffects,roomOnly);}
+        finally{
+            sprites.Timing=null;timing.Total=PreviewTiming.Since(start);
+            timing.Scene=Math.Max(0,timing.Total-timing.Film-timing.Simulation-timing.Trails-timing.Bodies-timing.Effects-timing.Fused);
+        }
+    }
+    private static Bitmap RenderScene(EditorState state,RoomData room,Dictionary<string,string> objectSprites,SpriteStore sprites,int frame,bool grid,bool hitboxes,PreviewCache cache=null,Matrix transform=null,int width=0,int height=0,RectangleF? displayClip=null,RectangleF? effectsFrame=null,string nativeFilmPath=null,CameraPose camera=null,bool applyEffects=true,bool roomOnly=false)
+    {
+        cache.ThrowIfCancelled();cache.UseScene(state,room);state=cache.expandedState;cache.TrimFormations(frame);
+        long phase=PreviewTiming.Now();var film=cache.FilmFrame(nativeFilmPath,frame,state.fps);cache.Timing.Film+=PreviewTiming.Since(phase);
+        phase=PreviewTiming.Now();bool advanced=BulletSystem.Advanced(state);if(advanced){if(cache.bulletWorld==null)cache.bulletWorld=new BulletWorld(state,room,f=>cache.FilmInfo==null?null:cache.FilmInfo.View((int)Math.Round(f*cache.FilmInfo.fps/(double)Math.Max(1,state.fps))));cache.bulletWorld.Seek(frame,cache.Cancelled);}cache.Timing.Simulation+=PreviewTiming.Since(phase);cache.ThrowIfCancelled();
         if(camera!=null&&camera.Post){
-            Bitmap processed;using(var scene=Render(state,room,objectSprites,sprites,frame,grid,hitboxes,cache,null,room.width,room.height,null,null,nativeFilmPath,null,false))processed=Effects.CameraFrame(scene,camera);
+            Bitmap processed;using(var scene=RenderScene(state,room,objectSprites,sprites,frame,grid,hitboxes,cache,null,room.width,room.height,null,null,nativeFilmPath,null,false))processed=Effects.CameraFrame(scene,camera);
             if(applyEffects)processed=Effects.Apply(processed,state,frame,cache);
             if(transform==null&&width<=0&&height<=0)return processed;
             var output=new Bitmap(width>0?width:room.width,height>0?height:room.height);
@@ -33,66 +44,108 @@ internal static class PreviewRenderer
 
             }
         }
-        var bitmap=new Bitmap(width>0?width:room.width,height>0?height:room.height);
-        try
-        {
-            using(var g=Graphics.FromImage(bitmap))
-            {
-                Theme.Workspace(g,new Rectangle(0,0,bitmap.Width,bitmap.Height));if(displayClip.HasValue)g.SetClip(displayClip.Value);if(transform!=null)g.Transform=transform;
-                g.InterpolationMode=InterpolationMode.NearestNeighbor;g.PixelOffsetMode=PixelOffsetMode.Half;
-                var background=film??cache.roomLayer;
-                using(var edge=new System.Drawing.Imaging.ImageAttributes()){edge.SetWrapMode(WrapMode.TileFlipXY);g.DrawImage(background,new Rectangle(0,0,room.width,room.height),0,0,background.Width,background.Height,GraphicsUnit.Pixel,edge);}
-                if(film==null)RoomPresentation.DrawBackgrounds(g,room,sprites,frame,false);
-                var nativeView=film==null||cache.FilmInfo==null?null:cache.FilmInfo.View((int)Math.Round(frame*cache.FilmInfo.fps/(double)Math.Max(1,state.fps)));
-                if(nativeView!=null&&displayClip.HasValue)g.SetClip(nativeView.Viewport(room.width,room.height),CombineMode.Intersect);
-                if(nativeView!=null)using(var matrix=nativeView.WorldToRoom(room.width,room.height))g.MultiplyTransform(matrix,MatrixOrder.Prepend);
-                if(grid)using(var pen=new Pen(Color.FromArgb(35,104,127,160))){for(int x=0;x<room.width;x+=32)g.DrawLine(pen,x,0,x,room.height);for(int y=0;y<room.height;y+=32)g.DrawLine(pen,0,y,room.width,y);}
-                g.InterpolationMode=InterpolationMode.NearestNeighbor;g.PixelOffsetMode=PixelOffsetMode.Half;
-                var layers=new DepthLayers();
-                double trailDepth=Math.Max(-6999999,state.tracks.Where(t=>t.enabled&&Theme.Visual(t.kind)).Select(t=>(double)DrawingDepth.Track(t)+1).DefaultIfEmpty(-6999999).Max());
-                if(advanced)trailDepth=Math.Max(trailDepth,cache.bulletWorld.bullets.Where(b=>!b.dead).Select(b=>DrawingDepth.Bullet(b)+1).DefaultIfEmpty(-6999999).Max());
-                layers.Add(trailDepth,()=>{
+        var size=new Size(width>0?width:room.width,height>0?height:room.height);
+        Action<Graphics> paintBase=g=>{
+            Theme.Workspace(g,new Rectangle(0,0,size.Width,size.Height));if(displayClip.HasValue)g.SetClip(displayClip.Value);if(transform!=null)g.Transform=transform;
+            g.InterpolationMode=InterpolationMode.NearestNeighbor;g.PixelOffsetMode=PixelOffsetMode.Half;
+            var background=film??cache.roomLayer;
+            using(var edge=new System.Drawing.Imaging.ImageAttributes()){edge.SetWrapMode(WrapMode.TileFlipXY);g.DrawImage(background,new Rectangle(0,0,room.width,room.height),0,0,background.Width,background.Height,GraphicsUnit.Pixel,edge);}
+            if(film==null)RoomPresentation.DrawBackgrounds(g,room,sprites,frame,false);
+            var nativeView=film==null||cache.FilmInfo==null?null:cache.FilmInfo.View((int)Math.Round(frame*cache.FilmInfo.fps/(double)Math.Max(1,state.fps)));
+            if(nativeView!=null&&displayClip.HasValue)g.SetClip(nativeView.Viewport(room.width,room.height),CombineMode.Intersect);
+            if(nativeView!=null)using(var matrix=nativeView.WorldToRoom(room.width,room.height))g.MultiplyTransform(matrix,MatrixOrder.Prepend);
+            if(grid)using(var pen=new Pen(Color.FromArgb(35,104,127,160))){for(int x=0;x<room.width;x+=32)g.DrawLine(pen,x,0,x,room.height);for(int y=0;y<room.height;y+=32)g.DrawLine(pen,0,y,room.width,y);}
+            g.InterpolationMode=InterpolationMode.NearestNeighbor;g.PixelOffsetMode=PixelOffsetMode.Half;
+        };
+        Action<Graphics> paintLayers=g=>{
+            var layers=new DepthLayers();
+            double trailDepth=Math.Max(-6999999,state.tracks.Where(t=>t.enabled&&Theme.Visual(t.kind)).Select(t=>(double)DrawingDepth.Track(t)+1).DefaultIfEmpty(-6999999).Max());
+            if(advanced)trailDepth=Math.Max(trailDepth,cache.bulletWorld.bullets.Where(b=>!b.dead).Select(b=>DrawingDepth.Bullet(b)+1).DefaultIfEmpty(-6999999).Max());
+            layers.Add(trailDepth,()=>{
+                long trailsStart=PreviewTiming.Now();
+                Action draw=()=>{
                     if(advanced)cache.bulletWorld.Draw(g,sprites,0,hitboxes,cache.Cancelled);
                     foreach(var track in state.tracks)DrawTrack(g,state,objectSprites,sprites,frame,hitboxes,cache,advanced,track,0);
+                };
+                if(cache.Gpu!=null)cache.Gpu.Batch(g,sprites,size.Width,size.Height,cache.Timing,draw);else draw();
+                cache.Timing.Trails+=PreviewTiming.Since(trailsStart);
+            });
+            var roomArt=cache.RoomArt(room);
+            foreach(double depth in roomArt.Depths){
+                double at=depth;
+                layers.Add(at,()=>{
+                    Action draw=()=>roomArt.Draw(g,objectSprites,sprites,hitboxes,baked,cache,at);
+                    if(!hitboxes&&roomArt.DenseSprites(at)&&cache.Gpu!=null)cache.Gpu.Batch(g,sprites,size.Width,size.Height,cache.Timing,draw);
+                    else draw();
                 });
-                var roomArt=cache.RoomArt(room);
-                foreach(double depth in roomArt.Depths){double at=depth;layers.Add(at,()=>roomArt.Draw(g,objectSprites,sprites,hitboxes,baked,cache,at));}
-                if(advanced)foreach(var group in cache.bulletWorld.bullets.Where(b=>!b.dead&&frame>=b.birth).GroupBy(DrawingDepth.Bullet)){
-                    var members=group;layers.Add(group.Key,()=>cache.bulletWorld.Draw(g,sprites,3,hitboxes,cache.Cancelled,members));
+            }
+            if(advanced)foreach(var group in cache.bulletWorld.bullets.Where(b=>!b.dead&&frame>=b.birth).GroupBy(DrawingDepth.Bullet)){
+                var members=group;
+                layers.Add(group.Key,()=>DrawBodies(g,sprites,size,cache,!hitboxes,
+                    ()=>cache.bulletWorld.Draw(g,sprites,3,hitboxes,cache.Cancelled,members)));
+            }
+            foreach(var track in state.tracks){
+                var item=track;
+                if(item.kind=="object"||item.kind=="rod"||item.kind=="native-instance"||item.kind=="emitter"&&!advanced)
+                    layers.Add(DrawingDepth.Track(item),()=>DrawBodies(g,sprites,size,cache,!hitboxes&&item.kind!="native-instance",
+                        ()=>DrawTrack(g,state,objectSprites,sprites,frame,hitboxes,cache,advanced,item,1)));
+            }
+            if(!roomOnly)layers.Add(room.playerDepth,()=>DrawPlayer(g,state,sprites,frame,hitboxes));
+            layers.Draw();
+        };
+        Bitmap bitmap=null;bool finishedEffects=false;
+        try{
+            // The command-only pass requires every depth layer to draw through SpriteStore.
+            // GDI markers, tiled subrectangles and moving backgrounds retain their original painter.
+            bool spriteScene=cache.Gpu!=null&&!hitboxes&&film==null&&room.tiles.Length==0&&
+                !room.backgrounds.Any(bg=>bg.foreground||bg.speedX!=0||bg.speedY!=0)&&
+                !state.tracks.Exists(t=>t.enabled&&t.kind=="native-instance"&&BulletSystem.Active(t,frame)&&
+                    (!objectSprites.ContainsKey(t.nativeObject??"")||sprites.Get(objectSprites[t.nativeObject??""])==null));
+            if(spriteScene){
+                bitmap=cache.Gpu.Compose(sprites,cache,state,frame,cache.roomLayer,size,transform,displayClip,
+                    new Size(room.width,room.height),effectsFrame,applyEffects,paintBase,paintLayers,out finishedEffects);
+            }
+            if(bitmap==null){
+                bitmap=new Bitmap(size.Width,size.Height);
+                using(var g=Graphics.FromImage(bitmap)){
+                    long tick=PreviewTiming.Now();paintBase(g);cache.Timing.Backdrop+=PreviewTiming.Since(tick);
+                    paintLayers(g);if(film==null)RoomPresentation.DrawBackgrounds(g,room,sprites,frame,true);
                 }
-                foreach(var track in state.tracks){
-                    var item=track;
-                    if(item.kind=="object"||item.kind=="rod"||item.kind=="native-instance"||item.kind=="emitter"&&!advanced)
-                        layers.Add(DrawingDepth.Track(item),()=>DrawTrack(g,state,objectSprites,sprites,frame,hitboxes,cache,advanced,item,1));
-                }
-                if(!roomOnly)layers.Add(room.playerDepth,()=>DrawPlayer(g,state,sprites,frame,hitboxes));
-                layers.Draw();
-                if(film==null)RoomPresentation.DrawBackgrounds(g,room,sprites,frame,true);
             }
             Bitmap result=bitmap;
-            if(applyEffects&&effectsFrame.HasValue)
+            if(applyEffects&&!finishedEffects&&effectsFrame.HasValue)
             {
                 bool active=state.tracks.Exists(t=>t.enabled&&t.kind=="effect"&&frame>=t.start&&frame<=t.end);
                 if(active)
                 {
+                    long cropStart=PreviewTiming.Now();double effectsBefore=cache.Timing.Effects;
                     var area=new Bitmap(room.width,room.height);
                     using(var g=Graphics.FromImage(area))g.DrawImage(bitmap,new RectangleF(0,0,room.width,room.height),effectsFrame.Value,GraphicsUnit.Pixel);
                     area=Effects.Apply(area,state,frame,cache);
                     using(area)using(var g=Graphics.FromImage(bitmap))g.DrawImage(area,effectsFrame.Value);
+                    cache.Timing.Crop+=PreviewTiming.Since(cropStart)-(cache.Timing.Effects-effectsBefore);
                 }
                 else cache.ClearEffects();
             }
-            else if(applyEffects)result=Effects.Apply(bitmap,state,frame,cache);
+            else if(applyEffects&&!finishedEffects)result=Effects.Apply(bitmap,state,frame,cache);
             if(displayClip.HasValue)using(var g=Graphics.FromImage(result)){g.SetClip(displayClip.Value,CombineMode.Exclude);Theme.Workspace(g,new Rectangle(0,0,result.Width,result.Height));}
             return result;
         }
-        catch{bitmap.Dispose();throw;}
+        catch{if(bitmap!=null)bitmap.Dispose();throw;}
+    }
+
+    private static void DrawBodies(Graphics g,SpriteStore sprites,Size target,PreviewCache cache,bool spriteOnly,Action draw)
+    {
+        long start=PreviewTiming.Now();
+        if(spriteOnly&&cache.Gpu!=null)cache.Gpu.Batch(g,sprites,target.Width,target.Height,cache.Timing,draw);
+        else draw();
+        cache.Timing.Bodies+=PreviewTiming.Since(start);
     }
 
     private static void DrawTrack(Graphics g,EditorState state,Dictionary<string,string> objectSprites,SpriteStore sprites,int frame,bool hitboxes,PreviewCache cache,bool advanced,Track track,int pass)
     {
         cache.ThrowIfCancelled();
-        if(!track.enabled||track.templateOnly||advanced&&!cache.bulletWorld.Templates.Visible(track))return;Color tint=track.rainbow?Color.White:Motion.ColorOf(track.color);
+        if(!track.enabled||track.templateOnly||pass==0&&Trails.Mode(track)=="off"||advanced&&!cache.bulletWorld.Templates.Visible(track))return;Color tint=track.rainbow?Color.White:Motion.ColorOf(track.color);
         if(track.kind=="native-instance"){
             if(cache.FilmInfo!=null&&cache.FilmInfo.nativeTrackIds.Contains(track.id))return;
             if(pass==1&&BulletSystem.Active(track,frame)){
@@ -105,16 +158,28 @@ internal static class PreviewRenderer
         }
         if(BulletSystem.Active(track,frame)&&(track.kind=="object"||track.kind=="rod"&&(track.releaseFrame<0||frame<track.releaseFrame)))
         {
-            var p=Motion.At(track,frame);
-            if(pass==0&&Trails.Mode(track)!="off")
-            for(int sample=(frame/Trails.Interval(track))*Trails.Interval(track);sample>=Math.Max(track.start,frame-Trails.Life(track)+1);sample-=Trails.Interval(track))
-            {
-                var q=Motion.At(track,sample);int tail=frame-sample;
-                if(track.kind=="object")Trails.Draw(g,sprites,track,sample,tail,q.x,q.y,q.scale,q.angle,q.alpha,tint,Rainbow.Index(track,0,sample));
-                else {var points=Motion.RodPoints(track,sample);for(int k=0;k<points.Length;k++)if(!advanced||cache.bulletWorld.Templates.Visible(track,k))Trails.Draw(g,sprites,track,sample*301+k,tail,points[k].X,points[k].Y,q.scale,Motion.Value(track,"spriteAngle",sample)+(track.rotateSprite?q.angle:0),q.alpha,tint,Rainbow.Index(track,Rainbow.RodSequence(track,k,points.Length,sample,points[k],q),sample));}
+            if(pass==0){
+                int step=Trails.Interval(track);
+                for(int sample=(frame/step)*step;sample>=Math.Max(track.start,frame-Trails.Life(track)+1);sample-=step){
+                    if(track.kind=="object"){
+                        var q=Motion.At(track,sample);
+                        Trails.Draw(g,sprites,track,sample,frame-sample,q.x,q.y,q.scale,q.angle,q.alpha,tint,Rainbow.Index(track,0,sample));
+                    }else{
+                        var s=cache.Formation(track,sample);
+                        for(int k=0;k<s.points.Length;k++)if(!advanced||cache.bulletWorld.Templates.Visible(track,k))
+                            Trails.Draw(g,sprites,track,sample*301+k,frame-sample,s.points[k].X,s.points[k].Y,s.pose.scale,s.angle,s.pose.alpha,tint,s.images[k]);
+                    }
+                }
+            }else if(track.kind=="object"){
+                var p=Motion.At(track,frame);sprites.Draw(g,track.sprite,p.x,p.y,p.scale,p.angle,p.alpha,tint,Rainbow.Index(track,0,frame));
+            }else{
+                var s=cache.Formation(track,frame);
+                for(int k=0;k<s.points.Length;k++)if(!advanced||cache.bulletWorld.Templates.Visible(track,k)){
+                    var look=advanced&&cache.bulletWorld.HasFormationProperties?cache.bulletWorld.FixedMember(track,k,frame):null;
+                    sprites.Draw(g,track.sprite,s.points[k].X,s.points[k].Y,look==null?s.pose.scale:look.scale,s.angle,
+                        look==null?s.pose.alpha:look.alpha,look==null?tint:look.color,s.images[k]);
+                }
             }
-            if(pass==1){if(track.kind=="object")sprites.Draw(g,track.sprite,p.x,p.y,p.scale,p.angle,p.alpha,tint,Rainbow.Index(track,0,frame));
-            else {var points=Motion.RodPoints(track,frame);for(int k=0;k<points.Length;k++)if(!advanced||cache.bulletWorld.Templates.Visible(track,k)){var look=advanced&&cache.bulletWorld.HasFormationProperties?cache.bulletWorld.FixedMember(track,k,frame):null;sprites.Draw(g,track.sprite,points[k].X,points[k].Y,look==null?p.scale:look.scale,Motion.Value(track,"spriteAngle",frame)+(track.rotateSprite?p.angle:0),look==null?p.alpha:look.alpha,look==null?tint:look.color,Rainbow.Index(track,Rainbow.RodSequence(track,k,points.Length,frame,points[k],p),frame));}}}
         }
         if(track.kind!="emitter")return;
         if(advanced)return;
@@ -192,6 +257,7 @@ internal static class PreviewRenderer
             }
             else
             {
+                if(sprites.Batch!=null)sprites.Batch.RequireGdi();
                 using(var pen=new Pen(Color.FromArgb(220,0,240,255),1.5f))
                 {
                     g.DrawRectangle(pen,(float)px-6,(float)py-12,12,24);
